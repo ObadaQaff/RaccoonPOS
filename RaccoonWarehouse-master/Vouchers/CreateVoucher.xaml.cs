@@ -3,6 +3,7 @@ using RaccoonWarehouse.Application.Service.FinancialTransactions;
 using RaccoonWarehouse.Application.Service.Units;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Application.Service.Vouchers;
+using RaccoonWarehouse.Domain.Cashiers.DTOs;
 using RaccoonWarehouse.Domain.Checks;
 using RaccoonWarehouse.Domain.Checks.DTOs;
 using RaccoonWarehouse.Domain.Enums;
@@ -78,6 +79,15 @@ namespace RaccoonWarehouse.Vouchers
             };
 
 
+        }
+        private bool TryGetActiveCashierSession(out CashierSessionReadDto? session)
+        {
+            session = _userSession.CurrentCashierSession;
+            if (session != null)
+                return true;
+
+            MessageBox.Show("لا توجد جلسة كاشير مفتوحة. الرجاء فتح جلسة أولاً.", "خطأ");
+            return false;
         }
 
         /*private async void SaveReceiptBtn_Click(object sender, RoutedEventArgs e)
@@ -214,13 +224,15 @@ namespace RaccoonWarehouse.Vouchers
                 }
 
                 bool isUpdate = _currentVoucherId != null;
+                if (!TryGetActiveCashierSession(out var session))
+                    return;
 
                 var dto = new VoucherWriteDto
                 {
                     VoucherNumber = ReceiptNumber.Text,
                     VoucherType = VoucherType.Receipt, // أو حسب شاشتك (Receipt/Payment)
                     Amount = amount,
-                    CasherId = _userSession.CurrentCashierSession?.CashierId ?? 0, // أو CurrentUser.Id
+                    CasherId = session.CashierId,
                     Notes = ReceiptDescription.Text,
                     CustomerId = AccountComboBox.SelectedValue != null ? (int)AccountComboBox.SelectedValue : null,
                     CreatedDate = ReceiptDate.SelectedDate ?? DateTime.Now,
@@ -294,8 +306,8 @@ namespace RaccoonWarehouse.Vouchers
                     SourceType = sourceType,
                     SourceId = savedVoucherId,
 
-                    CashierSessionId = _userSession.CurrentCashierSession?.Id,
-                    CashierId = _userSession.CurrentCashierSession?.CashierId,
+                    CashierSessionId = session.Id,
+                    CashierId = session.CashierId,
 
                     Notes = $"{dto.VoucherType} Voucher #{dto.VoucherNumber}"
                 };

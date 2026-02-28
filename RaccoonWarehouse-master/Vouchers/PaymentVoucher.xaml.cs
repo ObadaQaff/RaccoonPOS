@@ -2,6 +2,7 @@
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Application.Service.Vouchers;
 using RaccoonWarehouse.Core.Common;
+using RaccoonWarehouse.Domain.Cashiers.DTOs;
 using RaccoonWarehouse.Domain.Checks.DTOs;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.FinancialTransactions.DTOs;
@@ -73,6 +74,15 @@ namespace RaccoonWarehouse.Vouchers
 
 
         }
+        private bool TryGetActiveCashierSession(out CashierSessionReadDto? session)
+        {
+            session = _userSession.CurrentCashierSession;
+            if (session != null)
+                return true;
+
+            MessageBox.Show("لا توجد جلسة كاشير مفتوحة. الرجاء فتح جلسة أولاً.", "خطأ");
+            return false;
+        }
         private async void SaveReceiptBtn_Click(object sender, RoutedEventArgs e)
         {
             try
@@ -89,11 +99,8 @@ namespace RaccoonWarehouse.Vouchers
                     return;
                 }
 
-                if (_userSession?.CurrentCashierSession == null)
-                {
-                    MessageBox.Show("لا توجد جلسة كاشير مفتوحة. الرجاء تسجيل الدخول من جديد.", "خطأ");
+                if (!TryGetActiveCashierSession(out var session))
                     return;
-                }
 
                 var paymentType = (PaymentType)int.Parse(paymentItem.Tag.ToString());
 
@@ -110,7 +117,7 @@ namespace RaccoonWarehouse.Vouchers
                     VoucherNumber = ReceiptNumber.Text,
                     VoucherType = VoucherType.Payment,
                     Amount = amount,
-                    CasherId = _userSession.CurrentCashierSession.CashierId, // ✅
+                    CasherId = session.CashierId,
                     Notes = ReceiptDescription.Text,
                     CustomerId = AccountComboBox.SelectedValue != null ? (int)AccountComboBox.SelectedValue : null,
                     CreatedDate = ReceiptDate.SelectedDate ?? DateTime.Now,
@@ -179,8 +186,8 @@ namespace RaccoonWarehouse.Vouchers
                     SourceType = FinancialSourceType.PaymentVoucher,
                     SourceId = savedVoucherId,
 
-                    CashierSessionId = _userSession.CurrentCashierSession.Id,
-                    CashierId = _userSession.CurrentCashierSession.CashierId,
+                    CashierSessionId = session.Id,
+                    CashierId = session.CashierId,
 
                     Notes = $"Payment Voucher #{dto.VoucherNumber}"
                 };

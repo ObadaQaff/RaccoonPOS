@@ -1,10 +1,5 @@
-﻿using RaccoonWarehouse.Domain.Cashiers.DTOs;
+using RaccoonWarehouse.Domain.Cashiers.DTOs;
 using RaccoonWarehouse.Domain.Users.DTOs;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace RaccoonWarehouse.Application.Service.Users
 {
@@ -14,14 +9,9 @@ namespace RaccoonWarehouse.Application.Service.Users
         public CashierSessionReadDto? CurrentCashierSession { get; private set; }
 
         public bool IsLoggedIn => CurrentUser != null;
+        public bool HasActiveCashierSession => CurrentCashierSession != null;
 
-        public void StartSession(UserReadDto user/*, CashierSessionReadDto cashierSession*/)
-        {
-            CurrentUser = user;
-            //CurrentCashierSession = cashierSession;
-        }
-
-         public void StartUserSession(UserReadDto user)
+        public void SetCurrentUser(UserReadDto user)
         {
             CurrentUser = user;
             CurrentCashierSession = null;
@@ -29,8 +19,15 @@ namespace RaccoonWarehouse.Application.Service.Users
 
         public void AttachCashierSession(CashierSessionReadDto session)
         {
-            CurrentCashierSession = session;
+            if (CurrentUser == null)
+                throw new InvalidOperationException("A user session must exist before attaching a cashier session.");
 
+            CurrentCashierSession = session;
+        }
+
+        public void ClearCashierSession()
+        {
+            CurrentCashierSession = null;
         }
 
         public void EndSession()
@@ -43,14 +40,13 @@ namespace RaccoonWarehouse.Application.Service.Users
     public interface IUserSession
     {
         bool IsLoggedIn { get; }
-
+        bool HasActiveCashierSession { get; }
         UserReadDto? CurrentUser { get; }
         CashierSessionReadDto? CurrentCashierSession { get; }
-    
-        void StartUserSession(UserReadDto user);
+
+        void SetCurrentUser(UserReadDto user);
         void AttachCashierSession(CashierSessionReadDto session);
-        void StartSession(UserReadDto user);
+        void ClearCashierSession();
         void EndSession();
     }
-
 }

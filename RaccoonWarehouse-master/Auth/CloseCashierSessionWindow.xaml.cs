@@ -47,21 +47,24 @@ namespace RaccoonWarehouse.Auth
 
         public async Task InitAsync()
         {
-            if (_userSession.CurrentUser == null || _userSession.CurrentCashierSession == null)
+            var currentUser = _userSession.CurrentUser;
+            var currentSession = _userSession.CurrentCashierSession;
+
+            if (currentUser == null || currentSession == null)
             {
                 ErrorText.Text = "لا توجد جلسة مفتوحة.";
                 ErrorText.Visibility = Visibility.Visible;
                 return;
             }
 
-            CashierNameText.Text = _userSession.CurrentUser.Name;
-            SessionIdText.Text = _userSession.CurrentCashierSession.Id.ToString();
+            CashierNameText.Text = currentUser.Name;
+            SessionIdText.Text = currentSession.Id.ToString();
 
-            _opening = _userSession.CurrentCashierSession.StatrBalance;
+            _opening = currentSession.StatrBalance;
             OpeningText.Text = _opening.ToString("N2");
 
             _expected = await _financialService
-                .GetExpectedCashForSessionAsync(_userSession.CurrentCashierSession.Id);
+                .GetExpectedCashForSessionAsync(currentSession.Id);
             ExpectedText.Text = _expected.ToString("N2");
 
             CountedTextBox.Text = _expected.ToString("N2"); // default
@@ -72,7 +75,8 @@ namespace RaccoonWarehouse.Auth
         {
             ErrorText.Visibility = Visibility.Collapsed;
 
-            if (_userSession.CurrentCashierSession == null)
+            var currentSession = _userSession.CurrentCashierSession;
+            if (currentSession == null)
             {
                 ShowError("لا توجد جلسة مفتوحة.");
                 return;
@@ -90,7 +94,7 @@ namespace RaccoonWarehouse.Auth
                 return;
             }
 
-            var sessionId = _userSession.CurrentCashierSession.Id;
+            var sessionId = currentSession.Id;
             var diff = counted - _expected; // + over, - short
 
             try
@@ -114,7 +118,7 @@ namespace RaccoonWarehouse.Auth
                         SourceId = null,
 
                         CashierSessionId = sessionId,
-                        CashierId = _userSession.CurrentCashierSession.CashierId,
+                        CashierId = currentSession.CashierId,
 
                         Notes = $"Cash Over/Short on close. Diff={diff:N2}. {NotesTextBox.Text}"
                     };
@@ -124,8 +128,8 @@ namespace RaccoonWarehouse.Auth
                         MessageBox.Show(fin.Message ?? "تم إغلاق الجلسة لكن فشل تسجيل فرق الإغلاق.", "تحذير");
                 }
 
-                // 3) End runtime session
-                _userSession.EndSession();
+                // 3) Clear only cashier-session runtime state
+                _userSession.ClearCashierSession();
 
                 DialogResult = true;
                 Close();

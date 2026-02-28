@@ -5,6 +5,7 @@ using RaccoonWarehouse.Application.Service.Products;
 using RaccoonWarehouse.Application.Service.ProductUnits;
 using RaccoonWarehouse.Application.Service.Stocks;
 using RaccoonWarehouse.Application.Service.Users;
+using RaccoonWarehouse.Domain.Cashiers.DTOs;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.FinancialTransactions.DTOs;
 using RaccoonWarehouse.Domain.InvoiceLines.DTOs;
@@ -142,6 +143,15 @@ namespace RaccoonWarehouse.Invoices
             {
                 MessageBox.Show($"خطأ عند تحميل المنتجات: {ex.Message}", "خطأ");
             }
+        }
+        private bool TryGetActiveCashierSession(out CashierSessionReadDto? session)
+        {
+            session = _userSession.CurrentCashierSession;
+            if (session != null)
+                return true;
+
+            MessageBox.Show("لا توجد جلسة كاشير مفتوحة. الرجاء فتح جلسة أولاً.", "خطأ");
+            return false;
         }
 
         // هنا منطق المخزون للمشتريات: الكمية تزيد مع الموجب، تنقص مع السالب
@@ -348,6 +358,8 @@ namespace RaccoonWarehouse.Invoices
 
                 var supplier = SupplierComboBox.SelectedItem as UserReadDto;
                 decimal totalAmount = InvoiceLines.Sum(l => l.LineTotal);
+                if (!TryGetActiveCashierSession(out var session))
+                    return;
 
                 bool isUpdate = _currentInvoiceId != null;
 
@@ -422,6 +434,8 @@ namespace RaccoonWarehouse.Invoices
 
                 var supplier = SupplierComboBox.SelectedItem as UserReadDto; // أو UserReadDto للمورد
                 decimal totalAmount = InvoiceLines.Sum(l => l.LineTotal);
+                if (!TryGetActiveCashierSession(out var session))
+                    return;
 
                 bool isUpdate = _currentInvoiceId != null;
 
@@ -435,7 +449,7 @@ namespace RaccoonWarehouse.Invoices
                     CreatedDate = InvoiceDatePicker.SelectedDate.Value,
                     UpdatedDate = DateTime.Now,
                     InvoiceLines = InvoiceLines.ToList(),
-                    CasherId = _userSession?.CurrentCashierSession?.CashierId
+                    CasherId = session.CashierId
                 };
 
                 int savedInvoiceId;
@@ -472,8 +486,8 @@ namespace RaccoonWarehouse.Invoices
                         SourceType = FinancialSourceType.PurchaseInvoice,
                         SourceId = savedInvoiceId,
 
-                        CashierSessionId = _userSession?.CurrentCashierSession?.Id, // إذا نقدي فقط
-                        CashierId = _userSession?.CurrentCashierSession?.CashierId,
+                        CashierSessionId = session.Id,
+                        CashierId = session.CashierId,
 
                         Notes = $"Purchase Invoice #{invoiceDto.InvoiceNumber}"
                     };
@@ -532,8 +546,8 @@ namespace RaccoonWarehouse.Invoices
                         SourceType = FinancialSourceType.PurchaseInvoice,
                         SourceId = savedInvoiceId,
 
-                        CashierSessionId = _userSession?.CurrentCashierSession?.Id, // إذا نقدي
-                        CashierId = _userSession?.CurrentCashierSession?.CashierId,
+                        CashierSessionId = session.Id,
+                        CashierId = session.CashierId,
 
                         Notes = $"Purchase Invoice UPDATED #{invoiceDto.InvoiceNumber}"
                     };

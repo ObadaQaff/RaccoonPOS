@@ -4,6 +4,7 @@ using RaccoonWarehouse.Application.Service.Products;
 using RaccoonWarehouse.Application.Service.ProductUnits;
 using RaccoonWarehouse.Application.Service.Stocks;
 using RaccoonWarehouse.Application.Service.Users;
+using RaccoonWarehouse.Domain.Cashiers.DTOs;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.FinancialTransactions.DTOs;
 using RaccoonWarehouse.Domain.InvoiceLines.DTOs;
@@ -143,6 +144,15 @@ namespace RaccoonWarehouse.Invoices
             {
                 MessageBox.Show($"خطأ عند تحميل المنتجات: {ex.Message}", "خطأ");
             }
+        }
+        private bool TryGetActiveCashierSession(out CashierSessionReadDto? session)
+        {
+            session = _userSession.CurrentCashierSession;
+            if (session != null)
+                return true;
+
+            MessageBox.Show("لا توجد جلسة كاشير مفتوحة. الرجاء فتح جلسة أولاً.", "خطأ");
+            return false;
         }
         private async Task UpdateStockQuantity(int productId, int productUnitId, decimal quantity)
         {
@@ -486,6 +496,8 @@ namespace RaccoonWarehouse.Invoices
 
                 decimal totalAmount = subTotal - discount + totalTax;
                 bool isUpdate = _currentInvoiceId != null;
+                if (!TryGetActiveCashierSession(out var session))
+                    return;
 
                 var invoiceDto = new InvoiceWriteDto
                 {
@@ -497,7 +509,7 @@ namespace RaccoonWarehouse.Invoices
                     CreatedDate = InvoiceDatePicker.SelectedDate.Value,
                     UpdatedDate = DateTime.Now,
                     InvoiceLines = InvoiceLines.ToList(),
-                    CasherId = _userSession?.CurrentCashierSession?.CashierId, // لو موجود عندك
+                    CasherId = session.CashierId,
                     SubTotal = subTotal,        // ✅ ADD
                     TotalTax = totalTax,        // ✅ ADD
                     DiscountAmount = discount,  // ✅ ADD (or keep your existing)
@@ -536,8 +548,8 @@ namespace RaccoonWarehouse.Invoices
                         SourceType = FinancialSourceType.SaleInvoice,
                         SourceId = savedInvoiceId,
 
-                        CashierSessionId = _userSession?.CurrentCashierSession?.Id,
-                        CashierId = _userSession?.CurrentCashierSession?.CashierId,
+                        CashierSessionId = session.Id,
+                        CashierId = session.CashierId,
 
                         Notes = $"Sale Invoice #{invoiceDto.InvoiceNumber}"
                     };
@@ -598,8 +610,8 @@ namespace RaccoonWarehouse.Invoices
                         SourceType = FinancialSourceType.SaleInvoice,
                         SourceId = savedInvoiceId,
 
-                        CashierSessionId = _userSession?.CurrentCashierSession?.Id,
-                        CashierId = _userSession?.CurrentCashierSession?.CashierId,
+                        CashierSessionId = session.Id,
+                        CashierId = session.CashierId,
 
                         Notes = $"Sale Invoice UPDATED #{invoiceDto.InvoiceNumber}"
                     };

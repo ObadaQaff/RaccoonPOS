@@ -114,7 +114,7 @@ namespace RaccoonWarehouse.Auth
                     return;
                 }
 
-                _userSession.StartUserSession(user);
+                _userSession.SetCurrentUser(user);
 
                 var openSession = await _cashierSessionService.GetOpenSessionByCashierAsync(user.Id);
                 CashierSessionReadDto session;
@@ -126,6 +126,7 @@ namespace RaccoonWarehouse.Auth
 
                     if (ok != true)
                     {
+                        _userSession.EndSession();
                         ShowError("Cashier session start was canceled.");
                         return;
                     }
@@ -144,6 +145,7 @@ namespace RaccoonWarehouse.Auth
             }
             catch (Exception ex)
             {
+                _userSession.EndSession();
                 MessageBox.Show(
                     $"An unexpected error occurred.\n{ex.Message}",
                     "Error",

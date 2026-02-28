@@ -1,4 +1,5 @@
 ﻿#region Usings
+using Microsoft.Extensions.DependencyInjection;
 using RaccoonWarehouse.Application.Service.Cashers;
 using RaccoonWarehouse.Application.Service.FinancialTransactions;
 using RaccoonWarehouse.Application.Service.Invoices;
@@ -8,6 +9,7 @@ using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Auth;
 using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Domain.Cashiers;
+using RaccoonWarehouse.Domain.Cashiers.DTOs;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.FinancialTransactions.DTOs;
 using RaccoonWarehouse.Domain.InvoiceLines.DTOs;
@@ -125,9 +127,15 @@ namespace RaccoonWarehouse.Invoices
             try
             {
                 _loading.Show();
+                if (!TryGetActiveCashierSession(out var session))
+                {
+                    Close();
+                    return;
+                }
+
                 CreateNewInvoice();
 
-                CurrentCasherName = _userSession.CurrentCashierSession.CashierName;
+                CurrentCasherName = session.CashierName;
                 // العملاء
                 var result = await _userService.GetAllAsync();
                 _allCustomers = new ObservableCollection<UserReadDto>(result?.Data ?? new List<UserReadDto>());
@@ -167,6 +175,9 @@ namespace RaccoonWarehouse.Invoices
              InvoiceType invoiceType,
              string? originalInvoiceNumber = null)
         {
+            if (!TryGetActiveCashierSession(out var session))
+                return;
+
             _invoiceLines.Clear();
 
             _currentInvoice = new InvoiceWriteDto
@@ -178,7 +189,7 @@ namespace RaccoonWarehouse.Invoices
                 InvoiceLines = _invoiceLines,
                 TotalAmount = 0,
                 IsPOS = true,
-                CasherId = _userSession.CurrentCashierSession.CashierId
+                CasherId = session.CashierId
             };
 
             // ✅ UI
@@ -388,6 +399,16 @@ namespace RaccoonWarehouse.Invoices
 
             TotalTextBlock.Text = _currentInvoice.TotalAmount.ToString("0.000");
         }
+        private bool TryGetActiveCashierSession(out CashierSessionReadDto? session)
+        {
+            session = _userSession.CurrentCashierSession;
+            if (session != null)
+                return true;
+
+            MessageBox.Show("لا توجد جلسة كاشير مفتوحة. الرجاء فتح جلسة أولاً.", "خطأ");
+            RefreshSessionButtons();
+            return false;
+        }
 
 
         private async void BarcodeTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
@@ -493,6 +514,8 @@ namespace RaccoonWarehouse.Invoices
             {
                 if (!CanSaveInvoice())
                     return;
+                if (!TryGetActiveCashierSession(out var session))
+                    return;
 
                 PrepareInvoiceForSave();
 
@@ -527,8 +550,8 @@ namespace RaccoonWarehouse.Invoices
                         TransactionDate = DateTime.Now,
                         SourceType = FinancialSourceType.PosSaleInvoice,
                         SourceId = _lastSavedInvoice.Id,
-                        CashierSessionId = _userSession.CurrentCashierSession.Id,
-                        CashierId = _userSession.CurrentCashierSession.CashierId,
+                        CashierSessionId = session.Id,
+                        CashierId = session.CashierId,
                         Notes = $"POS Invoice #{_currentInvoice.InvoiceNumber}"
                     };
 
@@ -547,8 +570,8 @@ namespace RaccoonWarehouse.Invoices
                         TransactionDate = DateTime.Now,
                         SourceType = FinancialSourceType.SaleReturn,
                         SourceId = _lastSavedInvoice.Id,
-                        CashierSessionId = _userSession.CurrentCashierSession.Id,
-                        CashierId = _userSession.CurrentCashierSession.CashierId,
+                        CashierSessionId = session.Id,
+                        CashierId = session.CashierId,
                         Notes = $"POS Invoice #{_currentInvoice.InvoiceNumber}"
                     };
 
@@ -1034,8 +1057,11 @@ namespace RaccoonWarehouse.Invoices
 
         private void OpenReceipt_Click(object sender, RoutedEventArgs e)
         {
-            var sessionId = _userSession.CurrentCashierSession.Id;
-            var cashierId = _userSession.CurrentCashierSession.CashierId;
+            if (!TryGetActiveCashierSession(out var session))
+                return;
+
+            var sessionId = session.Id;
+            var cashierId = session.CashierId;
 
             var win = new ReceiptWindow(_financialService, sessionId, cashierId)
             {
@@ -1048,8 +1074,11 @@ namespace RaccoonWarehouse.Invoices
 
         private void OpenPayment_Click(object sender, RoutedEventArgs e)
         {
-            var sessionId = _userSession.CurrentCashierSession.Id;
-            var cashierId = _userSession.CurrentCashierSession.CashierId;
+            if (!TryGetActiveCashierSession(out var session))
+                return;
+
+            var sessionId = session.Id;
+            var cashierId = session.CashierId;
 
             var win = new PaymentWindow(_financialService, sessionId, cashierId)
             {
@@ -1779,6 +1808,8 @@ namespace RaccoonWarehouse.Invoices
 
                 if (!CanSaveInvoice())
                     return;
+                if (!TryGetActiveCashierSession(out var session))
+                    return;
 
                 PrepareInvoiceForSave();
 
@@ -1802,8 +1833,8 @@ namespace RaccoonWarehouse.Invoices
                     SourceType = FinancialSourceType.PosSaleInvoice,
                     SourceId = savedInvoiceId,
 
-                    CashierSessionId = _userSession.CurrentCashierSession.Id,
-                    CashierId = _userSession.CurrentCashierSession.CashierId,
+                    CashierSessionId = session.Id,
+                    CashierId = session.CashierId,
 
                     Notes = $"POS Invoice #{_currentInvoice.InvoiceNumber}"
                 };
@@ -1859,6 +1890,8 @@ namespace RaccoonWarehouse.Invoices
             // إذا صفر ما في حركة مالية
             if (total == 0)
                 return;
+            if (!TryGetActiveCashierSession(out var session))
+                return;
 
             var direction = ResolveDirection(_currentInvoice.InvoiceType, total);
             var amount = Math.Abs(total);
@@ -1876,8 +1909,8 @@ namespace RaccoonWarehouse.Invoices
                 SourceType = MapSourceTypeByInvoiceType(_currentInvoice.InvoiceType),
                 SourceId = invoiceId,
 
-                CashierSessionId = _userSession.CurrentCashierSession?.Id,
-                CashierId = _userSession.CurrentCashierSession?.CashierId,
+                CashierSessionId = session.Id,
+                CashierId = session.CashierId,
 
                 Notes = $"{_currentInvoice.InvoiceType} Invoice #{_currentInvoice.InvoiceNumber}"
             };
@@ -1908,7 +1941,7 @@ namespace RaccoonWarehouse.Invoices
         }
         private void OpenSessionBtn_Click(object sender, RoutedEventArgs e)
         {
-            var win = new StartCashierSessionWindow(_cashierSessionService, _financialService, _userSession);
+            var win = _serviceProvider.GetRequiredService<StartCashierSessionWindow>();
             if (win.ShowDialog() == true)
             {
                 RefreshSessionButtons();
@@ -1917,7 +1950,7 @@ namespace RaccoonWarehouse.Invoices
 
         private void CloseSessionBtn_Click(object sender, RoutedEventArgs e)
         {
-            var win = new CloseCashierSessionWindow(_cashierSessionService, _financialService, _userSession);
+            var win = _serviceProvider.GetRequiredService<CloseCashierSessionWindow>();
             if (win.ShowDialog() == true)
             {
                 RefreshSessionButtons();

@@ -71,8 +71,7 @@ namespace RaccoonWarehouse.Auth
                 var session = await _cashierSessionService.OpenSessionAsync(_userSession.CurrentUser.Id, opening);
 
                 // 2) Put it in runtime session (UserSession)
-                _userSession.StartSession(_userSession.CurrentUser);
-                session.CashierName = _userSession.CurrentUser.Name; // Optional, for easier access in UI
+                session.CashierName = _userSession.CurrentUser.Name;
                 _userSession.AttachCashierSession(session);
 
 
