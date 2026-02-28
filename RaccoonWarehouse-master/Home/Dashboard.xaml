@@ -1,0 +1,237 @@
+﻿<Window x:Class="RaccoonWarehouse.Dashboard"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:fa="http://schemas.fontawesome.io/icons/"
+        mc:Ignorable="d"
+        Title="نظام المستودع" Height="800" Width="1400"
+        FlowDirection="RightToLeft"
+        WindowStartupLocation="CenterScreen"
+        WindowState="Maximized">
+
+    <!-- ================== RESOURCES ================== -->
+    <Window.Resources>
+        <!-- Navigation Button Style -->
+        <Style x:Key="NavButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="HorizontalContentAlignment" Value="Right"/>
+            <Setter Property="Padding" Value="20,10"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="18"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="8" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#FFD580"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="DashboardButton"
+       TargetType="Button">
+            <Setter Property="Background" Value="#263238"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Padding" Value="14,10"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                        CornerRadius="8">
+                            <ContentPresenter
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#37474F"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="#455A64"/>
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Background" Value="#B0BEC5"/>
+                    <Setter Property="Foreground" Value="#ECEFF1"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="DashboardButtonDanger"
+       BasedOn="{StaticResource DashboardButton}"
+       TargetType="Button">
+            <Setter Property="Background" Value="#C62828"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+
+        <Style x:Key="DashboardButtonSuccess"
+       BasedOn="{StaticResource DashboardButton}"
+       TargetType="Button">
+            <Setter Property="Background" Value="#2E7D32"/>
+        </Style>
+
+        <Style x:Key="DashboardButtonWarning"
+       BasedOn="{StaticResource DashboardButton}"
+       TargetType="Button">
+            <Setter Property="Background" Value="#EF6C00"/>
+        </Style>
+
+
+
+    </Window.Resources>
+
+    <!-- ================== LAYOUT ================== -->
+    <Grid Background="#F5F5F5">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="250"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- ========== SIDEBAR NAVIGATION ========== -->
+        <DockPanel Background="#263238" Width="250" LastChildFill="False" FlowDirection="RightToLeft">
+
+            <!-- العنوان -->
+
+            <TextBlock Text="مدير المستودع"
+                Foreground="White"
+                FontSize="28"
+                FontWeight="Bold"
+                Margin="20,40,20,40"
+                TextAlignment="Center"
+                DockPanel.Dock="Top"/>
+
+            <!-- نقطة البيع -->
+            <Button Style="{StaticResource NavButtonStyle}" 
+            DockPanel.Dock="Top" 
+            HorizontalContentAlignment="Right" 
+            Margin="0,2,100,2" Height="44" Width="168" Click="POSBtn_Click" >
+                <StackPanel Orientation="Horizontal" FlowDirection="RightToLeft" Margin="0">
+                    <fa:ImageAwesome Icon="ShoppingCart" Width="24" Height="24" Foreground="#1ABC9C" Margin="0,0,10,0"/>
+                    <TextBlock Text="نقطة البيع " Foreground="White" FontSize="18" VerticalAlignment="Center" Width="87"/>
+                </StackPanel>
+            </Button>
+
+
+
+            <!-- الفئات الفرعية -->
+            <Button Style="{StaticResource NavButtonStyle}" 
+            DockPanel.Dock="Top" 
+            HorizontalContentAlignment="Right" 
+            Margin="0,2,50,2" Height="44" Width="204" Click="Button_Click_3" Padding="20,10,20,10">
+                <StackPanel Orientation="Horizontal" FlowDirection="RightToLeft" Margin="0">
+                    <fa:ImageAwesome Icon="FolderOpen" Width="24" Height="24" Foreground="#E67E22"/>
+                    <TextBlock Text="   التصنيف والفئات" Foreground="White" FontSize="18"/>
+                </StackPanel>
+            </Button>
+
+            <!-- الأصناف -->
+            <Button Style="{StaticResource NavButtonStyle}" 
+            DockPanel.Dock="Top"
+            HorizontalAlignment="Center" 
+            HorizontalContentAlignment="Right" 
+            Margin="0,2,105,2"
+               Click="StocksBtn_Click"     >
+                <StackPanel Orientation="Horizontal" FlowDirection="RightToLeft" Margin="0" >
+                    <fa:ImageAwesome Icon="Dropbox" Width="24" Height="24" Foreground="Wheat" Margin="0,0,20,0"/>
+                    <TextBlock Text="الأصناف" Foreground="White" FontSize="18" />
+                </StackPanel>
+            </Button>
+
+            <!-- المستودعات -->
+            <Button Style="{StaticResource NavButtonStyle}" 
+            DockPanel.Dock="Top"
+            HorizontalAlignment="Center" 
+            HorizontalContentAlignment="Right" 
+            Margin="0,2,70,2" Click="Button_Click_6">
+                <StackPanel Orientation="Horizontal" FlowDirection="RightToLeft" Margin="0">
+                    <fa:ImageAwesome Icon="Building" Width="24" Height="24" Foreground="#9B59B6" Margin="0,0,20,0"/>
+                    <TextBlock Text="المستودعات" Foreground="White" FontSize="18" Width="100"/>
+                </StackPanel>
+            </Button>
+            <!-- الفواتير والسندات -->
+            <Button Style="{StaticResource NavButtonStyle}" 
+                 DockPanel.Dock="Top"
+                 HorizontalAlignment="Center" 
+                 HorizontalContentAlignment="Right" 
+                 Margin="0,2,40,2" Click="Receipt_Click">
+                <StackPanel Orientation="Horizontal" FlowDirection="RightToLeft" Margin="0">
+                    <fa:ImageAwesome Icon="File" Width="24" Height="24" Foreground="#BDC3C7" HorizontalAlignment="Right"/>
+                    <TextBlock Text="   الفواتير والسندات" Foreground="White" FontSize="18" Margin="0,0,10,0"/>
+                </StackPanel>
+            </Button>
+            <!-- العلامات التجارية -->
+            <Button Style="{StaticResource NavButtonStyle}" 
+            DockPanel.Dock="Top" 
+            HorizontalContentAlignment="Stretch" 
+            Margin="0,2,25,2" Padding="14,10,40,10" Height="50" Width="210" Click="Button_Click_2">
+                <StackPanel Orientation="Horizontal" FlowDirection="RightToLeft" Margin="0">
+                    <fa:ImageAwesome Icon="Tags" Width="24" Height="24" Foreground="#E74C3C" HorizontalAlignment="Center"/>
+                    <TextBlock Text=" العلامات التجارية     " Foreground="White" FontSize="18" Width="203" RenderTransformOrigin="0.288,0.624" Padding="0,0,72,0" Height="25" TextAlignment="Right"/>
+                </StackPanel>
+            </Button>
+
+            <!-- التقارير -->
+            <Button Style="{StaticResource NavButtonStyle}" 
+            DockPanel.Dock="Top"
+            HorizontalAlignment="Center" 
+            HorizontalContentAlignment="Right" 
+            Margin="0,2,116,2" Click="Reports_Click">
+                <StackPanel Orientation="Horizontal" FlowDirection="RightToLeft" Margin="0">
+                    <fa:ImageAwesome Icon="BarChart" Width="24" Height="24" Foreground="#BDC3C7" HorizontalAlignment="Right"/>
+                    <TextBlock Text="   التقارير" Foreground="White" FontSize="18" Margin="0,0,10,0"/>
+                </StackPanel>
+            </Button>
+            <!-- الزبائن -->
+            <Button Style="{StaticResource NavButtonStyle}" 
+            DockPanel.Dock="Top" 
+            HorizontalContentAlignment="Right" 
+            Margin="0,2,92,2" Click="Customers_Click" Width="181">
+                <StackPanel Orientation="Horizontal" FlowDirection="RightToLeft" Margin="0">
+                    <fa:ImageAwesome Icon="Users" Width="24" Height="24" Foreground="#E67E22" HorizontalAlignment="Right"/>
+                    <TextBlock Text="   المستخدمين" Foreground="White" FontSize="18" Margin="0,0,10,0"/>
+                </StackPanel>
+            </Button>
+
+            <!-- الإعدادات -->
+            <Button Style="{StaticResource NavButtonStyle}" 
+            DockPanel.Dock="Top" 
+            HorizontalContentAlignment="Left" 
+            Margin="0,2,69,2" VerticalContentAlignment="Top" Width="201" Click="Button_Click_5">
+                <StackPanel Orientation="Horizontal" FlowDirection="RightToLeft" Margin="0">
+                    <fa:ImageAwesome Icon="Cog" Width="24" Height="24" Foreground="#BDC3C7"/>
+                    <TextBlock Text=" إعدادت المستودع" Foreground="White" FontSize="18" Width="140.036666666667" Padding="0,0,47,0"/>
+                </StackPanel>
+            </Button>
+
+        </DockPanel>
+
+
+
+        <!-- ========== MAIN CONTENT ========== -->
+        <Grid Grid.Column="1" Background="#FFF0CE" Margin="20">
+            <Border Background="White"
+                    CornerRadius="10"
+                    Padding="20"
+                    BorderBrush="#FFD580"
+                    BorderThickness="2">
+                <ContentControl x:Name="MainContent"/>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>

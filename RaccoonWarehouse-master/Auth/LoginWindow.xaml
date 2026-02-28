@@ -1,0 +1,139 @@
+<Window x:Class="RaccoonWarehouse.Auth.LoginWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        AllowsTransparency="True"
+        Background="Transparent"
+        WindowStartupLocation="CenterScreen"
+        Width="440"
+        Height="520"
+        ShowInTaskbar="False"
+        Loaded="Window_Loaded">
+    <Grid>
+        <Border
+            x:Name="Card"
+            Background="#263238"
+            CornerRadius="24"
+            Padding="32"
+            Width="360"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            RenderTransformOrigin="0.5,0.5">
+
+            <Border.RenderTransform>
+                <ScaleTransform ScaleX="0.95" ScaleY="0.95"/>
+            </Border.RenderTransform>
+
+            <StackPanel>
+                <Image Source="pack://application:,,,/Assets/Logo/Logo newfinal.png"
+                       Width="72"
+                       Height="60"
+                       HorizontalAlignment="Center"
+                       Margin="0,0,0,14"/>
+
+                <TextBlock Text="Raccoon Warehouse"
+                           FontSize="22"
+                           FontWeight="Bold"
+                           Foreground="White"
+                           HorizontalAlignment="Center"/>
+
+                <TextBlock Text="Secure cashier login"
+                           FontSize="13"
+                           Foreground="#B0BEC5"
+                           Margin="0,6,0,26"
+                           HorizontalAlignment="Center"/>
+
+                <TextBlock Text="Username"
+                           Foreground="#CFD8DC"
+                           FontSize="12"/>
+
+                <TextBox x:Name="UsernameTextBox"
+                         Height="40"
+                         FontSize="14"
+                         Background="#37474F"
+                         Foreground="White"
+                         BorderThickness="0"
+                         Padding="12"
+                         Margin="0,6,0,16"
+                         FocusManager.FocusedElement="{Binding RelativeSource={RelativeSource Self}}"
+                         KeyDown="EnterToLogin"/>
+
+                <TextBlock Text="Password"
+                           Foreground="#CFD8DC"
+                           FontSize="12"/>
+
+                <Grid Margin="0,6,0,22">
+                    <PasswordBox x:Name="PasswordBox"
+                                 Height="40"
+                                 FontSize="14"
+                                 Background="#37474F"
+                                 Foreground="White"
+                                 BorderThickness="0"
+                                 Padding="12"
+                                 KeyDown="EnterToLogin"/>
+
+                    <TextBox x:Name="PasswordTextBox"
+                             Height="40"
+                             FontSize="14"
+                             Background="#37474F"
+                             Foreground="White"
+                             BorderThickness="0"
+                             Padding="12"
+                             Visibility="Collapsed"/>
+
+                    <Button Content="👁"
+                            Width="32"
+                            Height="32"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Foreground="#B0BEC5"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            Click="TogglePassword"/>
+                </Grid>
+
+                <TextBlock x:Name="ErrorText"
+                   Foreground="#EF9A9A"
+                   FontSize="12"
+                   Margin="0,0,0,12"
+                   TextAlignment="Center"
+                   TextWrapping="Wrap"
+                   Visibility="Collapsed"/>
+
+                <Button x:Name="LoginButton"
+                        Height="44"
+                        FontSize="15"
+                        FontWeight="Bold"
+                        Background="#00C853"
+                        Foreground="White"
+                        BorderThickness="0"
+                        Cursor="Hand"
+                        Click="Login_Click">
+
+                    <Grid>
+                        <TextBlock x:Name="LoginText"
+                                   Text="LOGIN"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"/>
+
+                        <ProgressBar x:Name="LoginProgress"
+                                     IsIndeterminate="True"
+                                     Height="4"
+                                     VerticalAlignment="Bottom"
+                                     Visibility="Collapsed"/>
+                    </Grid>
+
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border Background="{TemplateBinding Background}"
+                                    CornerRadius="12">
+                                <ContentPresenter/>
+                            </Border>
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

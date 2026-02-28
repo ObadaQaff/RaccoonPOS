@@ -1,0 +1,226 @@
+﻿<Window x:Class="RaccoonWarehouse.Stocks.CreateStock"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="بطاقة ادخال صنف " Height="900" Width="1400"
+        WindowStartupLocation="CenterScreen" WindowState="Maximized"
+        Background="#EEEEEE"
+        FlowDirection="RightToLeft">
+
+    <Window.Resources>
+        <!-- TextBox Style -->
+        <Style TargetType="TextBox" x:Key="InputBoxStyle">
+            <Setter Property="FontSize" Value="18"/>
+            <Setter Property="Height" Value="40"/>
+            <Setter Property="Background" Value="#FFF2E7D5"/>
+            <Setter Property="BorderBrush" Value="#EBCB90"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Margin" Value="0,5,0,15"/>
+            <Setter Property="Padding" Value="10,5"/>
+        </Style>
+
+        <!-- ComboBox Style -->
+        <Style TargetType="ComboBox" x:Key="InputComboStyle">
+            <Setter Property="FontSize" Value="18"/>
+            <Setter Property="Height" Value="40"/>
+            <Setter Property="Background" Value="#FFF2E7D5"/>
+            <Setter Property="BorderBrush" Value="#EBCB90"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Margin" Value="0,5,0,15"/>
+            <Setter Property="Padding" Value="10,5"/>
+        </Style>
+
+        <!-- Button Style -->
+        <Style TargetType="Button" x:Key="PrimaryButtonStyle">
+            <Setter Property="FontSize" Value="18"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Height" Value="45"/>
+            <Setter Property="Margin" Value="0,10,0,0"/>
+            <Setter Property="Background" Value="#3396D3"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" 
+                                CornerRadius="8"
+                                Padding="10,5">
+                            <ContentPresenter HorizontalAlignment="Center" 
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#EBCB90"/>
+                    <Setter Property="Foreground" Value="Black"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="70"/>
+            <!-- Header -->
+            <RowDefinition Height="*"/>
+            <!-- Scrollable Content -->
+            <RowDefinition Height="Auto"/>
+            <!-- Buttons -->
+            <RowDefinition Height="60"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Border Background="#3396D3" Grid.Row="0">
+            <TextBlock Text="بطاقة إدخال صنف"
+                       Foreground="White"
+                       FontSize="28"
+                       FontWeight="Bold"
+                       VerticalAlignment="Center"
+                       HorizontalAlignment="Center"/>
+        </Border>
+
+        <!-- Main Scrollable Content -->
+        <ScrollViewer Grid.Row="1" Margin="20">
+            <Border Background="#FFF0CE" CornerRadius="10" Padding="40">
+                <StackPanel Orientation="Vertical">
+
+                    <!-- Stock Info -->
+                    <GroupBox Header="معلومات الصنف" FontWeight="Bold" FontSize="18" Background="White" Margin="0,0,0,30" Padding="20">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,20,10">
+                                <Label Content="رقم المخزون" FontWeight="Bold"/>
+                                <TextBox x:Name="StockNo" Style="{StaticResource InputBoxStyle}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Row="0" Grid.Column="1" Margin="0,0,0,10">
+                                <Label Content="اسم المخزون" FontWeight="Bold"/>
+                                <TextBox x:Name="StockName" Style="{StaticResource InputBoxStyle}"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,20,10">
+                                <Label Content="عمولة المبيعات" FontWeight="Bold"/>
+                                <TextBox x:Name="SalesCommission" Style="{StaticResource InputBoxStyle}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,0,0,10">
+                                <Label Content="آخر تحديث" FontWeight="Bold"/>
+                                <TextBox x:Name="LastUpdate" Style="{StaticResource InputBoxStyle}"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,0,0,10">
+                                <Label Content="الاسم للطباعة" FontWeight="Bold"/>
+                                <TextBox x:Name="StockNamePrint" Style="{StaticResource InputBoxStyle}"/>
+                            </StackPanel>
+                        </Grid>
+                    </GroupBox>
+
+                    <!-- Pricing & Cost -->
+                    <GroupBox Header="التسعير والتكلفة" FontWeight="Bold" FontSize="18" Background="White" Margin="0,0,0,30" Padding="20">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,20,10">
+                                <Label Content="سعر التكلفة الابتدائي" FontWeight="Bold"/>
+                                <TextBox x:Name="InitialCostPrice" Style="{StaticResource InputBoxStyle}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Row="0" Grid.Column="1" Margin="0,0,0,10">
+                                <Label Content="التكلفة الحالية" FontWeight="Bold"/>
+                                <TextBox x:Name="CurrentCost" Style="{StaticResource InputBoxStyle}"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,20,10">
+                                <Label Content="سعر خاص" FontWeight="Bold"/>
+                                <TextBox x:Name="SpecialPrice" Style="{StaticResource InputBoxStyle}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,0,0,10">
+                                <Label Content="العملة" FontWeight="Bold"/>
+                                <ComboBox x:Name="Currency" Style="{StaticResource InputComboStyle}">
+                                    <ComboBoxItem Content="دولار"/>
+                                    <ComboBoxItem Content="يورو"/>
+                                </ComboBox>
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,0,20,10">
+                                <Label Content="هل له أرقام تسلسلية؟" FontWeight="Bold"/>
+                                <ComboBox x:Name="HasSerials" Style="{StaticResource InputComboStyle}">
+                                    <ComboBoxItem Content="نعم"/>
+                                    <ComboBoxItem Content="لا"/>
+                                </ComboBox>
+                            </StackPanel>
+                            <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal">
+                                <Button Content="الأرقام التسلسلية الأولية" Style="{StaticResource PrimaryButtonStyle}" Width="200"/>
+                            </StackPanel>
+                        </Grid>
+                    </GroupBox>
+
+                    <!-- Inventory -->
+                    <GroupBox Header="الكمية المبدئية بالمخزون" FontWeight="Bold" FontSize="18" Background="White" Margin="0,0,0,30" Padding="20">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,20,10">
+                                <Label Content="الكمية بالمخزن" FontWeight="Bold"/>
+                                <TextBox x:Name="StoreAmount" Style="{StaticResource InputBoxStyle}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Row="0" Grid.Column="1" Margin="0,0,0,10">
+                                <Label Content="كمية التنبيه" FontWeight="Bold"/>
+                                <TextBox x:Name="ReminderQuantity" Style="{StaticResource InputBoxStyle}"/>
+                            </StackPanel>
+                        </Grid>
+                    </GroupBox>
+
+                    <!-- Barcode & Notes -->
+                    <GroupBox Header="الباركود والملاحظات" FontWeight="Bold" FontSize="18" Background="White" Margin="0,0,0,30" Padding="20">
+                        <StackPanel>
+                            <Label Content="الباركود" FontWeight="Bold"/>
+                            <TextBox x:Name="Barcode" Style="{StaticResource InputBoxStyle}"/>
+                            <Label Content="ملاحظات" FontWeight="Bold"/>
+                            <TextBox x:Name="Note" Style="{StaticResource InputBoxStyle}" Height="100" AcceptsReturn="True" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </GroupBox>
+
+                </StackPanel>
+            </Border>
+        </ScrollViewer>
+
+        <!-- Buttons above Footer -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,20,40">
+            <Button Content="عودة" Style="{StaticResource PrimaryButtonStyle}" Width="150" Background="#EBCB90" Foreground="Black" Click="Button_Click"/>
+            <Button Content="حفظ" Style="{StaticResource PrimaryButtonStyle}" Width="150" Margin="20,0,0,0"/>
+        </StackPanel>
+
+        <!-- Footer -->
+        <Border Background="#FFF0CE" Grid.Row="2" Height="60" VerticalAlignment="Bottom" Margin="10,0,-10,30" Grid.RowSpan="2">
+            <TextBlock Text="© 2025 Raccoon Warehouse"
+                       VerticalAlignment="Center"
+                       HorizontalAlignment="Center"
+                       Foreground="#3396D3"
+                       FontSize="14"
+                       FontWeight="SemiBold"/>
+        </Border>
+    </Grid>
+</Window>

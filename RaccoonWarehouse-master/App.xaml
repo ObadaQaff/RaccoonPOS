@@ -1,0 +1,21 @@
+﻿<Application x:Class="RaccoonWarehouse.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:RaccoonWarehouse"
+             ShutdownMode="OnMainWindowClose">
+    <Application.Resources>
+        <ResourceDictionary>
+            <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+            <DropShadowEffect x:Key="DropShadowSoft"
+                  BlurRadius="20"
+                  ShadowDepth="0"
+                  Opacity="0.2"/>
+
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/UI/Styles/WarehouseTheme.xaml"/>
+                <ResourceDictionary Source="/UI/Styles/Buttons.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>
+

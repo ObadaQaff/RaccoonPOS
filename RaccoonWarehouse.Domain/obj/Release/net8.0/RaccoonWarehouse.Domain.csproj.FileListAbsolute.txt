@@ -1,0 +1,12 @@
+\\Mac\Home\Downloads\src\RaccoonWarehouse.Domain\bin\Release\net8.0\RaccoonWarehouse.Domain.deps.json
+\\Mac\Home\Downloads\src\RaccoonWarehouse.Domain\bin\Release\net8.0\RaccoonWarehouse.Domain.dll
+\\Mac\Home\Downloads\src\RaccoonWarehouse.Domain\bin\Release\net8.0\RaccoonWarehouse.Domain.pdb
+\\Mac\Home\Downloads\src\RaccoonWarehouse.Domain\obj\Release\net8.0\RaccoonWarehouse.Domain.csproj.AssemblyReference.cache
+\\Mac\Home\Downloads\src\RaccoonWarehouse.Domain\obj\Release\net8.0\RaccoonWarehouse.Domain.GeneratedMSBuildEditorConfig.editorconfig
+\\Mac\Home\Downloads\src\RaccoonWarehouse.Domain\obj\Release\net8.0\RaccoonWarehouse.Domain.AssemblyInfoInputs.cache
+\\Mac\Home\Downloads\src\RaccoonWarehouse.Domain\obj\Release\net8.0\RaccoonWarehouse.Domain.AssemblyInfo.cs
+\\Mac\Home\Downloads\src\RaccoonWarehouse.Domain\obj\Release\net8.0\RaccoonWarehouse.Domain.csproj.CoreCompileInputs.cache
+\\Mac\Home\Downloads\src\RaccoonWarehouse.Domain\obj\Release\net8.0\RaccoonWarehouse.Domain.dll
+\\Mac\Home\Downloads\src\RaccoonWarehouse.Domain\obj\Release\net8.0\refint\RaccoonWarehouse.Domain.dll
+\\Mac\Home\Downloads\src\RaccoonWarehouse.Domain\obj\Release\net8.0\RaccoonWarehouse.Domain.pdb
+\\Mac\Home\Downloads\src\RaccoonWarehouse.Domain\obj\Release\net8.0\ref\RaccoonWarehouse.Domain.dll

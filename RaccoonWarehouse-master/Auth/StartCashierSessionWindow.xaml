@@ -1,0 +1,118 @@
+﻿<Window x:Class="RaccoonWarehouse.Auth.StartCashierSessionWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="بدء جلسة الكاشير"
+        Height="520" Width="700"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="#F5F6FA"
+        FlowDirection="RightToLeft">
+
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="70"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="70"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Border Grid.Row="0" Background="#263238" CornerRadius="12" Padding="18">
+            <DockPanel>
+                <TextBlock Text="بدء جلسة الكاشير"
+                           Foreground="White"
+                           FontSize="22"
+                           FontWeight="Bold"
+                           VerticalAlignment="Center"/>
+            </DockPanel>
+        </Border>
+
+        <!-- Body -->
+        <Border Grid.Row="1" Background="White" CornerRadius="12" Padding="18" Margin="0,14,0,14"
+                BorderBrush="#E0E0E0" BorderThickness="1">
+            <StackPanel>
+
+                <TextBlock Text="معلومات الكاشير" FontSize="16" FontWeight="Bold" Foreground="#263238"/>
+                <Grid Margin="0,10,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="140"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Text="الاسم:" Foreground="#7F8C8D" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="1" x:Name="CashierNameText"
+                               FontSize="16" FontWeight="SemiBold" Foreground="#2C3E50"/>
+                </Grid>
+
+                <Separator Margin="0,16,0,16"/>
+
+                <TextBlock Text="رصيد افتتاح الجلسة (Opening Balance)"
+                           FontSize="16" FontWeight="Bold" Foreground="#263238"/>
+
+                <Border Background="#FAFAFA" CornerRadius="10" Padding="12" Margin="0,10,0,0">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="90"/>
+                        </Grid.ColumnDefinitions>
+
+                        <TextBox x:Name="StartBalanceTextBox"
+                                 Height="45"
+                                 FontSize="16"
+                                 VerticalContentAlignment="Center"
+                                 FlowDirection="LeftToRight"
+                                 Padding="10"
+                                 BorderBrush="#CBD5DF"
+                                 BorderThickness="1"
+                                 Text="0"/>
+
+                        <TextBlock Grid.Column="1"
+                                   Text="JOD"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   Foreground="#7F8C8D"
+                                   FontWeight="Bold"/>
+                    </Grid>
+                </Border>
+
+                <TextBlock x:Name="ErrorText"
+                           Visibility="Collapsed"
+                           Margin="0,12,0,0"
+                           Foreground="#C62828"
+                           FontWeight="SemiBold"
+                           Text=""/>
+                <TextBlock Margin="0,10,0,0" Foreground="#7F8C8D"
+                           Text="ملاحظة: سيتم تسجيل حركة مالية (Manual Cash IN) بقيمة رصيد الافتتاح."/>
+            </StackPanel>
+        </Border>
+
+        <!-- Footer Buttons -->
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="160"/>
+                <ColumnDefinition Width="160"/>
+            </Grid.ColumnDefinitions>
+
+            <Button Grid.Column="1"
+                    Height="44"
+                    Margin="0,0,10,0"
+                    Background="#455A64"
+                    Foreground="White"
+                    FontWeight="SemiBold"
+                    BorderThickness="0"
+                    Cursor="Hand"
+                    Content="إلغاء"
+                    Click="Cancel_Click"/>
+
+            <Button Grid.Column="2"
+                    Height="44"
+                    Background="#2E7D32"
+                    Foreground="White"
+                    FontWeight="Bold"
+                    BorderThickness="0"
+                    Cursor="Hand"
+                    Content="بدء الجلسة"
+                    Click="StartSession_Click"/>
+        </Grid>
+    </Grid>
+</Window>

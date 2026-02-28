@@ -1,0 +1,105 @@
+﻿<Window x:Class="RaccoonWarehouse.Warehouses.WarehousesTable"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="جدول المستودعات"
+        Height="800"
+        Width="1400"
+        WindowStartupLocation="CenterScreen"
+        FlowDirection="RightToLeft"
+        WindowStyle="SingleBorderWindow"
+        ResizeMode="CanResize">
+
+    <!-- ============== LAYOUT ============== -->
+    <Grid Background="#EEEEEE">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="70"/>
+            <!-- Header -->
+            <RowDefinition Height="Auto"/>
+            <!-- Search -->
+            <RowDefinition Height="*"/>
+            <!-- Content -->
+            <RowDefinition Height="70"/>
+            <!-- Footer -->
+        </Grid.RowDefinitions>
+
+        <!-- HEADER -->
+        <Border Background="#3396D3" Grid.Row="0">
+            <TextBlock Text="إدارة المستودعات"
+                       Foreground="White"
+                       FontSize="28"
+                       FontWeight="Bold"
+                       VerticalAlignment="Center"
+                       HorizontalAlignment="Center"/>
+        </Border>
+
+        <!-- SEARCH BAR -->
+        <StackPanel Grid.Row="1"
+                    Orientation="Horizontal"
+                    Margin="20"
+                    VerticalAlignment="Center"
+                    HorizontalAlignment="Center"
+                    >
+
+            <TextBlock Text="البحث بالاسم:" 
+               FontSize="16" 
+               VerticalAlignment="Center" 
+               FontWeight="SemiBold"/>
+
+
+
+            <TextBox x:Name="SearchBox"
+             Width="400"
+             Height="44"
+             FontSize="18"
+             Padding="8"
+             BorderBrush="#EBCB90"
+             BorderThickness="1"
+             Background="White"
+             TextChanged="SearchBox_TextChanged"/>
+
+          
+        </StackPanel>
+
+        <!-- CONTENT - DATA GRID -->
+        <DataGrid x:Name="WarehousesGrid"
+                  Grid.Row="2"
+                  Margin="20"
+                  AutoGenerateColumns="False"
+                  IsReadOnly="True"
+                  CanUserAddRows="False"
+                  CanUserDeleteRows="False"
+                  CanUserResizeRows="False"
+                  RowHeight="40"
+                  FontSize="18"
+                  HeadersVisibility="Column"
+                  SelectionMode="Single"
+                  BorderBrush="#EBCB90"
+                  BorderThickness="1"
+                  AlternatingRowBackground="#FFF0CE">
+
+           <DataGrid.Columns>
+                <DataGridTextColumn Header="الرقم" Binding="{Binding Id}" Width="100"/>
+                <DataGridTextColumn Header="اسم المستودع" Binding="{Binding Name}" Width="200"/>
+                <DataGridTextColumn Header="الموقع" Binding="{Binding Location}" Width="200"/>
+                <DataGridTextColumn Header="الوصف" Binding="{Binding Description}" Width="300"/>
+                <DataGridTextColumn Header="رقم الهاتف" Binding="{Binding PhoneNumber}" Width="150"/>
+                <DataGridTextColumn Header="الحالة" Binding="{Binding Status}" Width="150"/>
+                <DataGridTextColumn Header="تاريخ الإنشاء" Binding="{Binding CreatedDate}" Width="200"/>
+                <DataGridTextColumn Header="تاريخ التعديل" Binding="{Binding UpdatedDate}" Width="200"/>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <!-- FOOTER -->
+        <Border Background="#FFF0CE" Grid.Row="3">
+            <TextBlock Text="© 2025 Raccoon Warehouse"
+                       VerticalAlignment="Center"
+                       HorizontalAlignment="Center"
+                       Foreground="#3396D3"
+                       FontSize="14"
+                       FontWeight="SemiBold"/>
+        </Border>
+    </Grid>
+</Window>

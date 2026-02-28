@@ -1,0 +1,163 @@
+﻿<Window x:Class="RaccoonWarehouse.Auth.CloseCashierSessionWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="إنهاء جلسة الكاشير"
+        Height="620" Width="760"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="#F5F6FA"
+        FlowDirection="RightToLeft">
+
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="70"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="70"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Border Grid.Row="0" Background="#263238" CornerRadius="12" Padding="18">
+            <TextBlock Text="إنهاء جلسة الكاشير"
+                       Foreground="White"
+                       FontSize="22"
+                       FontWeight="Bold"
+                       VerticalAlignment="Center"/>
+        </Border>
+
+        <!-- Body -->
+        <Border Grid.Row="1" Background="White" CornerRadius="12" Padding="18" Margin="0,14,0,14"
+                BorderBrush="#E0E0E0" BorderThickness="1">
+            <StackPanel>
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="140"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="140"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Text="الكاشير:" Foreground="#7F8C8D"/>
+                    <TextBlock Grid.Column="1" x:Name="CashierNameText" FontWeight="SemiBold"/>
+
+                    <TextBlock Grid.Column="2" Text="رقم الجلسة:" Foreground="#7F8C8D"/>
+                    <TextBlock Grid.Column="3" x:Name="SessionIdText" FontWeight="SemiBold"/>
+                </Grid>
+
+                <Separator Margin="0,14,0,14"/>
+
+                <!-- Summary Cards -->
+                <UniformGrid Columns="2" Margin="0,0,0,10">
+                    <Border Background="#FAFAFA" CornerRadius="10" Padding="12" Margin="0,0,8,8">
+                        <StackPanel>
+                            <TextBlock Text="Opening Balance" Foreground="#7F8C8D"/>
+                            <TextBlock x:Name="OpeningText" FontSize="20" FontWeight="Bold" Foreground="#2C3E50"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Background="#FAFAFA" CornerRadius="10" Padding="12" Margin="8,0,0,8">
+                        <StackPanel>
+                            <TextBlock Text="Expected Cash (حسب الحركات)" Foreground="#7F8C8D"/>
+                            <TextBlock x:Name="ExpectedText" FontSize="20" FontWeight="Bold" Foreground="#2C3E50"/>
+                        </StackPanel>
+                    </Border>
+                </UniformGrid>
+
+                <!-- Counted -->
+                <TextBlock Text="المبلغ الفعلي في الصندوق (Counted Cash)"
+                           FontSize="16" FontWeight="Bold" Foreground="#263238"/>
+
+                <Border Background="#FFF5F5" CornerRadius="10" Padding="12" Margin="0,10,0,0">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="90"/>
+                        </Grid.ColumnDefinitions>
+
+                        <TextBox x:Name="CountedTextBox"
+                                 Height="45"
+                                 FontSize="16"
+                                 VerticalContentAlignment="Center"
+                                 FlowDirection="LeftToRight"
+                                 Padding="10"
+                                 BorderBrush="#CBD5DF"
+                                 BorderThickness="1"
+                                 TextChanged="CountedTextBox_TextChanged"/>
+
+                        <TextBlock Grid.Column="1" Text="JOD"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   Foreground="#7F8C8D"
+                                   FontWeight="Bold"/>
+                    </Grid>
+                </Border>
+
+                <!-- Difference -->
+                <Border Background="#FAFAFA" CornerRadius="10" Padding="12" Margin="0,12,0,0">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel>
+                            <TextBlock Text="الفرق (Over/Short)" Foreground="#7F8C8D"/>
+                            <TextBlock x:Name="DiffText"
+                                       FontSize="22"
+                                       FontWeight="Bold"
+                                       Foreground="#E74C3C"
+                                       Text="0.00"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="ملاحظة" Foreground="#7F8C8D"/>
+                            <TextBox x:Name="NotesTextBox"
+                                     Height="60"
+                                     TextWrapping="Wrap"
+                                     AcceptsReturn="True"
+                                     BorderBrush="#CBD5DF"
+                                     BorderThickness="1"
+                                     Padding="8"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <TextBlock x:Name="ErrorText"
+                           Visibility="Collapsed"
+                           Margin="0,12,0,0"
+                           Foreground="#C62828"
+                           FontWeight="SemiBold"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Footer Buttons -->
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="160"/>
+                <ColumnDefinition Width="160"/>
+            </Grid.ColumnDefinitions>
+
+            <Button Grid.Column="1"
+                    Height="44"
+                    Margin="0,0,10,0"
+                    Background="#455A64"
+                    Foreground="White"
+                    FontWeight="SemiBold"
+                    BorderThickness="0"
+                    Cursor="Hand"
+                    Content="رجوع"
+                    Click="Cancel_Click"/>
+
+            <Button Grid.Column="2"
+                    Height="44"
+                    Background="#C62828"
+                    Foreground="White"
+                    FontWeight="Bold"
+                    BorderThickness="0"
+                    Cursor="Hand"
+                    Content="إنهاء الجلسة"
+                    Click="CloseSession_Click"/>
+        </Grid>
+    </Grid>
+</Window>

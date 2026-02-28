@@ -1,0 +1,63 @@
+﻿<Window x:Class="RaccoonWarehouse.Stocks.Reports.LowStockReport"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="تقرير بضائع تحت الحد الأدنى"
+        Height="750" Width="1200"
+        WindowStartupLocation="CenterScreen"
+        WindowState="Maximized"
+        Background="#F2F6FA"
+        FlowDirection="RightToLeft">
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- HEADER -->
+        <TextBlock Text="تقرير بضائع تحت الحد الأدنى"
+                   FontSize="26"
+                   FontWeight="Bold"
+                   Margin="0,0,0,15"/>
+
+        <!-- SUMMARY -->
+        <Border Grid.Row="1"
+                Background="White"
+                CornerRadius="10"
+                BorderBrush="#D0D7DD"
+                BorderThickness="1"
+                Padding="10"
+                Margin="0,0,0,10">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="عدد الأصناف تحت الحد الأدنى: "
+                           FontWeight="Bold"
+                           Margin="0,0,10,0"/>
+                <TextBlock x:Name="CountText"
+                           FontSize="18"
+                           FontWeight="Bold"
+                           Foreground="Red"/>
+            </StackPanel>
+        </Border>
+
+        <!-- DATA GRID -->
+        <DataGrid x:Name="LowStockGrid"
+                  Grid.Row="2"
+                  AutoGenerateColumns="False"
+                  IsReadOnly="True"
+                  AlternatingRowBackground="#F7FAFD"
+                  RowHeight="38"
+                  FontSize="14">
+
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="كود الصنف" Binding="{Binding ITEMCODE}" Width="150"/>
+                <DataGridTextColumn Header="اسم الصنف" Binding="{Binding ProductName}" Width="300"/>
+                <DataGridTextColumn Header="الوحدة" Binding="{Binding UnitName}" Width="150"/>
+                <DataGridTextColumn Header="الكمية الحالية" Binding="{Binding CurrentQuantity}" Width="150"/>
+                <DataGridTextColumn Header="الحد الأدنى" Binding="{Binding MinimumQuantity}" Width="150"/>
+                <DataGridTextColumn Header="النقص" Binding="{Binding Shortage}" Width="150"/>
+            </DataGrid.Columns>
+        </DataGrid>
+
+    </Grid>
+</Window>
