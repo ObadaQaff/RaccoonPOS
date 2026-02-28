@@ -190,5 +190,11 @@ namespace RaccoonWarehouse.Auth
                 PasswordBox.Visibility = Visibility.Visible;
             }
         }
+
+        private void Exit_Click(object sender, RoutedEventArgs e)
+        {
+            DialogResult = false;
+            Close();
+        }
     }
 }

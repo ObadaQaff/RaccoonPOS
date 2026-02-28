@@ -133,6 +133,26 @@
                         </ControlTemplate>
                     </Button.Template>
                 </Button>
+
+                <Button Height="40"
+                        Margin="0,12,0,0"
+                        FontSize="14"
+                        Background="#455A64"
+                        Foreground="White"
+                        BorderThickness="0"
+                        Cursor="Hand"
+                        Click="Exit_Click">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border Background="{TemplateBinding Background}"
+                                    CornerRadius="12">
+                                <ContentPresenter HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"/>
+                            </Border>
+                        </ControlTemplate>
+                    </Button.Template>
+                    <TextBlock Text="Exit"/>
+                </Button>
             </StackPanel>
         </Border>
     </Grid>
