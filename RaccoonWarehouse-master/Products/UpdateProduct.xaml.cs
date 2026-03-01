@@ -78,7 +78,7 @@ namespace RaccoonWarehouse.Products
                 MinimumQuantityTextBox.Text = product.Data.MiniQuantity?.ToString();
                 BrandComboBox.SelectedValue = product.Data.BrandId;
                 SubCategoryComboBox.SelectedValue = product.Data.SubCategoryId;
-
+                TaxRate.Text = product.Data.TaxRate.ToString();
                 // Load units
                 var units = await _productUnitService.GetAllWriteDtoWithFilteringAndIncludeAsync(pu=>pu.ProductId==_productId,pu=>pu.Unit);
                /* foreach (var u in units.Data)

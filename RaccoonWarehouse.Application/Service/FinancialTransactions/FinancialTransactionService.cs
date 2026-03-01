@@ -180,6 +180,10 @@ namespace RaccoonWarehouse.Application.Service.FinancialTransactions
 
             if (type.HasValue)
                 invoicesQ = invoicesQ.Where(x => x.InvoiceType == type.Value);
+            else if (filter.IncludeReturns)
+                invoicesQ = invoicesQ.Where(x => x.InvoiceType == InvoiceType.Sale || x.InvoiceType == InvoiceType.Return);
+            else
+                invoicesQ = invoicesQ.Where(x => x.InvoiceType == InvoiceType.Sale);
 
             // ✅ rows
             var invoiceIds = await invoicesQ.Select(x => x.Id).ToListAsync();
@@ -209,7 +213,7 @@ namespace RaccoonWarehouse.Application.Service.FinancialTransactions
                 var tax = agg?.Tax ?? inv.TotalTax;
                 var cogs = agg?.Cogs ?? inv.TotalCOGS;
 
-                var total = subTotal - discount + tax;
+                var total = (subTotal + tax) - discount;
                 var profit = (subTotal - discount) - cogs;
 
                 return new SalesReportRowDto
@@ -447,7 +451,7 @@ namespace RaccoonWarehouse.Application.Service.FinancialTransactions
             // =========================
             var rows = new List<ProfitLossRowDto>
             {
-                new ProfitLossRowDto{ Section="Revenue", Item="Sales (SubTotal)", Amount=totalSales },
+                new ProfitLossRowDto{ Section="Revenue", Item="Sales Before Tax", Amount=totalSales },
                 new ProfitLossRowDto{ Section="Revenue", Item="Returns", Amount= -totalReturns },
                 new ProfitLossRowDto{ Section="Revenue", Item="Discounts", Amount= -totalDiscounts },
                 new ProfitLossRowDto{ Section="Revenue", Item="Net Sales", Amount= netSales },

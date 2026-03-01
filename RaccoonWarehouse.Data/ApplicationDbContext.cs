@@ -26,10 +26,7 @@ namespace RaccoonWarehouse.Data
         {
             if (!optionsBuilder.IsConfigured)
             {
-                optionsBuilder.UseSqlServer("Data Source=SQL1002.site4now.net;Initial Catalog=db_abc5d4_raccoon;User Id=db_abc5d4_raccoon_admin;Password=1234@raccoon"); ;
-                // optionsBuilder.UseSqlServer("Server=.;Database=newFinalRaccoonWarehouseDb;Trusted_Connection=True;TrustServerCertificate=True;");
-                //
-                //"Data Source=SQL1001.site4now.net;Initial Catalog=db_abc5d4_raccoonwhrehouse;User Id=db_abc5d4_raccoonwhrehouse_admin;Password=Raccoon@123"
+                optionsBuilder.UseSqlServer(DatabaseConnectionStringProvider.GetConnectionString());
             }
         }
 

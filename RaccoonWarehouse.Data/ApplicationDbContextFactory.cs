@@ -8,12 +8,7 @@ namespace RaccoonWarehouse.Data
         public ApplicationDbContext CreateDbContext(string[] args)
         {
             var optionsBuilder = new DbContextOptionsBuilder<ApplicationDbContext>();
-
-            var connectionString = "Data Source=DESKTOP-H7DBJRA;Initial Catalog=db_abc5d4_raccoon;User Id=sa;Password=anymouse786;TrustServerCertificate=True;";
-
-            /*            var connectionString = "Server=.;Database=newFinalRaccoonWarehouseDb;Trusted_Connection=True;TrustServerCertificate=True;";
-            */
-            optionsBuilder.UseSqlServer(connectionString);
+            optionsBuilder.UseSqlServer(DatabaseConnectionStringProvider.GetConnectionString());
 
             return new ApplicationDbContext(optionsBuilder.Options);
         }

@@ -395,9 +395,45 @@ namespace RaccoonWarehouse.Invoices
         }
         private void RecalculateTotals()
         {
-            _currentInvoice.TotalAmount = _invoiceLines.Sum(l => l.Quantity * l.UnitPrice);
+            var grossSales = _invoiceLines.Sum(l => l.Quantity * l.UnitPrice);
+            _currentInvoice.SubTotal = _invoiceLines.Sum(l => l.LineSubTotal);
+            _currentInvoice.TotalTax = _invoiceLines.Sum(l => l.TaxAmount);
+            _currentInvoice.TotalCOGS = _invoiceLines.Sum(l => l.Quantity * l.UnitCost);
+            _currentInvoice.NetSales = _currentInvoice.SubTotal - (_currentInvoice.DiscountAmount ?? 0m);
+            _currentInvoice.GrossProfit = _currentInvoice.NetSales - _currentInvoice.TotalCOGS;
+            _currentInvoice.TotalAmount = grossSales - (_currentInvoice.DiscountAmount ?? 0m);
 
             TotalTextBlock.Text = _currentInvoice.TotalAmount.ToString("0.000");
+        }
+        private void ApplyLinePricingFromProduct(InvoiceLineWriteDto line, ProductReadDto product)
+        {
+            var unit = product.ProductUnits?.FirstOrDefault();
+            if (unit == null)
+                return;
+
+            var taxExempt = product.TaxExempt ?? false;
+            var taxRate = taxExempt ? 0m : (product.TaxRate ?? 0m);
+            var unitPrice = unit.SalePrice;
+            var lineTotal = line.Quantity * unitPrice;
+            var divisor = 1m + (taxRate / 100m);
+            var lineSubTotal = taxExempt || divisor <= 0m
+                ? lineTotal
+                : Math.Round(lineTotal / divisor, 3);
+            var taxAmount = Math.Round(lineTotal - lineSubTotal, 3);
+            var costTotal = line.Quantity * unit.PurchasePrice;
+
+            line.SelectedProduct = product;
+            line.ProductId = product.Id;
+            line.ProductName = product.Name;
+            line.ProductUnitId = unit.Id;
+            line.UnitPrice = unitPrice;
+            line.UnitCost = unit.PurchasePrice;
+            line.TaxExempt = taxExempt;
+            line.TaxRate = taxRate;
+            line.LineSubTotal = lineSubTotal;
+            line.TaxAmount = taxAmount;
+            line.ProfitBeforeTax = lineSubTotal - costTotal;
+            line.Profit = line.ProfitBeforeTax;
         }
         private bool TryGetActiveCashierSession(out CashierSessionReadDto? session)
         {
@@ -458,17 +494,17 @@ namespace RaccoonWarehouse.Invoices
             if (existingLine != null)
             {
                 existingLine.Quantity += 1;
+                ApplyLinePricingFromProduct(existingLine, product);
             }
             else
             {
-                _invoiceLines.Add(new InvoiceLineWriteDto
+                var line = new InvoiceLineWriteDto
                 {
-                    ProductId = product.Id,
-                    ProductName = product.Name,
-                    ProductUnitId = product.ProductUnits.FirstOrDefault().Id,
                     Quantity = 1,
-                    UnitPrice = product.ProductUnits.FirstOrDefault().SalePrice,
-                });
+                };
+
+                ApplyLinePricingFromProduct(line, product);
+                _invoiceLines.Add(line);
             }
 
             RecalculateTotals();
@@ -510,86 +546,7 @@ namespace RaccoonWarehouse.Invoices
 
         private async void FinishSaleBtn_Click(object sender, RoutedEventArgs e)
         {
-            try
-            {
-                if (!CanSaveInvoice())
-                    return;
-                if (!TryGetActiveCashierSession(out var session))
-                    return;
-
-                PrepareInvoiceForSave();
-
-
-                var selectecCustomer = CustomerComboBox.SelectedItem as UserReadDto;
-                _currentInvoice.CustomerId = selectecCustomer?.Id;
-                var result = await _invoiceService.CreateAsync(_currentInvoice);
-
-                if (!result.Success)
-                {
-                    MessageBox.Show(result.Message ?? "فشل حفظ الفاتورة", "خطأ");
-                    return;
-                }
-
-                MessageBox.Show("تم حفظ الفاتورة بنجاح ✅", "نجاح");
-                _lastSavedInvoice = await _invoiceService.GetFullInvoiceByIdAsync(result.Data.Id);
-
-
-
-                await UpdateStockAfterSaleAsync();
-
-
-                //Financial handle
-                if (_currentInvoice.InvoiceType != InvoiceType.Return
-                    && _currentInvoice.InvoiceType != InvoiceType.Return)
-                {
-                    var postDto = new FinancialPostDto
-                    {
-                        Direction = TransactionDirection.In,
-                        Method = PaymentMethod.Cash,
-                        Amount = _currentInvoice.TotalAmount,
-                        TransactionDate = DateTime.Now,
-                        SourceType = FinancialSourceType.PosSaleInvoice,
-                        SourceId = _lastSavedInvoice.Id,
-                        CashierSessionId = session.Id,
-                        CashierId = session.CashierId,
-                        Notes = $"POS Invoice #{_currentInvoice.InvoiceNumber}"
-                    };
-
-                    await _financialService.PostAsync(postDto);
-
-                    ResetPOS();
-                }
-                else if (_currentInvoice.InvoiceType == InvoiceType.Return) // Finish Retunrs Invoice 
-                {
-
-                    var postDto = new FinancialPostDto
-                    {
-                        Direction = TransactionDirection.Out,
-                        Method = PaymentMethod.Cash,
-                        Amount = -(_currentInvoice.TotalAmount),
-                        TransactionDate = DateTime.Now,
-                        SourceType = FinancialSourceType.SaleReturn,
-                        SourceId = _lastSavedInvoice.Id,
-                        CashierSessionId = session.Id,
-                        CashierId = session.CashierId,
-                        Notes = $"POS Invoice #{_currentInvoice.InvoiceNumber}"
-                    };
-
-                    await _financialService.PostAsync(postDto);
-
-                    ResetPOS();
-                }
-
-
-
-
-
-
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(ex.Message, "خطأ");
-            }
+            await ProcessPaymentAsync(PaymentType.Cash);
         }
         private async Task UpdateStockAfterSaleAsync()
         {
@@ -645,8 +602,7 @@ namespace RaccoonWarehouse.Invoices
             _currentInvoice.IsPOS = true;
             _currentInvoice.Status = InvoiceStatus.Completed;
             _currentInvoice.ClosedAt = DateTime.Now;
-
-            _currentInvoice.TotalAmount = _invoiceLines.Sum(l => l.Quantity * l.UnitPrice);
+            RecalculateTotals();
         }
         private void ResetPOS()
         {
@@ -1457,12 +1413,9 @@ namespace RaccoonWarehouse.Invoices
             var unit = product.ProductUnits.FirstOrDefault();
             if (unit == null) return;
 
-            line.SelectedProduct = product;
-            line.ProductId = product.Id;
-            line.ProductName = product.Name;
-            line.ProductUnitId = unit.Id;
-            line.UnitPrice = unit.SalePrice;
             line.Quantity = 1;
+            ApplyLinePricingFromProduct(line, product);
+            RecalculateTotals();
 
             FocusQuantityCell(combo);
         }
@@ -1764,11 +1717,9 @@ namespace RaccoonWarehouse.Invoices
 
             var product = result.Data.First().Product;
 
-            line.ProductId = product.Id;
-            line.ProductName = product.Name;
-            line.UnitPrice = product.ProductUnits.FirstOrDefault()?.SalePrice ?? 0;
-            line.ProductUnitId = product.ProductUnits.FirstOrDefault()?.Id ?? 0;
             line.Quantity = 1;
+            ApplyLinePricingFromProduct(line, product);
+            RecalculateTotals();
 
             _currentPopup.IsOpen = false;
 

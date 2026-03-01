@@ -107,7 +107,9 @@ namespace RaccoonWarehouse.Invoices.Reports
                 var res = await _invoiceService.GetAllWithFilteringAndIncludeAsync(
                     x => x.CreatedDate >= from && x.CreatedDate <= to
                       && (!customerId.HasValue || x.CustomerId == customerId.Value)
-                      && (!invoiceType.HasValue || x.InvoiceType == invoiceType.Value),
+                      && (invoiceType.HasValue
+                            ? x.InvoiceType == invoiceType.Value
+                            : x.InvoiceType == InvoiceType.Sale),
                     x => x.User);
 
                 if (!res.Success)
@@ -125,9 +127,7 @@ namespace RaccoonWarehouse.Invoices.Reports
                     var tax = inv.TotalTax;
                     var cogs = inv.TotalCOGS;
 
-                    // ✅ YOUR RULE:
-                    // NetProfit = Sales(SubTotal) - Cost(COGS) - Discount - Tax
-                    var netProfit = subTotal - cogs - discount - tax;
+                    var netProfit = (subTotal - discount) - cogs;
 
                     _invoices.Add(new InvoiceHeaderVm
                     {
@@ -184,7 +184,7 @@ namespace RaccoonWarehouse.Invoices.Reports
                 var cogs = lines.Sum(l => l.Quantity * l.UnitCost);
 
                 var grossProfit = (subTotal - discount) - cogs;
-                var netProfit = grossProfit - tax; // ✅ after tax (matches your rule)
+                var netProfit = grossProfit;
 
                 // Fill summary UI
                 SelSubTotalText.Text = subTotal.ToString("0.###");
@@ -203,9 +203,7 @@ namespace RaccoonWarehouse.Invoices.Reports
                     var costTotal = qty * unitCost;
                     var taxAmount = l.TaxAmount;
 
-                    // ✅ Per-line Profit:
                     var profitBeforeTax = lineSub - costTotal;
-                    var profitAfterTax = profitBeforeTax - taxAmount;
 
                     _lines.Add(new InvoiceLineVm
                     {
@@ -221,7 +219,7 @@ namespace RaccoonWarehouse.Invoices.Reports
                         CostTotal = costTotal,
 
                         ProfitBeforeTax = profitBeforeTax,
-                        Profit = profitAfterTax
+                        Profit = profitBeforeTax
                     });
                 }
             }

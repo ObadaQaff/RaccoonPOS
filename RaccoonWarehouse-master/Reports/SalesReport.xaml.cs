@@ -43,6 +43,12 @@ namespace RaccoonWarehouse.Reports
             InvoiceTypeComboBox.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = "مرتجع", Tag = (InvoiceType?)InvoiceType.Return });
             InvoiceTypeComboBox.SelectedIndex = 0;
 
+            PosFilterComboBox.Items.Clear();
+            PosFilterComboBox.Items.Add(new ComboBoxItem { Content = "الكل", Tag = null });
+            PosFilterComboBox.Items.Add(new ComboBoxItem { Content = "فواتير POS فقط", Tag = true });
+            PosFilterComboBox.Items.Add(new ComboBoxItem { Content = "فواتير غير POS", Tag = false });
+            PosFilterComboBox.SelectedIndex = 0;
+
             // ✅ load customers
             var usersRes = await _userService.GetAllAsync();
             _customers = usersRes.Data ?? new List<UserReadDto>();
@@ -84,6 +90,10 @@ namespace RaccoonWarehouse.Reports
                         invoiceType = (InvoiceType)it.Tag;
                 }
 
+                bool? isPOS = null;
+                if (PosFilterComboBox.SelectedItem is ComboBoxItem posItem && posItem.Tag != null)
+                    isPOS = (bool)posItem.Tag;
+
                 var filter = new FinancialSummaryFilterDto
                 {
                     From = from,
@@ -92,7 +102,7 @@ namespace RaccoonWarehouse.Reports
                     IncludeReturns = true
                 };
 
-                var res = await _invoiceService.GetSalesReportAsync(filter, invoiceType);
+                var res = await _invoiceService.GetSalesReportAsync(filter, invoiceType, isPOS);
 
                 if (!res.Success)
                 {
@@ -122,8 +132,6 @@ namespace RaccoonWarehouse.Reports
 
         private void FillSummary(List<SalesReportRowDto> data)
         {
-            // ✅ totals based on enum text (Sale/Return) — we avoid Contains by using InvoiceType enum in DTO if available.
-            // إذا DTO عندك InvoiceTypeValue (أفضل) استخدمه. هنا بنعتمد على string لكن بطريقة آمنة:
             bool IsReturn(SalesReportRowDto x)
             {
                 var t = x.InvoiceType ?? "";
@@ -131,14 +139,13 @@ namespace RaccoonWarehouse.Reports
                        || t.Contains("مرت", StringComparison.OrdinalIgnoreCase);
             }
 
-            decimal totalSales = data.Where(x => !IsReturn(x)).Sum(x => x.Total);
-            decimal totalReturns = data.Where(IsReturn).Sum(x => x.Total);
+            decimal totalSales = data.Where(x => !IsReturn(x)).Sum(x => x.SubTotal);
+            decimal totalReturns = data.Where(IsReturn).Sum(x => x.SubTotal);
+            decimal totalTax = data.Where(x => !IsReturn(x)).Sum(x => x.TotalTax);
+            decimal totalDiscount = data.Where(x => !IsReturn(x)).Sum(x => x.Discount);
+            decimal totalCogs = data.Where(x => !IsReturn(x)).Sum(x => x.Cogs);
 
-            decimal totalTax = data.Sum(x => x.TotalTax);
-            decimal totalDiscount = data.Sum(x => x.Discount);
-            decimal totalCogs = data.Sum(x => x.Cogs);
-
-            decimal netSales = totalSales - totalReturns;
+            decimal netSales = (totalSales - totalReturns) - totalDiscount;
             decimal grossProfit = netSales - totalCogs;
 
             TotalSalesText.Text = totalSales.ToString("0.##");

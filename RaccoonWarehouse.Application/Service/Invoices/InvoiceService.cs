@@ -53,21 +53,39 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 var invoiceRepo = _uow.GetRepository<Invoice>();
                 var lineRepo = _uow.GetRepository<InvoiceLine>();
 
+                if (dto.InvoiceLines == null || !dto.InvoiceLines.Any())
+                    return Result<InvoiceWriteDto>.Fail("Invoice must contain at least one line.");
+
                 // 1) احسب قيم السطور (Tax/Cost/Profit) قبل الحفظ
                 foreach (var l in dto.InvoiceLines)
                 {
+                    var lineTotal = l.Quantity * l.UnitPrice;
+                    var taxRate = l.TaxExempt ? 0m : l.TaxRate;
+                    var divisor = 1m + (taxRate / 100m);
+
+                    l.LineSubTotal = l.TaxExempt || divisor <= 0m
+                        ? lineTotal
+                        : Math.Round(lineTotal / divisor, 3);
+                    l.TaxAmount = Math.Round(lineTotal - l.LineSubTotal, 3);
+
                     var costTotal = l.Quantity * l.UnitCost;
                     var profitBeforeTax = l.LineSubTotal - costTotal;
-                    var profit = profitBeforeTax - l.TaxAmount; // حسب منطقك (تخصم الضريبة)
 
                     l.ProfitBeforeTax = profitBeforeTax;
-                    l.Profit = profit;
+                    l.Profit = profitBeforeTax;
                 }
 
                 // 2) احسب قيم الفاتورة
+                var grossSales = dto.InvoiceLines.Sum(x => x.Quantity * x.UnitPrice);
+                dto.SubTotal = dto.InvoiceLines.Sum(x => x.LineSubTotal);
+                dto.TotalTax = dto.InvoiceLines.Sum(x => x.TaxAmount);
+                dto.TotalAmount = grossSales - (dto.DiscountAmount ?? 0m);
                 dto.TotalCOGS = dto.InvoiceLines.Sum(x => x.CostTotal);
-                dto.NetSales = dto.SubTotal - (dto.DiscountAmount ?? 0m) - dto.TotalTax; // حسب طلبك
+                dto.NetSales = dto.SubTotal - (dto.DiscountAmount ?? 0m); // قبل الضريبة
                 dto.GrossProfit = dto.NetSales - dto.TotalCOGS;
+                if (dto.CreatedDate == default)
+                    dto.CreatedDate = DateTime.Now;
+                dto.UpdatedDate = DateTime.Now;
 
                 // 3) أنشئ invoice بدون lines (مهم)
                 var invoice = _mapper.Map<Invoice>(dto);
@@ -105,22 +123,21 @@ namespace RaccoonWarehouse.Application.Service.Invoices
             // 1) Per-line calculations
             foreach (var line in invoice.InvoiceLines)
             {
-                // subtotal before tax
-                line.LineSubTotal = line.Quantity * line.UnitPrice;
-
-                // tax
+                var lineTotal = line.Quantity * line.UnitPrice;
                 var rate = line.TaxExempt ? 0m : line.TaxRate;
-                line.TaxAmount = line.TaxExempt ? 0m : (line.LineSubTotal * rate / 100m);
+                var divisor = 1m + (rate / 100m);
+                line.LineSubTotal = line.TaxExempt || divisor <= 0m
+                    ? lineTotal
+                    : Math.Round(lineTotal / divisor, 3);
+                line.TaxAmount = Math.Round(lineTotal - line.LineSubTotal, 3);
 
-                // profit
                 var costTotal = line.Quantity * line.UnitCost;
                 line.ProfitBeforeTax = line.LineSubTotal - costTotal;
-
-                // usually tax doesn't affect profit (it's a liability)
                 line.Profit = line.ProfitBeforeTax;
             }
 
             // 2) Invoice totals
+            var grossSales = invoice.InvoiceLines.Sum(l => l.Quantity * l.UnitPrice);
             invoice.SubTotal = invoice.InvoiceLines.Sum(l => l.LineSubTotal);
             invoice.TotalTax = invoice.InvoiceLines.Sum(l => l.TaxAmount);
 
@@ -131,7 +148,7 @@ namespace RaccoonWarehouse.Application.Service.Invoices
             invoice.NetSales = invoice.SubTotal - discount;             // قبل الضريبة
             invoice.GrossProfit = invoice.NetSales - invoice.TotalCOGS; // الربح
 
-            invoice.TotalAmount = invoice.NetSales + invoice.TotalTax;  // النهائي
+            invoice.TotalAmount = grossSales - discount;  // النهائي شامل الضريبة
         }
         public async Task<InvoiceReadDto?> GetFullInvoiceByIdAsync(int id)
         {
@@ -250,7 +267,7 @@ namespace RaccoonWarehouse.Application.Service.Invoices
 
 
         public async Task<Result<(FinancialSummaryDto summary, List<SalesReportRowDto> rows)>>
-     GetSalesReportAsync(FinancialSummaryFilterDto filter, InvoiceType? type = null)
+     GetSalesReportAsync(FinancialSummaryFilterDto filter, InvoiceType? type = null, bool? isPOS = null)
         {
             if (filter.From > filter.To)
                 return Result<(FinancialSummaryDto, List<SalesReportRowDto>)>.Fail("Invalid date range.");
@@ -266,6 +283,13 @@ namespace RaccoonWarehouse.Application.Service.Invoices
 
             if (type.HasValue)
                 invoicesQ = invoicesQ.Where(x => x.InvoiceType == type.Value);
+            else if (filter.IncludeReturns)
+                invoicesQ = invoicesQ.Where(x => x.InvoiceType == InvoiceType.Sale || x.InvoiceType == InvoiceType.Return);
+            else
+                invoicesQ = invoicesQ.Where(x => x.InvoiceType == InvoiceType.Sale);
+
+            if (isPOS.HasValue)
+                invoicesQ = invoicesQ.Where(x => x.IsPOS == isPOS.Value);
 
             // ✅ rows
             var invoiceIds = await invoicesQ.Select(x => x.Id).ToListAsync();
@@ -372,6 +396,6 @@ namespace RaccoonWarehouse.Application.Service.Invoices
 
         Task<Result<List<InvoiceReadDto>>> GetHeldPOSInvoicesAsync();
         Task<Result<(FinancialSummaryDto summary, List<SalesReportRowDto> rows)>>
-                GetSalesReportAsync(FinancialSummaryFilterDto filter, InvoiceType? type = null);
+                GetSalesReportAsync(FinancialSummaryFilterDto filter, InvoiceType? type = null, bool? isPOS = null);
     }
 }

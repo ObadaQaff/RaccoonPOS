@@ -121,6 +121,7 @@
                         <ColumnDefinition Width="220"/>
                         <ColumnDefinition Width="260"/>
                         <ColumnDefinition Width="220"/>
+                        <ColumnDefinition Width="220"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
@@ -151,8 +152,13 @@
                         <ComboBox x:Name="InvoiceTypeComboBox" Style="{StaticResource ComboStyle}"/>
                     </StackPanel>
 
+                    <StackPanel Grid.Column="4" Margin="8,0">
+                        <TextBlock Text="مصدر الفاتورة" FontWeight="SemiBold" Foreground="#333" Margin="0,0,0,6"/>
+                        <ComboBox x:Name="PosFilterComboBox" Style="{StaticResource ComboStyle}"/>
+                    </StackPanel>
+
                     <!-- Buttons -->
-                    <StackPanel Grid.Column="4"
+                    <StackPanel Grid.Column="5"
                                 Orientation="Horizontal"
                                 HorizontalAlignment="Left"
                                 VerticalAlignment="Bottom"

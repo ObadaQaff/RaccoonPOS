@@ -138,7 +138,8 @@ namespace RaccoonWarehouse
         private void ConfigureServices(IServiceCollection services)
         {
             // Database
-            services.AddDbContext<ApplicationDbContext>();
+            services.AddDbContext<ApplicationDbContext>(options =>
+                options.UseSqlServer(DatabaseConnectionStringProvider.GetConnectionString()));
             services.AddTransient<IUOW, UOW>();
 
             // AutoMapper

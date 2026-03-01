@@ -392,14 +392,13 @@ namespace RaccoonWarehouse.Invoices
             // ✅ ADD: Snapshot tax info from product at time of invoice
             bool taxExempt = product.TaxExempt ?? false;
             decimal taxRate = taxExempt ? 0m : (product.TaxRate ?? 0m);
-
-            // ✅ ADD: Decide pricing policy: UnitPrice = UnTaxedPrice if you want clear tax
-            // If you want price before tax:
-            decimal unitPriceBeforeTax = unit.UnTaxedPrice > 0 ? unit.UnTaxedPrice : unit.SalePrice;
-
-            // ✅ ADD: Subtotal/Tax calculations per line
-            decimal lineSubTotal = qty * unitPriceBeforeTax;
-            decimal taxAmount = taxExempt ? 0m : (lineSubTotal * taxRate / 100m);
+            decimal unitPrice = unit.SalePrice;
+            decimal lineTotal = qty * unitPrice;
+            decimal divisor = 1m + (taxRate / 100m);
+            decimal lineSubTotal = taxExempt || divisor <= 0m
+                ? lineTotal
+                : Math.Round(lineTotal / divisor, 3);
+            decimal taxAmount = Math.Round(lineTotal - lineSubTotal, 3);
 
             var line = new InvoiceLineWriteDto
             {
@@ -411,8 +410,8 @@ namespace RaccoonWarehouse.Invoices
 
                 Quantity = qty,
 
-                // ✅ ADD: store sale price used (before tax)
-                UnitPrice = unitPriceBeforeTax,
+                // ✅ sale price stored on product already includes tax
+                UnitPrice = unitPrice,
 
                 // ✅ ADD: store purchase cost used (snapshot)
                 UnitCost = unit.PurchasePrice,
@@ -456,12 +455,13 @@ namespace RaccoonWarehouse.Invoices
         {
             decimal subTotal = InvoiceLines.Sum(l => l.LineSubTotal);   // قبل الضريبة
             decimal taxTotal = InvoiceLines.Sum(l => l.TaxAmount);      // الضريبة
+            decimal grossSales = InvoiceLines.Sum(l => l.Quantity * l.UnitPrice);
             decimal discount = 0m;
 
             // ✅ ADD: (optional) if you later add Discount UI textbox
             // decimal.TryParse(DiscountTextBox.Text, out discount);
 
-            decimal netTotal = subTotal - discount + taxTotal;
+            decimal netTotal = grossSales - discount;
 
             // ✅ Existing UI field shows final
             TotalAmountTextBox.Text = netTotal.ToString("0.###");
@@ -492,9 +492,10 @@ namespace RaccoonWarehouse.Invoices
                 // ✅ ADD: invoice totals required for reporting
                 decimal subTotal = InvoiceLines.Sum(l => l.LineSubTotal);
                 decimal totalTax = InvoiceLines.Sum(l => l.TaxAmount);
+                decimal grossSales = InvoiceLines.Sum(l => l.Quantity * l.UnitPrice);
                 decimal discount = 0m; // ✅ ADD: later from UI if needed
 
-                decimal totalAmount = subTotal - discount + totalTax;
+                decimal totalAmount = grossSales - discount;
                 bool isUpdate = _currentInvoiceId != null;
                 if (!TryGetActiveCashierSession(out var session))
                     return;
