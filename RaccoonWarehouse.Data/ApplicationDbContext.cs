@@ -6,6 +6,7 @@ using RaccoonWarehouse.Domain.Base;
 using RaccoonWarehouse.Domain.Categories;
 using RaccoonWarehouse.Domain.EntityAndDtoStructure;
 using RaccoonWarehouse.Domain.InvoiceLines;
+using RaccoonWarehouse.Domain.Permissions;
 using RaccoonWarehouse.Domain.Products;
 using RaccoonWarehouse.Domain.ProductUnits;
 using RaccoonWarehouse.Domain.Relations;
@@ -19,6 +20,8 @@ namespace RaccoonWarehouse.Data
     {   
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
             : base(options) { }
+
+        public DbSet<ReportPermission> ReportPermissions => Set<ReportPermission>();
 
      
 
@@ -42,6 +45,11 @@ namespace RaccoonWarehouse.Data
             {
                 modelBuilder.Entity(type);
             }
+
+            modelBuilder.Entity<ReportPermission>()
+                .HasIndex(x => new { x.ReportKey, x.Role })
+                .IsUnique();
+
             // ✅ Disable all cascade delete paths to avoid multiple cascade errors
             modelBuilder.Entity<InvoiceLine>()
                 .HasOne(il => il.Invoice)

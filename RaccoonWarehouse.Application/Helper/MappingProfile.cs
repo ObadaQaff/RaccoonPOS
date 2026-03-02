@@ -14,6 +14,8 @@ using RaccoonWarehouse.Domain.InvoiceLines;
 using RaccoonWarehouse.Domain.InvoiceLines.DTOs;
 using RaccoonWarehouse.Domain.Invoices;
 using RaccoonWarehouse.Domain.Invoices.DTOs;
+using RaccoonWarehouse.Domain.Permissions;
+using RaccoonWarehouse.Domain.Permissions.DTOs;
 using RaccoonWarehouse.Domain.Products;
 using RaccoonWarehouse.Domain.Products.DTOs;
 using RaccoonWarehouse.Domain.ProductUnits;
@@ -135,6 +137,9 @@ namespace RaccoonWarehouse.Application.Helper
 
             CreateMap<CashierSessionWriteDto, CashierSession>().ReverseMap();
             CreateMap<CashierSession, CashierSessionReadDto>().ReverseMap();
+
+            CreateMap<ReportPermissionWriteDto, ReportPermission>().ReverseMap();
+            CreateMap<ReportPermission, ReportPermissionReadDto>().ReverseMap();
 
 
         }

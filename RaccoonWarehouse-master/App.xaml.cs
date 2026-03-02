@@ -11,6 +11,7 @@ using RaccoonWarehouse.Application.Service.Checks;
 using RaccoonWarehouse.Application.Service.FinancialTransactions;
 using RaccoonWarehouse.Application.Service.InvoiceLines;
 using RaccoonWarehouse.Application.Service.Invoices;
+using RaccoonWarehouse.Application.Service.Permissions;
 using RaccoonWarehouse.Application.Service.Products;
 using RaccoonWarehouse.Application.Service.ProductUnits;
 using RaccoonWarehouse.Application.Service.StockDocuments;
@@ -40,6 +41,7 @@ using RaccoonWarehouse.Reports;
 using RaccoonWarehouse.Stocks;
 using RaccoonWarehouse.Stocks.Reports;
 using RaccoonWarehouse.SubCategories;
+using RaccoonWarehouse.Settings;
 using RaccoonWarehouse.Units;
 using RaccoonWarehouse.Vouchers;
 using RaccoonWarehouse.Warehouses;
@@ -112,6 +114,7 @@ namespace RaccoonWarehouse
 
                 var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
                 await db.Database.CanConnectAsync();
+                await EnsureReportPermissionsTableAsync(db);
 
                 // Force EF model & query compilation
                 await db.Database.ExecuteSqlRawAsync("SELECT 1");
@@ -135,6 +138,38 @@ namespace RaccoonWarehouse
                 ServiceProvider.GetRequiredService<UsersTable>();
             });
         }
+
+        private static async Task EnsureReportPermissionsTableAsync(ApplicationDbContext db)
+        {
+            const string sql = @"
+IF OBJECT_ID(N'dbo.ReportPermissions', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[ReportPermissions]
+    (
+        [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [ReportKey] NVARCHAR(150) NOT NULL,
+        [Role] INT NOT NULL,
+        [CanView] BIT NOT NULL,
+        [CreatedDate] DATETIME2 NOT NULL,
+        [UpdatedDate] DATETIME2 NOT NULL
+    );
+END;
+
+IF NOT EXISTS
+(
+    SELECT 1
+    FROM sys.indexes
+    WHERE name = N'IX_ReportPermissions_ReportKey_Role'
+      AND object_id = OBJECT_ID(N'dbo.ReportPermissions')
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_ReportPermissions_ReportKey_Role]
+        ON [dbo].[ReportPermissions] ([ReportKey], [Role]);
+END;";
+
+            await db.Database.ExecuteSqlRawAsync(sql);
+        }
+
         private void ConfigureServices(IServiceCollection services)
         {
             // Database
@@ -170,6 +205,7 @@ namespace RaccoonWarehouse
             services.AddScoped<IStockReportService, StockReportService>();
             services.AddScoped<ICheckService, CheckService>();
             services.AddScoped<IFinancialTransactionService, FinancialTransactionService>();
+            services.AddScoped<IReportPermissionService, ReportPermissionService>();
             services.AddSingleton<ILoadingService, LoadingService>();
             services.AddScoped<ICashierSessionService, CashierSessionService>();
             services.AddScoped<IAuthService, AuthService>();
@@ -253,6 +289,7 @@ namespace RaccoonWarehouse
             services.AddTransient<LoginWindow>();
             services.AddTransient<StartCashierSessionWindow>();
             services.AddTransient<CloseCashierSessionWindow>();
+            services.AddTransient<ReportPermissionsManager>();
             #endregion
 
         }

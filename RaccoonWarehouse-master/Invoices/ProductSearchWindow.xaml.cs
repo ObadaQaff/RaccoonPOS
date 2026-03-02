@@ -4,6 +4,7 @@ using RaccoonWarehouse.Domain.Stock;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Text;
@@ -25,17 +26,26 @@ namespace RaccoonWarehouse.Invoices
     public partial class ProductSearchWindow : Window
     {
         private readonly IStockService _stockService;
+        private readonly Func<ProductReadDto, bool>? _onAddProduct;
+        private readonly HashSet<string> _disabledProductKeys;
         private CancellationTokenSource _searchCts;
 
         public ProductReadDto SelectedProduct { get; private set; }
 
-        private ObservableCollection<ProductReadDto> _products
-            = new ObservableCollection<ProductReadDto>();
+        private ObservableCollection<ProductSearchRow> _products
+            = new ObservableCollection<ProductSearchRow>();
 
-        public ProductSearchWindow(IStockService stockService)
+        public ProductSearchWindow(
+            IStockService stockService,
+            Func<ProductReadDto, bool>? onAddProduct = null,
+            IEnumerable<string>? disabledProductKeys = null)
         {
             InitializeComponent();
             _stockService = stockService;
+            _onAddProduct = onAddProduct;
+            _disabledProductKeys = disabledProductKeys != null
+                ? new HashSet<string>(disabledProductKeys)
+                : new HashSet<string>();
             ProductsGrid.ItemsSource = _products;
         }
 
@@ -45,7 +55,7 @@ namespace RaccoonWarehouse.Invoices
 
             if (text.Length < 2)
             {
-                ProductsGrid.ItemsSource = null;
+                _products.Clear();
                 return;
             }
 
@@ -72,10 +82,22 @@ namespace RaccoonWarehouse.Invoices
                 if (token.IsCancellationRequested)
                     return;
 
-                ProductsGrid.ItemsSource = result.Data
+                var products = result.Data
                     .Select(s => s.Product)
-                    .Distinct()
+                    .Where(p => p != null)
+                    .GroupBy(p => p.Id)
+                    .Select(g => g.First())
                     .ToList();
+
+                _products.Clear();
+                foreach (var product in products)
+                {
+                    _products.Add(new ProductSearchRow
+                    {
+                        Product = product,
+                        CanAdd = !_disabledProductKeys.Contains(BuildProductKey(product))
+                    });
+                }
             }
             catch (TaskCanceledException)
             {
@@ -90,15 +112,29 @@ namespace RaccoonWarehouse.Invoices
 
         private void ProductsGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
         {
-            if (ProductsGrid.SelectedItem is ProductReadDto product)
+            if (ProductsGrid.SelectedItem is ProductSearchRow row)
             {
-                SelectedProduct = product;
+                SelectedProduct = row.Product;
                 DialogResult = true;
             }
         }
+
+        private void AddProductBtn_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button { DataContext: ProductSearchRow row } || row.Product == null || !row.CanAdd)
+                return;
+
+            if (_onAddProduct != null && !_onAddProduct(row.Product))
+                return;
+
+            row.CanAdd = false;
+            _disabledProductKeys.Add(BuildProductKey(row.Product));
+        }
+
         private void ClearBtn_Click(object sender, RoutedEventArgs e)
         {
             SearchTextBox.Clear();
+            _products.Clear();
             SearchTextBox.Focus();
         }
 
@@ -107,6 +143,33 @@ namespace RaccoonWarehouse.Invoices
             Close();
         }
 
+        private static string BuildProductKey(ProductReadDto product)
+        {
+            var unitId = product.ProductUnits?.FirstOrDefault()?.Id ?? 0;
+            return $"{product.Id}:{unitId}";
+        }
+
+        public class ProductSearchRow : INotifyPropertyChanged
+        {
+            private bool _canAdd;
+
+            public ProductReadDto Product { get; set; }
+
+            public bool CanAdd
+            {
+                get => _canAdd;
+                set
+                {
+                    if (_canAdd == value)
+                        return;
+
+                    _canAdd = value;
+                    PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanAdd)));
+                }
+            }
+
+            public event PropertyChangedEventHandler? PropertyChanged;
+        }
     }
 
 }

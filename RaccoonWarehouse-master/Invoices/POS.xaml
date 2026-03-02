@@ -559,6 +559,7 @@
                               KeyboardNavigation.TabNavigation="Continue"
                               PreviewKeyDown="InvoiceGrid_PreviewKeyDown"
                               PreparingCellForEdit="InvoiceGrid_PreparingCellForEdit"
+                              CellEditEnding="InvoiceGrid_CellEditEnding"
                           >
 
                     <DataGrid.Columns>
@@ -639,12 +640,25 @@
                         CornerRadius="10"
                         Padding="15"
                         Margin="0,0,0,15">
-                        <TextBlock Name="TotalTextBlock"
-                        Text="0.000"
-                        FontSize="36"
-                        FontWeight="Bold"
-                        Foreground="#E74C3C"
-                        HorizontalAlignment="Center"/>
+                        <StackPanel>
+                            <TextBlock x:Name="SubTotalTextBlock"
+                                Text="قبل الضريبة: 0.000"
+                                FontSize="18"
+                                Foreground="#7F8C8D"
+                                HorizontalAlignment="Center"/>
+                            <TextBlock x:Name="TaxTextBlock"
+                                Text="الضريبة: 0.000"
+                                FontSize="18"
+                                Foreground="#D35400"
+                                HorizontalAlignment="Center"
+                                Margin="0,4,0,4"/>
+                            <TextBlock x:Name="TotalTextBlock"
+                                Text="0.000"
+                                FontSize="36"
+                                FontWeight="Bold"
+                                Foreground="#E74C3C"
+                                HorizontalAlignment="Center"/>
+                        </StackPanel>
                     </Border>
 
                     <!-- 🔵 ACTION BUTTONS (SCROLLABLE) -->
@@ -658,7 +672,8 @@
                            Margin="0,0,0,10">
 
                             <Button Style="{StaticResource POSNeutralButton}"
-                                Click="SearchProductBtn_Click">
+                                Click="SearchProductBtn_Click"
+                                ToolTip="اختصار: F2">
                                 <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
                                     <iconPacks:PackIconMaterial Kind="Magnify" Width="28" Height="28"/>
                                     <TextBlock Text="بحث عن مادة"/>
@@ -674,7 +689,8 @@
 
 
                             <Button Style="{StaticResource POSDangerButton}"
-                                Click="DeleteItemBtn_Click">
+                                Click="DeleteItemBtn_Click"
+                                ToolTip="اختصار: F3 أو Delete">
                                 <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
                                     <iconPacks:PackIconMaterial Kind="Delete" Width="28" Height="28"/>
                                     <TextBlock Text="حذف مادة"/>
@@ -689,17 +705,18 @@
                             </Button>
 
 
-                            <Button Style="{StaticResource POSPrimaryButton}" Name="FinishSaleBtn" Click="FinishSaleBtn_Click">
+                            <Button Style="{StaticResource POSPrimaryButton}" Name="FinishSaleBtn" Click="FinishSaleBtn_Click" ToolTip="اختصار: F4">
 
                                 <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
                                     <iconPacks:PackIconMaterial Kind="CheckBold" Width="28" Height="28"/>
-                                    <TextBlock Text="إنهاء"/>
+                                    <TextBlock Text="إنهاء كاش"/>
 
                                 </StackPanel>
                             </Button>
 
                             <Button Style="{StaticResource POSButtonDark}"
-                                Click="NewInvoiceBtn_Click">
+                                Click="NewInvoiceBtn_Click"
+                                ToolTip="اختصار: F1">
                                 <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
                                     <iconPacks:PackIconMaterial Kind="FileDocument" Width="28" Height="28"/>
                                     <TextBlock Text="فاتورة جديدة"/>
@@ -738,7 +755,7 @@
                                 </StackPanel>
                             </Button>
 
-                            <Button Style="{StaticResource POSAdjustmentButton}" Click="HoldSaleBtn_Click">
+                            <Button Style="{StaticResource POSAdjustmentButton}" Click="HoldSaleBtn_Click" ToolTip="اختصار: F5">
 
                                 <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
                                     <iconPacks:PackIconMaterial Kind="PauseCircle" Width="28" Height="28"/>
@@ -746,7 +763,7 @@
                                 </StackPanel>
                             </Button>
 
-                            <Button Style="{StaticResource POSDangerButton}" Click="CancelInvoiceBtn_Click">
+                            <Button Style="{StaticResource POSDangerButton}" Click="CancelInvoiceBtn_Click" ToolTip="اختصار: Esc">
                                 <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
                                     <iconPacks:PackIconMaterial Kind="Cancel" Width="28" Height="28"/>
                                     <TextBlock Text="إلغاء"/>
@@ -761,7 +778,8 @@
                                 </StackPanel>
                             </Button>
                             <Button Style="{StaticResource POSNeutralButton}"
-                                Click="ResumeHoldBtn_Click">
+                                Click="ResumeHoldBtn_Click"
+                                ToolTip="اختصار: F6">
                                 <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
                                     <iconPacks:PackIconMaterial Kind="PlayCircle"
                                         Width="28"

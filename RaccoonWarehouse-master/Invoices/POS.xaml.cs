@@ -299,9 +299,8 @@ namespace RaccoonWarehouse.Invoices
 
                 // Recalculate totals
                 RecalculateTotals();
-
-                // Move to next cell in memory (0..N), which matches visual RTL
-                colIndex += 1; // always +1, independent of FlowDirection
+                e.Handled = true;
+                return;
             }
 
             else
@@ -365,7 +364,7 @@ namespace RaccoonWarehouse.Invoices
             try
             {
                 var stockedProducts = await _stockService.GetAllWithFilteringAndIncludeAsync(
-                            s => s.Quantity > 10,
+                            s => s.Quantity > 0,
                             new Expression<Func<Stock, object>>[]
                             {
                                 s => s.Product,
@@ -403,7 +402,68 @@ namespace RaccoonWarehouse.Invoices
             _currentInvoice.GrossProfit = _currentInvoice.NetSales - _currentInvoice.TotalCOGS;
             _currentInvoice.TotalAmount = grossSales - (_currentInvoice.DiscountAmount ?? 0m);
 
+            if (SubTotalTextBlock != null)
+                SubTotalTextBlock.Text = $"قبل الضريبة: {_currentInvoice.SubTotal:0.000}";
+            if (TaxTextBlock != null)
+                TaxTextBlock.Text = $"الضريبة: {_currentInvoice.TotalTax:0.000}";
             TotalTextBlock.Text = _currentInvoice.TotalAmount.ToString("0.000");
+        }
+        private ProductReadDto? FindProductForLine(InvoiceLineWriteDto line)
+        {
+            if (line.SelectedProduct != null)
+                return line.SelectedProduct;
+
+            return Products.FirstOrDefault(p => p.Id == line.ProductId);
+        }
+
+        private decimal GetDefaultSalePrice(InvoiceLineWriteDto line)
+        {
+            var product = FindProductForLine(line);
+            var unit = product?.ProductUnits?.FirstOrDefault(u => u.Id == line.ProductUnitId)
+                       ?? product?.ProductUnits?.FirstOrDefault();
+
+            return unit?.SalePrice ?? line.UnitPrice;
+        }
+
+        private void RecalculateLineFromCurrentValues(InvoiceLineWriteDto line)
+        {
+            if (line.Quantity <= 0)
+                line.Quantity = 1;
+
+            var lineTotal = line.Quantity * line.UnitPrice;
+            var divisor = 1m + (line.TaxRate / 100m);
+            var lineSubTotal = line.TaxExempt || divisor <= 0m
+                ? lineTotal
+                : Math.Round(lineTotal / divisor, 3);
+            var taxAmount = Math.Round(lineTotal - lineSubTotal, 3);
+            var costTotal = line.Quantity * line.UnitCost;
+
+            line.LineSubTotal = lineSubTotal;
+            line.TaxAmount = taxAmount;
+            line.ProfitBeforeTax = lineSubTotal - costTotal;
+            line.Profit = line.ProfitBeforeTax;
+        }
+
+        private static InvoiceLineWriteDto CloneLineSnapshot(InvoiceLineWriteDto source, decimal quantity, string? originalInvoiceId = null)
+        {
+            var divisor = source.Quantity == 0 ? 1 : Math.Abs(source.Quantity);
+
+            return new InvoiceLineWriteDto
+            {
+                ProductId = source.ProductId,
+                ProductName = source.ProductName,
+                ProductUnitId = source.ProductUnitId,
+                UnitPrice = source.UnitPrice,
+                UnitCost = source.UnitCost,
+                TaxExempt = source.TaxExempt,
+                TaxRate = source.TaxRate,
+                Quantity = quantity,
+                LineSubTotal = (source.LineSubTotal / divisor) * quantity,
+                TaxAmount = (source.TaxAmount / divisor) * quantity,
+                ProfitBeforeTax = (source.ProfitBeforeTax / divisor) * quantity,
+                Profit = (source.Profit / divisor) * quantity,
+                OriginalInvoiceId = originalInvoiceId ?? source.OriginalInvoiceId
+            };
         }
         private void ApplyLinePricingFromProduct(InvoiceLineWriteDto line, ProductReadDto product)
         {
@@ -435,6 +495,57 @@ namespace RaccoonWarehouse.Invoices
             line.ProfitBeforeTax = lineSubTotal - costTotal;
             line.Profit = line.ProfitBeforeTax;
         }
+        private void InvoiceGrid_CellEditEnding(object sender, DataGridCellEditEndingEventArgs e)
+        {
+            if (e.EditAction != DataGridEditAction.Commit || e.Row.Item is not InvoiceLineWriteDto line)
+                return;
+
+            if (e.EditingElement is not TextBox textBox)
+                return;
+
+            var header = e.Column.Header?.ToString();
+            if (string.IsNullOrWhiteSpace(header))
+                return;
+
+            if (header.Contains("الكمية"))
+            {
+                if (!decimal.TryParse(textBox.Text, out var quantity) || quantity <= 0)
+                {
+                    MessageBox.Show("يرجى إدخال كمية صحيحة أكبر من صفر.", "تنبيه");
+                    line.Quantity = 1;
+                }
+                else
+                {
+                    line.Quantity = quantity;
+                }
+            }
+            else if (header.Contains("السعر"))
+            {
+                if (!decimal.TryParse(textBox.Text, out var unitPrice))
+                {
+                    MessageBox.Show("يرجى إدخال سعر صحيح.", "تنبيه");
+                }
+                else
+                {
+                    line.UnitPrice = unitPrice;
+                }
+
+                if (line.UnitPrice < line.UnitCost)
+                {
+                    var defaultPrice = GetDefaultSalePrice(line);
+                    MessageBox.Show("سعر البيع لا يمكن أن يكون أقل من التكلفة. سيتم إعادة السعر الافتراضي.", "تنبيه");
+                    line.UnitPrice = defaultPrice;
+                    textBox.Text = defaultPrice.ToString("0.000");
+                }
+            }
+            else
+            {
+                return;
+            }
+
+            RecalculateLineFromCurrentValues(line);
+            RecalculateTotals();
+        }
         private bool TryGetActiveCashierSession(out CashierSessionReadDto? session)
         {
             session = _userSession.CurrentCashierSession;
@@ -458,7 +569,7 @@ namespace RaccoonWarehouse.Invoices
             {
                 //var result = await _productService.(barcode);
                 var result = await _stockService.GetAllWithFilteringAndIncludeAsync(
-                            s => s.Quantity > 10 & s.Product.ITEMCODE.ToString() == barcode,
+                            s => s.Quantity > 0 && s.Product.ITEMCODE.ToString() == barcode,
                             new Expression<Func<Stock, object>>[]
                             {
                                 s => s.Product,
@@ -488,8 +599,15 @@ namespace RaccoonWarehouse.Invoices
 
         private void AddProductToInvoice(ProductReadDto product)
         {
+            var unit = product.ProductUnits?.FirstOrDefault();
+            if (unit == null)
+            {
+                MessageBox.Show("لا توجد وحدة بيع معرفة لهذا الصنف.", "تنبيه");
+                return;
+            }
+
             var existingLine = _invoiceLines
-                .FirstOrDefault(l => l.ProductId == product.Id);
+                .FirstOrDefault(l => l.ProductId == product.Id && l.ProductUnitId == unit.Id);
 
             if (existingLine != null)
             {
@@ -578,6 +696,49 @@ namespace RaccoonWarehouse.Invoices
             await _stockService.UpdateAsync(stock);
         }
 
+        private async Task<bool> ValidateStockAvailabilityAsync()
+        {
+            foreach (var line in _invoiceLines.Where(l => l.Quantity > 0).ToList())
+            {
+                var existingStock = await _stockService.GetAllWriteDtoWithFilteringAndIncludeAsync(
+                    s => s.ProductId == line.ProductId && s.ProductUnitId == line.ProductUnitId);
+
+                if (existingStock.Data.Count == 0)
+                {
+                    MessageBox.Show($"الصنف {line.ProductName} غير موجود في المخزون. لن يتم حفظ الفاتورة.", "تنبيه");
+                    return false;
+                }
+
+                var stock = existingStock.Data.First();
+                if (stock.Quantity >= line.Quantity)
+                    continue;
+
+                var availableQuantity = Math.Max(stock.Quantity, 0m);
+
+                if (availableQuantity > 0)
+                {
+                    line.Quantity = availableQuantity;
+                    RecalculateLineFromCurrentValues(line);
+                    MessageBox.Show(
+                        $"الكمية المطلوبة للصنف {line.ProductName} غير متوفرة. تم تعديل الكمية إلى الحد الأقصى المتاح: {availableQuantity:0.###}",
+                        "تنبيه");
+                }
+                else
+                {
+                    _invoiceLines.Remove(line);
+                    MessageBox.Show(
+                        $"الصنف {line.ProductName} غير متوفر حالياً في المخزون، وتمت إزالته من الفاتورة.",
+                        "تنبيه");
+                }
+
+                RecalculateTotals();
+                InvoiceGrid.Items.Refresh();
+                return false;
+            }
+
+            return true;
+        }
+
 
         private bool CanSaveInvoice()
         {
@@ -609,6 +770,10 @@ namespace RaccoonWarehouse.Invoices
             _invoiceLines.Clear();
             InvoiceGrid.Items.Refresh();
 
+            if (SubTotalTextBlock != null)
+                SubTotalTextBlock.Text = "قبل الضريبة: 0.000";
+            if (TaxTextBlock != null)
+                TaxTextBlock.Text = "الضريبة: 0.000";
             TotalTextBlock.Text = "0.000";
 
             CustomerComboBox.SelectedIndex = -1;
@@ -620,15 +785,26 @@ namespace RaccoonWarehouse.Invoices
 
         private void SearchProductBtn_Click(object sender, RoutedEventArgs e)
         {
-            var searchWindow = new ProductSearchWindow(_stockService)
+            var disabledKeys = _invoiceLines
+                .Select(l => $"{l.ProductId}:{l.ProductUnitId}")
+                .ToList();
+
+            var searchWindow = new ProductSearchWindow(
+                _stockService,
+                product =>
+                {
+                    if (product == null)
+                        return false;
+
+                    AddProductToInvoice(product);
+                    return true;
+                },
+                disabledKeys)
             {
                 Owner = this
             };
 
-            if (searchWindow.ShowDialog() == true)
-            {
-                AddProductToInvoice(searchWindow.SelectedProduct);
-            }
+            searchWindow.ShowDialog();
         }
 
         private void DailyReportBtn_Click(object sender, RoutedEventArgs e)
@@ -653,7 +829,7 @@ namespace RaccoonWarehouse.Invoices
                 _currentInvoice.Status = InvoiceStatus.OnHold;
                 _currentInvoice.IsPOS = true;
                 _currentInvoice.ClosedAt = null;
-                _currentInvoice.TotalAmount = _invoiceLines.Sum(l => l.Quantity * l.UnitPrice);
+                RecalculateTotals();
 
                 var result = await _invoiceService.CreateAsync(_currentInvoice);
 
@@ -697,7 +873,15 @@ namespace RaccoonWarehouse.Invoices
                     ProductName = line.ProductName,
                     Quantity = line.Quantity,
                     UnitPrice = line.UnitPrice,
-                    ProductUnitId = line.ProductUnitId
+                    ProductUnitId = line.ProductUnitId,
+                    UnitCost = line.UnitCost,
+                    TaxExempt = line.TaxExempt,
+                    TaxRate = line.TaxRate,
+                    TaxAmount = line.TaxAmount,
+                    LineSubTotal = line.LineSubTotal,
+                    ProfitBeforeTax = line.ProfitBeforeTax,
+                    Profit = line.Profit,
+                    OriginalInvoiceId = line.OriginalInvoiceId
                 });
             }
 
@@ -787,10 +971,14 @@ namespace RaccoonWarehouse.Invoices
                 win.OriginalInvoiceId
             );
 
-            // إزالة المادة القديمة
-            _invoiceLines.Remove(selectedRow);
+            _invoiceLines.Add(CloneLineSnapshot(
+                selectedRow,
+                -Math.Abs(selectedRow.Quantity),
+                win.OriginalInvoiceId));
 
             MessageBox.Show("امسح المادة الجديدة بالباركود");
+            RecalculateTotals();
+            InvoiceGrid.Items.Refresh();
             BarcodeTextBox.Focus();
         }
 
@@ -845,15 +1033,10 @@ namespace RaccoonWarehouse.Invoices
 
 
             // 🟢 إضافة السطر المرتجع
-            _invoiceLines.Add(new InvoiceLineWriteDto
-            {
-                ProductId = selectedRow.ProductId,
-                ProductName = selectedRow.ProductName,
-                ProductUnitId = selectedRow.ProductUnitId,
-                Quantity = -Math.Abs(selectedRow.Quantity),
-                UnitPrice = selectedRow.UnitPrice,
-                OriginalInvoiceId = win.OriginalInvoiceId
-            });
+            _invoiceLines.Add(CloneLineSnapshot(
+                selectedRow,
+                -Math.Abs(selectedRow.Quantity),
+                win.OriginalInvoiceId));
             _currentInvoice.InvoiceType = InvoiceType.Return;
 
             RecalculateTotals();
@@ -1117,7 +1300,7 @@ namespace RaccoonWarehouse.Invoices
                 await _searchLock.WaitAsync(token); // 🔒 prevent concurrent DbContext use
 
                 var result = await _stockService.GetAllWithFilteringAndIncludeAsync(
-                    s => s.Quantity > 10 &&
+                    s => s.Quantity > 0 &&
                          (s.Product.Name.Contains(text) ||
                           s.Product.ITEMCODE.ToString().Contains(text)),
                     new Expression<Func<Stock, object>>[]
@@ -1343,7 +1526,7 @@ namespace RaccoonWarehouse.Invoices
                 await _searchLock.WaitAsync(token);
 
                 var result = await _stockService.GetAllWithFilteringAndIncludeAsync(
-                    s => s.Quantity > 10 &&
+                    s => s.Quantity > 0 &&
                          ((s.Product.Name != null && s.Product.Name.Contains(text)) ||
                           (s.Product.ITEMCODE != null && s.Product.ITEMCODE.ToString().Contains(text))),
                     new Expression<Func<Stock, object>>[]
@@ -1760,6 +1943,8 @@ namespace RaccoonWarehouse.Invoices
                 if (!CanSaveInvoice())
                     return;
                 if (!TryGetActiveCashierSession(out var session))
+                    return;
+                if (!await ValidateStockAvailabilityAsync())
                     return;
 
                 PrepareInvoiceForSave();

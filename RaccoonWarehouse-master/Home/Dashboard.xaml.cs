@@ -1,5 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore.Storage.Json;
 using Microsoft.Extensions.DependencyInjection;
+using RaccoonWarehouse.Application.Service.Permissions;
+using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Brands;
 using RaccoonWarehouse.Categories;
 using RaccoonWarehouse.Invoices;
@@ -23,6 +25,7 @@ using RaccoonWarehouse.Stocks.Reports;
 using RaccoonWarehouse.Products.Reports;
 using RaccoonWarehouse.FinancialTransactions.Reports;
 using RaccoonWarehouse.FinancialTransactions;
+using RaccoonWarehouse.Settings;
 
 
 
@@ -35,9 +38,21 @@ namespace RaccoonWarehouse
     /// </summary>
     public partial class Dashboard : Window
     {
+        private readonly IUserSession _userSession;
+        private readonly IReportPermissionService _reportPermissionService;
+
         public Dashboard()
+            : this(
+                ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<IUserSession>(),
+                ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<IReportPermissionService>())
+        {
+        }
+
+        public Dashboard(IUserSession userSession, IReportPermissionService reportPermissionService)
         {
             InitializeComponent();
+            _userSession = userSession;
+            _reportPermissionService = reportPermissionService;
             Receipt_Click(null, null);
         }
 
@@ -493,8 +508,14 @@ namespace RaccoonWarehouse
             }
         }
 
-        private void Reports_Click(object sender, RoutedEventArgs e)
+        private async void Reports_Click(object sender, RoutedEventArgs e)
         {
+            var role = _userSession.CurrentUser?.Role;
+            HashSet<string>? deniedReportKeys = null;
+
+            if (role != null)
+                deniedReportKeys = await _reportPermissionService.GetDeniedReportKeysAsync(role.Value);
+
             var scrollViewer = new ScrollViewer
             {
                 VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
@@ -506,36 +527,32 @@ namespace RaccoonWarehouse
             scrollViewer.Content = mainPanel;
 
             // مجموعات التقارير
-            var groups = new Dictionary<string, string[]>
-            {
-                { " الاصناف والمخزون", new string[]
-                    {
-                        "المخزون الحالي",          
-                        "حركات الاصناف", "أرصدة المخزون بتاريخ معين", "بضائع تحت الحد الأدنى",
-                        "ملخص حركات المخزون", "اصناف لم تتحرك منذ مدة"
+            var groups = ReportCatalog.All
+                .Where(x => deniedReportKeys == null || !deniedReportKeys.Contains(x.Key))
+                .GroupBy(x => x.Category)
+                .ToDictionary(x => x.Key, x => x.Select(item => item.DisplayName).ToArray());
 
-                    }
-             
-                },
-                //{ "الأصناف", new string[]
-                //    {
-                        
-                  
-                //        "حركة الاصناف إجمالي", "مجموع حركة الاصناف"
-                //    }
-                //},
-                { "التقارير المالية", new string[]
+            if (groups.Count == 0)
+            {
+                MainContent.Content = new Border
+                {
+                    Background = Brushes.White,
+                    CornerRadius = new CornerRadius(12),
+                    Margin = new Thickness(20),
+                    Padding = new Thickness(30),
+                    BorderBrush = new SolidColorBrush(Color.FromRgb(220, 220, 220)),
+                    BorderThickness = new Thickness(1),
+                    Child = new TextBlock
                     {
-                        "تقرير المبيعات", 
-                          "تحليل ربحية الفواتير","أرباح الأصناف","التحصيل والدفع","تقرير الأرباح والخسائر"
+                        Text = "لا توجد تقارير متاحة لهذا المستخدم.",
+                        FontSize = 22,
+                        FontWeight = FontWeights.Bold,
+                        HorizontalAlignment = HorizontalAlignment.Center,
+                        VerticalAlignment = VerticalAlignment.Center
                     }
-                },
-                { "متنوعة", new string[]
-                    {
-                        "تقرير الصفقات", "تقرير القياسات"
-                    }
-                }
-            };
+                };
+                return;
+            }
             //"أرباح المبيعات بالتكلفة الحالية","تقرير مبيعات الذمم","حركة الاصناف المحولة", "أكثر الاصناف", "باقي الاصناف من صفقة معينة","باقي الاصناف من صفقة معينة","كشف تكلفة صنف تفصيلي", "اجمالي الخصم اصناف",
             //"إجمالي البونص", "قائمة الأسعار","كشف سعر تكلفة البضائع", "تقييم بضاعة أول المدة", "كشف الاماكن", "حركة المخزون تفصيلي",, "حركة المخزون"
 
@@ -616,12 +633,24 @@ namespace RaccoonWarehouse
         }
 
 
-        private void DynamicButtonReport_Click(object sender, RoutedEventArgs e)
+        private async void DynamicButtonReport_Click(object sender, RoutedEventArgs e)
         {
             var clickedButton = sender as Button;
             if (clickedButton != null)
             {
                 string option = clickedButton.Content.ToString();
+                var report = ReportCatalog.FindByDisplayName(option);
+                var role = _userSession.CurrentUser?.Role;
+
+                if (report != null && role != null)
+                {
+                    var canView = await _reportPermissionService.CanViewAsync(role.Value, report.Key);
+                    if (!canView)
+                    {
+                        MessageBox.Show("ليس لديك صلاحية لعرض هذا التقرير.");
+                        return;
+                    }
+                }
 
                 switch (option)
                 {
@@ -705,6 +734,36 @@ namespace RaccoonWarehouse
                     case "تقرير الأرباح والخسائر":
                         {
                             WindowManager.Show<ProfitLossReport>(WindowSizeType.LargeRectangle);
+                            break;
+                        }
+                    case "تقرير مبيعات الآجل":
+                        {
+                            WindowManager.Show<CreditSalesReport>(WindowSizeType.LargeRectangle);
+                            break;
+                        }
+                    case "ملخص الخصومات":
+                        {
+                            WindowManager.Show<DiscountSummaryReport>(WindowSizeType.LargeRectangle);
+                            break;
+                        }
+                    case "تفاصيل تكلفة الأصناف":
+                        {
+                            WindowManager.Show<ItemCostDetailReport>(WindowSizeType.LargeRectangle);
+                            break;
+                        }
+                    case "أرصدة المخزون":
+                        {
+                            WindowManager.Show<StockBalancesReport>(WindowSizeType.LargeRectangle);
+                            break;
+                        }
+                    case "حركة المواد":
+                        {
+                            WindowManager.Show<MaterialMovementsReport>(WindowSizeType.LargeRectangle);
+                            break;
+                        }
+                    case "الأصناف الراكدة":
+                        {
+                            WindowManager.Show<InactiveItemsReport>(WindowSizeType.LargeRectangle);
                             break;
                         }
                 }
@@ -996,7 +1055,9 @@ namespace RaccoonWarehouse
             var groups = new Dictionary<string, string[]>
             {
                 { "إعدادات الوحدات", new string[]
-                { "إضافة وحدة جديدة", "إستعلام او تعديل وحدة" } }
+                { "إضافة وحدة جديدة", "إستعلام او تعديل وحدة" } },
+                { "صلاحيات التقارير", new string[]
+                { "مدير صلاحيات التقارير" } }
             };
 
             foreach (var group in groups)
@@ -1096,6 +1157,11 @@ namespace RaccoonWarehouse
                     case "إستعلام او تعديل وحدة":
                         {
                             WindowManager.Show<UnitsTable>();
+                            break;
+                        }
+                    case "مدير صلاحيات التقارير":
+                        {
+                            WindowManager.Show<ReportPermissionsManager>(WindowSizeType.LargeRectangle);
                             break;
                         }
                 }
