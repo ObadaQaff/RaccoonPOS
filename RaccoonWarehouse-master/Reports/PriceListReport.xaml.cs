@@ -1,61 +1,63 @@
-﻿using System;
+using RaccoonWarehouse.Application.Service.Stocks;
+using RaccoonWarehouse.Domain.Reports.Stocks.Dtos;
+using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Shapes;
 
 namespace RaccoonWarehouse.Reports
 {
-    /// <summary>
-    /// Interaction logic for PriceListReport.xaml
-    /// </summary>
     public partial class PriceListReport : Window
     {
-        public PriceListReport()
+        private readonly IStockReportService _stockReportService;
+        private List<PriceListRowDto> _rows = new();
+
+        public PriceListReport(IStockReportService stockReportService)
         {
             InitializeComponent();
-            LoadSampleData();
+            _stockReportService = stockReportService;
+            Loaded += PriceListReport_Loaded;
         }
 
-        private void LoadSampleData()
+        private async void PriceListReport_Loaded(object sender, RoutedEventArgs e)
         {
-            // بيانات عرضية لتعبئة DataGrid
-            var sampleData = new List<PriceItem>
+            try
             {
-                new PriceItem { ItemID = "I001", ItemName = "صنف 1", Barcode = "1234567890123", PurchasePrice = 10, SalePrice = 15, WholesalePrice = 13 },
-                new PriceItem { ItemID = "I002", ItemName = "صنف 2", Barcode = "1234567890456", PurchasePrice = 20, SalePrice = 28, WholesalePrice = 25 },
-                new PriceItem { ItemID = "I003", ItemName = "صنف 3", Barcode = "1234567890789", PurchasePrice = 15, SalePrice = 22, WholesalePrice = 20 },
-                new PriceItem { ItemID = "I004", ItemName = "صنف 4", Barcode = "1234567890111", PurchasePrice = 8, SalePrice = 12, WholesalePrice = 10 },
-                new PriceItem { ItemID = "I005", ItemName = "صنف 5", Barcode = "1234567890222", PurchasePrice = 12, SalePrice = 18, WholesalePrice = 15 }
-            };
-
-            PriceListGrid.ItemsSource = sampleData;
+                _rows = await _stockReportService.GetPriceListAsync();
+                ApplyRows(_rows);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"خطأ: {ex.Message}");
+            }
         }
-  
-    // نموذج البيانات لكل صف
-    public class PriceItem
-    {
-        public string ItemID { get; set; }
-        public string ItemName { get; set; }
-        public string Barcode { get; set; }
-        public double PurchasePrice { get; set; }
-        public double SalePrice { get; set; }
-        public double WholesalePrice { get; set; }
-    }
+
+        private void ApplyRows(List<PriceListRowDto> rows)
+        {
+            PriceListGrid.ItemsSource = rows;
+            TotalItemsText.Text = rows.Count.ToString();
+            TotalProductsText.Text = rows.Select(x => x.ProductId).Distinct().Count().ToString();
+        }
+
         private void BackBtn_Click(object sender, RoutedEventArgs e)
         {
-            this.Close();
+            Close();
         }
+
         private void GenerateReportBtn_Click(object sender, RoutedEventArgs e)
         {
+            var search = SearchTextBox.Text?.Trim();
+            var rows = _rows.AsEnumerable();
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                rows = rows.Where(x =>
+                    x.ItemName.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                    x.ItemID.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                    x.UnitName.Contains(search, StringComparison.OrdinalIgnoreCase));
+            }
+
+            ApplyRows(rows.ToList());
         }
     }
 }

@@ -1037,6 +1037,9 @@ namespace RaccoonWarehouse.Vouchers
                 PaymentType.Cash => PaymentMethod.Cash,
                 PaymentType.Visa => PaymentMethod.Visa,
                 PaymentType.Master => PaymentMethod.Master,
+                PaymentType.Debit => PaymentMethod.BankTransfer,
+                PaymentType.Check => PaymentMethod.Check,
+                PaymentType.MobilePayment => PaymentMethod.MobilePayment,
                 PaymentType.Credit => PaymentMethod.Credit,
                 _ => PaymentMethod.Cash
             };

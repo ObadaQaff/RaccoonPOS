@@ -1,193 +1,61 @@
-﻿<Window x:Class="RaccoonWarehouse.SubCategories.UpdateSubCategory"
+<Window x:Class="RaccoonWarehouse.SubCategories.UpdateSubCategory"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:RaccoonWarehouse.SubCategories"
+        xmlns:fa="http://schemas.fontawesome.io/icons/"
         mc:Ignorable="d"
-        Title="Update SubCategory"
+        Title="تعديل فئة فرعية"
         Height="800"
         Width="1400"
         WindowStartupLocation="CenterScreen"
-        WindowState="Maximized">
-
-    <!-- ============== RESOURCES ============== -->
-    <Window.Resources>
-        <!-- Primary button style -->
-        <Style x:Key="PrimaryButtonStyle" TargetType="Button">
-            <Setter Property="Background" Value="#3396D3"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="FontSize" Value="18"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="BorderBrush" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}"
-                                CornerRadius="8"
-                                Padding="15,8"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}">
-                            <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center"/>
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#EBCB90"/>
-                    <Setter Property="Foreground" Value="Black"/>
-                </Trigger>
-                <Trigger Property="IsPressed" Value="True">
-                    <Setter Property="Background" Value="#FFF0CE"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-        <!-- Secondary button style -->
-        <Style x:Key="SecondaryButtonStyle" TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
-            <Setter Property="Background" Value="#FFF0CE"/>
-            <Setter Property="Foreground" Value="#3396D3"/>
-        </Style>
-    </Window.Resources>
-
-    <!-- ============== LAYOUT ============== -->
-    <Grid Background="#EEEEEE">
+        WindowState="Maximized"
+        FlowDirection="RightToLeft"
+        Background="{StaticResource AppPageBackgroundBrush}">
+    <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="70"/>
-            <!-- Header -->
+            <RowDefinition Height="240"/>
             <RowDefinition Height="*"/>
-            <!-- Content -->
-            <RowDefinition Height="70"/>
-            <!-- Footer -->
         </Grid.RowDefinitions>
-
-        <!-- HEADER -->
-        <Border Background="#3396D3" Grid.Row="0">
-            <TextBlock Text="Update SubCategory"
-                       Foreground="White"
-                       FontSize="28"
-                       FontWeight="Bold"
-                       VerticalAlignment="Center"
-                       HorizontalAlignment="Center"/>
+        <Border Grid.Row="0" CornerRadius="0,0,36,36" Background="{StaticResource AppBlueHeroBrush}">
+            <Grid Margin="34,24,34,30">
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="تعديل فئة فرعية" FontSize="34" FontWeight="Bold" Foreground="White"/>
+                </StackPanel>
+            </Grid>
         </Border>
-
-        <!-- CONTENT -->
-        <StackPanel Grid.Row="1"
-                    VerticalAlignment="Center"
-                    HorizontalAlignment="Center"
-                    Width="800">
-
-            <!-- SubCategory Name -->
-            <TextBlock Text="SubCategory Name"
-                       FontSize="18"
-                       FontWeight="SemiBold"
-                       Foreground="#333"
-                       Margin="0,0,0,5"/>
-            <TextBox x:Name="SubCategoryName"
-                     Height="44"
-                     FontSize="18"
-                     Background="White"
-                     BorderBrush="#EBCB90"
-                     BorderThickness="1"
-                     Padding="8"
-                     Margin="0,0,0,20"/>
-
-            <!-- Description -->
-            <TextBlock Text="Description"
-                       FontSize="18"
-                       FontWeight="SemiBold"
-                       Foreground="#333"
-                       Margin="0,0,0,5"/>
-            <TextBox x:Name="SubCategoryDes"
-                     Height="100"
-                     FontSize="18"
-                     Background="White"
-                     BorderBrush="#EBCB90"
-                     BorderThickness="1"
-                     TextWrapping="Wrap"
-                     AcceptsReturn="True"
-                     Padding="8"
-                     Margin="0,0,0,20"/>
-
-            <!-- Parent Category -->
-            <TextBlock Text="Parent Category"
-                       FontSize="18"
-                       FontWeight="SemiBold"
-                       Foreground="#333"
-                       Margin="0,0,0,5"/>
-            <ComboBox x:Name="ParentCategoryCombo"
-                      Height="44"
-                      FontSize="18"
-                      Background="White"
-                      BorderBrush="#EBCB90"
-                      BorderThickness="1"
-                      Padding="8"
-                      Margin="0,0,0,20"
-                      DisplayMemberPath="Name"
-                      SelectedValuePath="Id"/>
-
-            <!-- Image URL -->
-            <TextBlock Text="Image URL"
-                       FontSize="18"
-                       FontWeight="SemiBold"
-                       Foreground="#333"
-                       Margin="0,0,0,5"/>
-            <TextBox x:Name="SubCategoryImageUrl"
-                     Height="44"
-                     FontSize="18"
-                     Background="White"
-                     BorderBrush="#EBCB90"
-                     BorderThickness="1"
-                     Padding="8"
-                     Margin="0,0,0,20"/>
-
-            <!-- Action Buttons -->
-            <StackPanel Orientation="Horizontal"
-                        HorizontalAlignment="Center"
-                        Margin="0,20,0,0">
-                <!-- Back Button -->
-                <Button x:Name="BackBtn"
-                        Style="{StaticResource SecondaryButtonStyle}"
-                        Width="200"
-                        Click="BackBtn_Click"
-                        Margin="0,0,20,0">
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                        <TextBlock Text="←"
-                                   FontSize="18"
-                                   Margin="0,0,5,0"
-                                   Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
-                        <TextBlock Text="Back"/>
-                    </StackPanel>
-                </Button>
-
-                <!-- Create Button -->
-                <Button x:Name="UpdateSubCategoryBtn"
-                        Style="{StaticResource PrimaryButtonStyle}"
-                        Width="200"
-                        Click="UpdateSubCategoryBtn_Click" >
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                        <TextBlock Text="+"
-                                   FontSize="18"
-                                   Margin="0,0,5,0"
-                                   Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
-                        <TextBlock Text="Update"/>
-                    </StackPanel>
-                </Button>
-            </StackPanel>
-        </StackPanel>
-
-        <!-- FOOTER -->
-        <Border Background="#FFF0CE" Grid.Row="2">
-            <TextBlock Text="© 2025 Raccoon Warehouse"
-                       VerticalAlignment="Center"
-                       HorizontalAlignment="Center"
-                       Foreground="#3396D3"
-                       FontSize="14"
-                       FontWeight="SemiBold"/>
-        </Border>
+        <Grid Grid.Row="1" Margin="28,-70,28,28">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2.1*"/>
+                <ColumnDefinition Width="1*"/>
+            </Grid.ColumnDefinitions>
+            <Border Grid.Column="0" Style="{StaticResource AppCardBorderStyle}" Padding="28" Margin="0,0,20,0">
+                <StackPanel>
+                    <TextBlock Text="إسم الفئة الفرعية" Style="{StaticResource AppFieldLabelStyle}"/>
+                    <TextBox x:Name="SubCategoryName" Style="{StaticResource AppTextInputStyle}" Margin="0,0,0,18"/>
+                    <TextBlock Text="الوصف" Style="{StaticResource AppFieldLabelStyle}"/>
+                    <TextBox x:Name="SubCategoryDes" Style="{StaticResource AppTextInputStyle}" Height="100" TextWrapping="Wrap" AcceptsReturn="True" Margin="0,0,0,18"/>
+                    <TextBlock Text="الفئة التابعة لها" Style="{StaticResource AppFieldLabelStyle}"/>
+                    <ComboBox x:Name="ParentCategoryCombo" Style="{StaticResource AppComboBoxStyle}" DisplayMemberPath="Name" SelectedValuePath="Id" Margin="0,0,0,18"/>
+                    <TextBlock Text="رابط الصورة" Style="{StaticResource AppFieldLabelStyle}"/>
+                    <TextBox x:Name="SubCategoryImageUrl" Style="{StaticResource AppTextInputStyle}"/>
+                </StackPanel>
+            </Border>
+            <Border Grid.Column="1" Style="{StaticResource AppCardBorderStyle}" Padding="24">
+                <StackPanel>
+                    <TextBlock Text="الإجراءات" FontSize="24" FontWeight="Bold" Foreground="{StaticResource AppBlueBrush}"/>
+                    <TextBlock Margin="0,12,0,0" FontSize="14" Foreground="{StaticResource AppMutedTextBrush}" Text="احفظ التعديلات أو ارجع إلى جدول الفئات الفرعية."/>
+                    <Button x:Name="UpdateSubCategoryBtn" Margin="0,34,0,0" Width="200" Style="{StaticResource AppFormButtonStyle}" Background="{StaticResource AppBlueBrush}" Click="UpdateSubCategoryBtn_Click">
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                            <fa:ImageAwesome Icon="Save" Width="16" Height="16" Margin="0,0,8,0" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                            <TextBlock Text="تحديث"/>
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="BackBtn" Margin="0,14,0,0" Width="200" Style="{StaticResource AppSecondaryButtonStyle}" Click="BackBtn_Click">
+                        <TextBlock Text="عودة"/>
+                    </Button>
+                </StackPanel>
+            </Border>
+        </Grid>
     </Grid>
 </Window>

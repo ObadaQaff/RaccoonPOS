@@ -149,7 +149,7 @@ namespace RaccoonWarehouse.Products
                 _currentPage = pageNumber;
                 _totalPages = (int)Math.Ceiling((double)result.TotalCount / _pageSize);
 
-                PageInfoTextBlock.Text = $"Page {_currentPage} of {_totalPages}";
+                PageInfoTextBlock.Text = $"الصفحة {_currentPage} من {_totalPages}";
                 PrevPageBtn.IsEnabled = _currentPage > 1;
                 NextPageBtn.IsEnabled = _currentPage < _totalPages;
             }

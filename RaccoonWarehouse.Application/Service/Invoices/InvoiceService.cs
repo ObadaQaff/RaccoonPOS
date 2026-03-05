@@ -6,6 +6,7 @@ using RaccoonWarehouse.Core.Interface;
 using RaccoonWarehouse.Data;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.InvoiceLines;
+using RaccoonWarehouse.Domain.InvoiceLines.DTOs;
 using RaccoonWarehouse.Domain.Invoices;
 using RaccoonWarehouse.Domain.Invoices.DTOs;
 using RaccoonWarehouse.Domain.ProductUnits;
@@ -55,6 +56,8 @@ namespace RaccoonWarehouse.Application.Service.Invoices
 
                 if (dto.InvoiceLines == null || !dto.InvoiceLines.Any())
                     return Result<InvoiceWriteDto>.Fail("Invoice must contain at least one line.");
+
+                await NormalizeInvoiceLinesAsync(dto.InvoiceLines);
 
                 // 1) احسب قيم السطور (Tax/Cost/Profit) قبل الحفظ
                 foreach (var l in dto.InvoiceLines)
@@ -115,6 +118,47 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 return Result<InvoiceWriteDto>.Fail($"Error creating invoice: {ex.Message}");
             }
         }
+        private async Task NormalizeInvoiceLinesAsync(IEnumerable<InvoiceLineWriteDto> lines)
+        {
+            var lineList = lines?.Where(l => l != null).ToList();
+            if (lineList == null || lineList.Count == 0)
+                return;
+
+            var unitIds = lineList
+                .Where(l => l.ProductUnitId > 0)
+                .Select(l => l.ProductUnitId)
+                .Distinct()
+                .ToList();
+
+            if (unitIds.Count == 0)
+            {
+                foreach (var line in lineList)
+                {
+                    line.QuantityPerUnitSnapshot = 1m;
+                    line.BaseQuantity = line.Quantity;
+                }
+
+                return;
+            }
+
+            var unitRepo = _uow.GetRepository<ProductUnit>();
+            var factors = await unitRepo.GetAllAsQueryable()
+                .Where(pu => unitIds.Contains(pu.Id))
+                .Select(pu => new { pu.Id, pu.QuantityPerUnit })
+                .ToDictionaryAsync(
+                    pu => pu.Id,
+                    pu => pu.QuantityPerUnit > 0 ? pu.QuantityPerUnit : 1m);
+
+            foreach (var line in lineList)
+            {
+                var factor = factors.TryGetValue(line.ProductUnitId, out var quantityPerUnit)
+                    ? quantityPerUnit
+                    : 1m;
+
+                line.QuantityPerUnitSnapshot = factor;
+                line.BaseQuantity = line.Quantity * factor;
+            }
+        }
         private void RecalculateInvoice(Invoice invoice)
         {
             if (invoice.InvoiceLines == null)
@@ -123,6 +167,9 @@ namespace RaccoonWarehouse.Application.Service.Invoices
             // 1) Per-line calculations
             foreach (var line in invoice.InvoiceLines)
             {
+                var factor = line.QuantityPerUnitSnapshot > 0 ? line.QuantityPerUnitSnapshot : 1m;
+                line.QuantityPerUnitSnapshot = factor;
+                line.BaseQuantity = line.Quantity * factor;
                 var lineTotal = line.Quantity * line.UnitPrice;
                 var rate = line.TaxExempt ? 0m : line.TaxRate;
                 var divisor = 1m + (rate / 100m);

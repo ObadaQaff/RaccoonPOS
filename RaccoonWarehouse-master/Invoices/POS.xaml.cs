@@ -5,6 +5,7 @@ using RaccoonWarehouse.Application.Service.FinancialTransactions;
 using RaccoonWarehouse.Application.Service.Invoices;
 using RaccoonWarehouse.Application.Service.Products;
 using RaccoonWarehouse.Application.Service.Stocks;
+using RaccoonWarehouse.Application.Service.StockTransactions;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Auth;
 using RaccoonWarehouse.Common.Loading;
@@ -16,7 +17,9 @@ using RaccoonWarehouse.Domain.InvoiceLines.DTOs;
 using RaccoonWarehouse.Domain.Invoices;
 using RaccoonWarehouse.Domain.Invoices.DTOs;
 using RaccoonWarehouse.Domain.Products.DTOs;
+using RaccoonWarehouse.Domain.ProductUnits;
 using RaccoonWarehouse.Domain.Stock;
+using RaccoonWarehouse.Domain.StockTransactions.DTOs;
 using RaccoonWarehouse.Domain.Users.DTOs;
 using RaccoonWarehouse.FinancialTransactions;
 using RaccoonWarehouse.Navigation;
@@ -53,6 +56,7 @@ namespace RaccoonWarehouse.Invoices
         private readonly IProductService _productService;
         private readonly IUserService _userService;
         private readonly IStockService _stockService;
+        private readonly IStockTransactionService _stockTransactionService;
         private readonly ICashierSessionService _cashierSessionService;
         private readonly IUserSession _userSession;
         private readonly IFinancialTransactionService _financialService;
@@ -97,6 +101,7 @@ namespace RaccoonWarehouse.Invoices
                    IServiceProvider serviceProvider, IProductService productService,
                    IStockService stockService, IUserService userService,
                    IInvoiceService invoiceService, ILoadingService loading,
+                   IStockTransactionService stockTransactionService,
                    ICashierSessionService cashierSessionService,
                    IUserSession userSession,
                    IFinancialTransactionService financialService
@@ -109,6 +114,7 @@ namespace RaccoonWarehouse.Invoices
             _invoiceService = invoiceService;
             _userService = userService;
             _stockService = stockService;
+            _stockTransactionService = stockTransactionService;
             _loading = loading;
             _cashierSessionService = cashierSessionService;
             _userSession = userSession;
@@ -402,10 +408,6 @@ namespace RaccoonWarehouse.Invoices
             _currentInvoice.GrossProfit = _currentInvoice.NetSales - _currentInvoice.TotalCOGS;
             _currentInvoice.TotalAmount = grossSales - (_currentInvoice.DiscountAmount ?? 0m);
 
-            if (SubTotalTextBlock != null)
-                SubTotalTextBlock.Text = $"قبل الضريبة: {_currentInvoice.SubTotal:0.000}";
-            if (TaxTextBlock != null)
-                TaxTextBlock.Text = $"الضريبة: {_currentInvoice.TotalTax:0.000}";
             TotalTextBlock.Text = _currentInvoice.TotalAmount.ToString("0.000");
         }
         private ProductReadDto? FindProductForLine(InvoiceLineWriteDto line)
@@ -420,7 +422,7 @@ namespace RaccoonWarehouse.Invoices
         {
             var product = FindProductForLine(line);
             var unit = product?.ProductUnits?.FirstOrDefault(u => u.Id == line.ProductUnitId)
-                       ?? product?.ProductUnits?.FirstOrDefault();
+                       ?? ProductUnitSelector.GetDefaultSaleUnit(product?.ProductUnits);
 
             return unit?.SalePrice ?? line.UnitPrice;
         }
@@ -442,6 +444,7 @@ namespace RaccoonWarehouse.Invoices
             line.TaxAmount = taxAmount;
             line.ProfitBeforeTax = lineSubTotal - costTotal;
             line.Profit = line.ProfitBeforeTax;
+            line.BaseQuantity = line.Quantity * (line.QuantityPerUnitSnapshot > 0 ? line.QuantityPerUnitSnapshot : 1m);
         }
 
         private static InvoiceLineWriteDto CloneLineSnapshot(InvoiceLineWriteDto source, decimal quantity, string? originalInvoiceId = null)
@@ -453,6 +456,8 @@ namespace RaccoonWarehouse.Invoices
                 ProductId = source.ProductId,
                 ProductName = source.ProductName,
                 ProductUnitId = source.ProductUnitId,
+                QuantityPerUnitSnapshot = source.QuantityPerUnitSnapshot,
+                BaseQuantity = (source.BaseQuantity / divisor) * quantity,
                 UnitPrice = source.UnitPrice,
                 UnitCost = source.UnitCost,
                 TaxExempt = source.TaxExempt,
@@ -467,7 +472,7 @@ namespace RaccoonWarehouse.Invoices
         }
         private void ApplyLinePricingFromProduct(InvoiceLineWriteDto line, ProductReadDto product)
         {
-            var unit = product.ProductUnits?.FirstOrDefault();
+            var unit = ProductUnitSelector.GetDefaultSaleUnit(product.ProductUnits);
             if (unit == null)
                 return;
 
@@ -486,6 +491,8 @@ namespace RaccoonWarehouse.Invoices
             line.ProductId = product.Id;
             line.ProductName = product.Name;
             line.ProductUnitId = unit.Id;
+            line.QuantityPerUnitSnapshot = unit.QuantityPerUnit > 0 ? unit.QuantityPerUnit : 1m;
+            line.BaseQuantity = line.Quantity * line.QuantityPerUnitSnapshot;
             line.UnitPrice = unitPrice;
             line.UnitCost = unit.PurchasePrice;
             line.TaxExempt = taxExempt;
@@ -599,7 +606,7 @@ namespace RaccoonWarehouse.Invoices
 
         private void AddProductToInvoice(ProductReadDto product)
         {
-            var unit = product.ProductUnits?.FirstOrDefault();
+            var unit = ProductUnitSelector.GetDefaultSaleUnit(product.ProductUnits) ?? product.ProductUnits?.FirstOrDefault();
             if (unit == null)
             {
                 MessageBox.Show("لا توجد وحدة بيع معرفة لهذا الصنف.", "تنبيه");
@@ -666,36 +673,44 @@ namespace RaccoonWarehouse.Invoices
         {
             await ProcessPaymentAsync(PaymentType.Cash);
         }
-        private async Task UpdateStockAfterSaleAsync()
+        private static TransactionType MapStockTransactionType(InvoiceType invoiceType)
         {
-            foreach (var line in _invoiceLines)
+            return invoiceType switch
             {
-                await UpdateStockQuantity(
-                    line.ProductId,
-                    line.ProductUnitId,
-                    line.Quantity
-                );
-            }
+                InvoiceType.Purchase => TransactionType.Purchase,
+                InvoiceType.Return => TransactionType.Return,
+                InvoiceType.PurchaseReturn => TransactionType.Return,
+                _ => TransactionType.Sale
+            };
         }
-        private async Task UpdateStockQuantity(int productId, int productUnitId, decimal quantity)
+
+        private IEnumerable<StockMovementPostDto> BuildPosStockMovements(int invoiceId, CashierSessionReadDto session)
         {
-            var existingStock = await _stockService.GetAllWriteDtoWithFilteringAndIncludeAsync(
-                s => s.ProductId == productId && s.ProductUnitId == productUnitId);
+            return _invoiceLines
+                .Where(line => line.ProductId > 0 && line.ProductUnitId > 0 && line.Quantity != 0)
+                .Select(line =>
+                {
+                    var quantityPerUnit = line.QuantityPerUnitSnapshot > 0 ? line.QuantityPerUnitSnapshot : 1m;
+                    var baseQuantity = line.BaseQuantity != 0 ? line.BaseQuantity : line.Quantity * quantityPerUnit;
 
-            if (existingStock.Data.Count == 0)
-                throw new InvalidOperationException("المنتج غير موجود في المخزون.");
-
-            var stock = existingStock.Data.First();
-
-            if (stock.Quantity < quantity)
-                throw new InvalidOperationException("الكمية غير متوفرة في المخزون.");
-
-            stock.Quantity -= quantity;
-            stock.UpdatedDate = DateTime.Now;
-
-            await _stockService.UpdateAsync(stock);
+                    return new StockMovementPostDto
+                    {
+                        ProductId = line.ProductId,
+                        ProductUnitId = line.ProductUnitId,
+                        Quantity = -line.Quantity,
+                        QuantityPerUnitSnapshot = quantityPerUnit,
+                        BaseQuantity = -baseQuantity,
+                        UnitPrice = line.UnitPrice,
+                        TransactionType = MapStockTransactionType(_currentInvoice.InvoiceType),
+                        InvoiceId = invoiceId,
+                        CustomerId = _currentInvoice.CustomerId,
+                        CasherId = session.CashierId,
+                        CashierSessionId = session.Id,
+                        TransactionDate = DateTime.Now,
+                        Notes = $"POS {_currentInvoice.InvoiceType} #{_currentInvoice.InvoiceNumber}"
+                    };
+                });
         }
-
         private async Task<bool> ValidateStockAvailabilityAsync()
         {
             foreach (var line in _invoiceLines.Where(l => l.Quantity > 0).ToList())
@@ -768,18 +783,21 @@ namespace RaccoonWarehouse.Invoices
         private void ResetPOS()
         {
             _invoiceLines.Clear();
+            InvoiceGrid.SelectedItem = null;
+            InvoiceGrid.SelectedCells.Clear();
+            InvoiceGrid.CurrentCell = new DataGridCellInfo();
             InvoiceGrid.Items.Refresh();
 
-            if (SubTotalTextBlock != null)
-                SubTotalTextBlock.Text = "قبل الضريبة: 0.000";
-            if (TaxTextBlock != null)
-                TaxTextBlock.Text = "الضريبة: 0.000";
             TotalTextBlock.Text = "0.000";
 
+            BarcodeTextBox.Clear();
             CustomerComboBox.SelectedIndex = -1;
+            CustomerComboBox.SelectedItem = null;
+            CustomerComboBox.Text = string.Empty;
 
             CreateNewInvoice();
 
+            InvoiceGrid.Items.Refresh();
             BarcodeTextBox.Focus();
         }
 
@@ -845,7 +863,15 @@ namespace RaccoonWarehouse.Invoices
             }
             catch (Exception ex)
             {
-                MessageBox.Show(ex.Message, "خطأ");
+                var details = ex.Message;
+                var inner = ex.InnerException;
+                while (inner != null)
+                {
+                    details += Environment.NewLine + inner.Message;
+                    inner = inner.InnerException;
+                }
+
+                MessageBox.Show(details, "خطأ");
             }
         }
         //resume held invoice
@@ -874,6 +900,8 @@ namespace RaccoonWarehouse.Invoices
                     Quantity = line.Quantity,
                     UnitPrice = line.UnitPrice,
                     ProductUnitId = line.ProductUnitId,
+                    QuantityPerUnitSnapshot = line.QuantityPerUnitSnapshot,
+                    BaseQuantity = line.BaseQuantity,
                     UnitCost = line.UnitCost,
                     TaxExempt = line.TaxExempt,
                     TaxRate = line.TaxRate,
@@ -1445,8 +1473,9 @@ namespace RaccoonWarehouse.Invoices
             line.SelectedProduct = product;
             line.ProductId = product.Id;
             line.ProductName = product.Name ?? string.Empty;
-            line.ProductUnitId = product.ProductUnits?.FirstOrDefault()?.Id ?? 0;
-            line.UnitPrice = product.ProductUnits?.FirstOrDefault()?.SalePrice ?? 0;
+            var defaultSaleUnit = ProductUnitSelector.GetDefaultSaleUnit(product.ProductUnits);
+            line.ProductUnitId = defaultSaleUnit?.Id ?? 0;
+            line.UnitPrice = defaultSaleUnit?.SalePrice ?? 0;
             if (line.Quantity <= 0)
                 line.Quantity = 1;
 
@@ -1578,8 +1607,9 @@ namespace RaccoonWarehouse.Invoices
             line.SelectedProduct = product;
             line.ProductId = product.Id;
             line.ProductName = product.Name;
-            line.ProductUnitId = product.ProductUnits.FirstOrDefault()?.Id ?? 0;
-            line.UnitPrice = product.ProductUnits.FirstOrDefault()?.SalePrice ?? 0;
+            var defaultSaleUnit = ProductUnitSelector.GetDefaultSaleUnit(product.ProductUnits);
+            line.ProductUnitId = defaultSaleUnit?.Id ?? 0;
+            line.UnitPrice = defaultSaleUnit?.SalePrice ?? 0;
             line.Quantity = 1;
 
             FocusQuantityCell(combo);
@@ -1729,8 +1759,9 @@ namespace RaccoonWarehouse.Invoices
                 // Fill current line (like AddProductToInvoice, but update existing line)
                 line.ProductId = stockItem.Id;
                 line.ProductName = stockItem.Name;
-                line.UnitPrice = stockItem.ProductUnits.FirstOrDefault()?.SalePrice ?? 0;
-                line.ProductUnitId = stockItem.ProductUnits.FirstOrDefault()?.Id ?? 0;
+                var defaultSaleUnit = ProductUnitSelector.GetDefaultSaleUnit(stockItem.ProductUnits);
+                line.UnitPrice = defaultSaleUnit?.SalePrice ?? 0;
+                line.ProductUnitId = defaultSaleUnit?.Id ?? 0;
                 line.Quantity = 1; // default quantity
 
                 // Close popup
@@ -1958,35 +1989,46 @@ namespace RaccoonWarehouse.Invoices
 
                 var savedInvoiceId = result.Data.Id;
 
-                // ✅ 1) Post Financial Transaction
-                var postDto = new FinancialPostDto
+                if (paymentType != PaymentType.Credit)
                 {
-                    Direction = TransactionDirection.In,
-                    Method = MapPaymentMethod(paymentType),
-                    Amount = _currentInvoice.TotalAmount,
-                    TransactionDate = DateTime.Now,
+                    var postDto = new FinancialPostDto
+                    {
+                        Direction = TransactionDirection.In,
+                        Method = MapPaymentMethod(paymentType),
+                        Amount = _currentInvoice.TotalAmount,
+                        TransactionDate = DateTime.Now,
 
-                    SourceType = FinancialSourceType.PosSaleInvoice,
-                    SourceId = savedInvoiceId,
+                        SourceType = FinancialSourceType.PosSaleInvoice,
+                        SourceId = savedInvoiceId,
 
-                    CashierSessionId = session.Id,
-                    CashierId = session.CashierId,
+                        CashierSessionId = session.Id,
+                        CashierId = session.CashierId,
 
-                    Notes = $"POS Invoice #{_currentInvoice.InvoiceNumber}"
-                };
+                        Notes = $"POS Invoice #{_currentInvoice.InvoiceNumber}"
+                    };
 
-                var postResult = await _financialService.PostAsync(postDto); if (!postResult.Success)
-                {
-                    MessageBox.Show(postResult.Message ?? "تم حفظ الفاتورة لكن فشل تسجيل الحركة المالية", "تحذير");
-                    // هون قرارك: يا ترجع تلغي الفاتورة؟ أو تتركها وتعرض تنبيه
-                    return;
+                    var postResult = await _financialService.PostAsync(postDto);
+                    if (!postResult.Success)
+                    {
+                        MessageBox.Show(postResult.Message ?? "تم حفظ الفاتورة لكن فشل تسجيل الحركة المالية", "تحذير");
+                        return;
+                    }
                 }
 
-                MessageBox.Show("تم حفظ الفاتورة وتسجيل الحركة المالية ✅", "نجاح");
+                MessageBox.Show(
+                    paymentType == PaymentType.Credit
+                        ? "تم حفظ الفاتورة الآجلة بنجاح ✅"
+                        : "تم حفظ الفاتورة وتسجيل الحركة المالية ✅",
+                    "نجاح");
 
                 _lastSavedInvoice = await _invoiceService.GetFullInvoiceByIdAsync(savedInvoiceId);
 
-                await UpdateStockAfterSaleAsync();
+                var movementResult = await _stockService.PostMovementsAsync(BuildPosStockMovements(savedInvoiceId, session));
+                if (!movementResult.Success)
+                {
+                    MessageBox.Show(movementResult.Message ?? "فشل تحديث المخزون.", "خطأ");
+                    return;
+                }
                 ResetPOS();
             }
             catch (Exception ex)

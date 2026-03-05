@@ -4,10 +4,11 @@ using System.Collections.Generic;
 
 namespace RaccoonWarehouse.Helpers.Pdf
 {
-    public abstract class BaseReportDocument : IDocument
+    public abstract class BaseReportDocument : IReportDocument
     {
         public abstract string ArabicTitle { get; }
         public abstract string EnglishTitle { get; }
+        public virtual string FileName => EnglishTitle.Replace(" ", "_");
 
         // Dictionary for info box (label → value)
         public abstract Dictionary<string, string> InfoFields { get; }

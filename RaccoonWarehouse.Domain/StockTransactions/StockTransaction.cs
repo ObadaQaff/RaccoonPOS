@@ -26,6 +26,8 @@ namespace RaccoonWarehouse.Domain.StockTransactions
         public Stock.Stock? Stock { get; set; }
 
         public decimal Quantity { get; set; }
+        public decimal QuantityPerUnitSnapshot { get; set; }
+        public decimal BaseQuantity { get; set; }
         public decimal UnitPrice { get; set; }
         public TransactionType TransactionType { get; set; }
         public Invoice? Invoice { get; set; }

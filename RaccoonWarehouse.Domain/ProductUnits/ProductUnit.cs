@@ -18,6 +18,9 @@ namespace RaccoonWarehouse.Domain.ProductUnits
         public decimal UnTaxedPrice { get; set; } 
         public decimal PurchasePrice { get; set; } //cost 
         public decimal QuantityPerUnit { get; set; }
+        public bool IsBaseUnit { get; set; }
+        public bool IsDefaultSaleUnit { get; set; }
+        public bool IsDefaultPurchaseUnit { get; set; }
         public Product? Product { get; set; }
         public int ProductId { get; set; }
         public Unit? Unit { get; set; }

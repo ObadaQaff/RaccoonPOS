@@ -1,4 +1,5 @@
 using RaccoonWarehouse.Application.Service.Permissions;
+using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Permissions.DTOs;
 using System.Collections.ObjectModel;
@@ -13,18 +14,28 @@ namespace RaccoonWarehouse.Settings
     public partial class ReportPermissionsManager : Window
     {
         private readonly IReportPermissionService _reportPermissionService;
+        private readonly IUserSession _userSession;
         private readonly ObservableCollection<ReportPermissionRow> _rows = new();
         private ICollectionView? _rowsView;
+        private static readonly UserRole[] ManagedRoles = { UserRole.Admin, UserRole.Casher };
 
-        public ReportPermissionsManager(IReportPermissionService reportPermissionService)
+        public ReportPermissionsManager(IReportPermissionService reportPermissionService, IUserSession userSession)
         {
             InitializeComponent();
             _reportPermissionService = reportPermissionService;
+            _userSession = userSession;
             Loaded += ReportPermissionsManager_Loaded;
         }
 
         private async void ReportPermissionsManager_Loaded(object sender, RoutedEventArgs e)
         {
+            if (_userSession.CurrentUser?.Role != UserRole.Admin)
+            {
+                MessageBox.Show("فقط المدير يمكنه إدارة صلاحيات التقارير.");
+                Close();
+                return;
+            }
+
             BuildColumns();
             await LoadRowsAsync();
         }
@@ -49,7 +60,7 @@ namespace RaccoonWarehouse.Settings
                 IsReadOnly = true
             });
 
-            foreach (var role in Enum.GetValues<UserRole>())
+            foreach (var role in ManagedRoles)
             {
                 var factory = new FrameworkElementFactory(typeof(CheckBox));
                 factory.SetValue(HorizontalAlignmentProperty, HorizontalAlignment.Center);
@@ -83,7 +94,7 @@ namespace RaccoonWarehouse.Settings
                     Category = report.Category
                 };
 
-                foreach (var role in Enum.GetValues<UserRole>())
+                foreach (var role in ManagedRoles)
                 {
                     var canView = true;
                     if (permissionsMap.TryGetValue(report.Key, out var roleMap) && roleMap.TryGetValue(role, out var savedValue))
@@ -121,7 +132,7 @@ namespace RaccoonWarehouse.Settings
         private async void SaveBtn_Click(object sender, RoutedEventArgs e)
         {
             var payload = _rows
-                .SelectMany(row => Enum.GetValues<UserRole>().Select(role => new ReportPermissionWriteDto
+                .SelectMany(row => ManagedRoles.Select(role => new ReportPermissionWriteDto
                 {
                     ReportKey = row.ReportKey,
                     Role = role,

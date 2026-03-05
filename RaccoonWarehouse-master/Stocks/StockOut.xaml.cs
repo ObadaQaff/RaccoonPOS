@@ -2,15 +2,18 @@
 using RaccoonWarehouse.Application.Service.ProductUnits;
 using RaccoonWarehouse.Application.Service.StockDocuments;
 using RaccoonWarehouse.Application.Service.Stocks;
+using RaccoonWarehouse.Application.Service.StockTransactions;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Products;
 using RaccoonWarehouse.Domain.Products.DTOs;
+using RaccoonWarehouse.Domain.ProductUnits;
 using RaccoonWarehouse.Domain.ProductUnits.DTOs;
 using RaccoonWarehouse.Domain.Stock;
 using RaccoonWarehouse.Domain.Stock.DTOs;
 using RaccoonWarehouse.Domain.StockDocuments.DTOs;
 using RaccoonWarehouse.Domain.StockItems.DTOs;
+using RaccoonWarehouse.Domain.StockTransactions.DTOs;
 using RaccoonWarehouse.Helpers.pdf;
 using RaccoonWarehouse.Helpers.Pdf;
 using System;
@@ -49,6 +52,7 @@ namespace RaccoonWarehouse.Stocks
         public ObservableCollection<ProductReadDto> Products { get; set; } = new();
         public ObservableCollection<ProductUnitWriteDto> Units { get; set; } = new();
         private readonly IStockService _stockService;
+        private readonly IStockTransactionService _stockTransactionService;
         private int? _currentDocumentId = null;
         private List<StockItemReadDto> _originalItems = new(); // Used for stock adjustment
         #endregion
@@ -59,10 +63,12 @@ namespace RaccoonWarehouse.Stocks
             IProductService productService,
             IProductUnitService productUnitService,
             IStockDocumentService stockDocumentService,
-            IStockService stockService)
+            IStockService stockService,
+            IStockTransactionService stockTransactionService)
         {
             _userService = userService;
             _stockService = stockService;
+            _stockTransactionService = stockTransactionService;
             _productService = productService;
             _productUnitService = productUnitService;
             _stockDocumentService = stockDocumentService;
@@ -158,6 +164,7 @@ namespace RaccoonWarehouse.Stocks
                     }
 
                     item.ProductUnitId = unitId;
+                    await NormalizeStockItemAsync(item);
                 }
 
                 bool isUpdate = _currentDocumentId != null;
@@ -181,8 +188,13 @@ namespace RaccoonWarehouse.Stocks
                     var result = await _stockDocumentService.CreateAsync(documentDto);
                     if (result.Success)
                     {
-                        foreach (var item in Items)
-                            await UpdateStockQuantity(item.ProductId, item.ProductUnitId, item.Quantity);
+                        var movementResult = await _stockService.PostMovementsAsync(
+                            BuildStockMovements(Items, TransactionType.Adjustment, $"Stock out document #{documentDto.DocumentNumber}"));
+                        if (!movementResult.Success)
+                        {
+                            MessageBox.Show(movementResult.Message ?? "فشل تحديث المخزون.", "خطأ");
+                            return;
+                        }
                         _currentDocumentId = result.Data?.Id;
                     }
 
@@ -197,15 +209,21 @@ namespace RaccoonWarehouse.Stocks
                     if (result.Success)
                     {
                         // 1️⃣ Return original quantities to stock (reverse)
-                        foreach (var oldItem in _originalItems)
+                        var reverseResult = await _stockService.PostMovementsAsync(
+                            BuildStockMovements(_originalItems, TransactionType.Adjustment, $"Reverse stock out document #{documentDto.DocumentNumber}", multiplier: 1m));
+                        if (!reverseResult.Success)
                         {
-                            await UpdateStockQuantity(oldItem.ProductId, oldItem.ProductUnitId, -oldItem.Quantity);
+                            MessageBox.Show(reverseResult.Message ?? "فشل عكس حركة المخزون.", "خطأ");
+                            return;
                         }
                
                         // 2️⃣ Add new quantities
-                        foreach (var newItem in Items)
+                        var applyResult = await _stockService.PostMovementsAsync(
+                            BuildStockMovements(Items, TransactionType.Adjustment, $"Update stock out document #{documentDto.DocumentNumber}"));
+                        if (!applyResult.Success)
                         {
-                            await UpdateStockQuantity(newItem.ProductId, newItem.ProductUnitId, newItem.Quantity);
+                            MessageBox.Show(applyResult.Message ?? "فشل تحديث حركة المخزون.", "خطأ");
+                            return;
                         }
                     }
 
@@ -248,49 +266,66 @@ namespace RaccoonWarehouse.Stocks
             return $"{prefix}-{datePart}";
         }
         #region Qty Handle
-        private async Task UpdateStockQuantity(int productId, int productUnitId, decimal quantity)
+        private async Task NormalizeStockItemAsync(StockItemWriteDto item)
         {
-            try
+            if (item.ProductUnitId <= 0)
+                return;
+
+            var unitResult = await _productUnitService.GetWriteDtoByIdAsync(item.ProductUnitId);
+            var quantityPerUnit = unitResult.Data?.QuantityPerUnit > 0
+                ? unitResult.Data.QuantityPerUnit
+                : 1m;
+
+            item.QuantityPerUnitSnapshot = quantityPerUnit;
+            item.BaseQuantity = item.Quantity * quantityPerUnit;
+        }
+
+        private IEnumerable<StockMovementPostDto> BuildStockMovements(
+            IEnumerable<StockItemWriteDto> items,
+            TransactionType transactionType,
+            string notes,
+            decimal multiplier = -1m)
+        {
+            foreach (var item in items)
             {
-                // Check if stock record already exists
-                var existingStock = await _stockService.GetAllWriteDtoWithFilteringAndIncludeAsync(
-                    s => s.ProductId == productId && s.ProductUnitId == productUnitId);
-
-                if (existingStock.Data.Count > 0)
+                yield return new StockMovementPostDto
                 {
-                    // Update existing stock (SUBTRACT quantity for stock out)
-                    var stock = existingStock.Data.First();
-                    if (stock.Quantity >= quantity)
-                    {
-                        stock.Quantity -= quantity; 
-                        stock.UpdatedDate = DateTime.Now;
-                        var updateQtyResult = await _stockService.UpdateAsync(stock);
-                       /* if (updateQtyResult.Success)
-                        {
-                            MessageBox.Show("qty was updating successfully !!");
-
-
-                        }
-                        else
-                        {
-                            MessageBox.Show("did not update");
-                        }*/
-                    }
-                    else
-                    {
-                        throw new InvalidOperationException("الكمية غير متوفرة في المخزون");
-                    }
-                }
-                else
-                {
-                    throw new InvalidOperationException("المنتج غير موجود في المخزون");
-                }
+                    ProductId = item.ProductId,
+                    ProductUnitId = item.ProductUnitId,
+                    Quantity = item.Quantity * multiplier,
+                    QuantityPerUnitSnapshot = item.QuantityPerUnitSnapshot > 0 ? item.QuantityPerUnitSnapshot : 1m,
+                    BaseQuantity = item.BaseQuantity * multiplier,
+                    UnitPrice = item.SalePrice,
+                    TransactionType = transactionType,
+                    TransactionDate = DateTime.Now,
+                    Notes = notes
+                };
             }
-            catch (Exception ex)
+        }
+
+        private IEnumerable<StockMovementPostDto> BuildStockMovements(
+            IEnumerable<StockItemReadDto> items,
+            TransactionType transactionType,
+            string notes,
+            decimal multiplier = -1m)
+        {
+            foreach (var item in items)
             {
-                MessageBox.Show($"حدث خطأ أثناء تحديث المخزون للمنتج: {ex.Message}",
-                    "خطأ", MessageBoxButton.OK, MessageBoxImage.Error);
-                throw;
+                var quantityPerUnit = item.QuantityPerUnitSnapshot > 0 ? item.QuantityPerUnitSnapshot : 1m;
+                var baseQuantity = item.BaseQuantity != 0 ? item.BaseQuantity : item.Quantity * quantityPerUnit;
+
+                yield return new StockMovementPostDto
+                {
+                    ProductId = item.ProductId,
+                    ProductUnitId = item.ProductUnitId,
+                    Quantity = item.Quantity * multiplier,
+                    QuantityPerUnitSnapshot = quantityPerUnit,
+                    BaseQuantity = baseQuantity * multiplier,
+                    UnitPrice = item.SalePrice,
+                    TransactionType = transactionType,
+                    TransactionDate = DateTime.Now,
+                    Notes = notes
+                };
             }
         }
         #endregion
@@ -325,15 +360,15 @@ namespace RaccoonWarehouse.Stocks
                     }
 
                     // ✅ Auto-select the first available unit (if any)
-                    var firstUnit = item.Units.FirstOrDefault();
-                    if (firstUnit != null)
+                    var defaultUnit = ProductUnitSelector.GetDefaultPurchaseUnit(item.Units);
+                    if (defaultUnit != null)
                     {
-                        item.ProductUnitId = firstUnit.Id;
-                        item.PurchasePrice = firstUnit.PurchasePrice;
-                        item.SalePrice = firstUnit.SalePrice;
+                        item.ProductUnitId = defaultUnit.Id;
+                        item.PurchasePrice = defaultUnit.PurchasePrice;
+                        item.SalePrice = defaultUnit.SalePrice;
 
                         // Map the selected unit for saving
-                        _itemUnits[item] = firstUnit.Id;
+                        _itemUnits[item] = defaultUnit.Id;
                     }
 
                     // ✅ Set default quantity = 1 if it's 0 or less
@@ -520,6 +555,8 @@ namespace RaccoonWarehouse.Stocks
                 ProductId = product.Id,
                 ProductUnitId = unit.Id,
                 Quantity = qty,
+                QuantityPerUnitSnapshot = unit.QuantityPerUnit > 0 ? unit.QuantityPerUnit : 1m,
+                BaseQuantity = qty * (unit.QuantityPerUnit > 0 ? unit.QuantityPerUnit : 1m),
                 PurchasePrice = decimal.TryParse(PurchaseBox.Text, out var p) ? p : 0,
                 SalePrice = decimal.TryParse(SaleBox.Text, out var s) ? s : 0,
                 ExpiryDate = ExpiryBox.SelectedDate ?? DateTime.Now.AddMonths(6),

@@ -158,17 +158,34 @@
                     </StackPanel>
 
                     <!-- Buttons -->
-                    <StackPanel Grid.Column="5"
-                                Orientation="Horizontal"
-                                HorizontalAlignment="Left"
-                                VerticalAlignment="Bottom"
-                                Margin="8,0">
+                    <WrapPanel Grid.Column="5"
+                               HorizontalAlignment="Left"
+                               VerticalAlignment="Bottom"
+                               Margin="8,0">
                         <Button Style="{StaticResource PrimaryButtonStyle}"
                                 Width="160"
                                 Click="GenerateReportBtn_Click">
                             <StackPanel Orientation="Horizontal">
                                 <fa:ImageAwesome Icon="File" Width="16" Height="16"/>
                                 <TextBlock Text=" عرض التقرير" Margin="8,0,0,0"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource SecondaryButtonStyle}"
+                                Width="130"
+                                Margin="10,0,0,0"
+                                Click="ExportPdfBtn_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <fa:ImageAwesome Icon="Download" Width="16" Height="16"/>
+                                <TextBlock Text=" تصدير PDF" Margin="8,0,0,0"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource SecondaryButtonStyle}"
+                                Width="120"
+                                Margin="10,0,0,0"
+                                Click="PrintBtn_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <fa:ImageAwesome Icon="Print" Width="16" Height="16"/>
+                                <TextBlock Text=" طباعة" Margin="8,0,0,0"/>
                             </StackPanel>
                         </Button>
 
@@ -181,7 +198,7 @@
                                 <TextBlock Text=" رجوع" Margin="8,0,0,0"/>
                             </StackPanel>
                         </Button>
-                    </StackPanel>
+                    </WrapPanel>
                 </Grid>
             </Border>
 

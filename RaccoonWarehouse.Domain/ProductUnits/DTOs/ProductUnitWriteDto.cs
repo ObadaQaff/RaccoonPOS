@@ -22,7 +22,14 @@ namespace RaccoonWarehouse.Domain.ProductUnits.DTOs
         public int ProductId { get; set; }
         public UnitWriteDto? Unit { get; set; }
         public int UnitId { get; set; }
-        public bool IsMain { get; set; }= false;    
+        public bool IsBaseUnit { get; set; }
+        public bool IsDefaultSaleUnit { get; set; }
+        public bool IsDefaultPurchaseUnit { get; set; }
+        public bool IsMain
+        {
+            get => IsBaseUnit;
+            set => IsBaseUnit = value;
+        }
         public DateTime CreatedDate { get; set; }
         public DateTime UpdatedDate { get; set; }
     }

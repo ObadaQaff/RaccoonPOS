@@ -1,5 +1,6 @@
 ﻿using RaccoonWarehouse.Application.Service.Stocks;
 using RaccoonWarehouse.Domain.Products.DTOs;
+using RaccoonWarehouse.Domain.ProductUnits;
 using RaccoonWarehouse.Domain.Stock;
 using System;
 using System.Collections.Generic;
@@ -145,7 +146,7 @@ namespace RaccoonWarehouse.Invoices
 
         private static string BuildProductKey(ProductReadDto product)
         {
-            var unitId = product.ProductUnits?.FirstOrDefault()?.Id ?? 0;
+            var unitId = ProductUnitSelector.GetDefaultSaleUnit(product.ProductUnits)?.Id ?? 0;
             return $"{product.Id}:{unitId}";
         }
 

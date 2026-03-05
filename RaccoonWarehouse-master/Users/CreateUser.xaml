@@ -1,148 +1,157 @@
-﻿<Window x:Class="RaccoonWarehouse.CreateUser"
+<Window x:Class="RaccoonWarehouse.CreateUser"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        Title="إنشاء مستخدم" Height="800" Width="1400"
+        Title="إنشاء مستخدم"
+        Height="820"
+        Width="1280"
         WindowStartupLocation="CenterScreen"
-        WindowState="Maximized">
-
-    <Window.Resources>
-        <!-- TextBox Style -->
-        <Style TargetType="TextBox" x:Key="InputBoxStyle">
-            <Setter Property="FontSize" Value="18"/>
-            <Setter Property="Height" Value="40"/>
-            <Setter Property="Background" Value="#FFF2E7D5"/>
-            <Setter Property="BorderBrush" Value="#EBCB90"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Margin" Value="0,5,0,15"/>
-            <Setter Property="Padding" Value="10,5"/>
-        </Style>
-
-        <!-- ComboBox Style -->
-        <Style TargetType="ComboBox" x:Key="InputComboStyle">
-            <Setter Property="FontSize" Value="18"/>
-            <Setter Property="Height" Value="40"/>
-            <Setter Property="Background" Value="#FFF2E7D5"/>
-            <Setter Property="BorderBrush" Value="#EBCB90"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Margin" Value="0,5,0,15"/>
-            <Setter Property="Padding" Value="10,5"/>
-        </Style>
-
-        <!-- Button Style -->
-        <Style TargetType="Button" x:Key="PrimaryButtonStyle">
-            <Setter Property="FontSize" Value="18"/>
-            <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="Height" Value="45"/>
-            <Setter Property="Margin" Value="0,10,0,0"/>
-            <Setter Property="Background" Value="#3396D3"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="BorderBrush" Value="Transparent"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}" 
-                                CornerRadius="8"
-                                Padding="10,5">
-                            <ContentPresenter HorizontalAlignment="Center" 
-                                              VerticalAlignment="Center"/>
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#EBCB90"/>
-                    <Setter Property="Foreground" Value="Black"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-    </Window.Resources>
-
-    <Grid Background="#EEEEEE">
+        WindowState="Maximized"
+        FlowDirection="RightToLeft"
+        Background="{StaticResource AppPageBackgroundBrush}">
+    <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="70"/>
-            <!-- Header -->
+            <RowDefinition Height="240"/>
             <RowDefinition Height="*"/>
-            <!-- Main Content -->
-            <RowDefinition Height="60"/>
-            <!-- Footer -->
         </Grid.RowDefinitions>
 
-        <!-- HEADER -->
-        <Border Background="#3396D3" Grid.Row="0">
-            <TextBlock Text="إنشاء مستخدم"
-                       Foreground="White"
-                       FontSize="28"
-                       FontWeight="Bold"
-                       VerticalAlignment="Center"
-                       HorizontalAlignment="Center"/>
+        <Border Grid.Row="0" CornerRadius="0,0,36,36" Background="{StaticResource AppGreenHeroBrush}">
+            <Grid Margin="34,24,34,30">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="إنشاء مستخدم جديد"
+                               FontSize="34"
+                               FontWeight="Bold"
+                               Foreground="White"/>
+                </StackPanel>
+
+                <Border Grid.Column="1"
+                        Padding="20,14"
+                        Background="#1AFFFFFF"
+                        CornerRadius="20"
+                        VerticalAlignment="Center">
+                    <StackPanel>
+                        <TextBlock Text="حالة الإنشاء"
+                                   FontSize="12"
+                                   Foreground="#D6EAE5"
+                                   HorizontalAlignment="Center"/>
+                        <TextBlock x:Name="CreateStatusText"
+                                   Margin="0,4,0,0"
+                                   FontSize="22"
+                                   FontWeight="Bold"
+                                   Foreground="White"
+                                   HorizontalAlignment="Center"
+                                   Text="جاهز"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
         </Border>
 
-        <!-- MAIN FORM -->
-        <Border Grid.Row="1"
-                Background="#FFF0CE"
-                Margin="20"
-                CornerRadius="10"
-                Padding="40">
-            <StackPanel FlowDirection="RightToLeft">
+        <Grid Grid.Row="1" Margin="28,-70,28,28">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2.1*"/>
+                <ColumnDefinition Width="1*"/>
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0"
+                    Style="{StaticResource AppCardBorderStyle}"
+                    Padding="28"
+                    Margin="0,0,20,0">
                 <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
-                    <!-- Left Column -->
-                    <StackPanel Grid.Column="0" Margin="20,0,40,0">
-                        <Label Content="الإسم" FontWeight="Bold" FontSize="16"/>
-                        <TextBox x:Name="FullName" Style="{StaticResource InputBoxStyle}"/>
-
-                        <Label Content="كلمة المرور" FontWeight="Bold" FontSize="16"/>
-                        <TextBox x:Name="Password" Style="{StaticResource InputBoxStyle}"/>
+                    <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,18,18">
+                        <TextBlock Text="اسم المستخدم" Style="{StaticResource AppFieldLabelStyle}"/>
+                        <TextBox x:Name="FullName" Style="{StaticResource AppTextInputStyle}"/>
                     </StackPanel>
 
-                    <!-- Right Column -->
-                    <StackPanel Grid.Column="1" Margin="40,0,20,0">
-
-                        <Label Content="رقم الهاتف" FontWeight="Bold" FontSize="16"/>
-                        <TextBox x:Name="PhoneNumber" Style="{StaticResource InputBoxStyle}"/>
-
-                        <Label Content="تأكيد كلمة المرور" FontWeight="Bold" FontSize="16"/>
-                        <TextBox x:Name="ConfirmPassword" Style="{StaticResource InputBoxStyle}"/>
+                    <StackPanel Grid.Row="0" Grid.Column="1" Margin="18,0,0,18">
+                        <TextBlock Text="رقم الهاتف" Style="{StaticResource AppFieldLabelStyle}"/>
+                        <TextBox x:Name="PhoneNumber" Style="{StaticResource AppTextInputStyle}"/>
                     </StackPanel>
+
+                    <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,18,18">
+                        <TextBlock Text="كلمة المرور" Style="{StaticResource AppFieldLabelStyle}"/>
+                        <TextBox x:Name="Password" Style="{StaticResource AppTextInputStyle}"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="1" Grid.Column="1" Margin="18,0,0,18">
+                        <TextBlock Text="تأكيد كلمة المرور" Style="{StaticResource AppFieldLabelStyle}"/>
+                        <TextBox x:Name="ConfirmPassword" Style="{StaticResource AppTextInputStyle}"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,0,18,18">
+                        <TextBlock Text="نوع الحساب" Style="{StaticResource AppFieldLabelStyle}"/>
+                        <ComboBox x:Name="Role" Style="{StaticResource AppComboBoxStyle}"/>
+                    </StackPanel>
+
+                    <TextBlock x:Name="FormHintText"
+                               Grid.Row="3"
+                               Grid.ColumnSpan="2"
+                               FontSize="13"
+                               Foreground="{StaticResource AppMutedTextBrush}"
+                               Text="أدخل بيانات الحساب الجديدة ثم راجع تطابق كلمة المرور قبل الحفظ."/>
                 </Grid>
+            </Border>
 
-                <!-- Role & Buttons -->
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,30,0,0">
-                    <StackPanel Width="200">
-                        <Label Content="نوع الحساب" FontWeight="Bold" FontSize="16"/>
-                        <ComboBox x:Name="Role" Style="{StaticResource InputComboStyle}">
-                            
-                        </ComboBox>
-                    </StackPanel>
+            <Border Grid.Column="1"
+                    Style="{StaticResource AppCardBorderStyle}"
+                    Padding="24">
+                <StackPanel>
+                    <TextBlock Text="ملاحظات سريعة"
+                               FontSize="24"
+                               FontWeight="Bold"
+                               Foreground="{StaticResource AppPrimaryBrush}"/>
+                    <TextBlock Margin="0,12,0,0"
+                               FontSize="14"
+                               Foreground="{StaticResource AppMutedTextBrush}"
+                               Text="إنشاء المستخدم متاح للمدير فقط، وسيتم حفظ الحساب فور نجاح التحقق."/>
 
-                    <StackPanel Orientation="Horizontal" Margin="40,30,0,0" VerticalAlignment="Bottom">
-                        <Button x:Name="CreateBtn" Content="إنشاء" Style="{StaticResource PrimaryButtonStyle}" Width="150"
-                                Click="Button_Click"/>
-                        <Button x:Name="BackBtn" Content="عودة" Style="{StaticResource PrimaryButtonStyle}" Width="150"
-                                Background="#EBCB90" Foreground="Black"
-                                Click="BackBtn_Click" Margin="20,0,0,0"/>
-                    </StackPanel>
+                    <Border Margin="0,24,0,0"
+                            Padding="18"
+                            Background="{StaticResource AppPanelSoftBrush}"
+                            CornerRadius="20">
+                        <StackPanel>
+                            <TextBlock Text="التأكيد المطلوب"
+                                       FontSize="12"
+                                       Foreground="{StaticResource AppMutedTextBrush}"/>
+                            <TextBlock Text="تطابق كلمة المرور مع التأكيد"
+                                       Margin="0,6,0,0"
+                                       FontSize="18"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource AppTextBrush}"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Button x:Name="CreateBtn"
+                            Margin="0,34,0,0"
+                            Content="إنشاء الحساب"
+                            Style="{StaticResource AppFormButtonStyle}"
+                            Click="Button_Click"/>
+                    <Button x:Name="BackBtn"
+                            Margin="0,14,0,0"
+                            Content="عودة"
+                            Style="{StaticResource AppSecondaryButtonStyle}"
+                            Background="{StaticResource AppAccentBrush}"
+                            Foreground="{StaticResource AppTextBrush}"
+                            Click="BackBtn_Click"/>
                 </StackPanel>
-            </StackPanel>
-        </Border>
-
-        <!-- FOOTER -->
-        <Border Background="#FFF0CE" Grid.Row="2">
-            <TextBlock Text="© 2025 Raccoon Warehouse"
-                       VerticalAlignment="Center"
-                       HorizontalAlignment="Center"
-                       Foreground="#3396D3"
-                       FontSize="14"
-                       FontWeight="SemiBold"/>
-        </Border>
+            </Border>
+        </Grid>
     </Grid>
 </Window>

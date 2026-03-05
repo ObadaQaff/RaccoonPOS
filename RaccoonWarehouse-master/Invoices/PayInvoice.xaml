@@ -265,7 +265,12 @@
                     <StackPanel Margin="6" Grid.Column="0">
                         <TextBlock Text="طريقة الدفع" FontSize="14" FontWeight="SemiBold"/>
                         <ComboBox x:Name="PaymentMethodComboBox"
-                                  Style="{StaticResource ComboBoxStyleModern}"/>
+                                  Style="{StaticResource ComboBoxStyleModern}">
+                            <ComboBoxItem Tag="1">نقدي</ComboBoxItem>
+                            <ComboBoxItem Tag="3">شبكة</ComboBoxItem>
+                            <ComboBoxItem Tag="4">شيك</ComboBoxItem>
+                            <ComboBoxItem Tag="2">آجل</ComboBoxItem>
+                        </ComboBox>
                     </StackPanel>
 
                     <!-- المجموع -->

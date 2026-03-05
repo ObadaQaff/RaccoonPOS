@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using PdfSharpCore.Fonts;
 using PdfSharpCore.Utils;
+using QuestPDF.Infrastructure;
 using RaccoonWarehouse.Application.Service.AuthService;
 using RaccoonWarehouse.Application.Service.Brands;
 using RaccoonWarehouse.Application.Service.Cashers;
@@ -16,6 +17,7 @@ using RaccoonWarehouse.Application.Service.Products;
 using RaccoonWarehouse.Application.Service.ProductUnits;
 using RaccoonWarehouse.Application.Service.StockDocuments;
 using RaccoonWarehouse.Application.Service.Stocks;
+using RaccoonWarehouse.Application.Service.StockTransactions;
 using RaccoonWarehouse.Application.Service.SubCategories;
 using RaccoonWarehouse.Application.Service.Units;
 using RaccoonWarehouse.Application.Service.Users;
@@ -59,6 +61,7 @@ namespace RaccoonWarehouse
         protected override async void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
+            QuestPDF.Settings.License = LicenseType.Community;
 
             var services = new ServiceCollection();
             ConfigureServices(services);
@@ -201,6 +204,7 @@ END;";
             services.AddScoped<IUnitService, UnitService>();
             services.AddScoped<IVoucherService, VoucherService>();
             services.AddScoped<IStockService, StockService>();
+            services.AddScoped<IStockTransactionService, StockTransactionService>();
             services.AddScoped<IStockDocumentService, StockDocumentService>();
             services.AddScoped<IStockReportService, StockReportService>();
             services.AddScoped<ICheckService, CheckService>();
@@ -238,6 +242,7 @@ END;";
             services.AddTransient<LowStockReport>();
             services.AddTransient<StockBalanceByDateReport>();
             services.AddTransient<InventoryMovementSummary>();
+            services.AddTransient<StockValuationReport>();
             services.AddTransient<ProductProfitReport>();
             services.AddTransient<InactiveProductsReport>();
 

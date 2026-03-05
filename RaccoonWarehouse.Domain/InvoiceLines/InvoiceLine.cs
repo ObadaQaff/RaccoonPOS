@@ -24,6 +24,8 @@ namespace RaccoonWarehouse.Domain.InvoiceLines
         public int ProductUnitId { get; set; }
         public ProductUnit? ProductUnit { get; set; }
         public decimal Quantity { get; set; }
+        public decimal QuantityPerUnitSnapshot { get; set; } = 1m;
+        public decimal BaseQuantity { get; set; }
         public decimal UnitPrice { get; set; }
 
         public decimal LineTotal => Quantity * UnitPrice;

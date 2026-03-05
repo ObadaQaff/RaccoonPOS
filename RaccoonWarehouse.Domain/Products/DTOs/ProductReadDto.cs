@@ -31,6 +31,12 @@ namespace RaccoonWarehouse.Domain.Products.DTOs
         public BrandReadDto? Brand { get; set; }
         public int? BrandId { get; set; }
         public ICollection<ProductUnitReadDto>? ProductUnits { get; set; } = new List<ProductUnitReadDto>();
+        public ProductUnitReadDto? BaseUnit => ProductUnitSelector.GetBaseUnit(ProductUnits);
+        public ProductUnitReadDto? DefaultSaleUnit => ProductUnitSelector.GetDefaultSaleUnit(ProductUnits);
+        public ProductUnitReadDto? DefaultPurchaseUnit => ProductUnitSelector.GetDefaultPurchaseUnit(ProductUnits);
+        public decimal DefaultSalePrice => DefaultSaleUnit?.SalePrice ?? 0m;
+        public decimal DefaultPurchasePrice => DefaultPurchaseUnit?.PurchasePrice ?? 0m;
+        public decimal BaseQuantityPerUnit => BaseUnit?.QuantityPerUnit ?? 0m;
         public DateTime CreatedDate { get; set; }
         public DateTime UpdatedDate { get; set; } 
 

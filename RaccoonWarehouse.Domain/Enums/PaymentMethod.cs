@@ -12,6 +12,8 @@ namespace RaccoonWarehouse.Domain.Enums
         Visa = 2,
         Master = 3,
         BankTransfer = 4,
-        Credit = 5
+        Credit = 5,
+        Check = 6,
+        MobilePayment = 7
     }
 }

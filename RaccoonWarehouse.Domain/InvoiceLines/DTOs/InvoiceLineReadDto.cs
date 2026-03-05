@@ -25,6 +25,8 @@ namespace RaccoonWarehouse.Domain.InvoiceLines.DTOs
         public int ProductUnitId { get; set; }
         public ProductUnitReadDto? ProductUnit { get; set; }
         public decimal Quantity { get; set; }
+        public decimal QuantityPerUnitSnapshot { get; set; } = 1m;
+        public decimal BaseQuantity { get; set; }
         public decimal UnitPrice { get; set; }
         public string ProductName { get; set; } 
 

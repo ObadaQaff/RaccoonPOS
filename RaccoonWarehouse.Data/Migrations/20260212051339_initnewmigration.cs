@@ -11,287 +11,169 @@ namespace RaccoonWarehouse.Data.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<int>(
-                name: "CashierSessionId",
-                table: "Voucher",
-                type: "int",
-                nullable: true);
+            migrationBuilder.Sql(
+                @"
+IF COL_LENGTH('Voucher', 'CashierSessionId') IS NULL
+    ALTER TABLE [Voucher] ADD [CashierSessionId] int NULL;
 
-            migrationBuilder.AddColumn<decimal>(
-                name: "UnTaxedPrice",
-                table: "ProductUnit",
-                type: "decimal(18,2)",
-                nullable: false,
-                defaultValue: 0m);
+IF COL_LENGTH('ProductUnit', 'UnTaxedPrice') IS NULL
+    ALTER TABLE [ProductUnit] ADD [UnTaxedPrice] decimal(18,2) NOT NULL CONSTRAINT [DF_ProductUnit_UnTaxedPrice] DEFAULT (0);
 
-            migrationBuilder.AddColumn<decimal>(
-                name: "TaxRate",
-                table: "Product",
-                type: "decimal(18,2)",
-                nullable: true);
+IF COL_LENGTH('Product', 'TaxRate') IS NULL
+    ALTER TABLE [Product] ADD [TaxRate] decimal(18,2) NULL;
 
-            migrationBuilder.AddColumn<string>(
-                name: "OriginalInvoiceId",
-                table: "InvoiceLine",
-                type: "nvarchar(max)",
-                nullable: true);
+IF COL_LENGTH('InvoiceLine', 'OriginalInvoiceId') IS NULL
+    ALTER TABLE [InvoiceLine] ADD [OriginalInvoiceId] nvarchar(max) NULL;
 
-            migrationBuilder.AddColumn<int>(
-                name: "CashierSessionId",
-                table: "Invoice",
-                type: "int",
-                nullable: true);
+IF COL_LENGTH('Invoice', 'CashierSessionId') IS NULL
+    ALTER TABLE [Invoice] ADD [CashierSessionId] int NULL;
 
-            migrationBuilder.AddColumn<DateTime>(
-                name: "ClosedAt",
-                table: "Invoice",
-                type: "datetime2",
-                nullable: true);
+IF COL_LENGTH('Invoice', 'ClosedAt') IS NULL
+    ALTER TABLE [Invoice] ADD [ClosedAt] datetime2 NULL;
 
-            migrationBuilder.AddColumn<decimal>(
-                name: "DiscountAmount",
-                table: "Invoice",
-                type: "decimal(18,2)",
-                nullable: true);
+IF COL_LENGTH('Invoice', 'DiscountAmount') IS NULL
+    ALTER TABLE [Invoice] ADD [DiscountAmount] decimal(18,2) NULL;
 
-            migrationBuilder.AddColumn<bool>(
-                name: "IsPOS",
-                table: "Invoice",
-                type: "bit",
-                nullable: true);
+IF COL_LENGTH('Invoice', 'IsPOS') IS NULL
+    ALTER TABLE [Invoice] ADD [IsPOS] bit NULL;
 
-            migrationBuilder.AddColumn<DateTime>(
-                name: "OpenedAt",
-                table: "Invoice",
-                type: "datetime2",
-                nullable: true);
+IF COL_LENGTH('Invoice', 'OpenedAt') IS NULL
+    ALTER TABLE [Invoice] ADD [OpenedAt] datetime2 NULL;
 
-            migrationBuilder.AddColumn<string>(
-                name: "OriginalInvoiceId",
-                table: "Invoice",
-                type: "nvarchar(max)",
-                nullable: true);
+IF COL_LENGTH('Invoice', 'OriginalInvoiceId') IS NULL
+    ALTER TABLE [Invoice] ADD [OriginalInvoiceId] nvarchar(max) NULL;
 
-            migrationBuilder.AddColumn<int>(
-                name: "Status",
-                table: "Invoice",
-                type: "int",
-                nullable: true);
+IF COL_LENGTH('Invoice', 'Status') IS NULL
+    ALTER TABLE [Invoice] ADD [Status] int NULL;
 
-            migrationBuilder.CreateTable(
-                name: "CashierSession",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    CashierId = table.Column<int>(type: "int", nullable: false),
-                    OpenedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    ClosedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    StatrBalance = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    EndingBalance = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    Status = table.Column<int>(type: "int", nullable: false),
-                    CreatedDate = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    UpdatedDate = table.Column<DateTime>(type: "datetime2", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_CashierSession", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_CashierSession_User_CashierId",
-                        column: x => x.CashierId,
-                        principalTable: "User",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                });
+IF OBJECT_ID(N'[CashierSession]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [CashierSession]
+    (
+        [Id] int NOT NULL IDENTITY,
+        [CashierId] int NOT NULL,
+        [OpenedAt] datetime2 NOT NULL,
+        [ClosedAt] datetime2 NULL,
+        [StatrBalance] decimal(18,2) NOT NULL,
+        [EndingBalance] decimal(18,2) NOT NULL,
+        [Status] int NOT NULL,
+        [CreatedDate] datetime2 NOT NULL,
+        [UpdatedDate] datetime2 NOT NULL,
+        CONSTRAINT [PK_CashierSession] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_CashierSession_User_CashierId] FOREIGN KEY ([CashierId]) REFERENCES [User] ([Id]) ON DELETE CASCADE
+    );
+END;
 
-            migrationBuilder.CreateTable(
-                name: "Tax",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    Name = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    Rate = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    IsActive = table.Column<bool>(type: "bit", nullable: false),
-                    CreatedDate = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    UpdatedDate = table.Column<DateTime>(type: "datetime2", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_Tax", x => x.Id);
-                });
+IF OBJECT_ID(N'[Tax]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [Tax]
+    (
+        [Id] int NOT NULL IDENTITY,
+        [Name] nvarchar(max) NOT NULL,
+        [Rate] decimal(18,2) NOT NULL,
+        [IsActive] bit NOT NULL,
+        [CreatedDate] datetime2 NOT NULL,
+        [UpdatedDate] datetime2 NOT NULL,
+        CONSTRAINT [PK_Tax] PRIMARY KEY ([Id])
+    );
+END;
 
-            migrationBuilder.CreateTable(
-                name: "FinancialTransaction",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    TransactionNumber = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    Type = table.Column<int>(type: "int", nullable: false),
-                    Method = table.Column<int>(type: "int", nullable: false),
-                    Amount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    Date = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    InvoiceId = table.Column<int>(type: "int", nullable: true),
-                    VoucherId = table.Column<int>(type: "int", nullable: true),
-                    CasherId = table.Column<int>(type: "int", nullable: true),
-                    CashierSessionId = table.Column<int>(type: "int", nullable: true),
-                    Notes = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    CreatedDate = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    UpdatedDate = table.Column<DateTime>(type: "datetime2", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_FinancialTransaction", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_FinancialTransaction_CashierSession_CashierSessionId",
-                        column: x => x.CashierSessionId,
-                        principalTable: "CashierSession",
-                        principalColumn: "Id");
-                });
+IF OBJECT_ID(N'[FinancialTransaction]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [FinancialTransaction]
+    (
+        [Id] int NOT NULL IDENTITY,
+        [TransactionNumber] nvarchar(max) NOT NULL,
+        [Type] int NOT NULL,
+        [Method] int NOT NULL,
+        [Amount] decimal(18,2) NOT NULL,
+        [Date] datetime2 NOT NULL,
+        [InvoiceId] int NULL,
+        [VoucherId] int NULL,
+        [CasherId] int NULL,
+        [CashierSessionId] int NULL,
+        [Notes] nvarchar(max) NULL,
+        [CreatedDate] datetime2 NOT NULL,
+        [UpdatedDate] datetime2 NOT NULL,
+        CONSTRAINT [PK_FinancialTransaction] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_FinancialTransaction_CashierSession_CashierSessionId] FOREIGN KEY ([CashierSessionId]) REFERENCES [CashierSession] ([Id])
+    );
+END;
 
-            migrationBuilder.CreateTable(
-                name: "StockTransaction",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    ProductId = table.Column<int>(type: "int", nullable: false),
-                    ProductUnitId = table.Column<int>(type: "int", nullable: false),
-                    StockId = table.Column<int>(type: "int", nullable: true),
-                    Quantity = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    UnitPrice = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    TransactionType = table.Column<int>(type: "int", nullable: false),
-                    InvoiceId = table.Column<int>(type: "int", nullable: true),
-                    VoucherId = table.Column<int>(type: "int", nullable: true),
-                    CasherId = table.Column<int>(type: "int", nullable: true),
-                    CashierSessionId = table.Column<int>(type: "int", nullable: true),
-                    CustomerId = table.Column<int>(type: "int", nullable: true),
-                    TransactionDate = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    Notes = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    CreatedDate = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    UpdatedDate = table.Column<DateTime>(type: "datetime2", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_StockTransaction", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_StockTransaction_CashierSession_CashierSessionId",
-                        column: x => x.CashierSessionId,
-                        principalTable: "CashierSession",
-                        principalColumn: "Id");
-                    table.ForeignKey(
-                        name: "FK_StockTransaction_Invoice_InvoiceId",
-                        column: x => x.InvoiceId,
-                        principalTable: "Invoice",
-                        principalColumn: "Id");
-                    table.ForeignKey(
-                        name: "FK_StockTransaction_ProductUnit_ProductUnitId",
-                        column: x => x.ProductUnitId,
-                        principalTable: "ProductUnit",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                    table.ForeignKey(
-                        name: "FK_StockTransaction_Product_ProductId",
-                        column: x => x.ProductId,
-                        principalTable: "Product",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                    table.ForeignKey(
-                        name: "FK_StockTransaction_Stock_StockId",
-                        column: x => x.StockId,
-                        principalTable: "Stock",
-                        principalColumn: "Id");
-                    table.ForeignKey(
-                        name: "FK_StockTransaction_User_CasherId",
-                        column: x => x.CasherId,
-                        principalTable: "User",
-                        principalColumn: "Id");
-                    table.ForeignKey(
-                        name: "FK_StockTransaction_User_CustomerId",
-                        column: x => x.CustomerId,
-                        principalTable: "User",
-                        principalColumn: "Id");
-                    table.ForeignKey(
-                        name: "FK_StockTransaction_Voucher_VoucherId",
-                        column: x => x.VoucherId,
-                        principalTable: "Voucher",
-                        principalColumn: "Id");
-                });
+IF OBJECT_ID(N'[StockTransaction]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [StockTransaction]
+    (
+        [Id] int NOT NULL IDENTITY,
+        [ProductId] int NOT NULL,
+        [ProductUnitId] int NOT NULL,
+        [StockId] int NULL,
+        [Quantity] decimal(18,2) NOT NULL,
+        [UnitPrice] decimal(18,2) NOT NULL,
+        [TransactionType] int NOT NULL,
+        [InvoiceId] int NULL,
+        [VoucherId] int NULL,
+        [CasherId] int NULL,
+        [CashierSessionId] int NULL,
+        [CustomerId] int NULL,
+        [TransactionDate] datetime2 NOT NULL,
+        [Notes] nvarchar(max) NULL,
+        [CreatedDate] datetime2 NOT NULL,
+        [UpdatedDate] datetime2 NOT NULL,
+        CONSTRAINT [PK_StockTransaction] PRIMARY KEY ([Id]),
+        CONSTRAINT [FK_StockTransaction_CashierSession_CashierSessionId] FOREIGN KEY ([CashierSessionId]) REFERENCES [CashierSession] ([Id]),
+        CONSTRAINT [FK_StockTransaction_Invoice_InvoiceId] FOREIGN KEY ([InvoiceId]) REFERENCES [Invoice] ([Id]),
+        CONSTRAINT [FK_StockTransaction_ProductUnit_ProductUnitId] FOREIGN KEY ([ProductUnitId]) REFERENCES [ProductUnit] ([Id]) ON DELETE CASCADE,
+        CONSTRAINT [FK_StockTransaction_Product_ProductId] FOREIGN KEY ([ProductId]) REFERENCES [Product] ([Id]) ON DELETE CASCADE,
+        CONSTRAINT [FK_StockTransaction_Stock_StockId] FOREIGN KEY ([StockId]) REFERENCES [Stock] ([Id]),
+        CONSTRAINT [FK_StockTransaction_User_CasherId] FOREIGN KEY ([CasherId]) REFERENCES [User] ([Id]),
+        CONSTRAINT [FK_StockTransaction_User_CustomerId] FOREIGN KEY ([CustomerId]) REFERENCES [User] ([Id]),
+        CONSTRAINT [FK_StockTransaction_Voucher_VoucherId] FOREIGN KEY ([VoucherId]) REFERENCES [Voucher] ([Id])
+    );
+END;
 
-            migrationBuilder.CreateIndex(
-                name: "IX_Voucher_CashierSessionId",
-                table: "Voucher",
-                column: "CashierSessionId");
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Voucher_CashierSessionId' AND object_id = OBJECT_ID(N'[Voucher]'))
+    CREATE INDEX [IX_Voucher_CashierSessionId] ON [Voucher] ([CashierSessionId]);
 
-            migrationBuilder.CreateIndex(
-                name: "IX_Invoice_CashierSessionId",
-                table: "Invoice",
-                column: "CashierSessionId");
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Invoice_CashierSessionId' AND object_id = OBJECT_ID(N'[Invoice]'))
+    CREATE INDEX [IX_Invoice_CashierSessionId] ON [Invoice] ([CashierSessionId]);
 
-            migrationBuilder.CreateIndex(
-                name: "IX_CashierSession_CashierId",
-                table: "CashierSession",
-                column: "CashierId");
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_CashierSession_CashierId' AND object_id = OBJECT_ID(N'[CashierSession]'))
+    CREATE INDEX [IX_CashierSession_CashierId] ON [CashierSession] ([CashierId]);
 
-            migrationBuilder.CreateIndex(
-                name: "IX_FinancialTransaction_CashierSessionId",
-                table: "FinancialTransaction",
-                column: "CashierSessionId");
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_FinancialTransaction_CashierSessionId' AND object_id = OBJECT_ID(N'[FinancialTransaction]'))
+    CREATE INDEX [IX_FinancialTransaction_CashierSessionId] ON [FinancialTransaction] ([CashierSessionId]);
 
-            migrationBuilder.CreateIndex(
-                name: "IX_StockTransaction_CasherId",
-                table: "StockTransaction",
-                column: "CasherId");
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_StockTransaction_CasherId' AND object_id = OBJECT_ID(N'[StockTransaction]'))
+    CREATE INDEX [IX_StockTransaction_CasherId] ON [StockTransaction] ([CasherId]);
 
-            migrationBuilder.CreateIndex(
-                name: "IX_StockTransaction_CashierSessionId",
-                table: "StockTransaction",
-                column: "CashierSessionId");
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_StockTransaction_CashierSessionId' AND object_id = OBJECT_ID(N'[StockTransaction]'))
+    CREATE INDEX [IX_StockTransaction_CashierSessionId] ON [StockTransaction] ([CashierSessionId]);
 
-            migrationBuilder.CreateIndex(
-                name: "IX_StockTransaction_CustomerId",
-                table: "StockTransaction",
-                column: "CustomerId");
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_StockTransaction_CustomerId' AND object_id = OBJECT_ID(N'[StockTransaction]'))
+    CREATE INDEX [IX_StockTransaction_CustomerId] ON [StockTransaction] ([CustomerId]);
 
-            migrationBuilder.CreateIndex(
-                name: "IX_StockTransaction_InvoiceId",
-                table: "StockTransaction",
-                column: "InvoiceId");
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_StockTransaction_InvoiceId' AND object_id = OBJECT_ID(N'[StockTransaction]'))
+    CREATE INDEX [IX_StockTransaction_InvoiceId] ON [StockTransaction] ([InvoiceId]);
 
-            migrationBuilder.CreateIndex(
-                name: "IX_StockTransaction_ProductId",
-                table: "StockTransaction",
-                column: "ProductId");
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_StockTransaction_ProductId' AND object_id = OBJECT_ID(N'[StockTransaction]'))
+    CREATE INDEX [IX_StockTransaction_ProductId] ON [StockTransaction] ([ProductId]);
 
-            migrationBuilder.CreateIndex(
-                name: "IX_StockTransaction_ProductUnitId",
-                table: "StockTransaction",
-                column: "ProductUnitId");
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_StockTransaction_ProductUnitId' AND object_id = OBJECT_ID(N'[StockTransaction]'))
+    CREATE INDEX [IX_StockTransaction_ProductUnitId] ON [StockTransaction] ([ProductUnitId]);
 
-            migrationBuilder.CreateIndex(
-                name: "IX_StockTransaction_StockId",
-                table: "StockTransaction",
-                column: "StockId");
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_StockTransaction_StockId' AND object_id = OBJECT_ID(N'[StockTransaction]'))
+    CREATE INDEX [IX_StockTransaction_StockId] ON [StockTransaction] ([StockId]);
 
-            migrationBuilder.CreateIndex(
-                name: "IX_StockTransaction_VoucherId",
-                table: "StockTransaction",
-                column: "VoucherId");
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_StockTransaction_VoucherId' AND object_id = OBJECT_ID(N'[StockTransaction]'))
+    CREATE INDEX [IX_StockTransaction_VoucherId] ON [StockTransaction] ([VoucherId]);
 
-            migrationBuilder.AddForeignKey(
-                name: "FK_Invoice_CashierSession_CashierSessionId",
-                table: "Invoice",
-                column: "CashierSessionId",
-                principalTable: "CashierSession",
-                principalColumn: "Id");
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_Invoice_CashierSession_CashierSessionId')
+    ALTER TABLE [Invoice] ADD CONSTRAINT [FK_Invoice_CashierSession_CashierSessionId] FOREIGN KEY ([CashierSessionId]) REFERENCES [CashierSession] ([Id]);
 
-            migrationBuilder.AddForeignKey(
-                name: "FK_Voucher_CashierSession_CashierSessionId",
-                table: "Voucher",
-                column: "CashierSessionId",
-                principalTable: "CashierSession",
-                principalColumn: "Id");
+IF NOT EXISTS (SELECT 1 FROM sys.foreign_keys WHERE name = 'FK_Voucher_CashierSession_CashierSessionId')
+    ALTER TABLE [Voucher] ADD CONSTRAINT [FK_Voucher_CashierSession_CashierSessionId] FOREIGN KEY ([CashierSessionId]) REFERENCES [CashierSession] ([Id]);
+");
         }
 
         /// <inheritdoc />

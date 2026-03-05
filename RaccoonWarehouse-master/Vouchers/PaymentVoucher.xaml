@@ -284,8 +284,8 @@
                        
                           SelectionChanged="PaymentTypeCombo_SelectionChanged">
                         <ComboBoxItem Tag="1">نقدي</ComboBoxItem>
-                        <ComboBoxItem Tag="2">شبكة</ComboBoxItem>
-                        <ComboBoxItem Tag="3">ذمم</ComboBoxItem>
+                        <ComboBoxItem Tag="3">شبكة</ComboBoxItem>
+                        <ComboBoxItem Tag="2">ذمم</ComboBoxItem>
                         <ComboBoxItem Tag="4">شيك</ComboBoxItem>
                         <ComboBoxItem Tag="5">محفظة</ComboBoxItem>
                     </ComboBox>

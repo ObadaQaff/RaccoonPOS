@@ -12,10 +12,11 @@ namespace RaccoonWarehouse.Settings
         public static IReadOnlyList<ReportCatalogItem> All { get; } = new List<ReportCatalogItem>
         {
             new() { Key = "current-stock", DisplayName = "المخزون الحالي", Category = " الاصناف والمخزون" },
-            new() { Key = "stock-movements", DisplayName = "حركات الاصناف", Category = " الاصناف والمخزون" },
+            new() { Key = "stock-movements", DisplayName = "تفصيل حركة المخزون", Category = " الاصناف والمخزون" },
             new() { Key = "stock-balance-by-date", DisplayName = "أرصدة المخزون بتاريخ معين", Category = " الاصناف والمخزون" },
             new() { Key = "below-min-stock", DisplayName = "بضائع تحت الحد الأدنى", Category = " الاصناف والمخزون" },
-            new() { Key = "inventory-movement-summary", DisplayName = "ملخص حركات المخزون", Category = " الاصناف والمخزون" },
+            new() { Key = "inventory-movement-summary", DisplayName = "ملخص حركة الأصناف", Category = " الاصناف والمخزون" },
+            new() { Key = "stock-valuation", DisplayName = "تقييم المخزون", Category = " الاصناف والمخزون" },
             new() { Key = "inactive-products", DisplayName = "اصناف لم تتحرك منذ مدة", Category = " الاصناف والمخزون" },
             new() { Key = "sales-report", DisplayName = "تقرير المبيعات", Category = "التقارير المالية" },
             new() { Key = "invoices-profit", DisplayName = "تحليل ربحية الفواتير", Category = "التقارير المالية" },
@@ -26,8 +27,8 @@ namespace RaccoonWarehouse.Settings
             new() { Key = "discount-summary", DisplayName = "ملخص الخصومات", Category = "متنوعة" },
             new() { Key = "item-cost-detail", DisplayName = "تفاصيل تكلفة الأصناف", Category = "متنوعة" },
             new() { Key = "price-list", DisplayName = "قائمة الأسعار", Category = "متنوعة" },
-            new() { Key = "stock-balances", DisplayName = "أرصدة المخزون", Category = "متنوعة" },
-            new() { Key = "material-movements", DisplayName = "حركة المواد", Category = "متنوعة" },
+            new() { Key = "stock-balances", DisplayName = "الجرد والفرق", Category = " الاصناف والمخزون" },
+            new() { Key = "material-movements", DisplayName = "التسويات المخزنية", Category = " الاصناف والمخزون" },
             new() { Key = "inactive-items", DisplayName = "الأصناف الراكدة", Category = "متنوعة" }
         };
 

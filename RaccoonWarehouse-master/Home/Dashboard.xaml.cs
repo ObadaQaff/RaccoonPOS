@@ -2,6 +2,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using RaccoonWarehouse.Application.Service.Permissions;
 using RaccoonWarehouse.Application.Service.Users;
+using RaccoonWarehouse.Auth;
 using RaccoonWarehouse.Brands;
 using RaccoonWarehouse.Categories;
 using RaccoonWarehouse.Invoices;
@@ -56,6 +57,37 @@ namespace RaccoonWarehouse
             Receipt_Click(null, null);
         }
 
+        private void LogoutBtn_Click(object sender, RoutedEventArgs e)
+        {
+            var app = (App)System.Windows.Application.Current;
+
+            if (_userSession.CurrentCashierSession != null)
+            {
+                var closeSessionWindow = app.ServiceProvider.GetRequiredService<CloseCashierSessionWindow>();
+                var closeSessionResult = closeSessionWindow.ShowDialog();
+
+                if (closeSessionResult != true)
+                    return;
+            }
+
+            _userSession.EndSession();
+            Hide();
+
+            var login = app.ServiceProvider.GetRequiredService<LoginWindow>();
+            var loginResult = login.ShowDialog();
+
+            if (loginResult == true)
+            {
+                var dashboard = app.ServiceProvider.GetRequiredService<Dashboard>();
+                System.Windows.Application.Current.MainWindow = dashboard;
+                dashboard.Show();
+                Close();
+                return;
+            }
+
+            app.Shutdown();
+        }
+
         private async void UsersTableBtn_Click(object sender, RoutedEventArgs e)
         {
             WindowManager.Show<UsersTable>();
@@ -95,8 +127,8 @@ namespace RaccoonWarehouse
             var groups = new Dictionary<string, string[]>
             {
                 { "بطاقات وأصناف", new string[] { "بطاقةإدخال صنف", "بحث عن صنف" } },
-                { "الجرد والضبط", new string[] { "مطابقة الجرد", "فئات سعر البيع", "اعدادات المخزون" } },
-                { "الأرصدة والتعديلات", new string[] { "أرصدة المخزون الابتدائية", "تعديل أسعار البيع", "سند تعديل أسعار البيع" } }
+                { "الأسعار والتحليل", new string[] { "قائمة الأسعار", "أرباح الأصناف", "اصناف لم تتحرك منذ مدة" } },
+                { "الرقابة المخزنية", new string[] { "الجرد والفرق", "بضائع تحت الحد الأدنى", "التسويات المخزنية" } }
             };
 
             foreach (var group in groups)
@@ -198,6 +230,36 @@ namespace RaccoonWarehouse
                     case "بحث عن صنف":
                         {
                             WindowManager.Show<ProductsTable>();
+                            break;
+                        }
+                    case "قائمة الأسعار":
+                        {
+                            WindowManager.Show<PriceListReport>(WindowSizeType.LargeRectangle);
+                            break;
+                        }
+                    case "أرباح الأصناف":
+                        {
+                            WindowManager.Show<ProductProfitReport>(WindowSizeType.LargeRectangle);
+                            break;
+                        }
+                    case "اصناف لم تتحرك منذ مدة":
+                        {
+                            WindowManager.Show<InactiveProductsReport>(WindowSizeType.LargeRectangle);
+                            break;
+                        }
+                    case "الجرد والفرق":
+                        {
+                            WindowManager.Show<StockBalancesReport>(WindowSizeType.LargeRectangle);
+                            break;
+                        }
+                    case "بضائع تحت الحد الأدنى":
+                        {
+                            WindowManager.Show<LowStockReport>(WindowSizeType.LargeRectangle);
+                            break;
+                        }
+                    case "التسويات المخزنية":
+                        {
+                            WindowManager.Show<MaterialMovementsReport>(WindowSizeType.LargeRectangle);
                             break;
                         }
                 }
@@ -362,9 +424,10 @@ namespace RaccoonWarehouse
             // مجموعات الأزرار حسب الموضوع
             var groups = new Dictionary<string, string[]>
             {
-                { "الفواتير والمبيعات", new string[] { "فاتورة مبيعات", "مردودات المبيعات", "فاتورة مشتريات", "طباعة فواتير" } },
+                { "الفواتير والمبيعات", new string[] { "فاتورة مبيعات", "مردودات المبيعات", "فاتورة مشتريات" } },
                 { "التحصيل والدفع", new string[] { "سند قبض", "سند دفع" } },
                 { "المخزون", new string[] { "سند ادخال بضاعة", "سند اخراج بضاعة" } },
+                { "التحليلات", new string[] { "تقرير المبيعات", "تقرير مبيعات الآجل", "تحليل ربحية الفواتير" } },
                 { "الطلبيات", new string[] { "طلبية استيراد" } }
             };
 
@@ -502,6 +565,21 @@ namespace RaccoonWarehouse
                     case "طلبية استيراد":
                         {
                             WindowManager.Show<ImportOrder>();
+                            break;
+                        }
+                    case "تقرير المبيعات":
+                        {
+                            WindowManager.Show<SalesReport>(WindowSizeType.LargeRectangle);
+                            break;
+                        }
+                    case "تقرير مبيعات الآجل":
+                        {
+                            WindowManager.Show<CreditSalesReport>(WindowSizeType.LargeRectangle);
+                            break;
+                        }
+                    case "تحليل ربحية الفواتير":
+                        {
+                            WindowManager.Show<InvoicesProfitBrowser>(WindowSizeType.LargeRectangle);
                             break;
                         }
                 }
@@ -661,6 +739,7 @@ namespace RaccoonWarehouse
                             break;
                         }
                     case "حركات الاصناف":
+                    case "تفصيل حركة المخزون":
                         {
                             WindowManager.Show<StockMovementsReport>(WindowSizeType.LargeRectangle);
                             break;
@@ -717,8 +796,14 @@ namespace RaccoonWarehouse
                             break;
                         }
                     case "ملخص حركات المخزون":
+                    case "ملخص حركة الأصناف":
                         {
                             WindowManager.Show<InventoryMovementSummary>(WindowSizeType.LargeRectangle);
+                            break;
+                        }
+                    case "تقييم المخزون":
+                        {
+                            WindowManager.Show<StockValuationReport>(WindowSizeType.LargeRectangle);
                             break;
                         }
                     case "أرباح الأصناف":
@@ -752,11 +837,13 @@ namespace RaccoonWarehouse
                             break;
                         }
                     case "أرصدة المخزون":
+                    case "الجرد والفرق":
                         {
                             WindowManager.Show<StockBalancesReport>(WindowSizeType.LargeRectangle);
                             break;
                         }
                     case "حركة المواد":
+                    case "التسويات المخزنية":
                         {
                             WindowManager.Show<MaterialMovementsReport>(WindowSizeType.LargeRectangle);
                             break;
@@ -906,6 +993,12 @@ namespace RaccoonWarehouse
                 {
                     case "إضافة مستخدم جديد":
                         {
+                            if (_userSession.CurrentUser?.Role != Domain.Enums.UserRole.Admin)
+                            {
+                                MessageBox.Show("فقط المدير يمكنه إنشاء مستخدم جديد.");
+                                break;
+                            }
+
                             WindowManager.Show<CreateUser>();
                             break;
                         }
@@ -1161,6 +1254,12 @@ namespace RaccoonWarehouse
                         }
                     case "مدير صلاحيات التقارير":
                         {
+                            if (_userSession.CurrentUser?.Role != Domain.Enums.UserRole.Admin)
+                            {
+                                MessageBox.Show("فقط المدير يمكنه إدارة صلاحيات التقارير.");
+                                break;
+                            }
+
                             WindowManager.Show<ReportPermissionsManager>(WindowSizeType.LargeRectangle);
                             break;
                         }

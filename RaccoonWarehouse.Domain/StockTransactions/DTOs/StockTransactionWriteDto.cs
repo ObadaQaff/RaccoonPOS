@@ -28,6 +28,8 @@ namespace RaccoonWarehouse.Domain.StockTransactions.DTOs
         public int? StockId { get; set; }
         public StockWriteDto? Stock { get; set; }
         public decimal Quantity { get; set; }
+        public decimal QuantityPerUnitSnapshot { get; set; }
+        public decimal BaseQuantity { get; set; }
         public decimal UnitPrice { get; set; }
         public TransactionType TransactionType { get; set; }
         public InvoiceWriteDto? Invoice { get; set; }

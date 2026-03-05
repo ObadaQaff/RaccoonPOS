@@ -42,6 +42,7 @@ namespace RaccoonWarehouse.Application.Service.AuthService
                 {
                     Id = user.Id,
                     Name = user.Name,
+                    Role = user.Role,
                     Password = user.Password,
                     PhoneNumber = user.PhoneNumber,
                     CreatedDate = user.CreatedDate,

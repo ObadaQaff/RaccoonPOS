@@ -5,6 +5,7 @@ using RaccoonWarehouse.Data;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Permissions;
 using RaccoonWarehouse.Domain.Permissions.DTOs;
+using RaccoonWarehouse.Application.Service.Users;
 
 namespace RaccoonWarehouse.Application.Service.Permissions
 {
@@ -20,11 +21,13 @@ namespace RaccoonWarehouse.Application.Service.Permissions
     {
         private readonly ApplicationDbContext _dbContext;
         private readonly IMapper _mapper;
+        private readonly IUserSession _userSession;
 
-        public ReportPermissionService(ApplicationDbContext dbContext, IMapper mapper)
+        public ReportPermissionService(ApplicationDbContext dbContext, IMapper mapper, IUserSession userSession)
         {
             _dbContext = dbContext;
             _mapper = mapper;
+            _userSession = userSession;
         }
 
         public async Task<Dictionary<string, Dictionary<UserRole, bool>>> GetPermissionsMapAsync()
@@ -60,6 +63,9 @@ namespace RaccoonWarehouse.Application.Service.Permissions
 
         public async Task<Result<bool>> SavePermissionsAsync(IEnumerable<ReportPermissionWriteDto> permissions)
         {
+            if (_userSession.CurrentUser?.Role != UserRole.Admin)
+                return Result<bool>.Fail("فقط المدير يمكنه تعديل صلاحيات التقارير.");
+
             try
             {
                 var now = DateTime.Now;

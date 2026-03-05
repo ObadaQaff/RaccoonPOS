@@ -4,142 +4,74 @@
         xmlns:sys="clr-namespace:System;assembly=mscorlib"
         xmlns:iconPacks="http://metro.mahapps.com/winfx/xaml/iconpacks"
         Title="نقطة البيع"
-        Height="900"
         Width="1600"
+        Height="900"
+        MinWidth="1180"
+        MinHeight="720"
         WindowStartupLocation="CenterScreen"
         WindowState="Maximized"
-        Background="#F5F6FA"
+        Background="{StaticResource AppPageBackgroundBrush}"
+        FlowDirection="RightToLeft"
+        Loaded="Window_Loaded"
         PreviewKeyDown="Window_PreviewKeyDown">
-                         
 
     <Window.Resources>
-        <!-- POS Button Base Style -->
-        <Style x:Key="POSButtonStyle" TargetType="Button">
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="FontSize" Value="16"/>
-            <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="Height" Value="80"/>
-            <Setter Property="Width" Value="140"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}"
-                                CornerRadius="12"
-                                BorderThickness="{TemplateBinding BorderThickness}">
-                            <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center"/>
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#EBCB90"/>
-                    <Setter Property="Foreground" Value="Black"/>
-                </Trigger>
-                <Trigger Property="IsPressed" Value="True">
-                    <Setter Property="Background" Value="#FFF0CE"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-
-
-
-        <Style x:Key="POSButtonBase" TargetType="Button">
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="FontSize" Value="15"/>
+        <Style x:Key="POSButtonBase" TargetType="Button" BasedOn="{StaticResource AppFormButtonStyle}">
+            <Setter Property="MinHeight" Value="62"/>
+            <Setter Property="MinWidth" Value="126"/>
+            <Setter Property="Padding" Value="12,10"/>
+            <Setter Property="FontSize" Value="13"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Height" Value="72"/>
-            <Setter Property="Width" Value="135"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}"
-                        CornerRadius="8">
-                            <ContentPresenter HorizontalAlignment="Center"
-                                      VerticalAlignment="Center"/>
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Opacity" Value="0.9"/>
-                </Trigger>
-                <Trigger Property="IsPressed" Value="True">
-                    <Setter Property="Opacity" Value="0.8"/>
-                </Trigger>
-            </Style.Triggers>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
         </Style>
-
-        <!-- Primary -->
-        <Style x:Key="POSPrimaryButton"
-       BasedOn="{StaticResource POSButtonBase}"
-       TargetType="Button">
-            <Setter Property="Background" Value="#2E7D32"/>
+        <Style x:Key="POSPrimaryButton" TargetType="Button" BasedOn="{StaticResource POSButtonBase}">
+            <Setter Property="Background" Value="{StaticResource AppPrimaryBrush}"/>
         </Style>
-
-        <!-- Danger -->
-        <Style x:Key="POSDangerButton"
-       BasedOn="{StaticResource POSButtonBase}"
-       TargetType="Button">
-            <Setter Property="Background" Value="#C62828"/>
+        <Style x:Key="POSDangerButton" TargetType="Button" BasedOn="{StaticResource POSButtonBase}">
+            <Setter Property="Background" Value="#C93F4D"/>
         </Style>
-
-        <!-- Neutral -->
-        <Style x:Key="POSNeutralButton"
-       BasedOn="{StaticResource POSButtonBase}"
-       TargetType="Button">
-            <Setter Property="Background" Value="#455A64"/>
+        <Style x:Key="POSNeutralButton" TargetType="Button" BasedOn="{StaticResource POSButtonBase}">
+            <Setter Property="Background" Value="#445A68"/>
         </Style>
-
-        <!-- Adjustment -->
-        <Style x:Key="POSAdjustmentButton"
-       BasedOn="{StaticResource POSButtonBase}"
-       TargetType="Button">
-            <Setter Property="Background" Value="#F57C00"/>
+        <Style x:Key="POSAdjustmentButton" TargetType="Button" BasedOn="{StaticResource POSButtonBase}">
+            <Setter Property="Background" Value="#D98A1F"/>
         </Style>
-
-
-
-        <!-- POS Button Color Variants -->
-        <Style x:Key="POSButtonBlue" TargetType="Button" BasedOn="{StaticResource POSButtonStyle}">
-            <Setter Property="Background" Value="#3498db"/>
+        <Style x:Key="POSButtonDark" TargetType="Button" BasedOn="{StaticResource POSNeutralButton}">
+            <Setter Property="Background" Value="{StaticResource AppPrimaryDarkBrush}"/>
         </Style>
-        <Style x:Key="POSButtonRed" TargetType="Button" BasedOn="{StaticResource POSButtonStyle}">
-            <Setter Property="Background" Value="#e74c3c"/>
+        <Style x:Key="POSInfoLabelStyle" TargetType="TextBlock" BasedOn="{StaticResource AppFieldLabelStyle}">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Margin" Value="0,0,0,8"/>
         </Style>
-        <Style x:Key="POSButtonOrange" TargetType="Button" BasedOn="{StaticResource POSButtonStyle}">
-            <Setter Property="Background" Value="#f39c12"/>
+        <Style x:Key="POSInfoValueStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource AppTextBrush}"/>
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="TextAlignment" Value="Right"/>
         </Style>
-        <Style x:Key="POSButtonGreen" TargetType="Button" BasedOn="{StaticResource POSButtonStyle}">
-            <Setter Property="Background" Value="#27ae60"/>
+        <Style x:Key="POSSummaryCardStyle" TargetType="Border" BasedOn="{StaticResource AppCardBorderStyle}">
+            <Setter Property="Padding" Value="10,8"/>
+            <Setter Property="Margin" Value="0"/>
         </Style>
-        <Style x:Key="POSButtonPurple" TargetType="Button" BasedOn="{StaticResource POSButtonStyle}">
-            <Setter Property="Background" Value="#9b59b6"/>
+        <Style x:Key="POSMiniActionButtonStyle" TargetType="Button" BasedOn="{StaticResource AppHeroButtonStyle}">
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="MinWidth" Value="90"/>
+            <Setter Property="Padding" Value="8,0"/>
+            <Setter Property="FontSize" Value="11"/>
         </Style>
-        <Style x:Key="POSButtonDark" TargetType="Button" BasedOn="{StaticResource POSButtonStyle}">
-            <Setter Property="Background" Value="#34495e"/>
-        </Style>
-
-        <!-- Custom ComboBox Style with DataGrid Dropdown -->
         <Style x:Key="ProductComboBoxWithGridStyle" TargetType="ComboBox">
             <Setter Property="SnapsToDevicePixels" Value="True"/>
             <Setter Property="OverridesDefaultStyle" Value="True"/>
             <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Auto"/>
             <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto"/>
             <Setter Property="IsEditable" Value="True"/>
-            <Setter Property="Height" Value="38"/>
+            <Setter Property="Height" Value="44"/>
             <Setter Property="FontSize" Value="15"/>
-            <Setter Property="Padding" Value="6"/>
+            <Setter Property="Padding" Value="10,0"/>
             <Setter Property="Background" Value="White"/>
-            <Setter Property="BorderBrush" Value="#CBD5DF"/>
+            <Setter Property="BorderBrush" Value="{StaticResource AppBorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Template">
                 <Setter.Value>
@@ -147,190 +79,26 @@
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition/>
-                                <ColumnDefinition Width="20"/>
+                                <ColumnDefinition Width="34"/>
                             </Grid.ColumnDefinitions>
-                            <Border x:Name="Border"
-                                   Grid.ColumnSpan="2"
-                                   Background="{TemplateBinding Background}"
-                                   BorderBrush="{TemplateBinding BorderBrush}"
-                                   BorderThickness="{TemplateBinding BorderThickness}"
-                                   CornerRadius="8"/>
-                            <TextBox x:Name="PART_EditableTextBox"
-                                    Grid.Column="0"
-                                    Margin="3,3,3,3"
-                                    Focusable="True"
-                                    Background="Transparent"
-                                    HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                    VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
-                                    IsReadOnly="{Binding IsReadOnly, RelativeSource={RelativeSource TemplatedParent}}"/>
-                            <ToggleButton x:Name="ToggleButton"
-                                        Grid.Column="1"
-                                        Width="20"
-                                        Focusable="False"
-                                        ClickMode="Press"
-                                        IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
-                                <Path x:Name="Arrow"
-                                     Fill="#666"
-                                     HorizontalAlignment="Center"
-                                     VerticalAlignment="Center"
-                                     Data="M 0 0 L 4 4 L 8 0 Z"/>
+                            <Border x:Name="Border" Grid.ColumnSpan="2" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="12"/>
+                            <TextBox x:Name="PART_EditableTextBox" Grid.Column="0" Margin="8,5,4,5" Padding="0" Focusable="True" Background="Transparent" BorderThickness="0" HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalContentAlignment="Center" IsReadOnly="{Binding IsReadOnly, RelativeSource={RelativeSource TemplatedParent}}"/>
+                            <ToggleButton x:Name="ToggleButton" Grid.Column="1" Width="34" Focusable="False" Background="Transparent" BorderThickness="0" ClickMode="Press" IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+                                <Path x:Name="Arrow" Fill="#667784" HorizontalAlignment="Center" VerticalAlignment="Center" Data="M 0 0 L 4 4 L 8 0 Z"/>
                             </ToggleButton>
-                            <ContentPresenter Name="ContentSite"
-                                            Grid.Column="0"
-                                            IsHitTestVisible="False"
-                                            Content="{TemplateBinding SelectionBoxItem}"
-                                            ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
-                                            ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"
-                                            Margin="3,3,3,3"
-                                            VerticalAlignment="Center"
-                                            HorizontalAlignment="Left"/>
-                            <Popup x:Name="Popup"
-                                 Placement="Bottom"
-                                 IsOpen="{TemplateBinding IsDropDownOpen}"
-                                 AllowsTransparency="True"
-                                 Focusable="False"
-                                 PopupAnimation="Slide"
-                                 VerticalOffset="1">
-                                <Border x:Name="DropDownBorder"
-                                       MaxHeight="450"
-                                       MinWidth="{TemplateBinding ActualWidth}"
-                                       Width="1200"
-                                       Background="White"
-                                       BorderBrush="#CBD5DF"
-                                       BorderThickness="1"
-                                       CornerRadius="8"
-                                       Margin="0,5,0,0">
-                                    <ScrollViewer Margin="4,6,4,6"
-                                                SnapsToDevicePixels="True"
-                                                VerticalScrollBarVisibility="Auto"
-                                                HorizontalScrollBarVisibility="Auto">
-                                        <DataGrid x:Name="ProductGrid"
-                                                 ItemsSource="{Binding ItemsSource, RelativeSource={RelativeSource TemplatedParent}}"
-                                                 AutoGenerateColumns="False"
-                                                 HeadersVisibility="Column"
-                                                 SelectionMode="Single"
-                                                 SelectionUnit="FullRow"
-                                                 IsReadOnly="True"
-                                                 GridLinesVisibility="All"
-                                                 RowHeight="40"
-                                                 FontSize="14"
-                                                 FlowDirection="RightToLeft"
-                                                 AlternatingRowBackground="#F5F5F5">
+                            <ContentPresenter Name="ContentSite" Grid.Column="0" Margin="10,0,0,0" VerticalAlignment="Center" HorizontalAlignment="Left" IsHitTestVisible="False" Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}" ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"/>
+                            <Popup x:Name="Popup" Placement="Bottom" IsOpen="{TemplateBinding IsDropDownOpen}" AllowsTransparency="True" Focusable="False" PopupAnimation="Slide" VerticalOffset="2">
+                                <Border x:Name="DropDownBorder" MaxHeight="460" MinWidth="{TemplateBinding ActualWidth}" Width="1080" Background="White" BorderBrush="{StaticResource AppBorderBrush}" BorderThickness="1" CornerRadius="14" Margin="0,6,0,0" Padding="6">
+                                    <ScrollViewer SnapsToDevicePixels="True" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
+                                        <DataGrid x:Name="ProductGrid" ItemsSource="{Binding ItemsSource, RelativeSource={RelativeSource TemplatedParent}}" AutoGenerateColumns="False" HeadersVisibility="Column" SelectionMode="Single" SelectionUnit="FullRow" IsReadOnly="True" GridLinesVisibility="Horizontal" RowHeight="40" FontSize="14" FlowDirection="RightToLeft" AlternatingRowBackground="#F7F9FB" Background="White" BorderThickness="0">
                                             <DataGrid.Columns>
-                                                <DataGridTextColumn Header="الاسم" Width="220">
-                                                    <DataGridTextColumn.Binding>
-                                                        <Binding Path="Name">
-                                                            <Binding.TargetNullValue>
-                                                                <sys:String>---</sys:String>
-                                                            </Binding.TargetNullValue>
-                                                        </Binding>
-                                                    </DataGridTextColumn.Binding>
-                                                    <DataGridTextColumn.ElementStyle>
-                                                        <Style TargetType="TextBlock">
-                                                            <Setter Property="Padding" Value="8,5"/>
-                                                            <Setter Property="TextWrapping" Value="NoWrap"/>
-                                                            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
-                                                        </Style>
-                                                    </DataGridTextColumn.ElementStyle>
-                                                </DataGridTextColumn>
-                                                <DataGridTextColumn Header="الباركود" Width="130">
-                                                    <DataGridTextColumn.Binding>
-                                                        <Binding Path="ITEMCODE">
-                                                            <Binding.TargetNullValue>
-                                                                <sys:String>---</sys:String>
-                                                            </Binding.TargetNullValue>
-                                                        </Binding>
-                                                    </DataGridTextColumn.Binding>
-                                                    <DataGridTextColumn.ElementStyle>
-                                                        <Style TargetType="TextBlock">
-                                                            <Setter Property="Padding" Value="8,5"/>
-                                                            <Setter Property="HorizontalAlignment" Value="Center"/>
-                                                        </Style>
-                                                    </DataGridTextColumn.ElementStyle>
-                                                </DataGridTextColumn>
-                                                <DataGridTextColumn Header="الفئة" Width="160">
-                                                    <DataGridTextColumn.Binding>
-                                                        <Binding Path="SubCategory.Name">
-                                                            <Binding.TargetNullValue>
-                                                                <sys:String>---</sys:String>
-                                                            </Binding.TargetNullValue>
-                                                        </Binding>
-                                                    </DataGridTextColumn.Binding>
-                                                    <DataGridTextColumn.ElementStyle>
-                                                        <Style TargetType="TextBlock">
-                                                            <Setter Property="Padding" Value="8,5"/>
-                                                        </Style>
-                                                    </DataGridTextColumn.ElementStyle>
-                                                </DataGridTextColumn>
-                                                <DataGridTextColumn Header="العلامة التجارية" Width="160">
-                                                    <DataGridTextColumn.Binding>
-                                                        <Binding Path="Brand.Name">
-                                                            <Binding.TargetNullValue>
-                                                                <sys:String>---</sys:String>
-                                                            </Binding.TargetNullValue>
-                                                        </Binding>
-                                                    </DataGridTextColumn.Binding>
-                                                    <DataGridTextColumn.ElementStyle>
-                                                        <Style TargetType="TextBlock">
-                                                            <Setter Property="Padding" Value="8,5"/>
-                                                        </Style>
-                                                    </DataGridTextColumn.ElementStyle>
-                                                </DataGridTextColumn>
-                                                <DataGridTextColumn Header="الوصف" Width="320">
-                                                    <DataGridTextColumn.Binding>
-                                                        <Binding Path="Description">
-                                                            <Binding.TargetNullValue>
-                                                                <sys:String>---</sys:String>
-                                                            </Binding.TargetNullValue>
-                                                        </Binding>
-                                                    </DataGridTextColumn.Binding>
-                                                    <DataGridTextColumn.ElementStyle>
-                                                        <Style TargetType="TextBlock">
-                                                            <Setter Property="Padding" Value="8,5"/>
-                                                            <Setter Property="TextWrapping" Value="Wrap"/>
-                                                        </Style>
-                                                    </DataGridTextColumn.ElementStyle>
-                                                </DataGridTextColumn>
-                                                <DataGridTextColumn Header="السعر" Width="130">
-                                                    <DataGridTextColumn.Binding>
-                                                        <Binding Path="ProductUnits[0].SalePrice" StringFormat="{}{0:N2}" FallbackValue="0.00">
-                                                            <Binding.TargetNullValue>
-                                                                <sys:String>0.00</sys:String>
-                                                            </Binding.TargetNullValue>
-                                                        </Binding>
-                                                    </DataGridTextColumn.Binding>
-                                                    <DataGridTextColumn.ElementStyle>
-                                                        <Style TargetType="TextBlock">
-                                                            <Setter Property="HorizontalAlignment" Value="Left"/>
-                                                            <Setter Property="TextAlignment" Value="Left"/>
-                                                            <Setter Property="Padding" Value="8,5"/>
-                                                            <Setter Property="FontWeight" Value="SemiBold"/>
-                                                        </Style>
-                                                    </DataGridTextColumn.ElementStyle>
-                                                </DataGridTextColumn>
+                                                <DataGridTextColumn Header="الاسم" Width="220" Binding="{Binding Name, TargetNullValue=---}"/>
+                                                <DataGridTextColumn Header="الباركود" Width="130" Binding="{Binding ITEMCODE, TargetNullValue=---}"/>
+                                                <DataGridTextColumn Header="الفئة" Width="160" Binding="{Binding SubCategory.Name, TargetNullValue=---}"/>
+                                                <DataGridTextColumn Header="العلامة التجارية" Width="160" Binding="{Binding Brand.Name, TargetNullValue=---}"/>
+                                                <DataGridTextColumn Header="الوصف" Width="320" Binding="{Binding Description, TargetNullValue=---}"/>
+                                                <DataGridTextColumn Header="السعر" Width="130" Binding="{Binding DefaultSalePrice, StringFormat={}{0:N2}, FallbackValue=0.00}"/>
                                             </DataGrid.Columns>
-                                            <DataGrid.ColumnHeaderStyle>
-                                                <Style TargetType="DataGridColumnHeader">
-                                                    <Setter Property="FontWeight" Value="Bold"/>
-                                                    <Setter Property="Background" Value="#E8E8E8"/>
-                                                    <Setter Property="Padding" Value="8,5"/>
-                                                    <Setter Property="BorderThickness" Value="0,0,1,1"/>
-                                                    <Setter Property="BorderBrush" Value="#D0D0D0"/>
-                                                </Style>
-                                            </DataGrid.ColumnHeaderStyle>
-                                            <DataGrid.RowStyle>
-                                                <Style TargetType="DataGridRow">
-                                                    <Setter Property="Padding" Value="5,0"/>
-                                                    <Style.Triggers>
-                                                        <Trigger Property="IsMouseOver" Value="True">
-                                                            <Setter Property="Background" Value="#E3F2FD"/>
-                                                        </Trigger>
-                                                        <Trigger Property="IsSelected" Value="True">
-                                                            <Setter Property="Background" Value="#BBDEFB"/>
-                                                        </Trigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </DataGrid.RowStyle>
                                         </DataGrid>
                                     </ScrollViewer>
                                 </Border>
@@ -338,10 +106,10 @@
                         </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Border" Property="BorderBrush" Value="#3498db"/>
+                                <Setter TargetName="Border" Property="BorderBrush" Value="{StaticResource AppBlueBrush}"/>
                             </Trigger>
                             <Trigger Property="IsFocused" Value="True">
-                                <Setter TargetName="Border" Property="BorderBrush" Value="#3498db"/>
+                                <Setter TargetName="Border" Property="BorderBrush" Value="{StaticResource AppBlueBrush}"/>
                             </Trigger>
                             <Trigger Property="IsEditable" Value="True">
                                 <Setter Property="IsTabStop" Value="False"/>
@@ -354,536 +122,290 @@
             </Setter>
         </Style>
     </Window.Resources>
-
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="70"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="50"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- HEADER -->
-        <Border Background="#263238" Grid.Row="0" CornerRadius="0,0,12,12">
-            <DockPanel VerticalAlignment="Center">
-                <TextBlock Text="نقطة البيع" 
-                           Foreground="White"
-                           FontSize="28"
-                           FontWeight="Bold"
-                           HorizontalAlignment="Center"
-                           DockPanel.Dock="Top"/>
-            </DockPanel>
+        <Border Grid.Row="0" Margin="24,18,24,12" Padding="18" CornerRadius="22" Background="{StaticResource AppDashboardHeroBrush}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="نقطة البيع" Foreground="White" FontSize="28" FontWeight="Bold"/>
+                </StackPanel>
+                <WrapPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Left" ItemHeight="38" Margin="18,0,0,0">
+
+                </WrapPanel>
+            </Grid>
         </Border>
 
-        <!-- MAIN CONTENT -->
-        <Grid Grid.Row="1" Margin="20">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="3*"/>
-                <ColumnDefinition Width="2*"/>
-            </Grid.ColumnDefinitions>
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
-                <RowDefinition Height="Auto"/>
-            </Grid.RowDefinitions>
+        <ScrollViewer Grid.Row="1" Margin="24,0,24,18" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
 
-            <!-- Top Info (Compact) -->
-            <!-- Modern Compact POS Top Bar -->
-            <Border Grid.Row="0"
-                Grid.Column="0"
-                Grid.ColumnSpan="2"
-                Height="44"
-                Background="#FFFFFF"
-                CornerRadius="8"
-                Padding="10,0"
-                Margin="0,0,0,8"
-                BorderBrush="#E6E6E6"
-                BorderThickness="1">
+                <Border Grid.Row="0" Padding="10" Margin="0,0,0,10" Style="{StaticResource AppCardBorderStyle}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="138"/>
+                            <ColumnDefinition Width="138"/>
+                            <ColumnDefinition Width="176"/>
+                            <ColumnDefinition Width="280"/>
+                            <ColumnDefinition Width="112"/>
+                        </Grid.ColumnDefinitions>
 
-                <Grid FlowDirection="RightToLeft"
-                    VerticalAlignment="Center">
-                    <Grid.ColumnDefinitions>
+                        <Border Grid.Column="0" Margin="0,0,8,0" Style="{StaticResource POSSummaryCardStyle}" Background="#F6FBF7">
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Style="{StaticResource POSInfoLabelStyle}" Text="الكاشير" Margin="0,0,0,4" FontSize="11"/>
+                                <TextBlock x:Name="CashierName" Style="{StaticResource POSInfoValueStyle}" Text="{Binding CurrentCasherName}" FontSize="12"/>
+                            </StackPanel>
+                        </Border>
 
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="140"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="180"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="90"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
-                        
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="200"/>
+                        <Border Grid.Column="1" Margin="0,0,8,0" Style="{StaticResource POSSummaryCardStyle}" Background="#F7FAFE">
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Style="{StaticResource POSInfoLabelStyle}" Text="التاريخ" Margin="0,0,0,4" FontSize="11"/>
+                                <TextBlock x:Name="CurrentDateTextBlock" Style="{StaticResource POSInfoValueStyle}" Text="{Binding CurrentDate}" FontSize="12"/>
+                            </StackPanel>
+                        </Border>
 
-                    </Grid.ColumnDefinitions>
+                        <Border Grid.Column="2" Margin="0,0,8,0" Style="{StaticResource POSSummaryCardStyle}" Background="#FBFAF6">
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Style="{StaticResource POSInfoLabelStyle}" Text="العميل" Margin="0,0,0,4" FontSize="11"/>
+                                <ComboBox x:Name="CustomerComboBox" Height="34" DisplayMemberPath="Name" Style="{StaticResource AppComboBoxStyle}"/>
+                            </StackPanel>
+                        </Border>
 
-                    <!-- Cashier -->
-                    <TextBlock Grid.Column="0"
-                           Text="الكاشير :"
-                           FontSize="12"
-                           Foreground="#7F8C8D"
-                           VerticalAlignment="Center"/>
-                    <TextBlock
-                            Name = "CashierName"
-                            Text="{Binding CurrentCasherName}"
-                            Grid.Column="1"
-                            Height="26"
-                            FontSize="15"/>
+                        <Border Grid.Column="3" Margin="0,0,8,0" Style="{StaticResource POSSummaryCardStyle}" Background="White">
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Style="{StaticResource POSInfoLabelStyle}" Text="بحث بالباركود" Margin="0,0,0,4" FontSize="11"/>
+                                <TextBox x:Name="BarcodeTextBox" Height="34" FontSize="12" Padding="10,0" VerticalContentAlignment="Center" Background="White" BorderBrush="{StaticResource AppBorderBrush}" BorderThickness="1" FlowDirection="LeftToRight" ToolTip="Scan or enter barcode" PreviewKeyDown="BarcodeTextBox_PreviewKeyDown" TextChanged="BarcodeTextBox_TextChanged"/>
+                            </StackPanel>
+                        </Border>
 
-                    <!-- Customer -->
-                    <TextBlock Grid.Column="2"
-                           Text="العميل"
-                           FontSize="12"
-                           Foreground="#7F8C8D"
-                           VerticalAlignment="Center"
-                           Margin="8,0,0,0"/>
-                    <ComboBox  Name ="CustomerComboBox" Grid.Column="3"
-                           Height="26"
-                           Margin="6,0"
-                           FontSize="12"
-                           DisplayMemberPath="Name"/>
-
-                    <!-- Date -->
-                    <TextBlock Grid.Column="5"
-                       Text="التاريخ"
-                       FontSize="12"
-                       Foreground="#7F8C8D"
-                       VerticalAlignment="Center"
-                       Margin="8,0,0,0"/>
-                    <TextBlock Name ="CurrentDateTextBlock" Grid.Column="6"
-                       Text="{Binding CurrentDate}"
-                       FontSize="12"
-                       VerticalAlignment="Center"
-                       Foreground="#2C3E50"
-                       Margin="4,0"/>
-
-                    <!-- Transaction 
-                    <TextBlock Grid.Column="8"
-                           Text="رقم"
-                           FontSize="12"
-                           Foreground="#7F8C8D"
-                           VerticalAlignment="Center"
-                           Margin="8,0,0,0"/>
-                    <TextBlock Grid.Column="9"
-                   Text="{Binding TransactionNumber}"
-                   FontSize="13"
-                   FontWeight="SemiBold"
-                   Foreground="#E74C3C"
-                   VerticalAlignment="Center"
-                   Margin="4,0"/>-->
-
-                    <!-- ✅ Open Session -->
-                    <Button x:Name="OpenSessionBtn"
-        Grid.Column="8"
-        Height="28"
-        MinWidth="95"
-        Margin="6,0,0,0"
-        Background="#2E7D32"
-        Foreground="White"
-        FontSize="12"
-        FontWeight="SemiBold"
-        BorderThickness="0"
-        Click="OpenSessionBtn_Click">
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                            <iconPacks:PackIconMaterial Kind="PlayCircle" Width="16" Height="16"/>
-                            <TextBlock Text="فتح جلسة" Margin="6,0,0,0"/>
-                        </StackPanel>
-                    </Button>
-
-                    <!-- ✅ Close Session -->
-                    <Button x:Name="CloseSessionBtn"
-        Grid.Column="9"
-        Height="28"
-        MinWidth="95"
-        Margin="6,0,0,0"
-        Background="#C62828"
-        Foreground="White"
-        FontSize="12"
-        FontWeight="SemiBold"
-        BorderThickness="0"
-        Click="CloseSessionBtn_Click">
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                            <iconPacks:PackIconMaterial Kind="StopCircle" Width="16" Height="16"/>
-                            <TextBlock Text="إغلاق جلسة" Margin="6,0,0,0"/>
-                        </StackPanel>
-                    </Button>
-                    <!-- Barcode -->
-                    <TextBlock Grid.Column="10"
-                        Text="باركود"
-                        FontSize="12"
-                        Foreground="#7F8C8D"
-                        VerticalAlignment="Center"
-                        Margin="12,0,4,0"/>
-
-                    <TextBox Grid.Column="11"
-                        x:Name="BarcodeTextBox"
-                        Height="26"
-                        FontSize="13"
-                        VerticalContentAlignment="Center"
-                        FlowDirection="LeftToRight"
-                        ToolTip="Scan or enter barcode"
-                        PreviewKeyDown="BarcodeTextBox_PreviewKeyDown" TextChanged="BarcodeTextBox_TextChanged"/>
-
-                </Grid>
-
-            </Border>
-
-            <!-- Invoice Grid -->
-            <Border Grid.Row="1"
-                    Grid.Column="0"
-                    Margin="10"
-                    Padding="10"
-                    Background="White"
-                    CornerRadius="12"
-                    BorderBrush="#E0E0E0"
-                    BorderThickness="1">
-                
-        
-                <DataGrid x:Name="InvoiceGrid"
-                              AutoGenerateColumns="False"
-                              FontSize="16"
-                              FlowDirection="RightToLeft"
-                              Margin="11,-1,-1,11"
-                              Background="White"
-                              BorderBrush="#E0E0E0"
-                              BorderThickness="1"
-                              RowHeight="40"
-                              HeadersVisibility="Column"
-                              SelectionUnit="Cell"
-                              SelectionMode="Single"
-                              IsReadOnly="False"
-                              CanUserAddRows="False"
-                              CanUserDeleteRows="True"
-                              KeyboardNavigation.TabNavigation="Continue"
-                              PreviewKeyDown="InvoiceGrid_PreviewKeyDown"
-                              PreparingCellForEdit="InvoiceGrid_PreparingCellForEdit"
-                              CellEditEnding="InvoiceGrid_CellEditEnding"
-                          >
-
-                    <DataGrid.Columns>
-                        <DataGridTextColumn Header="رمز الصنف"
-                        Width="*"
-                        Binding="{Binding ProductId ,Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
-
-                        <DataGridTemplateColumn Header="الصنف" Width="2*">
-                            <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate>
-                                    <TextBlock Text="{Binding ProductName, TargetNullValue='---'}" 
-                                               VerticalAlignment="Center"
-                                               Padding="5,0"/>
-                                </DataTemplate>
-                            </DataGridTemplateColumn.CellTemplate>
-                            <DataGridTemplateColumn.CellEditingTemplate>
-                                <DataTemplate>
-                                    <ComboBox 
-                                        x:Name="ProductComboBox"
-                                        DisplayMemberPath="Name"
-                                        Style="{StaticResource ProductComboBoxWithGridStyle}"
-                                        SelectedItem="{Binding SelectedProduct, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                        ItemsSource="{Binding DataContext.ProductSuggestions, RelativeSource={RelativeSource AncestorType=Window}}"
-                                        SelectionChanged="ProductCombo_SelectionChanged"
-                                        Loaded="ProductCombo_Loaded"
-                                        DropDownOpened="ProductCombo_DropDownOpened"
-                                        LostFocus="ProductCombo_LostFocus"
-                                        />
-                                </DataTemplate>
-                            </DataGridTemplateColumn.CellEditingTemplate>
-                        </DataGridTemplateColumn>
-
-
-
-
-
-
-                        <DataGridTextColumn Header="الكمية"
-                        Width="*"
-                        Binding="{Binding Quantity ,Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
-
-                        <DataGridTextColumn Header="السعر"
-                        Width="*"
-                        Binding="{Binding UnitPrice ,Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
-
-                        <DataGridTextColumn Header="الإجمالي"
-                        Width="*"
-                        IsReadOnly="True"
-                        Binding="{Binding LineTotal}"/>
-                    </DataGrid.Columns>
-
-                </DataGrid>
-            </Border>
-
-            <Border Grid.Row="1"
-                Grid.Column="1"
-                Margin="10,10,10,-23"
-                Padding="15"
-                Background="White"
-                CornerRadius="12"
-                BorderBrush="#E0E0E0"
-                BorderThickness="1"
-                Grid.RowSpan="2">
-
-                <Grid FlowDirection="RightToLeft">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <!-- Total -->
-                        <RowDefinition Height="*"/>
-                        <!-- Actions -->
-                        <RowDefinition Height="Auto"/>
-                        <!-- Payments -->
-                    </Grid.RowDefinitions>
-
-                    <!-- 🔴 TOTAL -->
-                    <Border Grid.Row="0"
-                        Background="#FFF5F5"
-                        CornerRadius="10"
-                        Padding="15"
-                        Margin="0,0,0,15">
-                        <StackPanel>
-                            <TextBlock x:Name="SubTotalTextBlock"
-                                Text="قبل الضريبة: 0.000"
-                                FontSize="18"
-                                Foreground="#7F8C8D"
-                                HorizontalAlignment="Center"/>
-                            <TextBlock x:Name="TaxTextBlock"
-                                Text="الضريبة: 0.000"
-                                FontSize="18"
-                                Foreground="#D35400"
-                                HorizontalAlignment="Center"
-                                Margin="0,4,0,4"/>
-                            <TextBlock x:Name="TotalTextBlock"
-                                Text="0.000"
-                                FontSize="36"
-                                FontWeight="Bold"
-                                Foreground="#E74C3C"
-                                HorizontalAlignment="Center"/>
-                        </StackPanel>
-                    </Border>
-
-                    <!-- 🔵 ACTION BUTTONS (SCROLLABLE) -->
-                    <ScrollViewer Grid.Row="1"
-                      VerticalScrollBarVisibility="Auto"
-                      HorizontalScrollBarVisibility="Disabled">
-
-                        <WrapPanel HorizontalAlignment="Center"
-                           ItemHeight="90"
-                           ItemWidth="150"  
-                           Margin="0,0,0,10">
-
-                            <Button Style="{StaticResource POSNeutralButton}"
-                                Click="SearchProductBtn_Click"
-                                ToolTip="اختصار: F2">
-                                <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
-                                    <iconPacks:PackIconMaterial Kind="Magnify" Width="28" Height="28"/>
-                                    <TextBlock Text="بحث عن مادة"/>
+                        <WrapPanel Grid.Column="4" ItemHeight="32" Orientation="Vertical" VerticalAlignment="Center">
+                            <Button x:Name="OpenSessionBtn" Click="OpenSessionBtn_Click" Style="{StaticResource POSMiniActionButtonStyle}" Background="{StaticResource AppPrimaryBrush}">
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                    <iconPacks:PackIconMaterial Kind="PlayCircle" Width="12" Height="12"/>
+                                    <TextBlock Text="فتح جلسة" Margin="5,0,0,0"/>
                                 </StackPanel>
                             </Button>
-                            <Button Style="{StaticResource POSAdjustmentButton}"
-                                Click="ExchangeItemBtn_Click">
-                                <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
-                                    <iconPacks:PackIconMaterial Kind="SwapHorizontal" Width="28" Height="28"/>
-                                    <TextBlock Text="استبدال"/>
-                                </StackPanel>
-                            </Button>
-
-
-                            <Button Style="{StaticResource POSDangerButton}"
-                                Click="DeleteItemBtn_Click"
-                                ToolTip="اختصار: F3 أو Delete">
-                                <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
-                                    <iconPacks:PackIconMaterial Kind="Delete" Width="28" Height="28"/>
-                                    <TextBlock Text="حذف مادة"/>
-                                </StackPanel>
-                            </Button>
-                            <Button Style="{StaticResource POSDangerButton}"
-                                Click="ReturnItemBtn_Click">
-                                <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
-                                    <iconPacks:PackIconMaterial Kind="Undo" Width="28" Height="28"/>
-                                    <TextBlock Text="مرتجع"/>
-                                </StackPanel>
-                            </Button>
-
-
-                            <Button Style="{StaticResource POSPrimaryButton}" Name="FinishSaleBtn" Click="FinishSaleBtn_Click" ToolTip="اختصار: F4">
-
-                                <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
-                                    <iconPacks:PackIconMaterial Kind="CheckBold" Width="28" Height="28"/>
-                                    <TextBlock Text="إنهاء كاش"/>
-
-                                </StackPanel>
-                            </Button>
-
-                            <Button Style="{StaticResource POSButtonDark}"
-                                Click="NewInvoiceBtn_Click"
-                                ToolTip="اختصار: F1">
-                                <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
-                                    <iconPacks:PackIconMaterial Kind="FileDocument" Width="28" Height="28"/>
-                                    <TextBlock Text="فاتورة جديدة"/>
-                                </StackPanel>
-                            </Button>
-
-                            <Button Style="{StaticResource POSNeutralButton}"
-                                Click="PrintBtn_Click">
-                                <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
-                                    <iconPacks:PackIconMaterial Kind="Printer" Width="28" Height="28"/>
-                                    <TextBlock Text="طباعة"/>
-                                </StackPanel>
-                            </Button>
-                            <!-- 💰 المقبوضات -->
-                            <Button Style="{StaticResource POSPrimaryButton}"
-                                         Click="OpenReceipt_Click">
-                                <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
-                                    <iconPacks:PackIconMaterial Kind="CashPlus" Width="28" Height="28"/>
-                                    <TextBlock Text="مقبوضات"/>
-                                </StackPanel>
-                            </Button>
-
-                            <!-- 💸 المدفوعات -->
-                            <Button Style="{StaticResource POSDangerButton}"
-                                Click="OpenPayment_Click">
-                                <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
-                                    <iconPacks:PackIconMaterial Kind="CashMinus" Width="28" Height="28"/>
-                                    <TextBlock Text="مدفوعات"/>
-                                </StackPanel>
-                            </Button>
-
-                            <Button Style="{StaticResource POSAdjustmentButton}">
-                                <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
-                                    <iconPacks:PackIconMaterial Kind="Sale" Width="28" Height="28"/>
-                                    <TextBlock Text="خصم"/>
-                                </StackPanel>
-                            </Button>
-
-                            <Button Style="{StaticResource POSAdjustmentButton}" Click="HoldSaleBtn_Click" ToolTip="اختصار: F5">
-
-                                <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
-                                    <iconPacks:PackIconMaterial Kind="PauseCircle" Width="28" Height="28"/>
-                                    <TextBlock Text="انتظار"/>
-                                </StackPanel>
-                            </Button>
-
-                            <Button Style="{StaticResource POSDangerButton}" Click="CancelInvoiceBtn_Click" ToolTip="اختصار: Esc">
-                                <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
-                                    <iconPacks:PackIconMaterial Kind="Cancel" Width="28" Height="28"/>
-                                    <TextBlock Text="إلغاء"/>
-                                </StackPanel>
-                            </Button>
-
-                            <Button Style="{StaticResource POSNeutralButton}"
-                                        Click="DailyReportBtn_Click">
-                                <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
-                                    <iconPacks:PackIconMaterial Kind="ChartBar" Width="28" Height="28"/>
-                                    <TextBlock Text="تقرير يومي"/>
-                                </StackPanel>
-                            </Button>
-                            <Button Style="{StaticResource POSNeutralButton}"
-                                Click="ResumeHoldBtn_Click"
-                                ToolTip="اختصار: F6">
-                                <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
-                                    <iconPacks:PackIconMaterial Kind="PlayCircle"
-                                        Width="28"
-                                        Height="28"/>       
-                                    <TextBlock Text="استئناف"/>
+                            <Button x:Name="CloseSessionBtn" Margin="0,4,0,0" Click="CloseSessionBtn_Click" Style="{StaticResource POSMiniActionButtonStyle}" Background="#C93F4D">
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                    <iconPacks:PackIconMaterial Kind="StopCircle" Width="12" Height="12"/>
+                                    <TextBlock Text="إغلاق جلسة" Margin="5,0,0,0"/>
                                 </StackPanel>
                             </Button>
                         </WrapPanel>
-                    </ScrollViewer>
-
-                    <!-- 🟢 PAYMENT METHODS (ONE LINE) -->
-                    <Border Grid.Row="2"
-                        Margin="0,10,0,0"
-                        Padding="10"
-                        Background="#FAFAFA"
-                        CornerRadius="10">
-
-                        <!-- Payment Methods -->
-                        <ScrollViewer
-                            HorizontalScrollBarVisibility="Auto"
-                            VerticalScrollBarVisibility="Disabled"
-                            Margin="0,10,0,0">
-
-                            <StackPanel
-                                Orientation="Horizontal"
-                                HorizontalAlignment="Center">
-
-                                <Button Style="{StaticResource POSPrimaryButton}"
-                                    Width="110"
-                                    Height="40"
-                                    Margin="5,0"
-                                    Click="CashPaymentBtn_Click">
-                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                        <iconPacks:PackIconMaterial Kind="Cash" Width="22" Height="22"/>
-                                        <TextBlock Text="كاش" Margin="5,0,0,0"/>
-                                    </StackPanel>
-                                </Button>
-
-                                <Button Style="{StaticResource POSNeutralButton}"
-                                    Width="110"
-                                    Height="40"
-                                    Margin="5,0"
-                                    Click="VisaPaymentBtn_Click">   
-                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                        <iconPacks:PackIconMaterial Kind="CreditCard" Width="22" Height="22"/>
-                                        <TextBlock Text="Visa" Margin="5,0,0,0"/>
-                                    </StackPanel>
-                                </Button>
-
-                                <Button Style="{StaticResource POSNeutralButton}"
-                                    Width="110"
-                                    Height="40"
-                                    Margin="5,0"
-                                    Click="MasterCardPaymentBtn_Click"> 
-                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                        <iconPacks:PackIconMaterial Kind="CreditCardOutline" Width="22" Height="22"/>
-                                        <TextBlock Text="Master" Margin="5,0,0,0"/>
-                                    </StackPanel>
-                                </Button>
-
-                                <Button Style="{StaticResource POSAdjustmentButton}"
-                                    Width="110"
-                                    Height="40"
-                                    Margin="5,0"
-                                    Click="CreditPaymentBtn_Click">
-                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                        <iconPacks:PackIconMaterial Kind="AccountClock" Width="22" Height="22"/>
-                                        <TextBlock Text="آجل" Margin="5,0,0,0"/>
-                                    </StackPanel>
-                                </Button>
-
-                            </StackPanel>
-                        </ScrollViewer>
-
+                    </Grid>
+                </Border>
+                <Grid Grid.Row="1">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="1.6*"/>
+                        <ColumnDefinition Width="24"/>
+                        <ColumnDefinition Width="1.4*"/>
+                    </Grid.ColumnDefinitions>
+                    <Border Grid.Column="0" Padding="18" MinHeight="540" Style="{StaticResource AppCardBorderStyle}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <DockPanel Margin="0,0,0,12">
+                                <Border DockPanel.Dock="Right" Style="{StaticResource AppBadgeBorderStyle}" Background="#EEF7EF">
+                                    <TextBlock Text="المنتجات داخل الفاتورة" Foreground="{StaticResource AppPrimaryDarkBrush}" FontWeight="SemiBold"/>
+                                </Border>
+                                <TextBlock Text="تفاصيل الفاتورة" VerticalAlignment="Center" Foreground="{StaticResource AppTextBrush}" FontSize="21" FontWeight="Bold"/>
+                            </DockPanel>
+                            <DataGrid x:Name="InvoiceGrid" Grid.Row="1" AutoGenerateColumns="False" FontSize="14" FlowDirection="RightToLeft" Style="{StaticResource AppModernDataGridStyle}" Background="White" RowHeight="40" HeadersVisibility="Column" SelectionUnit="Cell" SelectionMode="Single" IsReadOnly="False" CanUserAddRows="False" CanUserDeleteRows="True" KeyboardNavigation.TabNavigation="Continue" PreviewKeyDown="InvoiceGrid_PreviewKeyDown" PreparingCellForEdit="InvoiceGrid_PreparingCellForEdit" CellEditEnding="InvoiceGrid_CellEditEnding">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="رمز الصنف" Width="*" Binding="{Binding ProductId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                    <DataGridTemplateColumn Header="الصنف" Width="2.2*">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding ProductName, TargetNullValue='---'}" VerticalAlignment="Center" Padding="8,0"/>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                        <DataGridTemplateColumn.CellEditingTemplate>
+                                            <DataTemplate>
+                                                <ComboBox x:Name="ProductComboBox" DisplayMemberPath="Name" Style="{StaticResource ProductComboBoxWithGridStyle}" SelectedItem="{Binding SelectedProduct, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" ItemsSource="{Binding DataContext.ProductSuggestions, RelativeSource={RelativeSource AncestorType=Window}}" SelectionChanged="ProductCombo_SelectionChanged" Loaded="ProductCombo_Loaded" DropDownOpened="ProductCombo_DropDownOpened" LostFocus="ProductCombo_LostFocus"/>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellEditingTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTextColumn Header="الكمية" Width="*" Binding="{Binding Quantity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                    <DataGridTextColumn Header="السعر" Width="*" Binding="{Binding UnitPrice, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                    <DataGridTextColumn Header="الإجمالي" Width="*" IsReadOnly="True" Binding="{Binding LineTotal}"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Grid>
                     </Border>
-
+                    <Border Grid.Column="2" Padding="18" MinHeight="540" Style="{StaticResource AppCardBorderStyle}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="الحساب والإجراءات" Foreground="{StaticResource AppTextBrush}" FontSize="21" FontWeight="Bold"/>
+                            <Border Grid.Row="1" Margin="0,12,0,14" Padding="14" CornerRadius="18" Background="#FBF7F3" BorderBrush="{StaticResource AppBorderBrush}" BorderThickness="1">
+                                <StackPanel>
+                                    <TextBlock x:Name="TotalTextBlock" Text="0.000" FontSize="32" FontWeight="Bold" Foreground="#C93F4D" HorizontalAlignment="Center"/>
+                                </StackPanel>
+                            </Border>
+                            <Grid Grid.Row="2">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                    <Grid Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=ScrollViewer}}">
+                                        <StackPanel>
+                                            <TextBlock Text="إجراءات الفاتورة" Margin="0,0,0,10" Foreground="{StaticResource AppMutedTextBrush}" FontSize="13" FontWeight="SemiBold"/>
+                                            <WrapPanel ItemHeight="72" ItemWidth="126" HorizontalAlignment="Right">
+                                                <Button Style="{StaticResource POSNeutralButton}" Click="SearchProductBtn_Click" ToolTip="اختصار: F2">
+                                                    <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
+                                                        <iconPacks:PackIconMaterial Kind="Magnify" Width="22" Height="22"/>
+                                                        <TextBlock Text="بحث عن مادة"/>
+                                                    </StackPanel>
+                                                </Button>
+                                                <Button Style="{StaticResource POSAdjustmentButton}" Click="ExchangeItemBtn_Click">
+                                                    <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
+                                                        <iconPacks:PackIconMaterial Kind="SwapHorizontal" Width="22" Height="22"/>
+                                                        <TextBlock Text="استبدال"/>
+                                                    </StackPanel>
+                                                </Button>
+                                                <Button Style="{StaticResource POSDangerButton}" Click="DeleteItemBtn_Click" ToolTip="اختصار: F3 أو Delete">
+                                                    <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
+                                                        <iconPacks:PackIconMaterial Kind="Delete" Width="22" Height="22"/>
+                                                        <TextBlock Text="حذف مادة"/>
+                                                    </StackPanel>
+                                                </Button>
+                                                <Button Style="{StaticResource POSDangerButton}" Click="ReturnItemBtn_Click">
+                                                    <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
+                                                        <iconPacks:PackIconMaterial Kind="Undo" Width="22" Height="22"/>
+                                                        <TextBlock Text="مرتجع"/>
+                                                    </StackPanel>
+                                                </Button>
+                                                <Button x:Name="FinishSaleBtn" Style="{StaticResource POSPrimaryButton}" Click="FinishSaleBtn_Click" ToolTip="اختصار: F4">
+                                                    <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
+                                                        <iconPacks:PackIconMaterial Kind="CheckBold" Width="22" Height="22"/>
+                                                        <TextBlock Text="إنهاء كاش"/>
+                                                    </StackPanel>
+                                                </Button>
+                                                <Button Style="{StaticResource POSButtonDark}" Click="NewInvoiceBtn_Click" ToolTip="اختصار: F1">
+                                                    <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
+                                                        <iconPacks:PackIconMaterial Kind="FileDocument" Width="22" Height="22"/>
+                                                        <TextBlock Text="فاتورة جديدة"/>
+                                                    </StackPanel>
+                                                </Button>
+                                                <Button Style="{StaticResource POSNeutralButton}" Click="PrintBtn_Click">
+                                                    <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
+                                                        <iconPacks:PackIconMaterial Kind="Printer" Width="22" Height="22"/>
+                                                        <TextBlock Text="طباعة"/>
+                                                    </StackPanel>
+                                                </Button>
+                                                <Button Style="{StaticResource POSPrimaryButton}" Click="OpenReceipt_Click">
+                                                    <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
+                                                        <iconPacks:PackIconMaterial Kind="CashPlus" Width="22" Height="22"/>
+                                                        <TextBlock Text="مقبوضات"/>
+                                                    </StackPanel>
+                                                </Button>
+                                                <Button Style="{StaticResource POSDangerButton}" Click="OpenPayment_Click">
+                                                    <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
+                                                        <iconPacks:PackIconMaterial Kind="CashMinus" Width="22" Height="22"/>
+                                                        <TextBlock Text="مدفوعات"/>
+                                                    </StackPanel>
+                                                </Button>
+                                                <Button Style="{StaticResource POSAdjustmentButton}">
+                                                    <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
+                                                        <iconPacks:PackIconMaterial Kind="Sale" Width="22" Height="22"/>
+                                                        <TextBlock Text="خصم"/>
+                                                    </StackPanel>
+                                                </Button>
+                                                <Button Style="{StaticResource POSAdjustmentButton}" Click="HoldSaleBtn_Click" ToolTip="اختصار: F5">
+                                                    <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
+                                                        <iconPacks:PackIconMaterial Kind="PauseCircle" Width="22" Height="22"/>
+                                                        <TextBlock Text="انتظار"/>
+                                                    </StackPanel>
+                                                </Button>
+                                                <Button Style="{StaticResource POSDangerButton}" Click="CancelInvoiceBtn_Click" ToolTip="اختصار: Esc">
+                                                    <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
+                                                        <iconPacks:PackIconMaterial Kind="Cancel" Width="22" Height="22"/>
+                                                        <TextBlock Text="إلغاء"/>
+                                                    </StackPanel>
+                                                </Button>
+                                                <Button Style="{StaticResource POSNeutralButton}" Click="DailyReportBtn_Click">
+                                                    <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
+                                                        <iconPacks:PackIconMaterial Kind="ChartBar" Width="22" Height="22"/>
+                                                        <TextBlock Text="تقرير يومي"/>
+                                                    </StackPanel>
+                                                </Button>
+                                                <Button Style="{StaticResource POSNeutralButton}" Click="ResumeHoldBtn_Click" ToolTip="اختصار: F6">
+                                                    <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
+                                                        <iconPacks:PackIconMaterial Kind="PlayCircle" Width="22" Height="22"/>
+                                                        <TextBlock Text="استئناف"/>
+                                                    </StackPanel>
+                                                </Button>
+                                            </WrapPanel>
+                                        </StackPanel>
+                                    </Grid>
+                                </ScrollViewer>
+                                <Border Grid.Row="1" Margin="0,14,0,0" Padding="14" CornerRadius="18" Background="#F7FAFE" BorderBrush="{StaticResource AppBorderBrush}" BorderThickness="1">
+                                    <StackPanel>
+                                        <TextBlock Text="طرق الدفع" Margin="0,0,0,10" Foreground="{StaticResource AppMutedTextBrush}" FontSize="13" FontWeight="SemiBold"/>
+                                        <WrapPanel ItemHeight="44" ItemWidth="120" HorizontalAlignment="Right">
+                                            <Button Style="{StaticResource POSPrimaryButton}" Height="44" MinWidth="120" Click="CashPaymentBtn_Click">
+                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                                    <iconPacks:PackIconMaterial Kind="Cash" Width="18" Height="18"/>
+                                                    <TextBlock Text="كاش" Margin="8,0,0,0"/>
+                                                </StackPanel>
+                                            </Button>
+                                            <Button Style="{StaticResource POSNeutralButton}" Height="44" MinWidth="120" Click="VisaPaymentBtn_Click">
+                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                                    <iconPacks:PackIconMaterial Kind="CreditCard" Width="18" Height="18"/>
+                                                    <TextBlock Text="Visa" Margin="8,0,0,0"/>
+                                                </StackPanel>
+                                            </Button>
+                                            <Button Style="{StaticResource POSNeutralButton}" Height="44" MinWidth="120" Click="MasterCardPaymentBtn_Click">
+                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                                    <iconPacks:PackIconMaterial Kind="CreditCardOutline" Width="18" Height="18"/>
+                                                    <TextBlock Text="Master" Margin="8,0,0,0"/>
+                                                </StackPanel>
+                                            </Button>
+                                            <Button Style="{StaticResource POSAdjustmentButton}" Height="44" MinWidth="120" Click="CreditPaymentBtn_Click">
+                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                                    <iconPacks:PackIconMaterial Kind="AccountClock" Width="18" Height="18"/>
+                                                    <TextBlock Text="آجل" Margin="8,0,0,0"/>
+                                                </StackPanel>
+                                            </Button>
+                                        </WrapPanel>
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+                        </Grid>
+                    </Border>
                 </Grid>
-            </Border>
 
+                <Border Grid.Row="2" Margin="0,18,0,0" Padding="18" Style="{StaticResource AppCardBorderStyle}">
+                    <WrapPanel HorizontalAlignment="Right">
+                        <TextBlock Text="العدد: 0" Margin="0,0,18,0" FontSize="18" Foreground="{StaticResource AppTextBrush}"/>
+                        <TextBlock Text="الكمية: 0" Margin="0,0,18,0" FontSize="18" Foreground="{StaticResource AppTextBrush}"/>
+                        <TextBlock Text="الإجمالي: 0.000" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource AppPrimaryDarkBrush}"/>
+                    </WrapPanel>
+                </Border>
+            </Grid>
+        </ScrollViewer>
 
-            <!-- Bottom Totals -->
-            <Border Grid.Row="2"
-                Grid.Column="0"
-                Grid.ColumnSpan="1"
-                Background="#FAFAFA"
-                CornerRadius="10"
-                Padding="10"
-                Margin="10">
-                <StackPanel Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Orientation="Horizontal" FlowDirection="RightToLeft" Margin="10">
-                    <TextBlock Text="العدد: 0" FontSize="20" Margin="10,0"/>
-                    <TextBlock Text="الكمية: 0" FontSize="20" Margin="10,0"/>
-                    <TextBlock Text="الإجمالي: 0.000" FontSize="20" Margin="10,0"/>
-                </StackPanel>
-            </Border>
-        </Grid>
-
-        <!-- FOOTER -->
-        <Border Background="#FFF0CE" Grid.Row="2">
-            <TextBlock Text="© 2025 Raccoon Warehouse"
-                       VerticalAlignment="Center"
-                       HorizontalAlignment="Center"
-                       Foreground="#3396D3"
-                       FontSize="14"
-                       FontWeight="SemiBold"/>
+        <Border Grid.Row="2" Margin="24,0,24,24" Padding="14" CornerRadius="18" Background="#F4EAD7">
+            <TextBlock Text="© 2025 Raccoon Warehouse" VerticalAlignment="Center" HorizontalAlignment="Center" Foreground="{StaticResource AppBlueBrush}" FontSize="13" FontWeight="SemiBold"/>
         </Border>
     </Grid>
 </Window>

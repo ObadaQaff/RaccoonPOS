@@ -360,7 +360,7 @@ namespace RaccoonWarehouse.Application.Service.FinancialTransactions
     
 
 
-    public async Task<(ProfitLossSummaryDto summary, List<ProfitLossRowDto> rows)> GetProfitLossAsync(ProfitLossFilterDto filter)
+        public async Task<(ProfitLossSummaryDto summary, List<ProfitLossRowDto> rows)> GetProfitLossAsync(ProfitLossFilterDto filter)
         {
             if (filter.From > filter.To)
                 throw new ArgumentException("Invalid date range");
@@ -486,6 +486,136 @@ namespace RaccoonWarehouse.Application.Service.FinancialTransactions
 
             return (summary, rows);
         }
+
+        public async Task<List<CreditSalesReportRowDto>> GetCreditSalesReportAsync(DateTime from, DateTime to, int? customerId = null, string? status = null)
+        {
+            var fromDate = from.Date;
+            var toDate = to.Date.AddDays(1).AddTicks(-1);
+
+            var invoiceRepo = _uow.GetRepository<Invoice>();
+            var transactionRepo = _uow.GetRepository<FinancialTransaction>();
+
+            var invoicesQ = invoiceRepo.GetAllAsQueryable()
+                .Include(x => x.User)
+                .Where(x => x.CreatedDate >= fromDate && x.CreatedDate <= toDate)
+                .Where(x => x.InvoiceType == InvoiceType.Sale && x.PaymentType == PaymentType.Credit);
+
+            if (customerId.HasValue)
+                invoicesQ = invoicesQ.Where(x => x.CustomerId == customerId.Value);
+
+            var invoices = await invoicesQ.ToListAsync();
+            var invoiceIds = invoices.Select(x => x.Id).ToList();
+
+            var receipts = await transactionRepo.GetAllAsQueryable()
+                .Where(x => invoiceIds.Contains(x.SourceId ?? 0))
+                .Where(x => x.Direction == TransactionDirection.In)
+                .Where(x => x.Status == FinancialTransactionStatus.Posted)
+                .Where(x => x.SourceType == FinancialSourceType.SaleInvoice || x.SourceType == FinancialSourceType.PosSaleInvoice)
+                .GroupBy(x => x.SourceId!.Value)
+                .Select(g => new
+                {
+                    InvoiceId = g.Key,
+                    Paid = g.Sum(x => Math.Abs(x.Amount))
+                })
+                .ToListAsync();
+
+            var paidByInvoice = receipts.ToDictionary(x => x.InvoiceId, x => x.Paid);
+
+            var rows = invoices
+                .Select(inv =>
+                {
+                    var paid = paidByInvoice.TryGetValue(inv.Id, out var value) ? value : 0m;
+                    var total = inv.TotalAmount;
+                    var remaining = Math.Max(total - paid, 0m);
+
+                    var rowStatus = remaining == 0m
+                        ? "مسدد بالكامل"
+                        : paid == 0m
+                            ? "غير مسدد"
+                            : "مسدد جزئي";
+
+                    return new CreditSalesReportRowDto
+                    {
+                        InvoiceId = inv.Id,
+                        InvoiceNumber = inv.InvoiceNumber,
+                        Date = inv.CreatedDate,
+                        CustomerId = inv.CustomerId,
+                        CustomerName = inv.User?.Name ?? "—",
+                        InvoiceTotal = total,
+                        AmountPaid = paid,
+                        RemainingAmount = remaining,
+                        Status = rowStatus
+                    };
+                })
+                .OrderByDescending(x => x.Date)
+                .ToList();
+
+            if (!string.IsNullOrWhiteSpace(status) && status != "الكل")
+                rows = rows.Where(x => string.Equals(x.Status, status, StringComparison.Ordinal)).ToList();
+
+            return rows;
+        }
+
+        public async Task<List<DiscountSummaryRowDto>> GetDiscountSummaryAsync(DateTime from, DateTime to)
+        {
+            var fromDate = from.Date;
+            var toDate = to.Date.AddDays(1).AddTicks(-1);
+
+            var invoiceRepo = _uow.GetRepository<Invoice>();
+            var lineRepo = _uow.GetRepository<InvoiceLine>();
+
+            var invoices = await invoiceRepo.GetAllAsQueryable()
+                .Where(x => x.CreatedDate >= fromDate && x.CreatedDate <= toDate)
+                .Where(x => x.InvoiceType == InvoiceType.Sale)
+                .Where(x => (x.DiscountAmount ?? 0m) > 0)
+                .Select(x => new { x.Id, x.SubTotal, Discount = x.DiscountAmount ?? 0m })
+                .ToListAsync();
+
+            if (!invoices.Any())
+                return new List<DiscountSummaryRowDto>();
+
+            var invoiceIds = invoices.Select(x => x.Id).ToList();
+            var invoiceMap = invoices.ToDictionary(x => x.Id, x => x);
+
+            var lines = await lineRepo.GetAllAsQueryable()
+                .Include(x => x.Product)
+                .Where(x => invoiceIds.Contains(x.InvoiceId))
+                .ToListAsync();
+
+            var rows = lines
+                .GroupBy(line => new
+                {
+                    line.ProductId,
+                    ProductName = line.Product != null ? line.Product.Name : string.Empty,
+                    Barcode = line.Product != null ? line.Product.ITEMCODE.ToString() : string.Empty
+                })
+                .Select(group =>
+                {
+                    var totalDiscount = group.Sum(line =>
+                    {
+                        if (!invoiceMap.TryGetValue(line.InvoiceId, out var invoice) || invoice.SubTotal <= 0)
+                            return 0m;
+
+                        return (line.LineSubTotal / invoice.SubTotal) * invoice.Discount;
+                    });
+
+                    return new DiscountSummaryRowDto
+                    {
+                        ProductId = group.Key.ProductId,
+                        ItemID = group.Key.Barcode,
+                        ItemName = group.Key.ProductName ?? string.Empty,
+                        Barcode = group.Key.Barcode,
+                        QuantitySold = group.Sum(x => x.Quantity),
+                        TotalDiscount = totalDiscount
+                    };
+                })
+                .Where(x => x.QuantitySold > 0 || x.TotalDiscount > 0)
+                .OrderByDescending(x => x.TotalDiscount)
+                .ThenBy(x => x.ItemName)
+                .ToList();
+
+            return rows;
+        }
     }
 }
 
@@ -507,6 +637,9 @@ namespace RaccoonWarehouse.Application.Service.FinancialTransactions
 
 
             Task<(ProfitLossSummaryDto summary, List<ProfitLossRowDto> rows)> GetProfitLossAsync(ProfitLossFilterDto filter);
+
+            Task<List<CreditSalesReportRowDto>> GetCreditSalesReportAsync(DateTime from, DateTime to, int? customerId = null, string? status = null);
+            Task<List<DiscountSummaryRowDto>> GetDiscountSummaryAsync(DateTime from, DateTime to);
 
 
 }

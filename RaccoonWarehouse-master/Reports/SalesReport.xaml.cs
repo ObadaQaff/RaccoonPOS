@@ -4,6 +4,8 @@ using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Reports.Financial.Filters;
 using RaccoonWarehouse.Domain.Reports.Sales.Dtos;
 using RaccoonWarehouse.Domain.Users.DTOs;
+using RaccoonWarehouse.Helpers.Pdf;
+using RaccoonWarehouse.Helpers.Pdf.Reports;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -18,6 +20,7 @@ namespace RaccoonWarehouse.Reports
         private readonly IUserService _userService;         // ✅ customers
 
         private List<UserReadDto> _customers = new();
+        private List<SalesReportRowDto> _currentRows = new();
 
         public SalesReport(IInvoiceService invoiceService, IUserService userService)
         {
@@ -112,6 +115,7 @@ namespace RaccoonWarehouse.Reports
 
                 // ✅ res.Data هو (summary, rows)
                 var rows = res.Data.rows ?? new List<SalesReportRowDto>();
+                _currentRows = rows;
                 SalesReportGrid.ItemsSource = rows;
 
                 // لو عندك Summary Cards
@@ -169,6 +173,50 @@ namespace RaccoonWarehouse.Reports
         private void BackBtn_Click(object sender, RoutedEventArgs e)
         {
             Close();
+        }
+
+        private void ExportPdfBtn_Click(object sender, RoutedEventArgs e)
+        {
+            var document = BuildPdfDocument();
+            if (document == null)
+                return;
+
+            try
+            {
+                ReportPrintService.ExportPdf(document, this);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"خطأ في تصدير التقرير: {ex.Message}");
+            }
+        }
+
+        private void PrintBtn_Click(object sender, RoutedEventArgs e)
+        {
+            var document = BuildPdfDocument();
+            if (document == null)
+                return;
+
+            try
+            {
+                ReportPrintService.Print(document, this);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"خطأ في طباعة التقرير: {ex.Message}");
+            }
+        }
+
+        private SalesSummaryReportDocument? BuildPdfDocument()
+        {
+            if (_currentRows.Count == 0)
+            {
+                MessageBox.Show("اعرض التقرير أولاً قبل التصدير أو الطباعة.");
+                return null;
+            }
+
+            var customerName = (CustomerComboBox.SelectedItem as UserReadDto)?.Name ?? "الكل";
+            return new SalesSummaryReportDocument(_currentRows, FromDatePicker.SelectedDate, ToDatePicker.SelectedDate, customerName);
         }
     }
 }

@@ -133,7 +133,7 @@
                                         Width="*"/>
 
                     <DataGridTextColumn Header="السعر"
-                                        Binding="{Binding Product.ProductUnits[0].SalePrice}"
+                                        Binding="{Binding Product.DefaultSalePrice}"
                                         Width="160"/>
                 </DataGrid.Columns>
             </DataGrid>

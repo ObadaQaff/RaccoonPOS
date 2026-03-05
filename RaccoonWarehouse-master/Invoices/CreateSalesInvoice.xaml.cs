@@ -3,6 +3,7 @@ using RaccoonWarehouse.Application.Service.Invoices;
 using RaccoonWarehouse.Application.Service.Products;
 using RaccoonWarehouse.Application.Service.ProductUnits;
 using RaccoonWarehouse.Application.Service.Stocks;
+using RaccoonWarehouse.Application.Service.StockTransactions;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Domain.Cashiers.DTOs;
 using RaccoonWarehouse.Domain.Enums;
@@ -11,9 +12,11 @@ using RaccoonWarehouse.Domain.InvoiceLines.DTOs;
 using RaccoonWarehouse.Domain.Invoices.DTOs;
 using RaccoonWarehouse.Domain.Products;
 using RaccoonWarehouse.Domain.Products.DTOs;
+using RaccoonWarehouse.Domain.ProductUnits;
 using RaccoonWarehouse.Domain.ProductUnits.DTOs;
 using RaccoonWarehouse.Domain.Stock;
 using RaccoonWarehouse.Domain.Users.DTOs;
+using RaccoonWarehouse.Domain.StockTransactions.DTOs;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -44,6 +47,7 @@ namespace RaccoonWarehouse.Invoices
         private readonly IProductService _productService;
         private readonly IProductUnitService _productUnitService;
         private readonly IStockService _stockService;
+        private readonly IStockTransactionService _stockTransactionService;
         private readonly IFinancialTransactionService _financialService; // لو عندك خدمة مالية 
         private readonly IUserSession _userSession; // لو عندك جلسة مستخدم
 
@@ -57,12 +61,14 @@ namespace RaccoonWarehouse.Invoices
             IProductService productService,
             IProductUnitService productUnitService,
             IUserSession userSession,
+            IStockTransactionService stockTransactionService,
             IFinancialTransactionService
             financialService)
         {
             _stockService = stockService;
             _productService = productService;
             _productUnitService = productUnitService;
+            _stockTransactionService = stockTransactionService;
             _invoicesService = invoiceService;
             _userService = userService;
             _userSession = userSession;
@@ -102,7 +108,6 @@ namespace RaccoonWarehouse.Invoices
 
                 InvoiceDatePicker.SelectedDate = DateTime.Now;
 
-                PaymentMethodComboBox.ItemsSource = new string[] { "نقدي", "آجل" };
                 PaymentMethodComboBox.SelectedIndex = 0;
 
                 await LoadProductsAsync();
@@ -154,38 +159,38 @@ namespace RaccoonWarehouse.Invoices
             MessageBox.Show("لا توجد جلسة كاشير مفتوحة. الرجاء فتح جلسة أولاً.", "خطأ");
             return false;
         }
-        private async Task UpdateStockQuantity(int productId, int productUnitId, decimal quantity)
+        private IEnumerable<StockMovementPostDto> BuildInvoiceStockMovements(
+            IEnumerable<InvoiceLineWriteDto> lines,
+            TransactionType transactionType,
+            int? invoiceId,
+            int? cashierId,
+            int? cashierSessionId,
+            string notes,
+            decimal multiplier)
         {
-            try
-            {
-                var existingStock = await _stockService.GetAllWriteDtoWithFilteringAndIncludeAsync(
-                    s => s.ProductId == productId && s.ProductUnitId == productUnitId);
-
-                if (existingStock.Data?.Count > 0)
+            return lines
+                .Where(line => line.ProductId > 0 && line.ProductUnitId > 0 && line.Quantity != 0)
+                .Select(line =>
                 {
-                    var stock = existingStock.Data.First();
+                    var quantityPerUnit = line.QuantityPerUnitSnapshot > 0 ? line.QuantityPerUnitSnapshot : 1m;
+                    var baseQuantity = line.BaseQuantity != 0 ? line.BaseQuantity : line.Quantity * quantityPerUnit;
 
-                    if (stock.Quantity >= quantity)
+                    return new StockMovementPostDto
                     {
-                        stock.Quantity -= quantity;  // 👈 طرح الكمية
-                        stock.UpdatedDate = DateTime.Now;
-                        await _stockService.UpdateAsync(stock);
-                    }
-                    else
-                    {
-                        throw new InvalidOperationException("الكمية غير متوفرة في المخزون.");
-                    }
-                }
-                else
-                {
-                    MessageBox.Show("المنتج غير موجود في المخزون.", "خطأ");
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"خطأ عند تحديث المخزون: {ex.Message}");
-                return;
-            }
+                        ProductId = line.ProductId,
+                        ProductUnitId = line.ProductUnitId,
+                        Quantity = line.Quantity * multiplier,
+                        QuantityPerUnitSnapshot = quantityPerUnit,
+                        BaseQuantity = baseQuantity * multiplier,
+                        UnitPrice = line.UnitPrice,
+                        TransactionType = transactionType,
+                        InvoiceId = invoiceId,
+                        CasherId = cashierId,
+                        CashierSessionId = cashierSessionId,
+                        TransactionDate = DateTime.Now,
+                        Notes = notes
+                    };
+                });
         }
 
 
@@ -254,15 +259,15 @@ namespace RaccoonWarehouse.Invoices
                     }
 
                     // ✅ Auto-select the first available unit (if any)
-                    var firstUnit = item.Units.FirstOrDefault();
-                    if (firstUnit != null)
+                    var defaultUnit = ProductUnitSelector.GetDefaultSaleUnit(item.Units);
+                    if (defaultUnit != null)
                     {
-                        item.ProductUnitId = firstUnit.Id;
-                        item.PurchasePrice = firstUnit.PurchasePrice;
-                        item.SalePrice = firstUnit.SalePrice;
+                        item.ProductUnitId = defaultUnit.Id;
+                        item.PurchasePrice = defaultUnit.PurchasePrice;
+                        item.SalePrice = defaultUnit.SalePrice;
 
                         // Map the selected unit for saving
-                        _itemUnits[item] = firstUnit.Id;
+                        _itemUnits[item] = defaultUnit.Id;
                     }
 
                     // ✅ Set default quantity = 1 if it's 0 or less
@@ -406,6 +411,8 @@ namespace RaccoonWarehouse.Invoices
                 ProductName = product.Name,
 
                 ProductUnitId = unit.Id,
+                QuantityPerUnitSnapshot = unit.QuantityPerUnit > 0 ? unit.QuantityPerUnit : 1m,
+                BaseQuantity = qty * (unit.QuantityPerUnit > 0 ? unit.QuantityPerUnit : 1m),
                 UnitName = unit.Unit?.Name,
 
                 Quantity = qty,
@@ -490,6 +497,7 @@ namespace RaccoonWarehouse.Invoices
                 var customer = CustomerComboBox.SelectedItem as UserReadDto;
                 //decimal totalAmount = InvoiceLines.Sum(l => l.LineTotal);
                 // ✅ ADD: invoice totals required for reporting
+                var selectedPaymentType = GetSelectedPaymentType();
                 decimal subTotal = InvoiceLines.Sum(l => l.LineSubTotal);
                 decimal totalTax = InvoiceLines.Sum(l => l.TaxAmount);
                 decimal grossSales = InvoiceLines.Sum(l => l.Quantity * l.UnitPrice);
@@ -511,6 +519,7 @@ namespace RaccoonWarehouse.Invoices
                     UpdatedDate = DateTime.Now,
                     InvoiceLines = InvoiceLines.ToList(),
                     CasherId = session.CashierId,
+                    PaymentType = selectedPaymentType,
                     SubTotal = subTotal,        // ✅ ADD
                     TotalTax = totalTax,        // ✅ ADD
                     DiscountAmount = discount,  // ✅ ADD (or keep your existing)
@@ -535,34 +544,52 @@ namespace RaccoonWarehouse.Invoices
                     savedInvoiceId = result.Data.Id;
 
                     // 🔥 طرح الكميات من المخزون
-                    foreach (var line in InvoiceLines)
-                        await UpdateStockQuantity(line.ProductId, line.ProductUnitId, line.Quantity);
-
-                    // ✅ POST financial (Sale Invoice)
-                    var postDto = new FinancialPostDto
+                    var movementResult = await _stockService.PostMovementsAsync(
+                        BuildInvoiceStockMovements(
+                            InvoiceLines,
+                            TransactionType.Sale,
+                            savedInvoiceId,
+                            session.CashierId,
+                            session.Id,
+                            $"Sale invoice #{invoiceDto.InvoiceNumber}",
+                            -1m));
+                    if (!movementResult.Success)
                     {
-                        Direction = TransactionDirection.In,
-                        Method = PaymentMethod.Cash, // أو MapPaymentMethod(selectedPaymentType)
-                        Amount = totalAmount,
-                        TransactionDate = DateTime.Now,
-
-                        SourceType = FinancialSourceType.SaleInvoice,
-                        SourceId = savedInvoiceId,
-
-                        CashierSessionId = session.Id,
-                        CashierId = session.CashierId,
-
-                        Notes = $"Sale Invoice #{invoiceDto.InvoiceNumber}"
-                    };
-
-                    var postResult = await _financialService.PostAsync(postDto);
-                    if (!postResult.Success)
-                    {
-                        MessageBox.Show(postResult.Message ?? "تم حفظ الفاتورة لكن فشل تسجيل الحركة المالية", "تحذير");
+                        MessageBox.Show(movementResult.Message ?? "فشل تحديث المخزون.", "خطأ");
                         return;
                     }
 
-                    MessageBox.Show("تم إنشاء الفاتورة وتسجيل الحركة المالية ✅");
+                    // ✅ POST financial (Sale Invoice)
+                    if (selectedPaymentType != PaymentType.Credit)
+                    {
+                        var postDto = new FinancialPostDto
+                        {
+                            Direction = TransactionDirection.In,
+                            Method = MapPaymentMethod(selectedPaymentType),
+                            Amount = totalAmount,
+                            TransactionDate = DateTime.Now,
+
+                            SourceType = FinancialSourceType.SaleInvoice,
+                            SourceId = savedInvoiceId,
+
+                            CashierSessionId = session.Id,
+                            CashierId = session.CashierId,
+
+                            Notes = $"Sale Invoice #{invoiceDto.InvoiceNumber}"
+                        };
+
+                        var postResult = await _financialService.PostAsync(postDto);
+                        if (!postResult.Success)
+                        {
+                            MessageBox.Show(postResult.Message ?? "تم حفظ الفاتورة لكن فشل تسجيل الحركة المالية", "تحذير");
+                            return;
+                        }
+                    }
+
+                    MessageBox.Show(
+                        selectedPaymentType == PaymentType.Credit
+                            ? "تم إنشاء الفاتورة الآجلة بنجاح ✅"
+                            : "تم إنشاء الفاتورة وتسجيل الحركة المالية ✅");
                 }
                 else
                 {
@@ -584,12 +611,44 @@ namespace RaccoonWarehouse.Invoices
                     }
 
                     // 1️⃣ إعادة كميات الفاتورة القديمة إلى المخزون
-                    foreach (var old in _originalLines)
-                        await UpdateStockQuantity(old.ProductId, old.ProductUnitId, -old.Quantity);
+                    var reverseResult = await _stockService.PostMovementsAsync(
+                        BuildInvoiceStockMovements(
+                            _originalLines.Select(line => new InvoiceLineWriteDto
+                            {
+                                ProductId = line.ProductId,
+                                ProductUnitId = line.ProductUnitId,
+                                Quantity = line.Quantity,
+                                QuantityPerUnitSnapshot = line.QuantityPerUnitSnapshot,
+                                BaseQuantity = line.BaseQuantity,
+                                UnitPrice = line.UnitPrice
+                            }),
+                            TransactionType.Sale,
+                            savedInvoiceId,
+                            session.CashierId,
+                            session.Id,
+                            $"Reverse sale invoice #{invoiceDto.InvoiceNumber}",
+                            1m));
+                    if (!reverseResult.Success)
+                    {
+                        MessageBox.Show(reverseResult.Message ?? "فشل عكس حركة المخزون.", "خطأ");
+                        return;
+                    }
 
                     // 2️⃣ طرح كميات الفاتورة الجديدة
-                    foreach (var line in InvoiceLines)
-                        await UpdateStockQuantity(line.ProductId, line.ProductUnitId, line.Quantity);
+                    var applyResult = await _stockService.PostMovementsAsync(
+                        BuildInvoiceStockMovements(
+                            InvoiceLines,
+                            TransactionType.Sale,
+                            savedInvoiceId,
+                            session.CashierId,
+                            session.Id,
+                            $"Update sale invoice #{invoiceDto.InvoiceNumber}",
+                            -1m));
+                    if (!applyResult.Success)
+                    {
+                        MessageBox.Show(applyResult.Message ?? "فشل تحديث حركة المخزون.", "خطأ");
+                        return;
+                    }
 
                     // 3️⃣ Update invoice
                     var result = await _invoicesService.UpdateAsync(invoiceDto);
@@ -601,38 +660,51 @@ namespace RaccoonWarehouse.Invoices
                     }
 
                     // 4️⃣ Post new financial transaction with new amount
-                    var postDto = new FinancialPostDto
+                    if (selectedPaymentType != PaymentType.Credit)
                     {
-                        Direction = TransactionDirection.In,
-                        Method = PaymentMethod.Cash, // أو MapPaymentMethod(selectedPaymentType)
-                        Amount = totalAmount,
-                        TransactionDate = DateTime.Now,
+                        var postDto = new FinancialPostDto
+                        {
+                            Direction = TransactionDirection.In,
+                            Method = MapPaymentMethod(selectedPaymentType),
+                            Amount = totalAmount,
+                            TransactionDate = DateTime.Now,
 
-                        SourceType = FinancialSourceType.SaleInvoice,
-                        SourceId = savedInvoiceId,
+                            SourceType = FinancialSourceType.SaleInvoice,
+                            SourceId = savedInvoiceId,
 
-                        CashierSessionId = session.Id,
-                        CashierId = session.CashierId,
+                            CashierSessionId = session.Id,
+                            CashierId = session.CashierId,
 
-                        Notes = $"Sale Invoice UPDATED #{invoiceDto.InvoiceNumber}"
-                    };
+                            Notes = $"Sale Invoice UPDATED #{invoiceDto.InvoiceNumber}"
+                        };
 
-                    var postResult = await _financialService.PostAsync(postDto);
-                    if (!postResult.Success)
-                    {
-                        MessageBox.Show(postResult.Message ?? "تم تحديث الفاتورة لكن فشل تسجيل الحركة المالية الجديدة", "تحذير");
-                        return;
+                        var postResult = await _financialService.PostAsync(postDto);
+                        if (!postResult.Success)
+                        {
+                            MessageBox.Show(postResult.Message ?? "تم تحديث الفاتورة لكن فشل تسجيل الحركة المالية الجديدة", "تحذير");
+                            return;
+                        }
                     }
 
-                    MessageBox.Show("تم تحديث الفاتورة وتسجيل الحركة المالية ✅");
+                    MessageBox.Show(
+                        selectedPaymentType == PaymentType.Credit
+                            ? "تم تحديث الفاتورة الآجلة بنجاح ✅"
+                            : "تم تحديث الفاتورة وتسجيل الحركة المالية ✅");
                 }
-
                 PrintBtn.Visibility = Visibility.Visible;
                 NewInvoiceBtn.Visibility = Visibility.Visible;
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"خطأ أثناء حفظ الفاتورة:\n{ex.Message}");
+                var details = ex.Message;
+                var inner = ex.InnerException;
+                while (inner != null)
+                {
+                    details += Environment.NewLine + inner.Message;
+                    inner = inner.InnerException;
+                }
+
+                MessageBox.Show($"خطأ أثناء حفظ الفاتورة:\n{details}");
             }
         }
         private PaymentMethod MapPaymentMethod(PaymentType paymentType)
@@ -642,9 +714,23 @@ namespace RaccoonWarehouse.Invoices
                 PaymentType.Cash => PaymentMethod.Cash,
                 PaymentType.Visa => PaymentMethod.Visa,
                 PaymentType.Master => PaymentMethod.Master,
+                PaymentType.Debit => PaymentMethod.BankTransfer,
+                PaymentType.Check => PaymentMethod.Check,
+                PaymentType.MobilePayment => PaymentMethod.MobilePayment,
                 PaymentType.Credit => PaymentMethod.Credit,
                 _ => PaymentMethod.Cash
             };
+        }
+
+        private PaymentType GetSelectedPaymentType()
+        {
+            if (PaymentMethodComboBox.SelectedItem is ComboBoxItem item &&
+                int.TryParse(item.Tag?.ToString(), out var value))
+            {
+                return (PaymentType)value;
+            }
+
+            return PaymentType.Cash;
         }
 
 
@@ -867,6 +953,8 @@ namespace RaccoonWarehouse.Invoices
                     ProductId = line.ProductId,
                     ProductName = line.Product?.Name,
                     ProductUnitId = line.ProductUnitId,
+                    QuantityPerUnitSnapshot = line.QuantityPerUnitSnapshot,
+                    BaseQuantity = line.BaseQuantity,
                     UnitName = line.ProductUnit?.Unit?.Name,
                     Quantity = line.Quantity,
                     ExpiryDate = line.ExpiryDate,

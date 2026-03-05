@@ -225,6 +225,9 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<decimal>("BaseQuantity")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<DateTime>("ExpiryDate")
                         .HasColumnType("datetime2");
 
@@ -241,6 +244,9 @@ namespace RaccoonWarehouse.Data.Migrations
                         .HasColumnType("int");
 
                     b.Property<decimal>("Quantity")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("QuantityPerUnitSnapshot")
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal>("UnitPrice")
@@ -344,6 +350,15 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsBaseUnit")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDefaultPurchaseUnit")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDefaultSaleUnit")
+                        .HasColumnType("bit");
 
                     b.Property<int>("ProductId")
                         .HasColumnType("int");
@@ -548,6 +563,9 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<decimal>("BaseQuantity")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<DateTime?>("ExpiryDate")
                         .HasColumnType("datetime2");
 
@@ -561,6 +579,9 @@ namespace RaccoonWarehouse.Data.Migrations
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal>("Quantity")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("QuantityPerUnitSnapshot")
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal>("SalePrice")

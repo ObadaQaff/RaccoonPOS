@@ -1,57 +1,64 @@
-﻿using System;
+using RaccoonWarehouse.Application.Service.FinancialTransactions;
+using RaccoonWarehouse.Domain.Reports.Financial.Dtos;
+using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Shapes;
 
 namespace RaccoonWarehouse.Reports
 {
-    /// <summary>
-    /// Interaction logic for DiscountSummaryReport.xaml
-    /// </summary>
     public partial class DiscountSummaryReport : Window
     {
-        public DiscountSummaryReport()
+        private readonly IFinancialTransactionService _financialTransactionService;
+        private List<DiscountSummaryRowDto> _rows = new();
+
+        public DiscountSummaryReport(IFinancialTransactionService financialTransactionService)
         {
             InitializeComponent();
-            LoadSampleData();
+            _financialTransactionService = financialTransactionService;
+            Loaded += DiscountSummaryReport_Loaded;
         }
 
-        private void LoadSampleData()
+        private async void DiscountSummaryReport_Loaded(object sender, RoutedEventArgs e)
         {
-            var sampleData = new List<DiscountSummaryItem>
+            FromDatePicker.SelectedDate = DateTime.Today;
+            ToDatePicker.SelectedDate = DateTime.Today;
+            await LoadReportAsync();
+        }
+
+        private async System.Threading.Tasks.Task LoadReportAsync()
+        {
+            if (FromDatePicker.SelectedDate == null || ToDatePicker.SelectedDate == null)
+                return;
+
+            try
             {
-                new DiscountSummaryItem { ItemID = "I001", ItemName = "صنف 1", Barcode = "123456", QuantitySold = 20, TotalDiscount = 50 },
-                new DiscountSummaryItem { ItemID = "I002", ItemName = "صنف 2", Barcode = "654321", QuantitySold = 15, TotalDiscount = 30 },
-                new DiscountSummaryItem { ItemID = "I003", ItemName = "صنف 3", Barcode = "987654", QuantitySold = 10, TotalDiscount = 25 },
-                new DiscountSummaryItem { ItemID = "I004", ItemName = "صنف 4", Barcode = "456789", QuantitySold = 5, TotalDiscount = 10 }
-            };
-
-            DiscountSummaryGrid.ItemsSource = sampleData;
+                _rows = await _financialTransactionService.GetDiscountSummaryAsync(
+                    FromDatePicker.SelectedDate.Value,
+                    ToDatePicker.SelectedDate.Value);
+                ApplyRows(_rows);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"خطأ: {ex.Message}");
+            }
         }
-    
 
-    public class DiscountSummaryItem
-    {
-        public string ItemID { get; set; }
-        public string ItemName { get; set; }
-        public string Barcode { get; set; }
-        public int QuantitySold { get; set; }
-        public decimal TotalDiscount { get; set; }
-    }        private void BackBtn_Click(object sender, RoutedEventArgs e)
+        private void ApplyRows(List<DiscountSummaryRowDto> rows)
         {
-            this.Close();
+            DiscountSummaryGrid.ItemsSource = rows;
+            TotalLinesText.Text = rows.Count.ToString();
+            TotalDiscountText.Text = rows.Sum(x => x.TotalDiscount).ToString("0.000");
         }
-        private void GenerateReportBtn_Click(object sender, RoutedEventArgs e)
+
+        private void BackBtn_Click(object sender, RoutedEventArgs e)
         {
+            Close();
+        }
+
+        private async void GenerateReportBtn_Click(object sender, RoutedEventArgs e)
+        {
+            await LoadReportAsync();
         }
     }
 }
