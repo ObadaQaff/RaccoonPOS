@@ -1,6 +1,7 @@
 ﻿using RaccoonWarehouse.Application.Service.FinancialTransactions;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Application.Service.Vouchers;
+using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Core.Common;
 using RaccoonWarehouse.Domain.Cashiers.DTOs;
 using RaccoonWarehouse.Domain.Checks.DTOs;
@@ -38,20 +39,23 @@ namespace RaccoonWarehouse.Vouchers
         private List<CheckReadDto> _originalChecks = new();
         private readonly IFinancialTransactionService _financialService;
         private readonly IUserSession _userSession;
+        private readonly ILoadingService _loadingService;
 
         public PaymentVoucher(
             IVoucherService voucherService,
             IUserService userService,
             IFinancialTransactionService financialService,
-            IUserSession userSession)
+            IUserSession userSession,
+            ILoadingService loadingService)
         {
             _voucherService = voucherService;
             _userService = userService;
             _financialService = financialService;
             _userSession = userSession;
+            _loadingService = loadingService;
 
             InitializeComponent();
-            CreateVoucher_Loaded();
+            Loaded += async (s, e) => await CreateVoucher_Loaded();
             ReceiptNumber.Text = GenerateDocumentNumber();
         }
         private string GenerateDocumentNumber()
@@ -64,14 +68,23 @@ namespace RaccoonWarehouse.Vouchers
 
         private async Task CreateVoucher_Loaded()
         {
-
-            // Default date
-            ReceiptDate.SelectedDate = DateTime.Now;
-            var users = await _userService.GetAllAsync(); 
-            AccountComboBox.ItemsSource = users.Data;
-            AccountComboBox.DisplayMemberPath = "Name";
-            AccountComboBox.SelectedValuePath = "Id";
-
+            try
+            {
+                _loadingService.Show();
+                ReceiptDate.SelectedDate = DateTime.Now;
+                var users = await _userService.GetAllAsync();
+                AccountComboBox.ItemsSource = users.Data;
+                AccountComboBox.DisplayMemberPath = "Name";
+                AccountComboBox.SelectedValuePath = "Id";
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"حدث خطأ أثناء تحميل البيانات:\n{ex.Message}", "خطأ", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                _loadingService.Hide();
+            }
 
         }
         private bool TryGetActiveCashierSession(out CashierSessionReadDto? session)
@@ -93,7 +106,7 @@ namespace RaccoonWarehouse.Vouchers
                     return;
                 }
 
-                if (PaymentTypeCombo.SelectedItem is not ComboBoxItem paymentItem)
+                if (PaymentTypeCombo.SelectedItem is not ComboBoxItem paymentItem || paymentItem.Tag == null)
                 {
                     MessageBox.Show("يرجى اختيار طريقة الدفع.", "تنبيه");
                     return;
@@ -101,6 +114,7 @@ namespace RaccoonWarehouse.Vouchers
 
                 if (!TryGetActiveCashierSession(out var session))
                     return;
+                _loadingService.Show();
 
                 var paymentType = (PaymentType)int.Parse(paymentItem.Tag.ToString());
 
@@ -131,6 +145,9 @@ namespace RaccoonWarehouse.Vouchers
                     MessageBox.Show("يرجى إضافة شيك واحد على الأقل.", "تنبيه");
                     return;
                 }
+
+                if (paymentType == PaymentType.Check && !ValidatePaymentByCheck(dto.Amount))
+                    return;
 
                 // =========================
                 // 1) Save Voucher (Create / Update)
@@ -213,6 +230,10 @@ namespace RaccoonWarehouse.Vouchers
             {
                 MessageBox.Show($"حدث خطأ أثناء حفظ السند:\n{ex.Message}", "خطأ", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+            finally
+            {
+                _loadingService.Hide();
+            }
         }
 
         private void NewVoucherBtn_Click(object sender, RoutedEventArgs e)
@@ -261,7 +282,8 @@ namespace RaccoonWarehouse.Vouchers
         {
             if (PaymentTypeCombo.SelectedItem is ComboBoxItem selected)
             {
-                int paymentType = int.Parse(selected.Tag.ToString());
+                if (selected.Tag == null || !int.TryParse(selected.Tag.ToString(), out int paymentType))
+                    return;
 
                 // Show check fields only if user selected "Check = 4"
                 ChecksGrid.Visibility = (paymentType == (int)PaymentType.Check)
@@ -279,7 +301,13 @@ namespace RaccoonWarehouse.Vouchers
 
         private async void AccountComboBox_TextChanged(object sender, TextChangedEventArgs e)
         {
-            var tb = (sender as ComboBox).Template.FindName("PART_EditableTextBox", AccountComboBox) as TextBox;
+            if (sender is not ComboBox comboBox)
+                return;
+
+            var tb = comboBox.Template.FindName("PART_EditableTextBox", AccountComboBox) as TextBox;
+            if (tb == null)
+                return;
+
             string searchText = tb.Text.ToLower();
 
             if (string.IsNullOrWhiteSpace(searchText))
@@ -295,40 +323,63 @@ namespace RaccoonWarehouse.Vouchers
         #region Check Handle 
         private void AddCheck_Click(object sender, RoutedEventArgs e)
         {
-            if (string.IsNullOrWhiteSpace(CheckNumberBox.Text))
+            try
             {
-                MessageBox.Show("يرجى إدخال رقم الشيك.", "تنبيه", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
+                if (string.IsNullOrWhiteSpace(CheckNumberBox.Text))
+                {
+                    MessageBox.Show("يرجى إدخال رقم الشيك.", "تنبيه", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                if (!decimal.TryParse(CheckAmountBox.Text, out var checkAmount) || checkAmount <= 0)
+                {
+                    MessageBox.Show("يرجى إدخال مبلغ شيك صالح.", "تنبيه", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                var checkNumber = CheckNumberBox.Text.Trim();
+                if (_checks.Any(c => string.Equals(c.CheckNumber, checkNumber, StringComparison.OrdinalIgnoreCase)))
+                {
+                    MessageBox.Show("رقم الشيك مكرر.", "تنبيه", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                var check = new CheckWriteDto
+                {
+                    CheckNumber = checkNumber,
+                    BankName = string.IsNullOrWhiteSpace(BankNameBox.Text) ? "-" : BankNameBox.Text.Trim(),
+                    DueDate = CheckDueDatePicker.SelectedDate ?? DateTime.Now,
+                    Amount = checkAmount,
+                    Notes = string.IsNullOrWhiteSpace(CheckNotesBox.Text) ? null : CheckNotesBox.Text.Trim(),
+                    CreatedDate = DateTime.Now,
+                    UpdatedDate = DateTime.Now
+                };
+
+                _checks.Add(check);
+
+                ChecksGrid.ItemsSource = null;
+                ChecksGrid.ItemsSource = _checks;
+
+                ChecksGrid.Visibility = Visibility.Visible;
+
+                // Clear input fields
+                CheckNumberBox.Text = "";
+                BankNameBox.Text = "";
+                CheckAmountBox.Text = "";
+                CheckNotesBox.Text = "";
+                CheckDueDatePicker.SelectedDate = null;
             }
-
-            var check = new CheckWriteDto
+            catch (Exception ex)
             {
-                CheckNumber = CheckNumberBox.Text,
-                BankName = BankNameBox.Text,
-                DueDate = CheckDueDatePicker.SelectedDate ?? DateTime.Now,
-                Amount = decimal.Parse(CheckAmountBox.Text), // or add independent check amount textbox
-                Notes = CheckNotesBox.Text,
-                CreatedDate = DateTime.Now,
-                UpdatedDate = DateTime.Now
-            };
-
-            _checks.Add(check);
-
-            ChecksGrid.ItemsSource = null;
-            ChecksGrid.ItemsSource = _checks;
-
-            ChecksGrid.Visibility = Visibility.Visible;
-
-            // Clear input fields
-            CheckNumberBox.Text = "";
-            BankNameBox.Text = "";
-            CheckAmountBox.Text = "";
-            CheckNotesBox.Text = "";
-            CheckDueDatePicker.SelectedDate = null;
+                MessageBox.Show($"حدث خطأ أثناء إضافة الشيك:\n{ex.Message}", "خطأ", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
         private void DeleteCheck_Click(object sender, RoutedEventArgs e)
         {
             var check = (sender as Button).DataContext as CheckWriteDto;
+            if (check == null)
+                return;
+
             _checks.Remove(check);
 
             ChecksGrid.ItemsSource = null;
@@ -838,68 +889,81 @@ namespace RaccoonWarehouse.Vouchers
 
         private void PrintBtn_Click(object sender, RoutedEventArgs e)
         {
-            // تأكيد حفظ بيانات الشيكات من الـ DataGrid
-            ChecksGrid.CommitEdit(DataGridEditingUnit.Cell, true);
-            ChecksGrid.CommitEdit(DataGridEditingUnit.Row, true);
-
-            _checks = ChecksGrid.Items
-                                .OfType<CheckWriteDto>()
-                                .ToList();
-
-            if (!decimal.TryParse(Amount.Text, out decimal amount))
+            try
             {
-                MessageBox.Show("يرجى إدخال مبلغ صالح.", "تنبيه");
-                return;
+                // تأكيد حفظ بيانات الشيكات من الـ DataGrid
+                ChecksGrid.CommitEdit(DataGridEditingUnit.Cell, true);
+                ChecksGrid.CommitEdit(DataGridEditingUnit.Row, true);
+
+                _checks = ChecksGrid.Items
+                                    .OfType<CheckWriteDto>()
+                                    .ToList();
+
+                if (!decimal.TryParse(Amount.Text, out decimal amount))
+                {
+                    MessageBox.Show("يرجى إدخال مبلغ صالح.", "تنبيه");
+                    return;
+                }
+
+                if (PaymentTypeCombo.SelectedItem is not ComboBoxItem paymentItem || paymentItem.Tag == null)
+                {
+                    MessageBox.Show("يرجى اختيار طريقة الدفع.", "تنبيه");
+                    return;
+                }
+
+                var paymentType = (PaymentType)int.Parse(paymentItem.Tag.ToString()!);
+
+                var dto = new VoucherWriteDto
+                {
+                    Id = _currentVoucherId ?? 0,
+                    VoucherNumber = ReceiptNumber.Text,
+                    VoucherType = VoucherType.Payment,
+                    Amount = amount,
+                    CasherId = 0,
+                    Notes = string.IsNullOrWhiteSpace(ReceiptDescription.Text) ? null : ReceiptDescription.Text.Trim(),
+                    CustomerId = AccountComboBox.SelectedValue != null
+                                    ? (int?)AccountComboBox.SelectedValue
+                                    : null,
+                    CreatedDate = ReceiptDate.SelectedDate ?? DateTime.Now,
+                    UpdatedDate = DateTime.Now,
+                    PaymentType = paymentType,
+                    Checks = paymentType == PaymentType.Check ? _checks.ToList() : null
+                };
+
+                if (paymentType == PaymentType.Check && !ValidatePaymentByCheck(amount))
+                    return;
+
+                SavePaymentVoucherPdf(dto);
             }
-
-            if (PaymentTypeCombo.SelectedItem is not ComboBoxItem paymentItem)
+            catch (Exception ex)
             {
-                MessageBox.Show("يرجى اختيار طريقة الدفع.", "تنبيه");
-                return;
+                MessageBox.Show($"حدث خطأ أثناء الطباعة:\n{ex.Message}", "خطأ", MessageBoxButton.OK, MessageBoxImage.Error);
             }
-
-            var paymentType = (PaymentType)int.Parse(paymentItem.Tag.ToString());
-
-            var dto = new VoucherWriteDto
-            {
-                Id = _currentVoucherId ?? 0,
-                VoucherNumber = ReceiptNumber.Text,
-                VoucherType = VoucherType.Payment,
-                Amount = amount,
-                CasherId = 0,
-                Notes = ReceiptDescription.Text,
-                CustomerId = AccountComboBox.SelectedValue != null
-                                ? (int?)AccountComboBox.SelectedValue
-                                : null,
-                CreatedDate = ReceiptDate.SelectedDate ?? DateTime.Now,
-                UpdatedDate = DateTime.Now,
-                PaymentType = paymentType,
-                Checks = paymentType == PaymentType.Check ? _checks.ToList() : null
-            };
-
-            if (paymentType == PaymentType.Check && (dto.Checks == null || dto.Checks.Count == 0))
-            {
-                MessageBox.Show("يرجى إضافة شيك واحد على الأقل.", "تنبيه");
-                return;
-            }
-
-         
-            SavePaymentVoucherPdf(dto);
         }
 
         #endregion
         #region search voucher 
         private async void SearchVoucherBtn_Click(object sender, RoutedEventArgs e)
         {
-            var search = new SearchVoucherWindow(_voucherService,false);
-            if (search.ShowDialog() == true)
+            try
             {
-                LoadVoucher(search.Result);
+                var search = new SearchVoucherWindow(_voucherService, false);
+                if (search.ShowDialog() == true && search.Result != null)
+                {
+                    LoadVoucher(search.Result);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"حدث خطأ أثناء البحث عن السند:\n{ex.Message}", "خطأ", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
         private void LoadVoucher(VoucherReadDto dto)
         {
+            if (dto == null)
+                return;
+
             _currentVoucherId = dto.Id;
             _originalChecks = dto.Checks?.ToList() ?? new();
 
@@ -965,6 +1029,41 @@ namespace RaccoonWarehouse.Vouchers
                 VoucherType.Payment => TransactionDirection.Out,
                 _ => TransactionDirection.In
             };
+        }
+
+        private bool ValidatePaymentByCheck(decimal voucherAmount)
+        {
+            if (_checks.Count == 0)
+            {
+                MessageBox.Show("يرجى إضافة شيك واحد على الأقل.", "تنبيه", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return false;
+            }
+
+            if (_checks.Any(c => string.IsNullOrWhiteSpace(c.CheckNumber) || c.Amount <= 0))
+            {
+                MessageBox.Show("بيانات الشيك غير مكتملة أو تحتوي مبالغ غير صالحة.", "تنبيه", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return false;
+            }
+
+            var duplicateCheck = _checks
+                .Where(c => !string.IsNullOrWhiteSpace(c.CheckNumber))
+                .GroupBy(c => c.CheckNumber.Trim(), StringComparer.OrdinalIgnoreCase)
+                .Any(g => g.Count() > 1);
+
+            if (duplicateCheck)
+            {
+                MessageBox.Show("لا يمكن تكرار رقم الشيك داخل نفس السند.", "تنبيه", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return false;
+            }
+
+            var totalChecks = _checks.Sum(c => c.Amount);
+            if (totalChecks != voucherAmount)
+            {
+                MessageBox.Show("مجموع مبالغ الشيكات يجب أن يساوي مبلغ السند.", "تنبيه", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return false;
+            }
+
+            return true;
         }
 
         #endregion

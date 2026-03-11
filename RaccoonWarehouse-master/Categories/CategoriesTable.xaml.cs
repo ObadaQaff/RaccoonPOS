@@ -1,8 +1,9 @@
-﻿using AutoMapper;
+using AutoMapper;
 using Microsoft.Extensions.DependencyInjection;
 using RaccoonWarehouse;
 using RaccoonWarehouse.Application.Service.Categories;
 using RaccoonWarehouse.Application.Service.Users;
+using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Domain.Categories.DTOs;
 using RaccoonWarehouse.Domain.Users.DTOs;
 using RaccoonWarehouse.Navigation;
@@ -29,27 +30,44 @@ namespace RaccoonWarehouse.Categories
     {
         private readonly ICategoryService _categoryService;
         private readonly IMapper _mapper;
+        private readonly ILoadingService _loadingService;
         private string _currentNameSearch = "";
         private CancellationTokenSource _searchCts;
 
-        public CategoriesTable(ICategoryService categoryService,IMapper mapper)
+        public CategoriesTable(ICategoryService categoryService, IMapper mapper, ILoadingService loadingService)
         {
             _categoryService = categoryService;
             _mapper = mapper;
+            _loadingService = loadingService;
             InitializeComponent();
-            Load_Categories();
+            _ = Load_CategoriesAsync();
         }
-        private async void Load_Categories()
+
+        private async Task Load_CategoriesAsync()
         {
-
-            var result  = await _categoryService.GetAllAsync();
-            if (result.Success)
+            try
             {
-                CategoriesTable1.ItemsSource=result.Data;
-            
+                _loadingService.Show();
+                var result = await _categoryService.GetAllAsync();
+                if (result.Success)
+                {
+                    CategoriesTable1.ItemsSource = result.Data;
+                }
+                else
+                {
+                    MessageBox.Show(result.Message ?? "Failed to load categories.");
+                }
             }
-
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Unexpected error while loading categories: {ex.Message}");
+            }
+            finally
+            {
+                _loadingService.Hide();
+            }
         }
+
         private void Update_Category(object sender, RoutedEventArgs e)
         {
             if (CategoriesTable1.SelectedItem is not CategoryReadDto selectedCategory)
@@ -64,27 +82,51 @@ namespace RaccoonWarehouse.Categories
             });
 
         }
-        private async void Delete_Category(object sender, RoutedEventArgs e) {
 
+        private async void Delete_Category(object sender, RoutedEventArgs e)
+        {
             var selectedCategory = CategoriesTable1.SelectedItem as CategoryReadDto;
-            if (selectedCategory != null)
+            if (selectedCategory == null)
             {
-                var messageResult = MessageBox.Show(
-                $"Are you sure you want to delete  \'{selectedCategory.Name}\' Category ?",
+                MessageBox.Show("No category selected.");
+                return;
+            }
+
+            var messageResult = MessageBox.Show(
+                $"Are you sure you want to delete  '{selectedCategory.Name}' Category ?",
                 "Confirm Delete",
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Warning);
 
-                if (messageResult == MessageBoxResult.Yes)
-                {
-                    _categoryService.DeleteAsync(selectedCategory.Id);
-                    MessageBox.Show("Delete was successfully !!");
-                    Load_Categories();
+            if (messageResult != MessageBoxResult.Yes)
+            {
+                return;
+            }
 
+            try
+            {
+                _loadingService.Show();
+                var result = await _categoryService.DeleteAsync(selectedCategory.Id);
+                if (result.Success)
+                {
+                    MessageBox.Show("Delete was successful !!");
+                    await Load_CategoriesAsync();
+                }
+                else
+                {
+                    MessageBox.Show(result.Message ?? "Delete failed.");
                 }
             }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Unexpected error while deleting category: {ex.Message}");
+            }
+            finally
+            {
+                _loadingService.Hide();
+            }
         }
-       
+
 
         private void CreateCategoryBtn_Click(object sender, RoutedEventArgs e)
         {

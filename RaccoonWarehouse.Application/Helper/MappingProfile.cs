@@ -118,7 +118,9 @@ namespace RaccoonWarehouse.Application.Helper
 
             CreateMap<StockItemWriteDto, StockItem>()
                     .ForMember(x => x.Product, opt => opt.Ignore())
-                    .ForMember(x => x.ProductUnit, opt => opt.Ignore()).ReverseMap();
+                    .ForMember(x => x.ProductUnit, opt => opt.Ignore())
+                    .ForMember(x => x.StockDocument, opt => opt.Ignore())
+                    .ReverseMap();
             CreateMap<StockItem, StockItemReadDto>().ReverseMap();
 
             CreateMap<CheckWriteDto, Check>().ReverseMap();

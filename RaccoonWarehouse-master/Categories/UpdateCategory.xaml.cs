@@ -1,7 +1,8 @@
-﻿using AutoMapper;
+using AutoMapper;
 using Microsoft.Extensions.DependencyInjection;
 using RaccoonWarehouse.Application.Service.Categories;
 using RaccoonWarehouse.Application.Service.Users;
+using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Domain.Categories.DTOs;
 using RaccoonWarehouse.Domain.Users.DTOs;
 using RaccoonWarehouse;
@@ -25,13 +26,15 @@ namespace RaccoonWarehouse.Categories
         private CategoryWriteDto _category;
         private readonly ICategoryService _categoryService;
         private readonly IMapper _mapper;
+        private readonly ILoadingService _loadingService;
         private int _categoryId;
 
 
-        public UpdateCategory(ICategoryService categoryService, IMapper mapper)
+        public UpdateCategory(ICategoryService categoryService, IMapper mapper, ILoadingService loadingService)
         {
             _mapper = mapper;
             _categoryService = categoryService;
+            _loadingService = loadingService;
             InitializeComponent();
             _category = new CategoryWriteDto();
 
@@ -43,47 +46,74 @@ namespace RaccoonWarehouse.Categories
         public async void Initialize(int Id)
         {
             _categoryId = Id;
-            Category_Load(_categoryId);
+            await Category_LoadAsync(_categoryId);
         }
-        private async void Category_Load(int Id)
-        {
-            var result = await _categoryService.GetWriteDtoByIdAsync(Id);
-            _category = result.Data;
-            if (result.Success)
-            {
-                CategoryDes.Text = result.Data.Description;
-                CategoryName.Text = result.Data.Name;
 
+        private async Task Category_LoadAsync(int Id)
+        {
+            try
+            {
+                _loadingService.Show();
+                var result = await _categoryService.GetWriteDtoByIdAsync(Id);
+                if (result.Success && result.Data != null)
+                {
+                    _category = result.Data;
+                    CategoryDes.Text = result.Data.Description;
+                    CategoryName.Text = result.Data.Name;
+                }
+                else
+                {
+                    MessageBox.Show(result.Message ?? "Failed to load category data.");
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Unexpected error while loading category: {ex.Message}");
+            }
+            finally
+            {
+                _loadingService.Hide();
             }
         }
+
         private async void Update_CategoryBtn_Click(object sender, RoutedEventArgs e)
         {
             if (string.IsNullOrWhiteSpace(CategoryName.Text) ||
-              string.IsNullOrWhiteSpace(CategoryDes.Text) )
+              string.IsNullOrWhiteSpace(CategoryDes.Text))
             {
                 MessageBox.Show("Please fill in all required fields.");
                 return;
             }
-            else
+
+            try
             {
-                _category.Name = CategoryName.Text;
-                _category.Description = CategoryDes.Text;
-            
+                _loadingService.Show();
+
+                _category.Name = CategoryName.Text.Trim();
+                _category.Description = CategoryDes.Text.Trim();
+
                 var result = await _categoryService.UpdateAsync(_category);
-                if (result.Success) {
-
-                    MessageBox.Show("Update Was successfully!");
+                if (result.Success)
+                {
+                    MessageBox.Show("Update was successful!");
                 }
-
-
+                else
+                {
+                    MessageBox.Show(result.Message ?? "Failed to update category.");
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Unexpected error while updating category: {ex.Message}");
+            }
+            finally
+            {
+                _loadingService.Hide();
             }
         }
         private void BackBtn_Click(object sender, RoutedEventArgs e)
         {
-     
             this.Close();
-
-
         }
     }
 }

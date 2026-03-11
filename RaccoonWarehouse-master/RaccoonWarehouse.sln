@@ -13,6 +13,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RaccoonWarehouse.Applicatio
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RaccoonWarehouse.Core", "..\RaccoonWarehouse.Core\RaccoonWarehouse.Core.csproj", "{AE707083-A1BE-C095-3803-14B15D95E5B3}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RaccoonWarehouse.Tests", "..\RaccoonWarehouse.Tests\RaccoonWarehouse.Tests.csproj", "{A1E2DFA6-D1EC-4F81-BFF5-BDEBEBD9F111}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -39,12 +41,16 @@ Global
 		{AE707083-A1BE-C095-3803-14B15D95E5B3}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{AE707083-A1BE-C095-3803-14B15D95E5B3}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{AE707083-A1BE-C095-3803-14B15D95E5B3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A1E2DFA6-D1EC-4F81-BFF5-BDEBEBD9F111}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A1E2DFA6-D1EC-4F81-BFF5-BDEBEBD9F111}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A1E2DFA6-D1EC-4F81-BFF5-BDEBEBD9F111}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A1E2DFA6-D1EC-4F81-BFF5-BDEBEBD9F111}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {D456E92E-8695-41BB-9043-666486170446}
-		        SolutionGuid = {1B3326C6-3A1C-4251-9F24-19FC14E8BA8D}
+		SolutionGuid = {1B3326C6-3A1C-4251-9F24-19FC14E8BA8D}
 	EndGlobalSection
 EndGlobal

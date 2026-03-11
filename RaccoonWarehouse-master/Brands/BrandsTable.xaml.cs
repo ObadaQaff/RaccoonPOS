@@ -1,27 +1,13 @@
-﻿using AutoMapper;
+using AutoMapper;
 using Microsoft.Extensions.DependencyInjection;
 using RaccoonWarehouse;
 using RaccoonWarehouse.Application.Service.Brands;
-using RaccoonWarehouse.Application.Service.Categories;
-using RaccoonWarehouse.Categories;
+using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Domain.Brands.DTOs;
-using RaccoonWarehouse.Domain.Categories.DTOs;
-using RaccoonWarehouse.Domain.Users.DTOs;
 using RaccoonWarehouse.Navigation;
-using RaccoonWarehouse.Units;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Shapes;
 
 namespace RaccoonWarehouse.Brands
 {
@@ -32,60 +18,97 @@ namespace RaccoonWarehouse.Brands
     {
         private readonly IBrandService _brandService;
         private readonly IMapper _mapper;
-        public BrandsTable(IBrandService brandService ,IMapper mapper)
+        private readonly ILoadingService _loadingService;
+
+        public BrandsTable(IBrandService brandService, IMapper mapper, ILoadingService loadingService)
         {
             _brandService = brandService;
             _mapper = mapper;
+            _loadingService = loadingService;
             InitializeComponent();
-            Load_Brands();
+            _ = Load_BrandsAsync();
         }
 
-
-        private async void Load_Brands()
+        private async Task Load_BrandsAsync()
         {
-
-            var result = await _brandService.GetAllAsync();
-            if (result.Success)
+            try
             {
-                BrandsTable1.ItemsSource = result.Data;
-
+                _loadingService.Show();
+                var result = await _brandService.GetAllAsync();
+                if (result.Success)
+                {
+                    BrandsTable1.ItemsSource = result.Data;
+                }
+                else
+                {
+                    MessageBox.Show(result.Message ?? "Failed to load brands.");
+                }
             }
-
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Unexpected error while loading brands: {ex.Message}");
+            }
+            finally
+            {
+                _loadingService.Hide();
+            }
         }
+
         private void Update_Brand(object sender, RoutedEventArgs e)
         {
-
             if (BrandsTable1.SelectedItem is not BrandReadDto selectedBrand)
             {
-                MessageBox.Show("يحب تحديد علامة تجارية قبل القيام بالتحديث او الحذف ");
+                MessageBox.Show("Please select a brand before update or delete.");
                 return;
             }
 
-            WindowManager.ShowDialog<UpdateBrand>(WindowSizeType.MediumRectangle,w =>
+            WindowManager.ShowDialog<UpdateBrand>(WindowSizeType.MediumRectangle, w =>
             {
                 w.Initialize(selectedBrand.Id);
             });
-
         }
+
         private async void Delete_Brand(object sender, RoutedEventArgs e)
         {
-
-            var selectedCategory = BrandsTable1.SelectedItem as BrandReadDto;
-            if (selectedCategory != null)
+            var selectedBrand = BrandsTable1.SelectedItem as BrandReadDto;
+            if (selectedBrand == null)
             {
-                var messageResult = MessageBox.Show(
-                $"هل انت متاكد من انك تريد حذف العلامة التجارية : \'{selectedCategory.Name}\' ?",
+                MessageBox.Show("No brand selected.");
+                return;
+            }
+
+            var messageResult = MessageBox.Show(
+                $"Are you sure you want to delete brand: '{selectedBrand.Name}'?",
                 "Confirm Delete",
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Warning);
 
-                if (messageResult == MessageBoxResult.Yes)
-                {
-                    await _brandService.DeleteAsync(selectedCategory.Id);
-                    MessageBox.Show("تم الحذف بنجاح !!");
-                    Load_Brands();
+            if (messageResult != MessageBoxResult.Yes)
+            {
+                return;
+            }
 
+            try
+            {
+                _loadingService.Show();
+                var result = await _brandService.DeleteAsync(selectedBrand.Id);
+                if (result.Success)
+                {
+                    MessageBox.Show("Deleted successfully !!");
+                    await Load_BrandsAsync();
                 }
+                else
+                {
+                    MessageBox.Show(result.Message ?? "Delete failed.");
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Unexpected error while deleting brand: {ex.Message}");
+            }
+            finally
+            {
+                _loadingService.Hide();
             }
         }
 
@@ -99,7 +122,6 @@ namespace RaccoonWarehouse.Brands
 
         private void BackBtn_Click(object sender, RoutedEventArgs e)
         {
-
             this.Close();
         }
     }

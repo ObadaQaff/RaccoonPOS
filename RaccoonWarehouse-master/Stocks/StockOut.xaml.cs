@@ -93,7 +93,7 @@ namespace RaccoonWarehouse.Stocks
                 DatePickerInvoice.SelectedDate = DateTime.Now;
 
                 var stockedProducts = await _stockService.GetAllWithFilteringAndIncludeAsync(
-                            s => s.Quantity > 10,
+                            s => s.Quantity > 0,
                             new Expression<Func<Stock, object>>[]
                             {
                                 s => s.Product,
@@ -105,10 +105,16 @@ namespace RaccoonWarehouse.Stocks
 
                 Products.Clear();
 
-                foreach (var stock in stockedProducts.Data)
+                var distinctProducts = stockedProducts.Data
+                    .Where(s => s.Product != null)
+                    .GroupBy(s => s.ProductId)
+                    .Select(g => g.First().Product!)
+                    .OrderBy(p => p.Name)
+                    .ToList();
+
+                foreach (var product in distinctProducts)
                 {
-                    if (stock.Product != null)
-                        Products.Add(stock.Product);
+                    Products.Add(product);
                 }
             }
             catch (Exception ex)
@@ -351,11 +357,23 @@ namespace RaccoonWarehouse.Stocks
                             pu => pu.ProductId == selectedProductId,
                             pu => pu.Unit);
 
+                    var availableStocks = await _stockService.GetAllWithFilteringAndIncludeAsync(
+                        s => s.ProductId == selectedProductId && s.Quantity > 0);
+
+                    var availableUnitIds = availableStocks.Data
+                        .Select(s => s.ProductUnitId)
+                        .Distinct()
+                        .ToHashSet();
+
+                    var availableUnits = (unitsResult?.Data ?? new List<ProductUnitWriteDto>())
+                        .Where(u => availableUnitIds.Contains(u.Id))
+                        .ToList();
+
                     // Update the item's Units collection
                     item.Units.Clear();
-                    if (unitsResult?.Data != null)
+                    if (availableUnits.Count > 0)
                     {
-                        foreach (var unit in unitsResult.Data)
+                        foreach (var unit in availableUnits)
                             item.Units.Add(unit);
                     }
 
@@ -485,10 +503,22 @@ namespace RaccoonWarehouse.Stocks
                         pu => pu.ProductId == productId,
                         pu => pu.Unit);
 
-                UnitBox.ItemsSource = unitsResult.Data;
+                var availableStocks = await _stockService.GetAllWithFilteringAndIncludeAsync(
+                    s => s.ProductId == productId && s.Quantity > 0);
+
+                var availableUnitIds = availableStocks.Data
+                    .Select(s => s.ProductUnitId)
+                    .Distinct()
+                    .ToHashSet();
+
+                var availableUnits = (unitsResult?.Data ?? new List<ProductUnitWriteDto>())
+                    .Where(u => availableUnitIds.Contains(u.Id))
+                    .ToList();
+
+                UnitBox.ItemsSource = availableUnits;
 
                 // 🔷 Auto-select first unit if exists
-                var firstUnit = unitsResult.Data.FirstOrDefault();
+                var firstUnit = availableUnits.FirstOrDefault();
                 if (firstUnit != null)
                 {
                     UnitBox.SelectedValue = firstUnit.Id;
@@ -530,48 +560,71 @@ namespace RaccoonWarehouse.Stocks
             ExpiryBox.SelectedDate = null;
         }
 
-        private void AddProduct_Click(object sender, RoutedEventArgs e)
+        private async void AddProduct_Click(object sender, RoutedEventArgs e)
         {
-            if (ProductBox.SelectedItem is not ProductReadDto product)
+            try
             {
-                MessageBox.Show("يرجى اختيار منتج.", "تنبيه");
-                return;
+                if (ProductBox.SelectedItem is not ProductReadDto product)
+                {
+                    MessageBox.Show("يرجى اختيار منتج.", "تنبيه");
+                    return;
+                }
+
+                if (UnitBox.SelectedItem is not ProductUnitWriteDto unit)
+                {
+                    MessageBox.Show("يرجى اختيار وحدة.", "تنبيه");
+                    return;
+                }
+
+                if (!decimal.TryParse(QtyBox.Text, out decimal qty) || qty <= 0)
+                {
+                    MessageBox.Show("الكمية غير صحيحة.", "تنبيه");
+                    return;
+                }
+
+                var stockResult = await _stockService.GetAllWithFilteringAndIncludeAsync(
+                    s => s.ProductId == product.Id && s.ProductUnitId == unit.Id);
+
+                var availableQty = stockResult.Data.FirstOrDefault()?.Quantity ?? 0m;
+                if (availableQty <= 0)
+                {
+                    MessageBox.Show("هذا المنتج/الوحدة غير متوفر بالمخزون حالياً.", "تنبيه");
+                    return;
+                }
+
+                if (qty > availableQty)
+                {
+                    MessageBox.Show($"الكمية المطلوبة أكبر من المتوفر. المتوفر: {availableQty}", "تنبيه");
+                    return;
+                }
+
+                var item = new StockItemWriteDto
+                {
+                    ProductId = product.Id,
+                    ProductUnitId = unit.Id,
+                    Quantity = qty,
+                    QuantityPerUnitSnapshot = unit.QuantityPerUnit > 0 ? unit.QuantityPerUnit : 1m,
+                    BaseQuantity = qty * (unit.QuantityPerUnit > 0 ? unit.QuantityPerUnit : 1m),
+                    PurchasePrice = decimal.TryParse(PurchaseBox.Text, out var p) ? p : 0,
+                    SalePrice = decimal.TryParse(SaleBox.Text, out var s) ? s : 0,
+                    ExpiryDate = ExpiryBox.SelectedDate ?? DateTime.Now.AddMonths(6),
+                    CreatedDate = DateTime.Now,
+                    UpdatedDate = DateTime.Now,
+
+                    // 🔥 Extra fields for DataGrid display
+                    ProductName = product.Name,
+                    UnitName = unit.Unit.Name
+                };
+
+                Items.Add(item);
+                _itemUnits[item] = unit.Id;
+
+                ClearProductInputs();
             }
-
-            if (UnitBox.SelectedItem is not ProductUnitWriteDto unit)
+            catch (Exception ex)
             {
-                MessageBox.Show("يرجى اختيار وحدة.", "تنبيه");
-                return;
+                MessageBox.Show($"حدث خطأ أثناء إضافة المنتج: {ex.Message}", "خطأ", MessageBoxButton.OK, MessageBoxImage.Error);
             }
-
-            if (!decimal.TryParse(QtyBox.Text, out decimal qty) || qty <= 0)
-            {
-                MessageBox.Show("الكمية غير صحيحة.", "تنبيه");
-                return;
-            }
-
-            var item = new StockItemWriteDto
-            {
-                ProductId = product.Id,
-                ProductUnitId = unit.Id,
-                Quantity = qty,
-                QuantityPerUnitSnapshot = unit.QuantityPerUnit > 0 ? unit.QuantityPerUnit : 1m,
-                BaseQuantity = qty * (unit.QuantityPerUnit > 0 ? unit.QuantityPerUnit : 1m),
-                PurchasePrice = decimal.TryParse(PurchaseBox.Text, out var p) ? p : 0,
-                SalePrice = decimal.TryParse(SaleBox.Text, out var s) ? s : 0,
-                ExpiryDate = ExpiryBox.SelectedDate ?? DateTime.Now.AddMonths(6),
-                CreatedDate = DateTime.Now,
-                UpdatedDate = DateTime.Now,
-
-                // 🔥 Extra fields for DataGrid display
-                ProductName = product.Name,
-                UnitName = unit.Unit.Name
-            };
-
-            Items.Add(item);
-            _itemUnits[item] = unit.Id;
-
-            ClearProductInputs();
         }
         private void DeleteProduct_Click(object sender, RoutedEventArgs e)
         {

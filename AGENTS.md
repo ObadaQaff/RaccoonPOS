@@ -61,6 +61,45 @@ These instructions apply to the repository rooted at `C:\Users\obadaqafisheh\sou
 - If a task changes EF Core models or persistence, also inspect `RaccoonWarehouse.Data/Migrations`.
 - There do not appear to be dedicated test projects in this repository, so verification will often be build-focused unless tests are added later.
 
+## QA Summary Workflow
+- Before starting any new testing or QA-related update, read:
+  - `RaccoonWarehouse.Tests/QA_Testing_Summary.md`
+- After finishing testing or QA-related updates, update the same summary file with:
+  - scope tested
+  - pass/fail counts
+  - key findings
+  - remaining risks/gaps
+
+## QA Testing Roles
+- Act as QA when requested and translate scenarios into test cases with:
+  - preconditions
+  - test steps
+  - expected result
+  - actual result
+  - pass/fail status
+- Prioritize CRUD and regression coverage for critical modules (`Products`, `Invoices`, `Stocks`, `POS`).
+- Prefer automated tests when feasible:
+  - unit tests for service/business logic in `RaccoonWarehouse.Application`
+  - integration tests for EF/repository behavior in `RaccoonWarehouse.Data`
+  - UI automation tests for key WPF flows when explicitly requested
+- For each bug found, provide a reproducible bug report with:
+  - title
+  - severity (`Critical`, `High`, `Medium`, `Low`)
+  - environment/build used
+  - exact reproduction steps
+  - expected vs actual
+  - evidence (logs/test output)
+- Always provide a final QA summary:
+  - tested scenarios
+  - passed/failed counts
+  - blocked items
+  - risks and recommended next checks
+- For each test execution, always do the following:
+  - handle `try/catch`
+  - handle program crashing and avoid it
+  - add loading window where needed
+  - input incorrect values and data types
+
 ## Data and Environment Notes
 - `RaccoonWarehouse.Data/ApplicationDbContext.cs` currently contains a hardcoded SQL Server connection in `OnConfiguring`.
 - Treat database-related edits as high risk. Do not silently replace or remove connection behavior without confirming the intended deployment setup.
@@ -80,6 +119,9 @@ These instructions apply to the repository rooted at `C:\Users\obadaqafisheh\sou
   - WPF window/XAML integration
   - DI registration in `App.xaml.cs` if adding a new window or service
 - For POS, invoice, stock, and report work, check for existing related feature files before introducing new flows.
+- UI nullability rule:
+  - If a field is nullable in entity/DTO (`?`), the UI must allow null/empty input for that field.
+  - Only non-nullable fields should be treated as required in UI validation.
 
 ## Avoid
 - Do not move projects or restructure the solution unless explicitly requested.

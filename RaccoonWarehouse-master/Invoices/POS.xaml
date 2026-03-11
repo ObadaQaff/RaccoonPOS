@@ -380,6 +380,24 @@
                                                     <TextBlock Text="Master" Margin="8,0,0,0"/>
                                                 </StackPanel>
                                             </Button>
+                                            <Button Style="{StaticResource POSNeutralButton}" Height="44" MinWidth="120" Click="DebitPaymentBtn_Click">
+                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                                    <iconPacks:PackIconMaterial Kind="BankTransfer" Width="18" Height="18"/>
+                                                    <TextBlock Text="Debit" Margin="8,0,0,0"/>
+                                                </StackPanel>
+                                            </Button>
+                                            <Button Style="{StaticResource POSNeutralButton}" Height="44" MinWidth="120" Click="CheckPaymentBtn_Click">
+                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                                    <iconPacks:PackIconMaterial Kind="FileDocumentCheckOutline" Width="18" Height="18"/>
+                                                    <TextBlock Text="Check" Margin="8,0,0,0"/>
+                                                </StackPanel>
+                                            </Button>
+                                            <Button Style="{StaticResource POSNeutralButton}" Height="44" MinWidth="120" Click="MobilePaymentBtn_Click">
+                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                                    <iconPacks:PackIconMaterial Kind="CellphoneNfc" Width="18" Height="18"/>
+                                                    <TextBlock Text="Mobile" Margin="8,0,0,0"/>
+                                                </StackPanel>
+                                            </Button>
                                             <Button Style="{StaticResource POSAdjustmentButton}" Height="44" MinWidth="120" Click="CreditPaymentBtn_Click">
                                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                                     <iconPacks:PackIconMaterial Kind="AccountClock" Width="18" Height="18"/>

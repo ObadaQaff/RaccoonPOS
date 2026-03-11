@@ -1,15 +1,13 @@
-﻿using AutoMapper;
+using AutoMapper;
 using Microsoft.Extensions.DependencyInjection;
 using RaccoonWarehouse;
 using RaccoonWarehouse.Application.Service.SubCategories;
+using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Domain.SubCategories.DTOs;
 using RaccoonWarehouse.Domain.Users.DTOs;
 using RaccoonWarehouse.Navigation;
 using RaccoonWarehouse.Stocks;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -29,26 +27,42 @@ namespace RaccoonWarehouse.SubCategories
     {
         private readonly ISubCategoryService _subCategoryService;
         private readonly IMapper _mapper;
-        public SubCategoryTable(ISubCategoryService subCategoryService, IMapper mapper)
+        private readonly ILoadingService _loadingService;
+
+        public SubCategoryTable(ISubCategoryService subCategoryService, IMapper mapper, ILoadingService loadingService)
         {
             _subCategoryService = subCategoryService;
             _mapper = mapper;
+            _loadingService = loadingService;
             InitializeComponent();
-            Load_SubCategories();
+            _ = Load_SubCategoriesAsync();
         }
-        private async void Load_SubCategories()
+
+        private async Task Load_SubCategoriesAsync()
         {
-
-            var result = await _subCategoryService.GetAllWithIncludeAsync(s=>s.ParentCategory);
-            if (result.Success)
+            try
             {
-                SubCategoriesTable1.ItemsSource = result.Data;
+                _loadingService.Show();
 
+                var result = await _subCategoryService.GetAllWithIncludeAsync(s => s.ParentCategory);
+                if (result.Success)
+                {
+                    SubCategoriesTable1.ItemsSource = result.Data;
+                }
+                else
+                {
+                    MessageBox.Show(result.Message ?? "Failed to load sub-categories.");
+                }
             }
-
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Unexpected error while loading sub-categories: {ex.Message}");
+            }
+            finally
+            {
+                _loadingService.Hide();
+            }
         }
-   
-       
 
         private void CreateCategoryBtn_Click(object sender, RoutedEventArgs e)
         {
@@ -72,36 +86,61 @@ namespace RaccoonWarehouse.SubCategories
             createCategory.Show();
             this.Hide();
         }
-        private void Delete_SubCategory(object sender, RoutedEventArgs e)
+
+        private async void Delete_SubCategory(object sender, RoutedEventArgs e)
         {
             var selectedSubCategory = SubCategoriesTable1.SelectedItem as SubCategoryReadDto;
-            if (selectedSubCategory != null)
+            if (selectedSubCategory == null)
             {
-                var messageResult = MessageBox.Show(
-                $"Are you sure you want to delete  \'{selectedSubCategory.Name}\' Category ?",
+                MessageBox.Show("No subcategory selected.");
+                return;
+            }
+
+            var messageResult = MessageBox.Show(
+                $"Are you sure you want to delete  '{selectedSubCategory.Name}' Category ?",
                 "Confirm Delete",
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Warning);
 
-                if (messageResult == MessageBoxResult.Yes)
-                {
-                    _subCategoryService.DeleteAsync(selectedSubCategory.Id);
-                    MessageBox.Show("Delete was successfully !!");
-                    Load_SubCategories();
-                }
+            if (messageResult != MessageBoxResult.Yes)
+            {
+                return;
             }
 
+            try
+            {
+                _loadingService.Show();
+                var result = await _subCategoryService.DeleteAsync(selectedSubCategory.Id);
+
+                if (result.Success)
+                {
+                    MessageBox.Show("Delete was successful !!");
+                    await Load_SubCategoriesAsync();
+                }
+                else
+                {
+                    MessageBox.Show(result.Message ?? "Delete failed.");
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Unexpected error while deleting sub-category: {ex.Message}");
+            }
+            finally
+            {
+                _loadingService.Hide();
+            }
         }
+
         private void Update_SubCategory(object sender, RoutedEventArgs e)
         {
-
             if (SubCategoriesTable1.SelectedItem is not SubCategoryReadDto selectedCategory)
             {
                 MessageBox.Show("No subcategory selected.");
                 return;
             }
 
-            WindowManager.ShowDialog<UpdateSubCategory>(WindowSizeType.MediumRectangle,w =>
+            WindowManager.ShowDialog<UpdateSubCategory>(WindowSizeType.MediumRectangle, w =>
             {
                 w.Load_SubCategory_For_Update(selectedCategory.Id);
             });

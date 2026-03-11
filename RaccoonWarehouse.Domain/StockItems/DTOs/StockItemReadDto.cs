@@ -16,8 +16,20 @@ namespace RaccoonWarehouse.Domain.StockItems.DTOs
     {
         public int Id { get; set; }
 
-        public int StockId { get; set; }
-        public StockDocumentReadDto? Stock { get; set; }
+        public int StockDocumentId { get; set; }
+        public StockDocumentReadDto? StockDocument { get; set; }
+
+        public int StockId
+        {
+            get => StockDocumentId;
+            set => StockDocumentId = value;
+        }
+
+        public StockDocumentReadDto? Stock
+        {
+            get => StockDocument;
+            set => StockDocument = value;
+        }
 
         public int ProductId { get; set; }
         public ProductReadDto? Product { get; set; }

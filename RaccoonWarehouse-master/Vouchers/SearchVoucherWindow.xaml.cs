@@ -1,4 +1,5 @@
 ﻿using RaccoonWarehouse.Application.Service.Vouchers;
+using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Core.Common;
 using RaccoonWarehouse.Domain.Checks.DTOs;
 using RaccoonWarehouse.Domain.Enums;
@@ -11,6 +12,7 @@ namespace RaccoonWarehouse.Vouchers
     public partial class SearchVoucherWindow : Window
     {
         private readonly IVoucherService _voucherService;
+        private readonly ILoadingService _loadingService;
 
         public VoucherReadDto? Result { get; private set; }
         public List<CheckReadDto> Checks { get; set; }
@@ -21,40 +23,59 @@ namespace RaccoonWarehouse.Vouchers
             InitializeComponent();
             _voucherService = voucherService;
             _isSale = Sale;
+            _loadingService = new LoadingService();
         }
 
         private async void SearchBtn_Click(object sender, RoutedEventArgs e)
         {
-            string number = DocNumberTxt.Text.Trim();
-            string customer = CustomerTxt.Text.Trim();
-
-            DateTime? from = DateFrom.SelectedDate;
-            DateTime? to = DateTo.SelectedDate;
-
-            var results= new List<VoucherReadDto>();
-            if (_isSale)
+            try
             {
-                results = await _voucherService.SearchVouchersAsync(
-                voucherNumber: number,
-                customerName: customer,
-                dateFrom: from,
-                dateTo: to,
-                paymentType: null,  
-                type: VoucherType.Receipt
+                string number = DocNumberTxt.Text.Trim();
+                string customer = CustomerTxt.Text.Trim();
+
+                DateTime? from = DateFrom.SelectedDate;
+                DateTime? to = DateTo.SelectedDate;
+                if (from.HasValue && to.HasValue && from > to)
+                {
+                    MessageBox.Show("تاريخ البداية يجب أن يكون قبل تاريخ النهاية.", "تنبيه");
+                    return;
+                }
+
+                _loadingService.Show();
+                var results = new List<VoucherReadDto>();
+                if (_isSale)
+                {
+                    results = await _voucherService.SearchVouchersAsync(
+                    voucherNumber: number,
+                    customerName: customer,
+                    dateFrom: from,
+                    dateTo: to,
+                    paymentType: null,
+                    type: VoucherType.Receipt
+                    );
+                }
+                else
+                {
+                    results = await _voucherService.SearchVouchersAsync(
+                    voucherNumber: number,
+                    customerName: customer,
+                    dateFrom: from,
+                    dateTo: to,
+                    paymentType: null,
+                    type: VoucherType.Payment
                 );
-            }
-            else
-            {
-                results = await _voucherService.SearchVouchersAsync(
-                voucherNumber: number,
-                customerName: customer,
-                dateFrom: from,
-                dateTo: to,
-                paymentType: null,   
-                type: VoucherType.Payment
-            );}
+                }
 
-            ResultsGrid.ItemsSource = results;
+                ResultsGrid.ItemsSource = results;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"حدث خطأ أثناء البحث عن السند:\n{ex.Message}", "خطأ", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                _loadingService.Hide();
+            }
         }
 
 

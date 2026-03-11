@@ -10,8 +10,20 @@ public class StockItemWriteDto : IBaseDto
 {
     public int Id { get; set; }
 
-    public int StockId { get; set; }
-    public StockDocumentWriteDto? Stock { get; set; }
+    public int StockDocumentId { get; set; }
+    public StockDocumentWriteDto? StockDocument { get; set; }
+
+    public int StockId
+    {
+        get => StockDocumentId;
+        set => StockDocumentId = value;
+    }
+
+    public StockDocumentWriteDto? Stock
+    {
+        get => StockDocument;
+        set => StockDocument = value;
+    }
 
     public int ProductId { get; set; }
     public ProductWriteDto? Product { get; set; }
