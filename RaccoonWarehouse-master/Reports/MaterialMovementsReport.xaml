@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:fa="http://schemas.fontawesome.io/icons/"
         Title="التسويات المخزنية"
-        Height="800" Width="1400"
+        Height="880" Width="1750"
         WindowStartupLocation="CenterScreen"
         WindowState="Maximized"
         Background="#EEF3F7"
@@ -161,16 +161,18 @@
             <Border Grid.Row="1" Background="White" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" CornerRadius="24" Padding="14">
                 <DataGrid x:Name="MaterialMovementsGrid" AutoGenerateColumns="False" Style="{StaticResource ReportDataGridStyle}">
                     <DataGrid.Columns>
-                        <DataGridTextColumn Header="رقم الحركة" Binding="{Binding TransactionId}" Width="110"/>
-                        <DataGridTextColumn Header="التاريخ" Binding="{Binding TransactionDate, StringFormat=yyyy-MM-dd HH:mm}" Width="160"/>
-                        <DataGridTextColumn Header="كود الصنف" Binding="{Binding ITEMCODE}" Width="130"/>
-                        <DataGridTextColumn Header="اسم الصنف" Binding="{Binding ProductName}" Width="240"/>
-                        <DataGridTextColumn Header="الوحدة" Binding="{Binding UnitName}" Width="120"/>
-                        <DataGridTextColumn Header="الكمية" Binding="{Binding Quantity}" Width="110"/>
-                        <DataGridTextColumn Header="سعر الوحدة" Binding="{Binding UnitPrice}" Width="120"/>
-                        <DataGridTextColumn Header="المرجع" Binding="{Binding SourceReference}" Width="120"/>
-                        <DataGridTextColumn Header="تم بواسطة" Binding="{Binding CreatedBy}" Width="150"/>
-                        <DataGridTextColumn Header="الملاحظات" Binding="{Binding Notes}" Width="220"/>
+                        <DataGridTextColumn Header="رقم الحركة" Binding="{Binding TransactionId}" Width="120"/>
+                        <DataGridTextColumn Header="التاريخ" Binding="{Binding TransactionDate, StringFormat=yyyy-MM-dd HH:mm}" Width="185"/>
+                        <DataGridTextColumn Header="كود الصنف" Binding="{Binding ITEMCODE}" Width="170"/>
+                        <DataGridTextColumn Header="اسم الصنف" Binding="{Binding ProductName}" Width="290"/>
+                        <DataGridTextColumn Header="الوحدة" Binding="{Binding UnitName}" Width="140"/>
+                        <DataGridTextColumn Header="الكمية" Binding="{Binding Quantity}" Width="120"/>
+                        <DataGridTextColumn Header="سعر الوحدة" Binding="{Binding UnitPrice}" Width="145"/>
+                        <DataGridTextColumn Header="نوع التسوية" Binding="{Binding AdjustmentType}" Width="150"/>
+                        <DataGridTextColumn Header="حالة الدفعة" Binding="{Binding BatchAction}" Width="140"/>
+                        <DataGridTextColumn Header="المرجع" Binding="{Binding SourceReference}" Width="170"/>
+                        <DataGridTextColumn Header="تم بواسطة" Binding="{Binding CreatedBy}" Width="200"/>
+                        <DataGridTextColumn Header="الملاحظات" Binding="{Binding Notes}" Width="320"/>
                     </DataGrid.Columns>
                 </DataGrid>
             </Border>

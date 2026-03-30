@@ -15,6 +15,9 @@ namespace RaccoonWarehouse.Domain.Stock.DTOs
 
         public decimal Quantity { get; set; }
         public decimal? MinimumQuantity { get; set; }
+        public decimal PurchasePrice { get; set; }
+        public decimal SalePrice { get; set; }
+        public DateTime? NearestExpiryDate { get; set; }
 
         // Optional: Useful for UI
         public bool IsLowStock => MinimumQuantity.HasValue && Quantity <= MinimumQuantity;

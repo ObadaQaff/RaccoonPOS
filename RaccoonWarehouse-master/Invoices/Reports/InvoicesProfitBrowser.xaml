@@ -186,6 +186,7 @@
                             <DataGridTextColumn Header="رقم" Binding="{Binding InvoiceNumber}" Width="170"/>
                             <DataGridTextColumn Header="التاريخ" Binding="{Binding Date, StringFormat=yyyy-MM-dd HH:mm}" Width="160"/>
                             <DataGridTextColumn Header="الزبون" Binding="{Binding CustomerName}" Width="220"/>
+                            <DataGridTextColumn Header="المندوب" Binding="{Binding DelegateName}" Width="180"/>
 
                             <DataGridTextColumn Header="SubTotal" Binding="{Binding SubTotal}" Width="120"/>
                             <DataGridTextColumn Header="Tax" Binding="{Binding TotalTax}" Width="100"/>

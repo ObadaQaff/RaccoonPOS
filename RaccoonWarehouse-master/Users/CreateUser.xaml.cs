@@ -1,6 +1,8 @@
+using RaccoonWarehouse.Application.Service.Permissions;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Users.DTOs;
+using RaccoonWarehouse.Helpers.Localization;
 using System;
 using System.Windows;
 
@@ -10,12 +12,15 @@ namespace RaccoonWarehouse
     {
         private readonly IUserService _userService;
         private readonly IUserSession _userSession;
+        private readonly IPermissionService _permissionService;
 
-        public CreateUser(IUserService userService, IUserSession userSession)
+        public CreateUser(IUserService userService, IUserSession userSession, IPermissionService permissionService)
         {
             _userService = userService;
             _userSession = userSession;
+            _permissionService = permissionService;
             InitializeComponent();
+            UiText.ApplyWindow(this);
 
             Role.ItemsSource = Enum.GetValues(typeof(UserRole));
             Role.SelectedIndex = 0;
@@ -25,25 +30,26 @@ namespace RaccoonWarehouse
         {
             try
             {
-                if (_userSession.CurrentUser?.Role != UserRole.Admin)
+                var role = _userSession.CurrentUser?.Role;
+                if (!role.HasValue || !await _permissionService.HasPermissionAsync(role.Value, "Users.Create"))
                 {
-                    MessageBox.Show("فقط المدير يمكنه إنشاء مستخدم جديد.");
+                    MessageBox.Show(UiText.T("ليس لديك صلاحية إنشاء مستخدم جديد.", "You do not have permission to create a new user."));
                     return;
                 }
 
                 if (string.IsNullOrWhiteSpace(FullName.Text) || string.IsNullOrWhiteSpace(Password.Text))
                 {
-                    MessageBox.Show("الرجاء تعبئة الحقول المطلوبة.");
+                    MessageBox.Show(UiText.T("الرجاء تعبئة الحقول المطلوبة.", "Please fill in the required fields."));
                     return;
                 }
 
                 if (Password.Text != ConfirmPassword.Text)
                 {
-                    MessageBox.Show("تأكيد كلمة المرور غير مطابق.");
+                    MessageBox.Show(UiText.T("تأكيد كلمة المرور غير مطابق.", "Password confirmation does not match."));
                     return;
                 }
 
-                CreateStatusText.Text = "جارٍ الحفظ";
+                CreateStatusText.Text = UiText.T("جارٍ الحفظ", "Saving");
 
                 var user = new UserWriteDto
                 {
@@ -56,13 +62,13 @@ namespace RaccoonWarehouse
                 var result = await _userService.CreateAsync(user);
                 if (!result.Success)
                 {
-                    CreateStatusText.Text = "فشل";
+                    CreateStatusText.Text = UiText.T("فشل", "Failed");
                     MessageBox.Show(result.Message);
                     return;
                 }
 
-                CreateStatusText.Text = "تم";
-                MessageBox.Show("تمت إضافة المستخدم بنجاح.");
+                CreateStatusText.Text = UiText.T("تم", "Done");
+                MessageBox.Show(UiText.T("تمت إضافة المستخدم بنجاح.", "User added successfully."));
                 FullName.Text = "";
                 PhoneNumber.Text = "";
                 Password.Text = "";
@@ -71,8 +77,12 @@ namespace RaccoonWarehouse
             }
             catch (Exception ex)
             {
-                CreateStatusText.Text = "فشل";
-                MessageBox.Show($"حدث خطأ غير متوقع:\n{ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                CreateStatusText.Text = UiText.T("فشل", "Failed");
+                MessageBox.Show(
+                    $"{UiText.T("حدث خطأ غير متوقع", "An unexpected error occurred")}:\n{ex.Message}",
+                    UiText.T("خطأ", "Error"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
             }
         }
 

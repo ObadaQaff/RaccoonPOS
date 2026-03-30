@@ -1,4 +1,5 @@
 using RaccoonWarehouse.Application.Service.Stocks;
+using RaccoonWarehouse.Helpers.Localization;
 using System;
 using System.Windows;
 
@@ -12,6 +13,7 @@ namespace RaccoonWarehouse.Reports
         {
             InitializeComponent();
             _stockReportService = stockReportService;
+            UiText.ApplyWindow(this);
             FromDatePicker.SelectedDate = DateTime.Today;
             ToDatePicker.SelectedDate = DateTime.Today;
         }
@@ -33,7 +35,7 @@ namespace RaccoonWarehouse.Reports
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"خطأ: {ex.Message}");
+                MessageBox.Show($"{UiText.T("خطأ", "Error")}: {ex.Message}");
             }
         }
     }

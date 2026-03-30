@@ -4,6 +4,7 @@ using RaccoonWarehouse.Application.Service.StockDocuments;
 using RaccoonWarehouse.Application.Service.Stocks;
 using RaccoonWarehouse.Application.Service.StockTransactions;
 using RaccoonWarehouse.Application.Service.Users;
+using RaccoonWarehouse.Common;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Products;
 using RaccoonWarehouse.Domain.Products.DTOs;
@@ -13,9 +14,11 @@ using RaccoonWarehouse.Domain.Stock.DTOs;
 using RaccoonWarehouse.Domain.StockDocuments.DTOs;
 using RaccoonWarehouse.Domain.StockItems.DTOs;
 using RaccoonWarehouse.Domain.StockTransactions.DTOs;
+using RaccoonWarehouse.Helpers.Localization;
 using RaccoonWarehouse.Helpers.Pdf;
 using System;
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Threading.Tasks;
@@ -72,10 +75,13 @@ namespace RaccoonWarehouse.Stocks
             _stockDocumentService = stockDocumentService;
 
             InitializeComponent();
+            UiText.ApplyWindow(this);
             DataContext = this;
             ProductsGrid.ItemsSource = Items;
 
             this.Loaded += StockIn_Loaded;
+            Closed += StockIn_Closed;
+            CatalogRefreshNotifier.CatalogChanged += CatalogRefreshNotifier_CatalogChanged;
         }
         #region Page Load 
         private async void StockIn_Loaded(object sender, RoutedEventArgs e)
@@ -104,6 +110,7 @@ namespace RaccoonWarehouse.Stocks
 
                 if (result?.Items != null)
                 {
+                    _productUnitsMap.Clear();
                     Products.Clear();  // 🔥 Must use Clear() + Add()
 
                     foreach (var p in result.Items)
@@ -112,9 +119,22 @@ namespace RaccoonWarehouse.Stocks
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"حدث خطأ أثناء تحميل البيانات: {ex.Message}",
-                    "خطأ", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"{UiText.T("حدث خطأ أثناء تحميل البيانات", "An error occurred while loading data")}: {ex.Message}",
+                    UiText.T("خطأ", "Error"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+
+        private async void CatalogRefreshNotifier_CatalogChanged(object? sender, EventArgs e)
+        {
+            if (!IsLoaded)
+                return;
+
+            await LoadDataAsync();
+        }
+
+        private void StockIn_Closed(object? sender, EventArgs e)
+        {
+            CatalogRefreshNotifier.CatalogChanged -= CatalogRefreshNotifier_CatalogChanged;
         }
 
         #endregion
@@ -153,7 +173,7 @@ namespace RaccoonWarehouse.Stocks
             {   
                 if (Items.Count == 0)
                 {
-                    MessageBox.Show("يرجى إضافة منتج واحد على الأقل.", "تنبيه",
+                    MessageBox.Show(UiText.T("يرجى إضافة منتج واحد على الأقل.", "Please add at least one product."), UiText.T("تنبيه", "Notice"),
                         MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
@@ -163,15 +183,43 @@ namespace RaccoonWarehouse.Stocks
                 {
                     if (!_itemUnits.TryGetValue(item, out var unitId) || unitId <= 0)
                     {
-                        MessageBox.Show($"الوحدة غير صحيحة للمنتج {item.ProductName ?? "غير معروف"}.");
+                        MessageBox.Show(UiText.T($"الوحدة غير صحيحة للمنتج {item.ProductName ?? "غير معروف"}.", $"The unit is invalid for product {item.ProductName ?? "Unknown"}."), UiText.T("تنبيه", "Notice"));
                         return;
                     }
 
                     item.ProductUnitId = unitId;
                     await NormalizeStockItemAsync(item);
+
+                    if (item.Quantity <= 0)
+                    {
+                        MessageBox.Show(UiText.T($"الكمية غير صحيحة للمنتج {item.ProductName ?? "غير معروف"}.", $"The quantity is invalid for product {item.ProductName ?? "Unknown"}."), UiText.T("تنبيه", "Notice"));
+                        return;
+                    }
+
+                    if (item.PurchasePrice <= 0)
+                    {
+                        MessageBox.Show(UiText.T($"سعر الشراء يجب أن يكون أكبر من صفر للمنتج {item.ProductName ?? "غير معروف"}.", $"The purchase price must be greater than zero for product {item.ProductName ?? "Unknown"}."), UiText.T("تنبيه", "Notice"));
+                        return;
+                    }
+
+                    if (item.SalePrice <= 0)
+                    {
+                        MessageBox.Show(UiText.T($"سعر البيع يجب أن يكون أكبر من صفر للمنتج {item.ProductName ?? "غير معروف"}.", $"The sale price must be greater than zero for product {item.ProductName ?? "Unknown"}."), UiText.T("تنبيه", "Notice"));
+                        return;
+                    }
                 }
 
                 bool isUpdate = _currentDocumentId != null;
+
+                if (isUpdate)
+                {
+                    MessageBox.Show(
+                        UiText.T("لا يمكن تعديل سند إدخال مخزون بعد حفظه مباشرة لأن ذلك قد يغيّر التاريخ المحاسبي وحركات الدُفعات المستخدمة. استخدم شاشة تسوية/تصحيح المخزون الجديدة لإجراء أي تعديل آمن.", "A stock-in document cannot be edited after saving because that may change the accounting date and used batch movements. Use the stock adjustment window for safe changes."),
+                        UiText.T("تعديل محظور", "Edit blocked"),
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    return;
+                }
 
                 // ============= CREATE DTO =============
                 var documentDto = new StockDocumentWriteDto
@@ -182,7 +230,7 @@ namespace RaccoonWarehouse.Stocks
                     SupplierId = 1,
                     Notes = NotesTxt.Text,
                     Items = Items.ToList(),
-                    CreatedDate = isUpdate ? _originalItems.First().CreatedDate : DateTime.Now,
+                    CreatedDate = isUpdate ? _originalItems.FirstOrDefault()?.CreatedDate ?? DateTime.Now : DateTime.Now,
                     UpdatedDate = DateTime.Now
                 };
 
@@ -197,7 +245,7 @@ namespace RaccoonWarehouse.Stocks
 
                         if (!movementResult.Success)
                         {
-                            MessageBox.Show(movementResult.Message ?? "فشل تحديث المخزون.", "خطأ");
+                            MessageBox.Show(movementResult.Message ?? UiText.T("فشل تحديث المخزون.", "Failed to update stock."), UiText.T("خطأ", "Error"));
                             return;
                         }
 
@@ -205,45 +253,16 @@ namespace RaccoonWarehouse.Stocks
                     }
                    
 
-                    MessageBox.Show("تم إنشاء السند بنجاح.", "نجاح",
+                    MessageBox.Show(UiText.T("تم إنشاء السند بنجاح.", "The document was created successfully."), UiText.T("نجاح", "Success"),
                         MessageBoxButton.OK, MessageBoxImage.Information);
                 }
-                else
-                {
-                    // ============= UPDATE =============
-                    // ============= UPDATE =============
-                    var result = await _stockDocumentService.UpdateAsync(documentDto);
-                    if (result.Success)
-                    {
-                        // 1️⃣ Return original quantities to stock (reverse)
-                        var reverseResult = await _stockService.PostMovementsAsync(
-                            BuildStockMovements(_originalItems, TransactionType.Adjustment, $"Reverse stock in document #{documentDto.DocumentNumber}", reverseSign: true));
-                        if (!reverseResult.Success)
-                        {
-                            MessageBox.Show(reverseResult.Message ?? "فشل عكس حركة المخزون.", "خطأ");
-                            return;
-                        }
-
-                        // 2️⃣ Add new quantities
-                        var applyResult = await _stockService.PostMovementsAsync(
-                            BuildStockMovements(Items, TransactionType.Purchase, $"Update stock in document #{documentDto.DocumentNumber}"));
-                        if (!applyResult.Success)
-                        {
-                            MessageBox.Show(applyResult.Message ?? "فشل تحديث حركة المخزون.", "خطأ");
-                            return;
-                        }
-                    }
-                    MessageBox.Show("تم تحديث السند بنجاح.", "نجاح",
-                        MessageBoxButton.OK, MessageBoxImage.Information);
-                }
-
                 PrintBtn.Visibility = Visibility.Visible;
                 NewStockInBtn.Visibility = Visibility.Visible;
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"حدث خطأ أثناء الحفظ: {ex.Message}",
-                    "خطأ", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"{UiText.T("حدث خطأ أثناء الحفظ", "An error occurred while saving")}: {ex.Message}",
+                    UiText.T("خطأ", "Error"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -306,6 +325,9 @@ namespace RaccoonWarehouse.Stocks
                     QuantityPerUnitSnapshot = item.QuantityPerUnitSnapshot > 0 ? item.QuantityPerUnitSnapshot : 1m,
                     BaseQuantity = baseQuantity,
                     UnitPrice = item.PurchasePrice,
+                    PurchasePrice = item.PurchasePrice,
+                    SalePrice = item.SalePrice,
+                    ExpiryDate = item.ExpiryDate,
                     TransactionType = transactionType,
                     TransactionDate = DateTime.Now,
                     Notes = notes
@@ -333,6 +355,9 @@ namespace RaccoonWarehouse.Stocks
                     QuantityPerUnitSnapshot = quantityPerUnit,
                     BaseQuantity = reverseSign ? -baseQuantity : baseQuantity,
                     UnitPrice = item.PurchasePrice,
+                    PurchasePrice = item.PurchasePrice,
+                    SalePrice = item.SalePrice,
+                    ExpiryDate = item.ExpiryDate,
                     TransactionType = transactionType,
                     TransactionDate = DateTime.Now,
                     Notes = notes
@@ -394,8 +419,8 @@ namespace RaccoonWarehouse.Stocks
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"حدث خطأ أثناء تحديث الوحدات: {ex.Message}",
-                                "خطأ", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"{UiText.T("حدث خطأ أثناء تحديث الوحدات", "An error occurred while updating units")}: {ex.Message}",
+                                UiText.T("خطأ", "Error"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
       
@@ -549,7 +574,7 @@ namespace RaccoonWarehouse.Stocks
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"خطأ أثناء تحميل الوحدات: {ex.Message}", "خطأ");
+                MessageBox.Show($"{UiText.T("خطأ أثناء تحميل الوحدات", "Error while loading units")}: {ex.Message}", UiText.T("خطأ", "Error"));
             }
             finally
             {
@@ -572,19 +597,31 @@ namespace RaccoonWarehouse.Stocks
         {
             if (ProductBox.SelectedItem is not ProductReadDto product)
             {
-                MessageBox.Show("يرجى اختيار منتج.", "تنبيه");
+                MessageBox.Show(UiText.T("يرجى اختيار منتج.", "Please choose a product."), UiText.T("تنبيه", "Notice"));
                 return;
             }
 
             if (UnitBox.SelectedItem is not ProductUnitWriteDto unit)
             {
-                MessageBox.Show("يرجى اختيار وحدة.", "تنبيه");
+                MessageBox.Show(UiText.T("يرجى اختيار وحدة.", "Please choose a unit."), UiText.T("تنبيه", "Notice"));
                 return;
             }
 
             if (!decimal.TryParse(QtyBox.Text, out decimal qty) || qty <= 0)
             {
-                MessageBox.Show("الكمية غير صحيحة.", "تنبيه");
+                MessageBox.Show(UiText.T("الكمية غير صحيحة.", "The quantity is invalid."), UiText.T("تنبيه", "Notice"));
+                return;
+            }
+
+            if (!TryParseDecimalInput(PurchaseBox.Text, out var purchasePrice) || purchasePrice <= 0)
+            {
+                MessageBox.Show(UiText.T("سعر الشراء غير صحيح.", "The purchase price is invalid."), UiText.T("تنبيه", "Notice"));
+                return;
+            }
+
+            if (!TryParseDecimalInput(SaleBox.Text, out var salePrice) || salePrice <= 0)
+            {
+                MessageBox.Show(UiText.T("سعر البيع غير صحيح.", "The sale price is invalid."), UiText.T("تنبيه", "Notice"));
                 return;
             }
 
@@ -595,8 +632,8 @@ namespace RaccoonWarehouse.Stocks
                 Quantity = qty,
                 QuantityPerUnitSnapshot = unit.QuantityPerUnit > 0 ? unit.QuantityPerUnit : 1m,
                 BaseQuantity = qty * (unit.QuantityPerUnit > 0 ? unit.QuantityPerUnit : 1m),
-                PurchasePrice = decimal.TryParse(PurchaseBox.Text, out var p) ? p : 0,
-                SalePrice = decimal.TryParse(SaleBox.Text, out var s) ? s : 0,
+                PurchasePrice = purchasePrice,
+                SalePrice = salePrice,
                 ExpiryDate = ExpiryBox.SelectedDate ?? DateTime.Now.AddMonths(6),
                 CreatedDate = DateTime.Now,
                 UpdatedDate = DateTime.Now,
@@ -610,6 +647,16 @@ namespace RaccoonWarehouse.Stocks
             _itemUnits[item] = unit.Id;
 
             ClearProductInputs();
+        }
+
+        private static bool TryParseDecimalInput(string? text, out decimal value)
+        {
+            value = 0m;
+            if (string.IsNullOrWhiteSpace(text))
+                return false;
+
+            return decimal.TryParse(text, NumberStyles.Number, CultureInfo.CurrentCulture, out value)
+                || decimal.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out value);
         }
         private void DeleteProduct_Click(object sender, RoutedEventArgs e)
         {
@@ -655,7 +702,7 @@ namespace RaccoonWarehouse.Stocks
                 FontSize = 24,
                 FontWeight = FontWeights.Bold
             };
-            title.Inlines.Add("سند إدخال بضاعة");
+            title.Inlines.Add(UiText.T("سند إدخال بضاعة", "Stock In Document"));
             doc.Blocks.Add(title);
 
             doc.Blocks.Add(new Paragraph(new Run("________________________________________________________")));
@@ -677,10 +724,10 @@ namespace RaccoonWarehouse.Stocks
                 infoGroup.Rows.Add(row);
             }
 
-            AddInfo("رقم السند:", dto.DocumentNumber);
-            AddInfo("التاريخ:", dto.CreatedDate.ToString("yyyy/MM/dd"));
-            AddInfo("المستخدم:", dto.Supplier?.Name ?? "-");
-            AddInfo("ملاحظات:", dto.Notes ?? "");
+            AddInfo(UiText.T("رقم السند:", "Document No:"), dto.DocumentNumber);
+            AddInfo(UiText.T("التاريخ:", "Date:"), dto.CreatedDate.ToString("yyyy/MM/dd"));
+            AddInfo(UiText.T("المستخدم:", "User:"), dto.Supplier?.Name ?? "-");
+            AddInfo(UiText.T("ملاحظات:", "Notes:"), dto.Notes ?? "");
 
             doc.Blocks.Add(infoTable);
             doc.Blocks.Add(new Paragraph(new Run(" ")));
@@ -689,7 +736,15 @@ namespace RaccoonWarehouse.Stocks
             Table itemsTable = new Table();
             itemsTable.CellSpacing = 0;
 
-            string[] headers = { "المنتج", "الوحدة", "الكمية", "سعر الشراء", "سعر البيع", "تاريخ الانتهاء" };
+            string[] headers =
+            {
+                UiText.T("المنتج", "Product"),
+                UiText.T("الوحدة", "Unit"),
+                UiText.T("الكمية", "Quantity"),
+                UiText.T("سعر الشراء", "Purchase Price"),
+                UiText.T("سعر البيع", "Sale Price"),
+                UiText.T("تاريخ الانتهاء", "Expiry Date")
+            };
 
             foreach (var _ in headers)
                 itemsTable.Columns.Add(new TableColumn());
@@ -738,7 +793,8 @@ namespace RaccoonWarehouse.Stocks
                 FontWeight = FontWeights.Bold,
                 Margin = new Thickness(0, 20, 0, 0)
             };
-            footer.Inlines.Add("توقيع الموظف: ________________________");
+            footer.Inlines.Add(UiText.T("توقيع الموظف: ________________________", "Employee Signature: ________________________"));
+            UiText.ApplyDocument(doc);
             doc.Blocks.Add(footer);
 
             // PRINT
@@ -759,7 +815,7 @@ namespace RaccoonWarehouse.Stocks
 
             if (doc == null)
             {
-                MessageBox.Show("السند غير موجود.", "خطأ", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(UiText.T("السند غير موجود.", "The document was not found."), UiText.T("خطأ", "Error"), MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }else
             {
@@ -785,8 +841,8 @@ namespace RaccoonWarehouse.Stocks
                 // Generate PDF using QuestPDF
                 PdfGenerator.StockIn(doc, path);
 
-                MessageBox.Show("تم حفظ ملف PDF بنجاح.",
-                    "تم الحفظ",
+                MessageBox.Show(UiText.T("تم حفظ ملف PDF بنجاح.", "The PDF file was saved successfully."),
+                    UiText.T("تم الحفظ", "Saved"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
 

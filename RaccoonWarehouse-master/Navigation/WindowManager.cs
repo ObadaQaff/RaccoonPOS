@@ -143,8 +143,8 @@ namespace RaccoonWarehouse.Navigation
                     break;
 
                 case WindowSizeType.MediumRectangle:
-                    window.Width = 1000;
-                    window.Height = 650;
+                    window.Width = 1300;
+                    window.Height = 800;
                     window.WindowState = WindowState.Normal;
                     break;
 

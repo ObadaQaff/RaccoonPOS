@@ -4,3 +4,8 @@
 *.user
 *.rsuser
 *.suo
+publish/
+.dotnet-cli/
+**/publish/
+**/[Bb]in/
+**/[Oo]bj/

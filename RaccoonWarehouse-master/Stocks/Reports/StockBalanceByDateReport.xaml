@@ -210,6 +210,7 @@
                         <DataGridTextColumn Header="اسم الصنف" Binding="{Binding ProductName}" Width="280"/>
                         <DataGridTextColumn Header="الوحدة" Binding="{Binding UnitName}" Width="160"/>
                         <DataGridTextColumn Header="الكمية" Binding="{Binding Quantity}" Width="120"/>
+                        <DataGridTextColumn Header="أقرب انتهاء" Binding="{Binding NearestExpiryDate, StringFormat=yyyy-MM-dd, TargetNullValue=-}" Width="150"/>
                         <DataGridTextColumn Header="الحد الأدنى" Binding="{Binding MinimumQuantity}" Width="140"/>
                         <DataGridTextColumn Header="الحالة" Binding="{Binding StatusText}" Width="160"/>
                     </DataGrid.Columns>

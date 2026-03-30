@@ -1,0 +1,111 @@
+<Window x:Class="RaccoonWarehouse.Accounting.TrialBalanceReport"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:fa="http://schemas.fontawesome.io/icons/"
+        Title="ميزان المراجعة"
+        Height="900"
+        Width="1450"
+        WindowStartupLocation="CenterScreen"
+        FlowDirection="RightToLeft"
+        Background="{StaticResource AppPageBackgroundBrush}">
+    <Grid Background="{StaticResource AppPageBackgroundBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="220"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        <Border Grid.Row="0" CornerRadius="0,0,34,34" Background="{StaticResource AppDashboardHeroBrush}">
+            <Grid Margin="34,24,34,34">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="ميزان المراجعة" FontSize="34" FontWeight="Bold" Foreground="White"/>
+                    <TextBlock Text="مراجعة الأرصدة الافتتاحية والحركة وصافي الرصيد لكل حساب." Margin="0,8,0,0" FontSize="16" Foreground="#D6E7E2"/>
+                </StackPanel>
+                <Border Grid.Column="1" Padding="18,12" CornerRadius="20" Background="#1FFFFFFF" VerticalAlignment="Center">
+                    <StackPanel>
+                        <TextBlock Text="التقرير" FontSize="12" Foreground="#CFE8E3" HorizontalAlignment="Center"/>
+                        <TextBlock Text="محاسبي" Margin="0,4,0,0" FontSize="18" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
+        <Grid Grid.Row="1" Margin="24,-52,24,24">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+            <Border Grid.Row="0" Style="{StaticResource AppCardBorderStyle}" Padding="24">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="220"/>
+                        <ColumnDefinition Width="220"/>
+                        <ColumnDefinition Width="200"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Margin="0,0,16,0">
+                        <TextBlock Text="من تاريخ" FontWeight="SemiBold"/>
+                        <DatePicker x:Name="FromDatePicker" Margin="0,8,0,0" Height="40"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Margin="0,0,16,0">
+                        <TextBlock Text="إلى تاريخ" FontWeight="SemiBold"/>
+                        <DatePicker x:Name="ToDatePicker" Margin="0,8,0,0" Height="40"/>
+                    </StackPanel>
+                    <CheckBox x:Name="IncludeZeroCheckBox" Grid.Column="2" VerticalAlignment="Bottom" Margin="0,0,16,8" Content="إظهار الحسابات الصفرية"/>
+                    <StackPanel Grid.Column="3" Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Bottom">
+                        <Button Width="180" Style="{StaticResource AppHeroButtonStyle}" Click="GenerateBtn_Click">
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <fa:ImageAwesome Icon="Table" Width="16" Height="16" Margin="0,0,8,0"
+                                                 Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                                <TextBlock Text="عرض التقرير"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Width="120" Style="{StaticResource AppSecondaryButtonStyle}" Click="BackBtn_Click">
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <fa:ImageAwesome Icon="ArrowRight" Width="16" Height="16" Margin="0,0,8,0"
+                                                 Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                                <TextBlock Text="رجوع"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </Border>
+            <UniformGrid Grid.Row="1" Columns="3" Margin="0,18,0,0">
+                <Border Style="{StaticResource AppCardBorderStyle}" Padding="18">
+                    <StackPanel>
+                        <TextBlock Text="إجمالي مدين" Foreground="#6B7280"/>
+                        <TextBlock x:Name="TotalDebitText" FontSize="24" FontWeight="Bold"/>
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource AppCardBorderStyle}" Padding="18" Margin="12,0">
+                    <StackPanel>
+                        <TextBlock Text="إجمالي دائن" Foreground="#6B7280"/>
+                        <TextBlock x:Name="TotalCreditText" FontSize="24" FontWeight="Bold"/>
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource AppCardBorderStyle}" Padding="18">
+                    <StackPanel>
+                        <TextBlock Text="الحالة" Foreground="#6B7280"/>
+                        <TextBlock x:Name="BalancedText" FontSize="24" FontWeight="Bold"/>
+                    </StackPanel>
+                </Border>
+            </UniformGrid>
+            <Border Grid.Row="2" Margin="0,18,0,0" Style="{StaticResource AppCardBorderStyle}" Padding="16">
+                <DataGrid x:Name="TrialBalanceGrid" Style="{StaticResource AppModernDataGridStyle}" AutoGenerateColumns="False" IsReadOnly="True">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="الرمز" Binding="{Binding AccountCode}" Width="120"/>
+                        <DataGridTextColumn Header="الحساب" Binding="{Binding AccountName}" Width="260"/>
+                        <DataGridTextColumn Header="النوع" Binding="{Binding AccountType}" Width="140"/>
+                        <DataGridTextColumn Header="رصيد افتتاحي" Binding="{Binding OpeningBalance, StringFormat=N2}" Width="150"/>
+                        <DataGridTextColumn Header="مدين الفترة" Binding="{Binding Debit, StringFormat=N2}" Width="150"/>
+                        <DataGridTextColumn Header="دائن الفترة" Binding="{Binding Credit, StringFormat=N2}" Width="150"/>
+                        <DataGridTextColumn Header="رصيد مدين" Binding="{Binding ClosingDebit, StringFormat=N2}" Width="150"/>
+                        <DataGridTextColumn Header="رصيد دائن" Binding="{Binding ClosingCredit, StringFormat=N2}" Width="150"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>

@@ -1,37 +1,31 @@
-﻿using RaccoonWarehouse.Application.Service.Stocks;
+using RaccoonWarehouse.Application.Service.Stocks;
 using RaccoonWarehouse.Domain.Stock.Filters;
+using RaccoonWarehouse.Helpers.Localization;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Shapes;
 
 namespace RaccoonWarehouse.Products.Reports
 {
-    /// <summary>
-    /// Interaction logic for InactiveProductsReport.xaml
-    /// </summary>
     public partial class InactiveProductsReport : Window
     {
         private readonly IStockReportService _reportService;
-        public InactiveProductsReport( IStockReportService reportService)
+
+        public InactiveProductsReport(IStockReportService reportService)
         {
             _reportService = reportService;
             InitializeComponent();
+            UiText.ApplyWindow(this);
         }
+
         private async void GenerateReportBtn_Click(object sender, RoutedEventArgs e)
         {
             try
             {
-                int days = int.Parse(DaysTextBox.Text);
+                if (!int.TryParse(DaysTextBox.Text, out var days))
+                {
+                    MessageBox.Show(UiText.T("يرجى إدخال عدد أيام صحيح.", "Please enter a valid number of days."));
+                    return;
+                }
 
                 var filter = new InactiveProductsFilterDto
                 {
@@ -41,15 +35,13 @@ namespace RaccoonWarehouse.Products.Reports
                 };
 
                 var data = await _reportService.GetInactiveProductsAsync(filter);
-
                 InactiveGrid.ItemsSource = data;
+                UiText.ApplyTranslations(this);
             }
             catch (Exception ex)
             {
-                MessageBox.Show(ex.Message);
+                MessageBox.Show($"{UiText.T("خطأ", "Error")}: {ex.Message}");
             }
         }
     }
 }
-
-    

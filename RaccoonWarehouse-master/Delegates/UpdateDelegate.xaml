@@ -1,0 +1,40 @@
+<Window x:Class="RaccoonWarehouse.Delegates.UpdateDelegate"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="تعديل مندوب"
+        Width="860"
+        Height="560"
+        WindowStartupLocation="CenterScreen"
+        FlowDirection="RightToLeft"
+        Background="{StaticResource AppPageBackgroundBrush}">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <Grid Grid.Row="0" Margin="0,0,0,16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                <StackPanel Margin="0,0,0,12"><TextBlock Text="الكود"/><TextBox x:Name="CodeTextBox"/></StackPanel>
+                <StackPanel Margin="0,0,0,12"><TextBlock Text="الهاتف"/><TextBox x:Name="PhoneTextBox"/></StackPanel>
+                <StackPanel Margin="0,0,0,12"><TextBlock Text="النوع"/><ComboBox x:Name="TypeComboBox" Style="{StaticResource AppComboBoxStyle}"/></StackPanel>
+                <StackPanel Margin="0,0,0,12"><TextBlock Text="المستخدم المرتبط"/><ComboBox x:Name="UserComboBox" DisplayMemberPath="Name" SelectedValuePath="Id" Style="{StaticResource AppComboBoxStyle}"/></StackPanel>
+                <StackPanel Margin="0,0,0,12"><TextBlock Text="تاريخ التعيين"/><DatePicker x:Name="HireDatePicker"/></StackPanel>
+            </StackPanel>
+            <StackPanel Grid.Column="1" Margin="12,0,0,0">
+                <StackPanel Margin="0,0,0,12"><TextBlock Text="الاسم الكامل"/><TextBox x:Name="FullNameTextBox"/></StackPanel>
+                <StackPanel Margin="0,0,0,12"><TextBlock Text="هاتف إضافي"/><TextBox x:Name="AltPhoneTextBox"/></StackPanel>
+                <StackPanel Margin="0,0,0,12"><TextBlock Text="الحالة"/><ComboBox x:Name="StatusComboBox" Style="{StaticResource AppComboBoxStyle}"/></StackPanel>
+                <StackPanel Margin="0,0,0,12"><TextBlock Text="المنطقة"/><TextBox x:Name="RegionTextBox"/></StackPanel>
+                <StackPanel Margin="0,0,0,12"><TextBlock Text="ملاحظات"/><TextBox x:Name="NotesTextBox" Height="80" TextWrapping="Wrap" AcceptsReturn="True"/></StackPanel>
+            </StackPanel>
+        </Grid>
+        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,0">
+            <Button Content="حفظ" Width="120" Margin="6" Style="{StaticResource AppHeroButtonStyle}" Click="Save_Click"/>
+            <Button Content="إغلاق" Width="120" Margin="6" Style="{StaticResource AppSecondaryButtonStyle}" Click="Close_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

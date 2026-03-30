@@ -1,4 +1,5 @@
 using RaccoonWarehouse.Application.Service.Stocks;
+using RaccoonWarehouse.Helpers.Localization;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
@@ -14,6 +15,7 @@ namespace RaccoonWarehouse.Stocks.Reports
         {
             InitializeComponent();
             _stockReportService = stockReportService;
+            UiText.ApplyWindow(this);
             Loaded += StockValuationReport_Loaded;
         }
 
@@ -32,7 +34,11 @@ namespace RaccoonWarehouse.Stocks.Reports
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"خطأ: {ex.Message}");
+                MessageBox.Show(
+                    $"{UiText.T("خطأ", "Error")}: {ex.Message}",
+                    UiText.T("خطأ", "Error"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
             }
         }
 

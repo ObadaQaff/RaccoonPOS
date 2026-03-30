@@ -1,5 +1,6 @@
-﻿using RaccoonWarehouse.Application.Service.StockDocuments;
+using RaccoonWarehouse.Application.Service.StockDocuments;
 using RaccoonWarehouse.Domain.StockDocuments.DTOs;
+using RaccoonWarehouse.Helpers.Localization;
 using System.Windows;
 
 namespace RaccoonWarehouse.Stocks
@@ -16,6 +17,7 @@ namespace RaccoonWarehouse.Stocks
             InitializeComponent();
             _stockDocumentService = stockDocumentService;
             _stockIn = StockIn;
+            UiText.ApplyWindow(this);
         }
 
         private async void SearchBtn_Click(object sender, RoutedEventArgs e)
@@ -41,9 +43,12 @@ namespace RaccoonWarehouse.Stocks
             }
             else
             {
-                MessageBox.Show("يرجى اختيار سند من القائمة.", "تنبيه");
+                MessageBox.Show(
+                    UiText.T("يرجى اختيار سند من القائمة.", "Please select a document from the list."),
+                    UiText.T("تنبيه", "Notice"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
             }
         }
     }
 }
-

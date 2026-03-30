@@ -1,6 +1,7 @@
 ﻿using RaccoonWarehouse.Application.Service.FinancialTransactions;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.FinancialTransactions.DTOs;
+using RaccoonWarehouse.Helpers.Localization;
 using System;
 using System.Windows;
 using System.Windows.Threading;
@@ -37,6 +38,7 @@ namespace RaccoonWarehouse.FinancialTransactions
             };
 
             DataContext = _dto;
+            UiText.ApplyWindow(this);
 
             LoadPaymentMethods();
             StartClock();
@@ -62,13 +64,13 @@ namespace RaccoonWarehouse.FinancialTransactions
         {
             if (!decimal.TryParse(AmountTextBox.Text, out var amount) || amount <= 0)
             {
-                MessageBox.Show("يرجى إدخال مبلغ صحيح");
+                MessageBox.Show(UiText.T("يرجى إدخال مبلغ صحيح", "Please enter a valid amount."));
                 return;
             }
 
             if (PaymentMethodCombo.SelectedItem == null)
             {
-                MessageBox.Show("يرجى اختيار طريقة القبض");
+                MessageBox.Show(UiText.T("يرجى اختيار طريقة القبض", "Please choose a receipt method."));
                 return;
             }
 
@@ -82,13 +84,13 @@ namespace RaccoonWarehouse.FinancialTransactions
             if (result.Success)
             {
                 _timer.Stop();
-                MessageBox.Show("تم تسجيل سند القبض بنجاح ✅");
+                MessageBox.Show(UiText.T("تم تسجيل سند القبض بنجاح ✅", "Receipt voucher saved successfully."));
                 DialogResult = true;
                 Close();
             }
             else
             {
-                MessageBox.Show(result.Message ?? "حدث خطأ أثناء الحفظ");
+                MessageBox.Show(result.Message ?? UiText.T("حدث خطأ أثناء الحفظ", "An error occurred while saving."));
             }
         }
 

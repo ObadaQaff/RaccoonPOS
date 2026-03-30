@@ -1,34 +1,23 @@
-﻿using RaccoonWarehouse.Application.Service.Warehouses;
+using RaccoonWarehouse.Application.Service.Warehouses;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Warehouses.DTOs;
+using RaccoonWarehouse.Helpers.Localization;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Shapes;
 
 namespace RaccoonWarehouse.Warehouses
 {
-    /// <summary>
-    /// Interaction logic for CreateWarehouse.xaml
-    /// </summary>
     public partial class CreateWarehouse : Window
     {
-        IWarehouseService _warehouseService;
-        
+        private readonly IWarehouseService _warehouseService;
+
         public CreateWarehouse(IWarehouseService warehouseService)
         {
             _warehouseService = warehouseService;
             InitializeComponent();
-            WarehouseStatus.ItemsSource = Enum.GetValues(typeof(Domain.Enums.WarehouseStatus));
+            UiText.ApplyWindow(this);
+            WarehouseStatus.ItemsSource = Enum.GetValues(typeof(WarehouseStatus));
+            UiText.ApplyTranslations(this);
         }
 
         private async void CreateWarehouseBtn_Click(object sender, RoutedEventArgs e)
@@ -45,38 +34,50 @@ namespace RaccoonWarehouse.Warehouses
                     CreatedDate = DateTime.UtcNow,
                     UpdatedDate = DateTime.UtcNow
                 };
-                 var result = await _warehouseService.CreateAsync(dto);
+
+                var result = await _warehouseService.CreateAsync(dto);
                 if (result.Success)
                 {
-                    MessageBox.Show("تمت إضافة المستودع بنجاح ✅", "نجاح", MessageBoxButton.OK, MessageBoxImage.Information);
-
+                    MessageBox.Show(
+                        UiText.T("تمت إضافة المستودع بنجاح.", "The warehouse was added successfully."),
+                        UiText.T("نجاح", "Success"),
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
                 }
                 else
                 {
-                    MessageBox.Show("حدث خطأ: ", "خطأ", MessageBoxButton.OK, MessageBoxImage.Error);
-
+                    MessageBox.Show(
+                        result.Message ?? UiText.T("حدث خطأ أثناء إضافة المستودع.", "An error occurred while adding the warehouse."),
+                        UiText.T("خطأ", "Error"),
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Error);
                 }
 
-                this.DialogResult = true;
-                this.Close();
+                DialogResult = true;
+                Close();
             }
             catch (Exception ex)
             {
-                MessageBox.Show("حدث خطأ: " + ex.Message, "خطأ", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(
+                    $"{UiText.T("حدث خطأ", "An error occurred")}: {ex.Message}",
+                    UiText.T("خطأ", "Error"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
             }
         }
 
         private void BackBtn_Click(object sender, RoutedEventArgs e)
         {
-            this.Close();
+            Close();
         }
+
         private void ClearForm()
         {
             WarehouseName.Text = string.Empty;
             WarehouseLocation.Text = string.Empty;
             WarehousePhone.Text = string.Empty;
             WarehouseDescription.Text = string.Empty;
-            WarehouseStatus.SelectedIndex = -1; // Reset ComboBox selection
+            WarehouseStatus.SelectedIndex = -1;
         }
     }
 }

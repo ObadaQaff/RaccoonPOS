@@ -5,6 +5,7 @@ using RaccoonWarehouse.Domain.Checks.DTOs;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Users.DTOs;
 using RaccoonWarehouse.Domain.Vouchers.DTOs;
+using RaccoonWarehouse.Helpers.Localization;
 using System.Windows;
 
 namespace RaccoonWarehouse.Vouchers
@@ -21,6 +22,7 @@ namespace RaccoonWarehouse.Vouchers
         public SearchVoucherWindow(IVoucherService voucherService, bool Sale)
         {
             InitializeComponent();
+            UiText.ApplyWindow(this);
             _voucherService = voucherService;
             _isSale = Sale;
             _loadingService = new LoadingService();
@@ -37,7 +39,7 @@ namespace RaccoonWarehouse.Vouchers
                 DateTime? to = DateTo.SelectedDate;
                 if (from.HasValue && to.HasValue && from > to)
                 {
-                    MessageBox.Show("تاريخ البداية يجب أن يكون قبل تاريخ النهاية.", "تنبيه");
+                    MessageBox.Show(UiText.T("تاريخ البداية يجب أن يكون قبل تاريخ النهاية.", "The start date must be before the end date."), UiText.T("تنبيه", "Notice"));
                     return;
                 }
 
@@ -70,7 +72,7 @@ namespace RaccoonWarehouse.Vouchers
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"حدث خطأ أثناء البحث عن السند:\n{ex.Message}", "خطأ", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"{UiText.T("حدث خطأ أثناء البحث عن السند", "An error occurred while searching for the voucher")}:\n{ex.Message}", UiText.T("خطأ", "Error"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {
@@ -94,7 +96,7 @@ namespace RaccoonWarehouse.Vouchers
             Result = ResultsGrid.SelectedItem as VoucherReadDto;
             if (Result == null)
             {
-                MessageBox.Show("يرجى اختيار سند.");
+                MessageBox.Show(UiText.T("يرجى اختيار سند.", "Please select a voucher."));
                 return;
             }
 

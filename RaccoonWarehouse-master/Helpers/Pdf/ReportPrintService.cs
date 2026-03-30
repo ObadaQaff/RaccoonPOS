@@ -1,5 +1,6 @@
 using Microsoft.Win32;
 using QuestPDF.Fluent;
+using RaccoonWarehouse.Helpers.Localization;
 using System;
 using System.Diagnostics;
 using System.IO;
@@ -23,7 +24,7 @@ namespace RaccoonWarehouse.Helpers.Pdf
                 return;
 
             document.GeneratePdf(dialog.FileName);
-            MessageBox.Show(owner, "تم تصدير التقرير بنجاح.", "PDF", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(owner, UiText.Translate("تم تصدير التقرير بنجاح."), UiText.Translate("PDF"), MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         public static void Print(IReportDocument document, Window owner)

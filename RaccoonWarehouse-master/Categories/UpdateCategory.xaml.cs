@@ -1,26 +1,14 @@
 using AutoMapper;
-using Microsoft.Extensions.DependencyInjection;
 using RaccoonWarehouse.Application.Service.Categories;
-using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Domain.Categories.DTOs;
-using RaccoonWarehouse.Domain.Users.DTOs;
-using RaccoonWarehouse;
+using RaccoonWarehouse.Helpers.Localization;
 using System;
+using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Shapes;
 
 namespace RaccoonWarehouse.Categories
 {
-    /// <summary>
-    /// Interaction logic for UpdateCategory.xaml
-    /// </summary>
     public partial class UpdateCategory : Window
     {
         private CategoryWriteDto _category;
@@ -29,7 +17,6 @@ namespace RaccoonWarehouse.Categories
         private readonly ILoadingService _loadingService;
         private int _categoryId;
 
-
         public UpdateCategory(ICategoryService categoryService, IMapper mapper, ILoadingService loadingService)
         {
             _mapper = mapper;
@@ -37,24 +24,25 @@ namespace RaccoonWarehouse.Categories
             _loadingService = loadingService;
             InitializeComponent();
             _category = new CategoryWriteDto();
-
+            UiText.ApplyWindow(this);
         }
+
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
-
         }
-        public async void Initialize(int Id)
+
+        public async void Initialize(int id)
         {
-            _categoryId = Id;
-            await Category_LoadAsync(_categoryId);
+            _categoryId = id;
+            await LoadCategoryAsync(_categoryId);
         }
 
-        private async Task Category_LoadAsync(int Id)
+        private async Task LoadCategoryAsync(int id)
         {
             try
             {
                 _loadingService.Show();
-                var result = await _categoryService.GetWriteDtoByIdAsync(Id);
+                var result = await _categoryService.GetWriteDtoByIdAsync(id);
                 if (result.Success && result.Data != null)
                 {
                     _category = result.Data;
@@ -63,12 +51,12 @@ namespace RaccoonWarehouse.Categories
                 }
                 else
                 {
-                    MessageBox.Show(result.Message ?? "Failed to load category data.");
+                    MessageBox.Show(result.Message ?? UiText.T("تعذر تحميل بيانات الفئة.", "Could not load the category data."));
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Unexpected error while loading category: {ex.Message}");
+                MessageBox.Show($"{UiText.T("حدث خطأ أثناء تحميل الفئة", "An error occurred while loading the category")}: {ex.Message}");
             }
             finally
             {
@@ -78,10 +66,15 @@ namespace RaccoonWarehouse.Categories
 
         private async void Update_CategoryBtn_Click(object sender, RoutedEventArgs e)
         {
-            if (string.IsNullOrWhiteSpace(CategoryName.Text) ||
-              string.IsNullOrWhiteSpace(CategoryDes.Text))
+            if (_category == null || _category.Id <= 0)
             {
-                MessageBox.Show("Please fill in all required fields.");
+                MessageBox.Show(UiText.T("تعذر تحميل بيانات الفئة قبل التحديث.", "Could not load the category data before updating."));
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(CategoryName.Text) || string.IsNullOrWhiteSpace(CategoryDes.Text))
+            {
+                MessageBox.Show(UiText.T("يرجى تعبئة جميع الحقول المطلوبة.", "Please fill in all required fields."));
                 return;
             }
 
@@ -95,25 +88,26 @@ namespace RaccoonWarehouse.Categories
                 var result = await _categoryService.UpdateAsync(_category);
                 if (result.Success)
                 {
-                    MessageBox.Show("Update was successful!");
+                    MessageBox.Show(UiText.T("تم تحديث الفئة بنجاح.", "The category was updated successfully."));
                 }
                 else
                 {
-                    MessageBox.Show(result.Message ?? "Failed to update category.");
+                    MessageBox.Show(result.Message ?? UiText.T("فشل تحديث الفئة.", "Failed to update the category."));
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Unexpected error while updating category: {ex.Message}");
+                MessageBox.Show($"{UiText.T("حدث خطأ أثناء تحديث الفئة", "An error occurred while updating the category")}: {ex.Message}");
             }
             finally
             {
                 _loadingService.Hide();
             }
         }
+
         private void BackBtn_Click(object sender, RoutedEventArgs e)
         {
-            this.Close();
+            Close();
         }
     }
 }

@@ -1,5 +1,6 @@
 ﻿using AutoMapper;
 using Microsoft.EntityFrameworkCore;
+using RaccoonWarehouse.Application.Service.Accounting;
 using RaccoonWarehouse.Application.Service.Generic;
 using RaccoonWarehouse.Core.Common;
 using RaccoonWarehouse.Core.Interface;
@@ -27,6 +28,7 @@ namespace RaccoonWarehouse.Application.Service.Invoices
     {
         private readonly IUOW _uow;
         private readonly IMapper _mapper;
+        private readonly IAccountingService? _accountingService;
 
         //POS Operations
         #region POS Operations
@@ -42,10 +44,15 @@ namespace RaccoonWarehouse.Application.Service.Invoices
         #endregion
 
 
-        public InvoiceService(ApplicationDbContext context, IUOW uow, IMapper mapper) : base(context, uow, mapper)
+        public InvoiceService(ApplicationDbContext context, IUOW uow, IMapper mapper) : this(context, uow, mapper, null)
+        {
+        }
+
+        public InvoiceService(ApplicationDbContext context, IUOW uow, IMapper mapper, IAccountingService? accountingService) : base(context, uow, mapper)
         {
             _uow = uow;
             _mapper = mapper;
+            _accountingService = accountingService;
         }
         public override async Task<Result<InvoiceWriteDto>> CreateAsync(InvoiceWriteDto dto)
         {
@@ -111,6 +118,13 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 await _uow.CommitAsync();
 
                 dto.Id = invoice.Id;
+                if (_accountingService != null)
+                {
+                    var journalResult = await _accountingService.PostInvoiceEntryAsync(dto);
+                    if (!journalResult.Success)
+                        return Result<InvoiceWriteDto>.Fail($"Invoice saved but accounting posting failed: {journalResult.Message}");
+                }
+
                 return Result<InvoiceWriteDto>.Ok(dto, "Invoice created successfully.");
             }
             catch (Exception ex)
@@ -118,6 +132,82 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 return Result<InvoiceWriteDto>.Fail($"Error creating invoice: {ex.Message}");
             }
         }
+
+        public override async Task<Result<InvoiceWriteDto>> UpdateAsync(InvoiceWriteDto dto)
+        {
+            try
+            {
+                if (dto.Id <= 0)
+                    return Result<InvoiceWriteDto>.Fail("Invoice id is required.");
+
+                if (dto.InvoiceLines == null || !dto.InvoiceLines.Any())
+                    return Result<InvoiceWriteDto>.Fail("Invoice must contain at least one line.");
+
+                var invoiceRepo = _uow.GetRepository<Invoice>();
+                var lineRepo = _uow.GetRepository<InvoiceLine>();
+                var existingInvoice = await invoiceRepo.GetAllAsQueryable()
+                    .Include(x => x.InvoiceLines)
+                    .FirstOrDefaultAsync(x => x.Id == dto.Id);
+
+                if (existingInvoice == null)
+                    return Result<InvoiceWriteDto>.Fail("Invoice not found.");
+
+                await NormalizeInvoiceLinesAsync(dto.InvoiceLines);
+                ApplyInvoiceTotals(dto, existingInvoice.CreatedDate);
+
+                var oldStatus = existingInvoice.Status;
+                var hadPostedAccounting = oldStatus is not InvoiceStatus.OnHold and not InvoiceStatus.Draft and not InvoiceStatus.Cancelled;
+
+                _mapper.Map(dto, existingInvoice);
+                existingInvoice.CreatedDate = dto.CreatedDate;
+                existingInvoice.UpdatedDate = dto.UpdatedDate;
+
+                var existingLines = existingInvoice.InvoiceLines?.ToList() ?? new List<InvoiceLine>();
+                if (existingLines.Count > 0)
+                    _context.Set<InvoiceLine>().RemoveRange(existingLines);
+
+                existingInvoice.InvoiceLines = new List<InvoiceLine>();
+
+                await _uow.CommitAsync();
+
+                foreach (var lineDto in dto.InvoiceLines)
+                {
+                    var line = _mapper.Map<InvoiceLine>(lineDto);
+                    line.InvoiceId = existingInvoice.Id;
+                    line.Invoice = null;
+                    line.CreatedDate = lineDto.CreatedDate == default ? dto.CreatedDate : lineDto.CreatedDate;
+                    line.UpdatedDate = dto.UpdatedDate;
+                    await lineRepo.AddAsync(line);
+                }
+
+                await _uow.CommitAsync();
+
+                if (_accountingService != null)
+                {
+                    if (hadPostedAccounting)
+                    {
+                        var reverseResult = await _accountingService.ReverseJournalByReferenceAsync(
+                            "Invoice",
+                            existingInvoice.Id,
+                            $"Repost invoice #{existingInvoice.InvoiceNumber} after update");
+
+                        if (!reverseResult.Success)
+                            return Result<InvoiceWriteDto>.Fail($"Invoice updated but accounting reversal failed: {reverseResult.Message}");
+                    }
+
+                    var repostResult = await _accountingService.PostInvoiceEntryAsync(dto);
+                    if (!repostResult.Success)
+                        return Result<InvoiceWriteDto>.Fail($"Invoice updated but accounting repost failed: {repostResult.Message}");
+                }
+
+                return Result<InvoiceWriteDto>.Ok(dto, "Invoice updated successfully.");
+            }
+            catch (Exception ex)
+            {
+                return Result<InvoiceWriteDto>.Fail($"Error updating invoice: {ex.Message}");
+            }
+        }
+
         private async Task NormalizeInvoiceLinesAsync(IEnumerable<InvoiceLineWriteDto> lines)
         {
             var lineList = lines?.Where(l => l != null).ToList();
@@ -159,6 +249,36 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 line.BaseQuantity = line.Quantity * factor;
             }
         }
+
+        private static void ApplyInvoiceTotals(InvoiceWriteDto dto, DateTime originalCreatedDate)
+        {
+            foreach (var l in dto.InvoiceLines!)
+            {
+                var lineTotal = l.Quantity * l.UnitPrice;
+                var taxRate = l.TaxExempt ? 0m : l.TaxRate;
+                var divisor = 1m + (taxRate / 100m);
+
+                l.LineSubTotal = l.TaxExempt || divisor <= 0m
+                    ? lineTotal
+                    : Math.Round(lineTotal / divisor, 3);
+                l.TaxAmount = Math.Round(lineTotal - l.LineSubTotal, 3);
+
+                var costTotal = l.Quantity * l.UnitCost;
+                l.ProfitBeforeTax = l.LineSubTotal - costTotal;
+                l.Profit = l.ProfitBeforeTax;
+            }
+
+            var grossSales = dto.InvoiceLines.Sum(x => x.Quantity * x.UnitPrice);
+            dto.SubTotal = dto.InvoiceLines.Sum(x => x.LineSubTotal);
+            dto.TotalTax = dto.InvoiceLines.Sum(x => x.TaxAmount);
+            dto.TotalAmount = grossSales - (dto.DiscountAmount ?? 0m);
+            dto.TotalCOGS = dto.InvoiceLines.Sum(x => x.CostTotal);
+            dto.NetSales = dto.SubTotal - (dto.DiscountAmount ?? 0m);
+            dto.GrossProfit = dto.NetSales - dto.TotalCOGS;
+            dto.CreatedDate = originalCreatedDate == default ? DateTime.Now : originalCreatedDate;
+            dto.UpdatedDate = DateTime.Now;
+        }
+
         private void RecalculateInvoice(Invoice invoice)
         {
             if (invoice.InvoiceLines == null)
@@ -207,6 +327,7 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                     .ThenInclude(l => l.ProductUnit)
                         .ThenInclude(u => u.Unit)
                 .Include(i => i.User)          // customer
+                .Include(i => i.Delegate)
                 .Include(i => i.Voucher)       // voucher (optional)
                 .AsNoTracking();
 
@@ -226,6 +347,7 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 var query = _uow.Invoices.GetAllAsQueryable()
                        .Include(i => i.InvoiceLines)
                        .Include(i => i.User)
+                       .Include(i => i.Delegate)
                        .AsNoTracking();
                 if (isSal==true)
                 {

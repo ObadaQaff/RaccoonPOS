@@ -1,8 +1,6 @@
-﻿using RaccoonWarehouse.Application.Service.Stocks;
-using RaccoonWarehouse.Domain.Stock.DTOs;
+using RaccoonWarehouse.Application.Service.Stocks;
+using RaccoonWarehouse.Helpers.Localization;
 using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 using System.Windows;
 
 namespace RaccoonWarehouse.Stocks.Reports
@@ -15,6 +13,7 @@ namespace RaccoonWarehouse.Stocks.Reports
         {
             InitializeComponent();
             _stockReportService = stockReportService;
+            UiText.ApplyWindow(this);
 
             BalanceDatePicker.SelectedDate = DateTime.Now;
         }
@@ -25,20 +24,26 @@ namespace RaccoonWarehouse.Stocks.Reports
             {
                 if (BalanceDatePicker.SelectedDate == null)
                 {
-                    MessageBox.Show("اختر تاريخاً أولاً.");
+                    MessageBox.Show(
+                        UiText.T("اختر تاريخاً أولاً.", "Please choose a date first."),
+                        UiText.T("تنبيه", "Notice"),
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
                     return;
                 }
 
                 var date = BalanceDatePicker.SelectedDate.Value.Date;
-
-                // includeInvoices=true => يضيف فواتير البيع/المرتجع للحركات
                 var rows = await _stockReportService.GetStockBalanceByDateAsync(date, includeInvoices: true);
 
                 StockBalanceGrid.ItemsSource = rows;
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"خطأ: {ex.Message}");
+                MessageBox.Show(
+                    $"{UiText.T("خطأ", "Error")}: {ex.Message}",
+                    UiText.T("خطأ", "Error"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
             }
         }
 

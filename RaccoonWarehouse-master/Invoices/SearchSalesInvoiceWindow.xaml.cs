@@ -1,5 +1,6 @@
-﻿using RaccoonWarehouse.Application.Service.Invoices;
+using RaccoonWarehouse.Application.Service.Invoices;
 using RaccoonWarehouse.Domain.Invoices.DTOs;
+using RaccoonWarehouse.Helpers.Localization;
 using System.Windows;
 
 namespace RaccoonWarehouse.Invoices
@@ -13,9 +14,9 @@ namespace RaccoonWarehouse.Invoices
         public SearchSalesInvoiceWindow(IInvoiceService invoiceService, bool? isSal)
         {
             InitializeComponent();
+            UiText.ApplyWindow(this);
             _invoiceService = invoiceService;
             _isSal = isSal;
-
         }
 
         private async void SearchBtn_Click(object sender, RoutedEventArgs e)
@@ -24,13 +25,17 @@ namespace RaccoonWarehouse.Invoices
                 InvoiceNumberTxt.Text,
                 CustomerTxt.Text,
                 DateFrom.SelectedDate,
-                DateTo.SelectedDate,_isSal
+                DateTo.SelectedDate,
+                _isSal
             );
 
             if (result.Success)
+            {
                 ResultsGrid.ItemsSource = result.Data;
+                UiText.ApplyTranslations(ResultsGrid);
+            }
             else
-                MessageBox.Show(result.Message);
+                MessageBox.Show(result.Message ?? UiText.T("تعذر تحميل نتائج البحث.", "Failed to load search results."), UiText.T("خطأ", "Error"));
         }
 
         private void SelectBtn_Click(object sender, RoutedEventArgs e)
@@ -44,4 +49,3 @@ namespace RaccoonWarehouse.Invoices
         }
     }
 }
-

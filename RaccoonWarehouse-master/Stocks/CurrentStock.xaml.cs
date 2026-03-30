@@ -1,5 +1,7 @@
-﻿using RaccoonWarehouse.Application.Service.Stocks;
+using Microsoft.Extensions.DependencyInjection;
+using RaccoonWarehouse.Application.Service.Stocks;
 using RaccoonWarehouse.Domain.Stock.DTOs;
+using RaccoonWarehouse.Helpers.Localization;
 using System;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -11,15 +13,18 @@ namespace RaccoonWarehouse.Stocks
     public partial class CurrentStock : Window
     {
         private readonly IStockReportService _stockReportService;
+        private readonly IServiceProvider _serviceProvider;
 
         public ObservableCollection<CurrentStockDto> CurrentStockItems { get; set; }
             = new ObservableCollection<CurrentStockDto>();
 
-        public CurrentStock(IStockReportService stockReportService)
+        public CurrentStock(IStockReportService stockReportService, IServiceProvider serviceProvider)
         {
             _stockReportService = stockReportService;
+            _serviceProvider = serviceProvider;
             InitializeComponent();
             DataContext = this;
+            UiText.ApplyWindow(this);
 
             Loaded += CurrentStock_Loaded;
         }
@@ -42,7 +47,11 @@ namespace RaccoonWarehouse.Stocks
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"خطأ أثناء تحميل المخزون: {ex.Message}");
+                MessageBox.Show(
+                    $"{UiText.T("خطأ أثناء تحميل المخزون", "Error loading stock")}: {ex.Message}",
+                    UiText.T("خطأ", "Error"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
             }
         }
 
@@ -50,11 +59,23 @@ namespace RaccoonWarehouse.Stocks
         {
             await LoadStock();
         }
+
         private void BackBtn_Click(object sender, RoutedEventArgs e)
         {
-            this.Close();
+            Close();
         }
 
+        private void AdjustBtn_Click(object sender, RoutedEventArgs e)
+        {
+            var window = _serviceProvider.GetRequiredService<StockAdjustmentWindow>();
+            if (StockGrid.SelectedItem is CurrentStockDto selected)
+                window.InitialProductId = selected.ProductId;
+
+            window.Owner = this;
+            window.ShowDialog();
+            if (window.SavedSuccessfully)
+                _ = LoadStock();
+        }
 
         private void SearchBtn_Click(object sender, RoutedEventArgs e)
         {
@@ -69,30 +90,30 @@ namespace RaccoonWarehouse.Stocks
             var filtered = CurrentStockItems
                 .Where(x =>
                     (x.ProductName?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false) ||
-                    (x.ITEMCODE?.Contains(term) ?? false)
-                )
+                    (x.ITEMCODE?.Contains(term) ?? false))
                 .ToList();
 
             StockGrid.ItemsSource = filtered;
         }
 
+        private void CopyBarcode_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not FrameworkElement { DataContext: CurrentStockDto item })
+                return;
 
-        /* private void SearchBtn_Click(object sender, RoutedEventArgs e)
-         {
-             var search = Microsoft.VisualBasic.Interaction.InputBox(
-                 "أدخل اسم المنتج للبحث:",
-                 "بحث عن منتج");
+            if (string.IsNullOrWhiteSpace(item.ITEMCODE))
+            {
+                MessageBox.Show(
+                    UiText.T("لا يوجد باركود لنسخه.", "There is no barcode to copy."),
+                    UiText.T("تنبيه", "Notice"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
 
-             if (string.IsNullOrWhiteSpace(search))
-                 return;
+            Clipboard.SetText(item.ITEMCODE);
+        }
 
-             var filtered = CurrentStockItems
-                 .Where(x => x.ProductName?.Contains(search, StringComparison.OrdinalIgnoreCase) == true)
-                 .ToList();
-
-             StockGrid.ItemsSource = filtered;
-         }
- */
         private void ExportBtn_Click(object sender, RoutedEventArgs e)
         {
             try
@@ -106,50 +127,54 @@ namespace RaccoonWarehouse.Stocks
                 if (dlg.ShowDialog() != true)
                     return;
 
-                using (var workbook = new ClosedXML.Excel.XLWorkbook())
+                using var workbook = new ClosedXML.Excel.XLWorkbook();
+                var ws = workbook.Worksheets.Add(UiText.T("المخزون الحالي", "Current Stock"));
+
+                ws.Cell(1, 1).Value = UiText.T("الباركود", "Barcode");
+                ws.Cell(1, 2).Value = UiText.T("المنتج", "Product");
+                ws.Cell(1, 3).Value = UiText.T("الوحدة", "Unit");
+                ws.Cell(1, 4).Value = UiText.T("الكمية", "Quantity");
+                ws.Cell(1, 5).Value = UiText.T("تكلفة المخزون", "Inventory Cost");
+                ws.Cell(1, 6).Value = UiText.T("سعر البيع الحالي", "Current Sale Price");
+                ws.Cell(1, 7).Value = UiText.T("أقرب انتهاء", "Nearest Expiry");
+                ws.Cell(1, 8).Value = UiText.T("الحد الأدنى", "Minimum Quantity");
+                ws.Cell(1, 9).Value = UiText.T("تنبيه", "Alert");
+
+                ws.Row(1).Style.Font.Bold = true;
+                ws.Row(1).Style.Fill.BackgroundColor = ClosedXML.Excel.XLColor.LightGray;
+
+                int row = 2;
+                foreach (var item in CurrentStockItems)
                 {
-                    var ws = workbook.Worksheets.Add("Current Stock");
-
-                    // HEADER ROW
-                    ws.Cell(1, 1).Value = "الباركود";
-                    ws.Cell(1, 2).Value = "المنتج";
-                    ws.Cell(1, 3).Value = "الوحدة";
-                    ws.Cell(1, 4).Value = "الكمية";
-                    ws.Cell(1, 5).Value = "الحد الأدنى";
-                    ws.Cell(1, 6).Value = "تنبيه";
-
-                    ws.Row(1).Style.Font.Bold = true;
-                    ws.Row(1).Style.Fill.BackgroundColor = ClosedXML.Excel.XLColor.LightGray;
-
-                    int row = 2;
-
-                    foreach (var item in CurrentStockItems)
-                    {
-                        ws.Cell(row, 1).Value = item.ITEMCODE;
-                        ws.Cell(row, 2).Value = item.ProductName;
-                        ws.Cell(row, 3).Value = item.UnitName;
-                        ws.Cell(row, 4).Value = item.Quantity;
-                        ws.Cell(row, 5).Value = item.MinimumQuantity;
-                        ws.Cell(row, 6).Value = item.IsLowStock ? "⚠ قليل" : "";
-
-                        row++;
-                    }
-
-                    // Auto fit columns
-                    ws.Columns().AdjustToContents();
-
-                    workbook.SaveAs(dlg.FileName);
+                    ws.Cell(row, 1).Value = item.ITEMCODE;
+                    ws.Cell(row, 2).Value = item.ProductName;
+                    ws.Cell(row, 3).Value = item.UnitName;
+                    ws.Cell(row, 4).Value = item.Quantity;
+                    ws.Cell(row, 5).Value = item.PurchasePrice;
+                    ws.Cell(row, 6).Value = item.SalePrice;
+                    ws.Cell(row, 7).Value = item.NearestExpiryDate?.ToString("yyyy-MM-dd") ?? "-";
+                    ws.Cell(row, 8).Value = item.MinimumQuantity;
+                    ws.Cell(row, 9).Value = item.IsLowStock ? UiText.T("⚠ قليل", "⚠ Low") : "";
+                    row++;
                 }
 
-                MessageBox.Show("تم استخراج ملف Excel بنجاح!", "نجاح",
-                    MessageBoxButton.OK, MessageBoxImage.Information);
+                ws.Columns().AdjustToContents();
+                workbook.SaveAs(dlg.FileName);
+
+                MessageBox.Show(
+                    UiText.T("تم استخراج ملف Excel بنجاح!", "Excel file exported successfully!"),
+                    UiText.T("نجاح", "Success"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
-                MessageBox.Show("حدث خطأ أثناء التصدير: " + ex.Message, "خطأ",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(
+                    $"{UiText.T("حدث خطأ أثناء التصدير", "An error occurred during export")}: {ex.Message}",
+                    UiText.T("خطأ", "Error"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
             }
         }
-
     }
 }

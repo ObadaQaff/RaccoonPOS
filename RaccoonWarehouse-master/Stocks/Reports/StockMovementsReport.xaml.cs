@@ -1,5 +1,6 @@
 using RaccoonWarehouse.Application.Service.Stocks;
 using RaccoonWarehouse.Domain.Stock.DTOs;
+using RaccoonWarehouse.Helpers.Localization;
 using RaccoonWarehouse.Helpers.Pdf;
 using RaccoonWarehouse.Helpers.Pdf.Reports;
 using System;
@@ -17,6 +18,7 @@ namespace RaccoonWarehouse.Stocks.Reports
         {
             InitializeComponent();
             _stockReportService = stockReportService;
+            UiText.ApplyWindow(this);
 
             FromDatePicker.SelectedDate = DateTime.Today;
             ToDatePicker.SelectedDate = DateTime.Today;
@@ -35,7 +37,11 @@ namespace RaccoonWarehouse.Stocks.Reports
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"خطأ: {ex.Message}");
+                MessageBox.Show(
+                    $"{UiText.T("خطأ", "Error")}: {ex.Message}",
+                    UiText.T("خطأ", "Error"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
             }
         }
 
@@ -51,7 +57,11 @@ namespace RaccoonWarehouse.Stocks.Reports
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"خطأ في تصدير التقرير: {ex.Message}");
+                MessageBox.Show(
+                    $"{UiText.T("خطأ في تصدير التقرير", "Error exporting the report")}: {ex.Message}",
+                    UiText.T("خطأ", "Error"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
             }
         }
 
@@ -67,7 +77,11 @@ namespace RaccoonWarehouse.Stocks.Reports
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"خطأ في طباعة التقرير: {ex.Message}");
+                MessageBox.Show(
+                    $"{UiText.T("خطأ في طباعة التقرير", "Error printing the report")}: {ex.Message}",
+                    UiText.T("خطأ", "Error"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
             }
         }
 
@@ -75,7 +89,11 @@ namespace RaccoonWarehouse.Stocks.Reports
         {
             if (_currentRows.Count == 0)
             {
-                MessageBox.Show("اعرض التقرير أولاً قبل التصدير أو الطباعة.");
+                MessageBox.Show(
+                    UiText.T("اعرض التقرير أولاً قبل التصدير أو الطباعة.", "Show the report first before exporting or printing."),
+                    UiText.T("تنبيه", "Notice"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
                 return null;
             }
 

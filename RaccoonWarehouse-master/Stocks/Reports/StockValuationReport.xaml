@@ -205,6 +205,7 @@
                         <DataGridTextColumn Header="الكمية الحالية" Binding="{Binding Quantity}" Width="130"/>
                         <DataGridTextColumn Header="تكلفة الوحدة" Binding="{Binding UnitCost}" Width="130"/>
                         <DataGridTextColumn Header="إجمالي القيمة" Binding="{Binding TotalValue}" Width="150"/>
+                        <DataGridTextColumn Header="أقرب انتهاء" Binding="{Binding NearestExpiryDate, StringFormat=yyyy-MM-dd, TargetNullValue=-}" Width="150"/>
                         <DataGridTextColumn Header="الحد الأدنى" Binding="{Binding MinimumQuantity}" Width="130"/>
                     </DataGrid.Columns>
                 </DataGrid>

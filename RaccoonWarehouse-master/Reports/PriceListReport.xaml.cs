@@ -1,5 +1,6 @@
 using RaccoonWarehouse.Application.Service.Stocks;
 using RaccoonWarehouse.Domain.Reports.Stocks.Dtos;
+using RaccoonWarehouse.Helpers.Localization;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -16,6 +17,7 @@ namespace RaccoonWarehouse.Reports
         {
             InitializeComponent();
             _stockReportService = stockReportService;
+            UiText.ApplyWindow(this);
             Loaded += PriceListReport_Loaded;
         }
 
@@ -28,7 +30,7 @@ namespace RaccoonWarehouse.Reports
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"خطأ: {ex.Message}");
+                MessageBox.Show($"{UiText.T("خطأ", "Error")}: {ex.Message}");
             }
         }
 

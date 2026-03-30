@@ -1,19 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Shapes;
-
-using System.Windows;
 using RaccoonWarehouse.Application.Service.Invoices;
+using RaccoonWarehouse.Helpers.Localization;
+using System.Linq;
+using System.Windows;
 
 namespace RaccoonWarehouse.POS
 {
@@ -22,11 +10,11 @@ namespace RaccoonWarehouse.POS
         public string OriginalInvoiceId { get; private set; }
         private readonly IInvoiceService _invoiceService;
 
-        public ReturnInvoiceWindow(
-            IInvoiceService invoiceService)
+        public ReturnInvoiceWindow(IInvoiceService invoiceService)
         {
             _invoiceService = invoiceService;
             InitializeComponent();
+            UiText.ApplyWindow(this);
         }
 
         private async void Confirm_Click(object sender, RoutedEventArgs e)
@@ -35,39 +23,31 @@ namespace RaccoonWarehouse.POS
 
             if (string.IsNullOrWhiteSpace(invoiceNumber))
             {
-                MessageBox.Show("يرجى إدخال رقم الفاتورة");
+                MessageBox.Show(UiText.T("يرجى إدخال رقم الفاتورة.", "Please enter the invoice number."));
                 return;
             }
 
-            var result = await _invoiceService
-                .GetAllWriteDtoWithFilteringAndIncludeAsync(
-                    i => i.InvoiceNumber == invoiceNumber,
-                    i => i.InvoiceLines
-                );
+            var result = await _invoiceService.GetAllWriteDtoWithFilteringAndIncludeAsync(
+                invoice => invoice.InvoiceNumber == invoiceNumber,
+                invoice => invoice.InvoiceLines);
 
-            var invoice = result.Data?.FirstOrDefault();
-
-            // 1️⃣ الفاتورة غير موجودة
-            if (invoice == null)
+            var invoiceData = result.Data?.FirstOrDefault();
+            if (invoiceData == null)
             {
-                MessageBox.Show("الفاتورة غير موجودة");
+                MessageBox.Show(UiText.T("الفاتورة غير موجودة.", "The invoice was not found."));
                 return;
             }
 
-            // 2️⃣ الفاتورة فارغة
-            if (invoice.InvoiceLines == null || !invoice.InvoiceLines.Any())
+            if (invoiceData.InvoiceLines == null || !invoiceData.InvoiceLines.Any())
             {
-                MessageBox.Show("لا يمكن إرجاع أو استبدال فاتورة بدون مواد");
+                MessageBox.Show(UiText.T("لا يمكن إرجاع أو استبدال فاتورة بدون مواد.", "You cannot return or exchange an invoice with no items."));
                 return;
             }
 
-            // 3️⃣ حفظ رقم الفاتورة الأصلية
-            OriginalInvoiceId = invoice.InvoiceNumber;
-
+            OriginalInvoiceId = invoiceData.InvoiceNumber;
             DialogResult = true;
             Close();
         }
-
 
         private void Cancel_Click(object sender, RoutedEventArgs e)
         {
@@ -75,4 +55,3 @@ namespace RaccoonWarehouse.POS
         }
     }
 }
-

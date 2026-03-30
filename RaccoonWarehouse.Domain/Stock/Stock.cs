@@ -21,7 +21,9 @@ namespace RaccoonWarehouse.Domain.Stock
         public Product? Product { get; set; }
         public int ProductUnitId { get; set; }
         public ProductUnit? ProductUnit { get; set; }
-        public decimal Quantity { get; set; } 
+        public decimal Quantity { get; set; }
+        public decimal PurchasePrice { get; set; }
+        public decimal SalePrice { get; set; }
     }
 }
 

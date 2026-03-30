@@ -1,49 +1,52 @@
-﻿using RaccoonWarehouse.Application.Service.FinancialTransactions;
+using RaccoonWarehouse.Application.Service.FinancialTransactions;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.FinancialTransactions.DTOs;
 using System;
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Threading;
 
 namespace RaccoonWarehouse.FinancialTransactions
 {
-    public partial class PaymentWindow : Window
+    public partial class PaymentWindow : Window, INotifyPropertyChanged
     {
         private readonly IFinancialTransactionService _service;
         private readonly DispatcherTimer _timer;
         private readonly int _cashierSessionId;
         private readonly int _cashierId;
         private readonly FinancialPostDto _dto;
+        private readonly string _transactionNumber;
 
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        public string TransactionNumber => _transactionNumber;
+        public DateTime TransactionDate => _dto.TransactionDate;
 
         public PaymentWindow(IFinancialTransactionService service, int cashierSessionId, int cashierId)
         {
             InitializeComponent();
 
             _service = service;
-
-            // 🔹 Init DTO
-
-            _service = service;
             _cashierSessionId = cashierSessionId;
             _cashierId = cashierId;
+            _transactionNumber = GenerateTransactionNumber();
 
             _dto = new FinancialPostDto
             {
-                Direction = TransactionDirection.Out,            // ✅ دفع
-                SourceType = FinancialSourceType.Manual,        // ✅ يدوي
+                Direction = TransactionDirection.Out,
+                SourceType = FinancialSourceType.Manual,
                 TransactionDate = DateTime.Now,
                 CashierSessionId = _cashierSessionId,
                 CashierId = _cashierId,
-                Method = PaymentMethod.Cash,                    // افتراضي
+                Method = PaymentMethod.Cash,
                 CreatedDate = DateTime.Now,
                 UpdatedDate = DateTime.Now,
             };
 
-            DataContext = _dto;
+            DataContext = this;
             LoadPaymentMethods();
 
-            // ⏱ تحديث الوقت تلقائياً
             _timer = new DispatcherTimer
             {
                 Interval = TimeSpan.FromSeconds(1)
@@ -51,56 +54,64 @@ namespace RaccoonWarehouse.FinancialTransactions
 
             _timer.Tick += (_, _) =>
             {
-/*                _dto.Date = DateTime.Now;
-*/            };
+                _dto.TransactionDate = DateTime.Now;
+                OnPropertyChanged(nameof(TransactionDate));
+            };
 
             _timer.Start();
-
-            // 🎯 Focus مباشرة على المبلغ
             Loaded += (_, _) => AmountTextBox.Focus();
-
         }
+
         private void LoadPaymentMethods()
         {
             PaymentMethodCombo.ItemsSource = Enum.GetValues(typeof(PaymentMethod));
+            PaymentMethodCombo.SelectedItem = _dto.Method;
         }
-        // 🔢 Generate transaction number
+
         private string GenerateTransactionNumber()
         {
             return $"PAY-{DateTime.Now:yyyyMMdd-HHmmss}";
         }
 
-        // 💾 Save
         private async void Save_Click(object sender, RoutedEventArgs e)
         {
-            if (!decimal.TryParse(AmountTextBox.Text, out var amount) || amount <= 0)
+            try
             {
-                MessageBox.Show("يرجى إدخال مبلغ صحيح");
-                return;
+                if (!decimal.TryParse(AmountTextBox.Text, out var amount) || amount <= 0)
+                {
+                    MessageBox.Show("يرجى إدخال مبلغ صحيح");
+                    return;
+                }
+
+                if (PaymentMethodCombo.SelectedItem == null)
+                {
+                    MessageBox.Show("يرجى اختيار طريقة الدفع");
+                    return;
+                }
+
+                _dto.Amount = amount;
+                _dto.Method = (PaymentMethod)PaymentMethodCombo.SelectedItem;
+                _dto.TransactionDate = DateTime.Now;
+                _dto.UpdatedDate = DateTime.Now;
+                OnPropertyChanged(nameof(TransactionDate));
+
+                var result = await _service.PostAsync(_dto);
+
+                if (result.Success)
+                {
+                    _timer.Stop();
+                    MessageBox.Show("تم تسجيل سند الدفع بنجاح ✅");
+                    DialogResult = true;
+                    Close();
+                }
+                else
+                {
+                    MessageBox.Show(result.Message ?? "حدث خطأ أثناء الحفظ", "خطأ");
+                }
             }
-
-            if (PaymentMethodCombo.SelectedItem == null)
+            catch (Exception ex)
             {
-                MessageBox.Show("يرجى اختيار طريقة القبض");
-                return;
-            }
-
-            _dto.Amount = amount;
-            _dto.Method = (PaymentMethod)PaymentMethodCombo.SelectedItem;
-            _dto.UpdatedDate = DateTime.Now;
-
-            var result = await _service.PostAsync(_dto);
-
-            if (result.Success)
-            {
-                _timer.Stop();
-                MessageBox.Show("تم تسجيل سند الدفع بنجاح ✅");
-                DialogResult = true; // مهم عند ShowDialog
-                Close();
-            }
-            else
-            {
-                MessageBox.Show(result.Message ?? "حدث خطأ أثناء الحفظ", "خطأ");
+                MessageBox.Show($"حدث خطأ أثناء تسجيل سند الدفع: {ex.Message}", "خطأ");
             }
         }
 
@@ -109,6 +120,11 @@ namespace RaccoonWarehouse.FinancialTransactions
             _timer.Stop();
             DialogResult = false;
             Close();
+        }
+
+        private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
     }
 }

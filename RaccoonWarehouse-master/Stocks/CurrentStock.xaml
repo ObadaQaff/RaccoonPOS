@@ -181,6 +181,7 @@
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
 
                     <TextBox x:Name="SearchText"
@@ -228,6 +229,17 @@
                     </Button>
 
                     <Button Grid.Column="5"
+                            Width="150"
+                            Margin="12,0,0,0"
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            Click="AdjustBtn_Click">
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                            <fa:ImageAwesome Icon="Sliders" Width="15" Height="15"/>
+                            <TextBlock Text=" تسوية دفعة" Margin="8,0,0,0"/>
+                        </StackPanel>
+                    </Button>
+
+                    <Button Grid.Column="6"
                             Width="110"
                             Style="{StaticResource SecondaryButtonStyle}"
                             Click="BackBtn_Click">
@@ -250,10 +262,38 @@
                           Style="{StaticResource ReportDataGridStyle}"
                           ItemsSource="{Binding CurrentStockItems}">
                     <DataGrid.Columns>
-                        <DataGridTextColumn Header="الباركود" Binding="{Binding ITEMCODE}" Width="180"/>
+                        <DataGridTemplateColumn Header="الباركود" Width="210">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0"
+                                                   Text="{Binding ITEMCODE}"
+                                                   VerticalAlignment="Center"
+                                                   TextAlignment="Center"/>
+                                        <Button Grid.Column="1"
+                                                Margin="8,0,0,0"
+                                                Padding="6"
+                                                ToolTip="نسخ الباركود"
+                                                Background="Transparent"
+                                                BorderBrush="Transparent"
+                                                Cursor="Hand"
+                                                Click="CopyBarcode_Click">
+                                            <fa:ImageAwesome Icon="Copy" Width="14" Height="14" Foreground="{StaticResource PrimaryDarkBrush}"/>
+                                        </Button>
+                                    </Grid>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
                         <DataGridTextColumn Header="المنتج" Binding="{Binding ProductName}" Width="260"/>
                         <DataGridTextColumn Header="الوحدة" Binding="{Binding UnitName}" Width="120"/>
                         <DataGridTextColumn Header="الكمية" Binding="{Binding Quantity}" Width="120"/>
+                        <DataGridTextColumn Header="تكلفة المخزون" Binding="{Binding PurchasePrice}" Width="130"/>
+                        <DataGridTextColumn Header="سعر البيع الحالي" Binding="{Binding SalePrice}" Width="130"/>
+                        <DataGridTextColumn Header="أقرب انتهاء" Binding="{Binding NearestExpiryDate, StringFormat=yyyy-MM-dd, TargetNullValue=-}" Width="150"/>
                         <DataGridTextColumn Header="الحد الأدنى" Binding="{Binding MinimumQuantity}" Width="130"/>
                         <DataGridTemplateColumn Header="تنبيه" Width="120">
                             <DataGridTemplateColumn.CellTemplate>

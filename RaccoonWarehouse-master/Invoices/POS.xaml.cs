@@ -8,6 +8,7 @@ using RaccoonWarehouse.Application.Service.Stocks;
 using RaccoonWarehouse.Application.Service.StockTransactions;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Auth;
+using RaccoonWarehouse.Common;
 using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Domain.Cashiers;
 using RaccoonWarehouse.Domain.Cashiers.DTOs;
@@ -19,15 +20,18 @@ using RaccoonWarehouse.Domain.Invoices.DTOs;
 using RaccoonWarehouse.Domain.Products.DTOs;
 using RaccoonWarehouse.Domain.ProductUnits;
 using RaccoonWarehouse.Domain.Stock;
+using RaccoonWarehouse.Domain.Stock.DTOs;
 using RaccoonWarehouse.Domain.StockTransactions.DTOs;
 using RaccoonWarehouse.Domain.Users.DTOs;
 using RaccoonWarehouse.FinancialTransactions;
+using RaccoonWarehouse.Helpers.Localization;
 using RaccoonWarehouse.Navigation;
 using RaccoonWarehouse.POS;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Globalization;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Text;
@@ -40,6 +44,7 @@ using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Markup;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 #endregion
@@ -61,7 +66,6 @@ namespace RaccoonWarehouse.Invoices
         private readonly IUserSession _userSession;
         private readonly IFinancialTransactionService _financialService;
 
-        private CancellationTokenSource? _searchCts;
         private Popup _currentPopup;
         private TextBox _currentEditingTextBox;
         private string _currentCasherName;
@@ -84,7 +88,39 @@ namespace RaccoonWarehouse.Invoices
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
 
-        private InvoiceReadDto? _lastSavedInvoice = new InvoiceReadDto();
+        private InvoiceLineWriteDto? GetSelectedInvoiceLine()
+        {
+            if (InvoiceGrid.CurrentCell.Item is InvoiceLineWriteDto cellItem)
+                return cellItem;
+
+            if (InvoiceGrid.SelectedCells.Count > 0)
+                return InvoiceGrid.SelectedCells[0].Item as InvoiceLineWriteDto;
+
+            return InvoiceGrid.SelectedItem as InvoiceLineWriteDto;
+        }
+
+        private void FocusBarcodeInput()
+        {
+            BarcodeTextBox.Focus();
+            Keyboard.Focus(BarcodeTextBox);
+        }
+
+        private static bool HeaderMatches(DataGridColumn column, string arabicHeader)
+        {
+            var headerText = column.Header?.ToString();
+            if (string.IsNullOrWhiteSpace(headerText))
+                return false;
+
+            return headerText.Contains(arabicHeader, StringComparison.Ordinal)
+                || headerText.Contains(UiText.Translate(arabicHeader), StringComparison.Ordinal);
+        }
+
+        private static DataGridColumn? FindColumnByHeader(DataGrid grid, string arabicHeader)
+        {
+            return grid.Columns.FirstOrDefault(column => HeaderMatches(column, arabicHeader));
+        }
+
+        private InvoiceReadDto? _lastSavedInvoice;
 
 
         private InvoiceWriteDto _currentInvoice;
@@ -93,6 +129,19 @@ namespace RaccoonWarehouse.Invoices
         private readonly ILoadingService _loading;
         private ObservableCollection<ProductReadDto> Products { get; set; }
             = new ObservableCollection<ProductReadDto>();
+        private const decimal MinimumSellableQuantity = 10m;
+        private const int ProductDropdownPageSize = 10;
+        private const int ProductStockFetchSize = 40;
+        private int _nextProductStockPage = 1;
+        private bool _hasMoreProductPages = true;
+        private bool _isLoadingProductPage;
+        private readonly HashSet<int> _loadedProductIds = new();
+        private readonly Dictionary<(int ProductId, int ProductUnitId), StockReadDto> _stockLookup = new();
+        private ScrollViewer? _productDropdownScrollViewer;
+        private readonly DispatcherTimer _productSearchResetTimer = new() { Interval = TimeSpan.FromSeconds(1.2) };
+        private string _productSearchText = string.Empty;
+        private int _comboSearchVersion;
+        private int _popupSearchVersion;
         private ObservableCollection<InvoiceLineWriteDto> _invoiceLines
             = new ObservableCollection<InvoiceLineWriteDto>();
 
@@ -123,7 +172,11 @@ namespace RaccoonWarehouse.Invoices
 
             InitializeComponent();
             this.DataContext = this;
+            UiText.ApplyWindow(this);
+            _productSearchResetTimer.Tick += ProductSearchResetTimer_Tick;
             Loaded += POS_Loaded;
+            Closed += POS_Closed;
+            CatalogRefreshNotifier.CatalogChanged += CatalogRefreshNotifier_CatalogChanged;
         }
 
 
@@ -132,6 +185,7 @@ namespace RaccoonWarehouse.Invoices
         {
             try
             {
+                UiText.ApplyTranslations(this);
                 _loading.Show();
                 if (!TryGetActiveCashierSession(out var session))
                 {
@@ -156,7 +210,7 @@ namespace RaccoonWarehouse.Invoices
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"حدث خطأ أثناء تحميل البيانات: {ex.Message}", "خطأ",
+                MessageBox.Show($"{UiText.T("حدث خطأ أثناء تحميل البيانات", "An error occurred while loading data")}: {ex.Message}", UiText.T("خطأ", "Error"),
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
@@ -164,6 +218,19 @@ namespace RaccoonWarehouse.Invoices
                 _loading.Hide();
 
             }
+        }
+        private async void CatalogRefreshNotifier_CatalogChanged(object? sender, EventArgs e)
+        {
+            if (!IsLoaded)
+                return;
+
+            await LoadProductsAsync();
+        }
+
+        private void POS_Closed(object? sender, EventArgs e)
+        {
+            _productSearchResetTimer.Tick -= ProductSearchResetTimer_Tick;
+            CatalogRefreshNotifier.CatalogChanged -= CatalogRefreshNotifier_CatalogChanged;
         }
         private string GenerateInvoiceNumber()
         {
@@ -195,7 +262,8 @@ namespace RaccoonWarehouse.Invoices
                 InvoiceLines = _invoiceLines,
                 TotalAmount = 0,
                 IsPOS = true,
-                CasherId = session.CashierId
+                CasherId = session.CashierId,
+                CashierSessionId = session.Id
             };
 
             // ✅ UI
@@ -206,6 +274,48 @@ namespace RaccoonWarehouse.Invoices
         #region useabellty 
         private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
         {
+            if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+            {
+                switch (e.Key)
+                {
+                    case Key.D1:
+                    case Key.NumPad1:
+                        CashPaymentBtn_Click(this, new RoutedEventArgs());
+                        e.Handled = true;
+                        return;
+                    case Key.D2:
+                    case Key.NumPad2:
+                        VisaPaymentBtn_Click(this, new RoutedEventArgs());
+                        e.Handled = true;
+                        return;
+                    case Key.D3:
+                    case Key.NumPad3:
+                        MasterCardPaymentBtn_Click(this, new RoutedEventArgs());
+                        e.Handled = true;
+                        return;
+                    case Key.D4:
+                    case Key.NumPad4:
+                        DebitPaymentBtn_Click(this, new RoutedEventArgs());
+                        e.Handled = true;
+                        return;
+                    case Key.D5:
+                    case Key.NumPad5:
+                        CheckPaymentBtn_Click(this, new RoutedEventArgs());
+                        e.Handled = true;
+                        return;
+                    case Key.D6:
+                    case Key.NumPad6:
+                        MobilePaymentBtn_Click(this, new RoutedEventArgs());
+                        e.Handled = true;
+                        return;
+                    case Key.D7:
+                    case Key.NumPad7:
+                        CreditPaymentBtn_Click(this, new RoutedEventArgs());
+                        e.Handled = true;
+                        return;
+                }
+            }
+
             switch (e.Key)
             {
                 case Key.F1:
@@ -235,6 +345,36 @@ namespace RaccoonWarehouse.Invoices
 
                 case Key.F6:
                     ResumeHoldBtn_Click(this, null);
+                    e.Handled = true;
+                    break;
+
+                case Key.F7:
+                    OpenReceipt_Click(this, null);
+                    e.Handled = true;
+                    break;
+
+                case Key.F8:
+                    OpenPayment_Click(this, null);
+                    e.Handled = true;
+                    break;
+
+                case Key.F9:
+                    PrintBtn_Click(this, null);
+                    e.Handled = true;
+                    break;
+
+                case Key.F10:
+                    DailyReportBtn_Click(this, null);
+                    e.Handled = true;
+                    break;
+
+                case Key.F11:
+                    DiscountBtn_Click(this, null);
+                    e.Handled = true;
+                    break;
+
+                case Key.F12:
+                    CreditPaymentBtn_Click(this, null);
                     e.Handled = true;
                     break;
 
@@ -282,6 +422,8 @@ namespace RaccoonWarehouse.Invoices
 
             if (e.Key == Key.Enter)
             {
+                var currentColumnHeader = grid.CurrentCell.Column?.Header?.ToString();
+
                 // Commit edit - handle errors gracefully
                 try
                 {
@@ -305,6 +447,19 @@ namespace RaccoonWarehouse.Invoices
 
                 // Recalculate totals
                 RecalculateTotals();
+
+                var quantityHeader = UiText.Translate("الكمية");
+                var priceHeader = UiText.Translate("السعر");
+
+                if (grid.CurrentCell.Column != null && HeaderMatches(grid.CurrentCell.Column, "الكمية"))
+                {
+                    MoveGridFocusToColumn(grid, grid.CurrentCell.Item, priceHeader);
+                }
+                else if (grid.CurrentCell.Column != null && HeaderMatches(grid.CurrentCell.Column, "السعر"))
+                {
+                    FocusBarcodeInput();
+                }
+
                 e.Handled = true;
                 return;
             }
@@ -369,37 +524,83 @@ namespace RaccoonWarehouse.Invoices
         {
             try
             {
-                var stockedProducts = await _stockService.GetAllWithFilteringAndIncludeAsync(
-                            s => s.Quantity > 0,
-                            new Expression<Func<Stock, object>>[]
-                            {
-                                s => s.Product,
-                                s => s.Product.SubCategory,
-                                s => s.Product.Brand,
-                                s => s.Product.ProductUnits
-                            });
-
-                Products.Clear();
-                ProductSuggestions.Clear();
-                var distinctProducts = stockedProducts.Data
-                    .Where(s => s.Product != null)
-                    .GroupBy(s => s.ProductId)
-                    .Select(g => g.First().Product!)
-                    .OrderBy(p => p.Name)
-                    .ToList();
-
-                foreach (var product in distinctProducts)
-                {
-                    Products.Add(product);
-                    ProductSuggestions.Add(product);
-                }
-
-
+                ResetProductDropdownState();
+                await LoadSellableProductsAsync();
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"خطأ عند تحميل المنتجات: {ex.Message}", "خطأ");
+                MessageBox.Show($"{UiText.T("خطأ عند تحميل المنتجات", "Error loading products")}: {ex.Message}", UiText.T("خطأ", "Error"));
             }
+        }
+
+        private void ResetProductDropdownState()
+        {
+            _nextProductStockPage = 1;
+            _hasMoreProductPages = true;
+            _loadedProductIds.Clear();
+            Products.Clear();
+            ProductSuggestions.Clear();
+        }
+
+        private async Task LoadSellableProductsAsync()
+        {
+            if (_isLoadingProductPage)
+                return;
+
+            _isLoadingProductPage = true;
+
+            try
+            {
+                var result = await _stockService.GetAllWithFilteringAndIncludeAsync(
+                    s => s.Quantity > 0,
+                    new Expression<Func<Stock, object>>[]
+                    {
+                        s => s.Product,
+                        s => s.Product.SubCategory,
+                        s => s.Product.Brand,
+                        s => s.Product.ProductUnits,
+                        s => s.ProductUnit,
+                        s => s.ProductUnit.Unit
+                    });
+
+                var stocks = result?.Data?
+                    .Where(stock => stock.Product != null && stock.ProductUnit != null && stock.Quantity > 0)
+                    .ToList() ?? new List<StockReadDto>();
+
+                CacheStocks(stocks);
+
+                var products = stocks
+                    .GroupBy(stock => stock.ProductId)
+                    .Where(group => group.Sum(stock => stock.Quantity) > MinimumSellableQuantity)
+                    .Select(group => group.First().Product!)
+                    .OrderBy(product => product.Name)
+                    .ToList();
+
+                foreach (var product in products)
+                {
+                    if (_loadedProductIds.Add(product.Id))
+                    {
+                        Products.Add(product);
+                        ProductSuggestions.Add(product);
+                    }
+                }
+            }
+            finally
+            {
+                _isLoadingProductPage = false;
+                _hasMoreProductPages = false;
+            }
+        }
+
+        private async Task EnsureSelectedProductVisibleAsync(ProductReadDto? selectedProduct)
+        {
+            if (selectedProduct == null || _loadedProductIds.Contains(selectedProduct.Id))
+                return;
+
+            _loadedProductIds.Add(selectedProduct.Id);
+            Products.Add(selectedProduct);
+            ProductSuggestions.Add(selectedProduct);
+            await Task.CompletedTask;
         }
         private void RecalculateTotals()
         {
@@ -421,8 +622,92 @@ namespace RaccoonWarehouse.Invoices
             return Products.FirstOrDefault(p => p.Id == line.ProductId);
         }
 
+        private void CacheStocks(IEnumerable<StockReadDto> stocks)
+        {
+            var groupedStocks = stocks
+                .Where(s => s != null && s.ProductId > 0 && s.ProductUnitId > 0)
+                .GroupBy(s => s.ProductId);
+
+            foreach (var group in groupedStocks)
+            {
+                foreach (var stock in group)
+                {
+                    _stockLookup[(stock.ProductId, stock.ProductUnitId)] = stock;
+
+                    var productUnit = stock.Product?.ProductUnits?.FirstOrDefault(unit => unit.Id == stock.ProductUnitId);
+                    if (productUnit != null)
+                    {
+                        productUnit.PurchasePrice = stock.PurchasePrice;
+                        productUnit.SalePrice = stock.SalePrice;
+                    }
+                }
+
+                var firstStock = ResolvePreferredStock(group);
+
+                if (firstStock?.Product != null)
+                {
+                    firstStock.Product.CurrentSalePrice = firstStock.SalePrice;
+                    firstStock.Product.CurrentPurchasePrice = firstStock.PurchasePrice;
+                }
+            }
+        }
+
+        private async Task<List<StockReadDto>> GetAvailableStocksForProductAsync(int productId)
+        {
+            var result = await _stockService.GetAllWithFilteringAndIncludeAsync(
+                s => s.ProductId == productId && s.Quantity > 0,
+                new Expression<Func<Stock, object>>[]
+                {
+                    s => s.Product,
+                    s => s.Product.SubCategory,
+                    s => s.Product.Brand,
+                    s => s.Product.ProductUnits,
+                    s => s.ProductUnit,
+                    s => s.ProductUnit.Unit
+                });
+
+            var stocks = result?.Data?
+                .Where(stock => stock.Product != null && stock.ProductUnit != null && stock.Quantity > 0)
+                .ToList()
+                ?? new List<StockReadDto>();
+
+            CacheStocks(stocks);
+            return stocks;
+        }
+
+        private StockReadDto? ResolvePreferredStock(IEnumerable<StockReadDto> stocks, int? preferredUnitId = null)
+        {
+            var stockList = stocks?.Where(stock => stock.Quantity > 0).ToList() ?? new List<StockReadDto>();
+            if (stockList.Count == 0)
+                return null;
+
+            if (preferredUnitId.HasValue)
+            {
+                var preferred = stockList.FirstOrDefault(stock => stock.ProductUnitId == preferredUnitId.Value);
+                if (preferred != null)
+                    return preferred;
+            }
+
+            var product = stockList.First().Product;
+            var defaultUnitId = ProductUnitSelector.GetDefaultSaleUnit(product?.ProductUnits)?.Id;
+            if (defaultUnitId.HasValue)
+            {
+                var defaultStock = stockList.FirstOrDefault(stock => stock.ProductUnitId == defaultUnitId.Value);
+                if (defaultStock != null)
+                    return defaultStock;
+            }
+
+            return stockList
+                .OrderByDescending(stock => stock.Quantity)
+                .ThenBy(stock => stock.ProductUnit?.Unit?.Name)
+                .FirstOrDefault();
+        }
+
         private decimal GetDefaultSalePrice(InvoiceLineWriteDto line)
         {
+            if (_stockLookup.TryGetValue((line.ProductId, line.ProductUnitId), out var stock))
+                return stock.SalePrice;
+
             var product = FindProductForLine(line);
             var unit = product?.ProductUnits?.FirstOrDefault(u => u.Id == line.ProductUnitId)
                        ?? ProductUnitSelector.GetDefaultSaleUnit(product?.ProductUnits);
@@ -473,39 +758,46 @@ namespace RaccoonWarehouse.Invoices
                 OriginalInvoiceId = originalInvoiceId ?? source.OriginalInvoiceId
             };
         }
-        private void ApplyLinePricingFromProduct(InvoiceLineWriteDto line, ProductReadDto product)
+        private async Task<bool> ApplyLinePricingFromProductAsync(InvoiceLineWriteDto line, ProductReadDto product, int? preferredUnitId = null)
         {
-            var unit = ProductUnitSelector.GetDefaultSaleUnit(product.ProductUnits);
-            if (unit == null)
-                return;
+            var stocks = await GetAvailableStocksForProductAsync(product.Id);
+            if (stocks.Sum(stock => stock.Quantity) <= MinimumSellableQuantity)
+                return false;
+
+            var stock = ResolvePreferredStock(stocks, preferredUnitId);
+            if (stock == null)
+                return false;
 
             var taxExempt = product.TaxExempt ?? false;
             var taxRate = taxExempt ? 0m : (product.TaxRate ?? 0m);
-            var unitPrice = unit.SalePrice;
+            var quantityPerUnit = stock.ProductUnit?.QuantityPerUnit > 0 ? stock.ProductUnit.QuantityPerUnit : 1m;
+            var unitPrice = stock.SalePrice;
             var lineTotal = line.Quantity * unitPrice;
             var divisor = 1m + (taxRate / 100m);
             var lineSubTotal = taxExempt || divisor <= 0m
                 ? lineTotal
                 : Math.Round(lineTotal / divisor, 3);
             var taxAmount = Math.Round(lineTotal - lineSubTotal, 3);
-            var costTotal = line.Quantity * unit.PurchasePrice;
+            var costTotal = line.Quantity * stock.PurchasePrice;
 
             line.SelectedProduct = product;
             line.ProductId = product.Id;
             line.ProductName = product.Name;
-            line.ProductUnitId = unit.Id;
-            line.QuantityPerUnitSnapshot = unit.QuantityPerUnit > 0 ? unit.QuantityPerUnit : 1m;
+            line.ProductUnitId = stock.ProductUnitId;
+            line.QuantityPerUnitSnapshot = quantityPerUnit;
             line.BaseQuantity = line.Quantity * line.QuantityPerUnitSnapshot;
             line.UnitPrice = unitPrice;
-            line.UnitCost = unit.PurchasePrice;
+            line.UnitCost = stock.PurchasePrice;
             line.TaxExempt = taxExempt;
             line.TaxRate = taxRate;
             line.LineSubTotal = lineSubTotal;
             line.TaxAmount = taxAmount;
             line.ProfitBeforeTax = lineSubTotal - costTotal;
             line.Profit = line.ProfitBeforeTax;
+
+            return true;
         }
-        private void InvoiceGrid_CellEditEnding(object sender, DataGridCellEditEndingEventArgs e)
+        private async void InvoiceGrid_CellEditEnding(object sender, DataGridCellEditEndingEventArgs e)
         {
             if (e.EditAction != DataGridEditAction.Commit || e.Row.Item is not InvoiceLineWriteDto line)
                 return;
@@ -517,11 +809,11 @@ namespace RaccoonWarehouse.Invoices
             if (string.IsNullOrWhiteSpace(header))
                 return;
 
-            if (header.Contains("الكمية"))
+            if (header.Contains("الكمية") || header.Contains(UiText.Translate("الكمية")))
             {
-                if (!decimal.TryParse(textBox.Text, out var quantity) || quantity <= 0)
+                if (!TryParseDecimalInput(textBox.Text, out var quantity) || quantity <= 0)
                 {
-                    MessageBox.Show("يرجى إدخال كمية صحيحة أكبر من صفر.", "تنبيه");
+                    MessageBox.Show(UiText.T("يرجى إدخال كمية صحيحة أكبر من صفر.", "Please enter a valid quantity greater than zero."), UiText.T("تنبيه", "Notice"));
                     line.Quantity = 1;
                 }
                 else
@@ -529,27 +821,35 @@ namespace RaccoonWarehouse.Invoices
                     line.Quantity = quantity;
                 }
             }
-            else if (header.Contains("السعر"))
+            else if (header.Contains("السعر") || header.Contains(UiText.Translate("السعر")))
             {
-                if (!decimal.TryParse(textBox.Text, out var unitPrice))
+                var originalUnitPrice = line.UnitPrice;
+
+                if (!TryParseDecimalInput(textBox.Text, out var unitPrice))
                 {
-                    MessageBox.Show("يرجى إدخال سعر صحيح.", "تنبيه");
+                    MessageBox.Show(UiText.T("يرجى إدخال سعر صحيح.", "Please enter a valid price."), UiText.T("تنبيه", "Notice"));
                 }
                 else
                 {
                     line.UnitPrice = unitPrice;
                 }
 
-                if (line.UnitPrice < line.UnitCost)
+                if (line.UnitPrice != originalUnitPrice && line.UnitPrice < line.UnitCost)
                 {
                     var defaultPrice = GetDefaultSalePrice(line);
-                    MessageBox.Show("سعر البيع لا يمكن أن يكون أقل من التكلفة. سيتم إعادة السعر الافتراضي.", "تنبيه");
+                    MessageBox.Show(UiText.T("سعر البيع لا يمكن أن يكون أقل من التكلفة. سيتم إعادة السعر الافتراضي.", "Sale price cannot be lower than cost. The default price will be restored."), UiText.T("تنبيه", "Notice"));
                     line.UnitPrice = defaultPrice;
                     textBox.Text = defaultPrice.ToString("0.000");
                 }
             }
             else
             {
+                return;
+            }
+
+            if (header.Contains("الكمية") || header.Contains(UiText.Translate("الكمية")))
+            {
+                await SplitEditedLineByFefoAsync(line);
                 return;
             }
 
@@ -562,7 +862,7 @@ namespace RaccoonWarehouse.Invoices
             if (session != null)
                 return true;
 
-            MessageBox.Show("لا توجد جلسة كاشير مفتوحة. الرجاء فتح جلسة أولاً.", "خطأ");
+            MessageBox.Show(UiText.T("لا توجد جلسة كاشير مفتوحة. الرجاء فتح جلسة أولاً.", "There is no open cashier session. Please open a session first."), UiText.T("خطأ", "Error"));
             RefreshSessionButtons();
             return false;
         }
@@ -589,22 +889,22 @@ namespace RaccoonWarehouse.Invoices
                             });
                 if (result == null || result.Data == null || result.Data.Count == 0)
                 {
-                    MessageBox.Show("الصنف غير موجود", "تنبيه");
+                    MessageBox.Show(UiText.T("الصنف غير موجود.", "The item was not found."), UiText.T("تنبيه", "Notice"));
                     return;
                 }
                 var product = result.Data.FirstOrDefault()?.Product;
                 if (product == null)
                 {
-                    MessageBox.Show("الصنف غير موجود", "تنبيه");
+                    MessageBox.Show(UiText.T("الصنف غير موجود.", "The item was not found."), UiText.T("تنبيه", "Notice"));
                     return;
                 }
 
-                AddProductToInvoice(product);
+                await AddProductToInvoiceAsync(product);
 
             }
             catch (Exception ex)
             {
-                MessageBox.Show(ex.Message, "خطأ");
+                MessageBox.Show(ex.Message, UiText.T("خطأ", "Error"));
             }
             finally
             {
@@ -613,68 +913,187 @@ namespace RaccoonWarehouse.Invoices
             }
         }
 
-        private void AddProductToInvoice(ProductReadDto product)
+        private async Task<bool> AddProductToInvoiceAsync(ProductReadDto product)
         {
             if (product == null)
-                return;
+                return false;
 
-            var unit = ProductUnitSelector.GetDefaultSaleUnit(product.ProductUnits) ?? product.ProductUnits?.FirstOrDefault();
-            if (unit == null)
+            var stocks = await GetAvailableStocksForProductAsync(product.Id);
+            var stock = ResolvePreferredStock(stocks);
+            if (stock == null)
             {
-                MessageBox.Show("لا توجد وحدة بيع معرفة لهذا الصنف.", "تنبيه");
-                return;
+                MessageBox.Show(UiText.T("لا يوجد مخزون متاح لهذا الصنف.", "There is no available stock for this item."), UiText.T("تنبيه", "Notice"));
+                return false;
             }
 
             var existingLine = _invoiceLines
-                .FirstOrDefault(l => l.ProductId == product.Id && l.ProductUnitId == unit.Id);
+                .FirstOrDefault(l => l.ProductId == product.Id && l.ProductUnitId == stock.ProductUnitId);
 
             if (existingLine != null)
             {
                 existingLine.Quantity += 1;
-                ApplyLinePricingFromProduct(existingLine, product);
             }
             else
             {
-                var line = new InvoiceLineWriteDto
-                {
-                    Quantity = 1,
-                };
+                var line = _invoiceLines.FirstOrDefault(l =>
+                    l.ProductId <= 0 &&
+                    l.ProductUnitId <= 0 &&
+                    string.IsNullOrWhiteSpace(l.ProductName) &&
+                    l.UnitPrice == 0m &&
+                    l.UnitCost == 0m);
 
-                ApplyLinePricingFromProduct(line, product);
-                _invoiceLines.Add(line);
+                if (line == null)
+                {
+                    line = new InvoiceLineWriteDto();
+                    _invoiceLines.Add(line);
+                }
+
+                line.Quantity = 1;
+                if (!await ApplyLinePricingFromProductAsync(line, product, stock.ProductUnitId))
+                {
+                    MessageBox.Show(UiText.T("لا يوجد مخزون متاح لهذا الصنف.", "There is no available stock for this item."), UiText.T("تنبيه", "Notice"));
+                    return false;
+                }
             }
 
+            var targetUnitId = stock.ProductUnitId;
+            await SplitDraftLinesByFefoAsync(product.Id, targetUnitId);
+
             RecalculateTotals();
-            InvoiceGrid.Items.Refresh();
 
             Dispatcher.BeginInvoke(new Action(() =>
             {
                 if (InvoiceGrid.Items.Count == 0)
                     return;
 
-                int rowIndex = InvoiceGrid.Items.Count - 1; // newly added row
-
-                // Find first editable column
-                int colIndex = 0;
-                while (colIndex < InvoiceGrid.Columns.Count &&
-                       InvoiceGrid.Columns[colIndex].IsReadOnly)
-                {
-                    colIndex++;
-                }
-
-                if (colIndex >= InvoiceGrid.Columns.Count)
+                var targetLine = _invoiceLines
+                    .LastOrDefault(l => l.ProductId == product.Id && l.ProductUnitId == targetUnitId)
+                    ?? _invoiceLines.LastOrDefault();
+                if (targetLine == null)
                     return;
 
-                var cell = new DataGridCellInfo(
-                    InvoiceGrid.Items[rowIndex],
-                    InvoiceGrid.Columns[colIndex]);
-
-                InvoiceGrid.Focus();
-                InvoiceGrid.CurrentCell = cell;
-                InvoiceGrid.ScrollIntoView(cell.Item, cell.Column);
-                InvoiceGrid.BeginEdit();
+                MoveGridFocusToColumn(InvoiceGrid, targetLine, "الكمية");
             }), System.Windows.Threading.DispatcherPriority.Input);
 
+            return true;
+        }
+
+        private async Task SplitDraftLinesByFefoAsync(int productId, int productUnitId)
+        {
+            var matchingLines = _invoiceLines
+                .Where(l => l.ProductId == productId && l.ProductUnitId == productUnitId && l.Quantity > 0)
+                .ToList();
+
+            if (!matchingLines.Any())
+                return;
+
+            var templateLine = matchingLines.First();
+            var insertIndex = _invoiceLines.IndexOf(templateLine);
+            var totalQuantity = matchingLines.Sum(l => l.Quantity);
+
+            var allocationResult = await _stockService.AllocateOutgoingAsync(new[]
+            {
+                new StockAllocationRequestDto
+                {
+                    ProductId = productId,
+                    ProductUnitId = productUnitId,
+                    Quantity = totalQuantity
+                }
+            });
+
+            if (!allocationResult.Success || allocationResult.Data == null || allocationResult.Data.Count == 0)
+                return;
+
+            foreach (var line in matchingLines)
+                _invoiceLines.Remove(line);
+
+            foreach (var allocation in allocationResult.Data)
+            {
+                var splitLine = new InvoiceLineWriteDto
+                {
+                    SelectedProduct = templateLine.SelectedProduct,
+                    ProductId = templateLine.ProductId,
+                    ProductName = templateLine.ProductName,
+                    ProductUnitId = templateLine.ProductUnitId,
+                    Quantity = allocation.Quantity,
+                    QuantityPerUnitSnapshot = allocation.QuantityPerUnitSnapshot,
+                    BaseQuantity = allocation.BaseQuantity,
+                    UnitPrice = allocation.SalePrice,
+                    UnitCost = allocation.PurchasePrice,
+                    TaxExempt = templateLine.TaxExempt,
+                    TaxRate = templateLine.TaxRate,
+                    ExpiryDate = allocation.ExpiryDate ?? templateLine.ExpiryDate,
+                    OriginalInvoiceId = templateLine.OriginalInvoiceId,
+                    CreatedDate = templateLine.CreatedDate,
+                    UpdatedDate = DateTime.Now
+                };
+
+                RecalculateLineFromCurrentValues(splitLine);
+                _invoiceLines.Insert(insertIndex++, splitLine);
+            }
+
+            InvoiceGrid.Items.Refresh();
+            RecalculateTotals();
+        }
+
+        private async Task SplitEditedLineByFefoAsync(InvoiceLineWriteDto sourceLine)
+        {
+            if (sourceLine.ProductId <= 0 || sourceLine.ProductUnitId <= 0 || sourceLine.Quantity <= 0)
+            {
+                RecalculateLineFromCurrentValues(sourceLine);
+                RecalculateTotals();
+                return;
+            }
+
+            var allocationResult = await _stockService.AllocateOutgoingAsync(new[]
+            {
+                new StockAllocationRequestDto
+                {
+                    ProductId = sourceLine.ProductId,
+                    ProductUnitId = sourceLine.ProductUnitId,
+                    Quantity = sourceLine.Quantity
+                }
+            });
+
+            if (!allocationResult.Success || allocationResult.Data == null || allocationResult.Data.Count == 0)
+            {
+                MessageBox.Show(allocationResult.Message ?? $"تعذر تخصيص المخزون للصنف {sourceLine.ProductName}.", "تنبيه");
+                sourceLine.Quantity = 1;
+                RecalculateLineFromCurrentValues(sourceLine);
+                RecalculateTotals();
+                return;
+            }
+
+            var insertIndex = _invoiceLines.IndexOf(sourceLine);
+            _invoiceLines.Remove(sourceLine);
+
+            foreach (var allocation in allocationResult.Data)
+            {
+                var splitLine = new InvoiceLineWriteDto
+                {
+                    SelectedProduct = sourceLine.SelectedProduct,
+                    ProductId = sourceLine.ProductId,
+                    ProductName = sourceLine.ProductName,
+                    ProductUnitId = sourceLine.ProductUnitId,
+                    Quantity = allocation.Quantity,
+                    QuantityPerUnitSnapshot = allocation.QuantityPerUnitSnapshot,
+                    BaseQuantity = allocation.BaseQuantity,
+                    UnitPrice = allocation.SalePrice,
+                    UnitCost = allocation.PurchasePrice,
+                    TaxExempt = sourceLine.TaxExempt,
+                    TaxRate = sourceLine.TaxRate,
+                    ExpiryDate = allocation.ExpiryDate ?? sourceLine.ExpiryDate,
+                    OriginalInvoiceId = sourceLine.OriginalInvoiceId,
+                    CreatedDate = sourceLine.CreatedDate,
+                    UpdatedDate = DateTime.Now
+                };
+
+                RecalculateLineFromCurrentValues(splitLine);
+                _invoiceLines.Insert(insertIndex++, splitLine);
+            }
+
+            InvoiceGrid.Items.Refresh();
+            RecalculateTotals();
         }
         private void InvoiceGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
@@ -696,9 +1115,9 @@ namespace RaccoonWarehouse.Invoices
             };
         }
 
-        private IEnumerable<StockMovementPostDto> BuildPosStockMovements(int invoiceId, CashierSessionReadDto session)
+        private IEnumerable<StockMovementPostDto> BuildPosStockMovements(IEnumerable<InvoiceLineWriteDto> lines, int invoiceId, CashierSessionReadDto session)
         {
-            return _invoiceLines
+            return lines
                 .Where(line => line.ProductId > 0 && line.ProductUnitId > 0 && line.Quantity != 0)
                 .Select(line =>
                 {
@@ -713,6 +1132,9 @@ namespace RaccoonWarehouse.Invoices
                         QuantityPerUnitSnapshot = quantityPerUnit,
                         BaseQuantity = -baseQuantity,
                         UnitPrice = line.UnitPrice,
+                        PurchasePrice = line.UnitCost,
+                        SalePrice = line.UnitPrice,
+                        ExpiryDate = line.ExpiryDate,
                         TransactionType = MapStockTransactionType(_currentInvoice.InvoiceType),
                         InvoiceId = invoiceId,
                         CustomerId = _currentInvoice.CustomerId,
@@ -732,13 +1154,31 @@ namespace RaccoonWarehouse.Invoices
 
                 if (existingStock?.Data == null || existingStock.Data.Count == 0)
                 {
-                    MessageBox.Show($"الصنف {line.ProductName} غير موجود في المخزون. لن يتم حفظ الفاتورة.", "تنبيه");
+                    MessageBox.Show(
+                        UiText.T(
+                            $"الصنف {line.ProductName} غير موجود في المخزون. لن يتم حفظ الفاتورة.",
+                            $"The item {line.ProductName} was not found in stock. The invoice will not be saved."),
+                        UiText.T("تنبيه", "Notice"));
                     return false;
                 }
 
                 var stock = existingStock.Data.First();
+                _stockLookup[(stock.ProductId, stock.ProductUnitId)] = new StockReadDto
+                {
+                    ProductId = stock.ProductId,
+                    ProductUnitId = stock.ProductUnitId,
+                    Quantity = stock.Quantity,
+                    PurchasePrice = stock.PurchasePrice,
+                    SalePrice = stock.SalePrice
+                };
+
+                line.UnitPrice = stock.SalePrice;
+                line.UnitCost = stock.PurchasePrice;
                 if (stock.Quantity >= line.Quantity)
+                {
+                    RecalculateLineFromCurrentValues(line);
                     continue;
+                }
 
                 var availableQuantity = Math.Max(stock.Quantity, 0m);
 
@@ -747,15 +1187,19 @@ namespace RaccoonWarehouse.Invoices
                     line.Quantity = availableQuantity;
                     RecalculateLineFromCurrentValues(line);
                     MessageBox.Show(
-                        $"الكمية المطلوبة للصنف {line.ProductName} غير متوفرة. تم تعديل الكمية إلى الحد الأقصى المتاح: {availableQuantity:0.###}",
-                        "تنبيه");
+                        UiText.T(
+                            $"الكمية المطلوبة للصنف {line.ProductName} غير متوفرة. تم تعديل الكمية إلى الحد الأقصى المتاح: {availableQuantity:0.###}",
+                            $"The requested quantity for {line.ProductName} is not available. The quantity was adjusted to the maximum available: {availableQuantity:0.###}"),
+                        UiText.T("تنبيه", "Notice"));
                 }
                 else
                 {
                     _invoiceLines.Remove(line);
                     MessageBox.Show(
-                        $"الصنف {line.ProductName} غير متوفر حالياً في المخزون، وتمت إزالته من الفاتورة.",
-                        "تنبيه");
+                        UiText.T(
+                            $"الصنف {line.ProductName} غير متوفر حالياً في المخزون، وتمت إزالته من الفاتورة.",
+                            $"The item {line.ProductName} is currently unavailable in stock and was removed from the invoice."),
+                        UiText.T("تنبيه", "Notice"));
                 }
 
                 RecalculateTotals();
@@ -766,18 +1210,65 @@ namespace RaccoonWarehouse.Invoices
             return true;
         }
 
+        private async Task<List<InvoiceLineWriteDto>> ExpandInvoiceLinesByFefoAsync(IEnumerable<InvoiceLineWriteDto> sourceLines)
+        {
+            var expandedLines = new List<InvoiceLineWriteDto>();
+
+            foreach (var sourceLine in sourceLines.Where(line => line.Quantity > 0))
+            {
+                var allocationResult = await _stockService.AllocateOutgoingAsync(new[]
+                {
+                    new StockAllocationRequestDto
+                    {
+                        ProductId = sourceLine.ProductId,
+                        ProductUnitId = sourceLine.ProductUnitId,
+                        Quantity = sourceLine.Quantity
+                    }
+                });
+
+                if (!allocationResult.Success || allocationResult.Data == null || allocationResult.Data.Count == 0)
+                    throw new InvalidOperationException(allocationResult.Message ?? UiText.T($"تعذر تخصيص المخزون للصنف {sourceLine.ProductName}.", $"Could not allocate stock for item {sourceLine.ProductName}."));
+
+                foreach (var allocation in allocationResult.Data)
+                {
+                    var splitLine = new InvoiceLineWriteDto
+                    {
+                        ProductId = sourceLine.ProductId,
+                        ProductName = sourceLine.ProductName,
+                        ProductUnitId = sourceLine.ProductUnitId,
+                        Quantity = allocation.Quantity,
+                        QuantityPerUnitSnapshot = allocation.QuantityPerUnitSnapshot,
+                        BaseQuantity = allocation.BaseQuantity,
+                        UnitPrice = allocation.SalePrice,
+                        UnitCost = allocation.PurchasePrice,
+                        TaxExempt = sourceLine.TaxExempt,
+                        TaxRate = sourceLine.TaxRate,
+                        ExpiryDate = allocation.ExpiryDate ?? sourceLine.ExpiryDate,
+                        OriginalInvoiceId = sourceLine.OriginalInvoiceId,
+                        CreatedDate = sourceLine.CreatedDate,
+                        UpdatedDate = DateTime.Now
+                    };
+
+                    RecalculateLineFromCurrentValues(splitLine);
+                    expandedLines.Add(splitLine);
+                }
+            }
+
+            return expandedLines;
+        }
+
 
         private bool CanSaveInvoice()
         {
             if (_invoiceLines.Count == 0)
             {
-                MessageBox.Show("لا يوجد أصناف في الفاتورة", "تنبيه");
+                MessageBox.Show(UiText.T("لا يوجد أصناف في الفاتورة.", "There are no items in the invoice."), UiText.T("تنبيه", "Notice"));
                 return false;
             }
             
             if (_invoiceLines.Any(l => l.ProductId <= 0 || l.ProductUnitId <= 0 || l.Quantity <= 0))
             {
-                MessageBox.Show("يوجد صنف ببيانات غير مكتملة أو كمية غير صالحة.", "تنبيه");
+                MessageBox.Show(UiText.T("يوجد صنف ببيانات غير مكتملة أو كمية غير صالحة.", "There is an item with incomplete data or an invalid quantity."), UiText.T("تنبيه", "Notice"));
                 return false;
             }
 
@@ -791,6 +1282,12 @@ namespace RaccoonWarehouse.Invoices
         }
         private void PrepareInvoiceForSave()
         {
+            if (TryGetActiveCashierSession(out var session))
+            {
+                _currentInvoice.CasherId = session.CashierId;
+                _currentInvoice.CashierSessionId = session.Id;
+            }
+
             var customer = CustomerComboBox.SelectedItem as UserReadDto;
             _currentInvoice.CustomerId = customer?.Id;
             _currentInvoice.IsPOS = true;
@@ -812,6 +1309,7 @@ namespace RaccoonWarehouse.Invoices
             CustomerComboBox.SelectedIndex = -1;
             CustomerComboBox.SelectedItem = null;
             CustomerComboBox.Text = string.Empty;
+            _lastSavedInvoice = null;
 
             CreateNewInvoice();
 
@@ -829,13 +1327,12 @@ namespace RaccoonWarehouse.Invoices
 
                 var searchWindow = new ProductSearchWindow(
                     _stockService,
-                    product =>
+                    async product =>
                     {
                         if (product == null)
                             return false;
 
-                        AddProductToInvoice(product);
-                        return true;
+                        return await AddProductToInvoiceAsync(product);
                     },
                     disabledKeys)
                 {
@@ -843,24 +1340,65 @@ namespace RaccoonWarehouse.Invoices
                 };
 
                 searchWindow.ShowDialog();
+                FocusBarcodeInput();
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"تعذر فتح نافذة البحث: {ex.Message}", "خطأ");
+                FocusBarcodeInput();
             }
+        }
+
+        private void CustomerComboBox_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (sender is not ComboBox combo)
+                return;
+
+            switch (e.Key)
+            {
+                case Key.Enter:
+                    e.Handled = true;
+                    _currentInvoice.CustomerId = (combo.SelectedItem as UserReadDto)?.Id;
+                    FocusBarcodeInput();
+                    break;
+
+                case Key.Escape:
+                    e.Handled = true;
+                    combo.IsDropDownOpen = false;
+                    FocusBarcodeInput();
+                    break;
+
+                case Key.Down:
+                    if (!combo.IsDropDownOpen)
+                        combo.IsDropDownOpen = true;
+                    break;
+            }
+        }
+
+        private void CustomerComboBox_GotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+        {
+            if (sender is not ComboBox combo)
+                return;
+
+            combo.IsDropDownOpen = true;
         }
 
         private void DailyReportBtn_Click(object sender, RoutedEventArgs e)
         {
             try
             {
-                var reportWindow = new DailySalesReport(_invoiceService);
+                if (!TryGetActiveCashierSession(out var session))
+                    return;
+
+                var reportWindow = new DailySalesReport(_serviceProvider, session.Id, session.CashierId);
                 reportWindow.Owner = this;
                 reportWindow.ShowDialog();
+                FocusBarcodeInput();
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"تعذر فتح تقرير المبيعات: {ex.Message}", "خطأ");
+                MessageBox.Show($"{UiText.T("تعذر فتح تقرير المبيعات", "Could not open the sales report")}: {ex.Message}", UiText.T("خطأ", "Error"));
+                FocusBarcodeInput();
             }
         }
 
@@ -870,13 +1408,12 @@ namespace RaccoonWarehouse.Invoices
         {
             if (_invoiceLines.Count == 0)
             {
-                MessageBox.Show("لا توجد مواد لحفظها", "تنبيه");
+                MessageBox.Show(UiText.T("لا توجد مواد لحفظها", "There are no items to hold."), UiText.T("تنبيه", "Notice"));
                 return;
             }
 
             try
             {
-                _loading.Show();
                 _currentInvoice.Status = InvoiceStatus.OnHold;
                 _currentInvoice.IsPOS = true;
                 _currentInvoice.ClosedAt = null;
@@ -888,13 +1425,14 @@ namespace RaccoonWarehouse.Invoices
 
                 if (!result.Success)
                 {
-                    MessageBox.Show(result.Message, "خطأ");
+                    MessageBox.Show(result.Message ?? UiText.T("فشل حفظ الفاتورة في وضع الانتظار.", "Failed to save the invoice on hold."), UiText.T("خطأ", "Error"));
                     return;
                 }
 
-                MessageBox.Show("تم حفظ الفاتورة في وضع الانتظار", "تم");
+                MessageBox.Show(UiText.T("تم حفظ الفاتورة في وضع الانتظار", "The invoice was saved on hold."), UiText.T("تم", "Done"));
 
                 ResetPOS(); //clear
+                FocusBarcodeInput();
             }
             catch (Exception ex)
             {
@@ -906,11 +1444,11 @@ namespace RaccoonWarehouse.Invoices
                     inner = inner.InnerException;
                 }
 
-                MessageBox.Show(details, "خطأ");
+                MessageBox.Show(details, UiText.T("خطأ", "Error"));
             }
             finally
             {
-                _loading.Hide();
+                FocusBarcodeInput();
             }
         }
         //resume held invoice
@@ -928,15 +1466,17 @@ namespace RaccoonWarehouse.Invoices
 
                 if (win.SelectedInvoice == null)
                 {
-                    MessageBox.Show("لم يتم اختيار فاتورة معلقة.", "تنبيه");
+                    MessageBox.Show(UiText.T("لم يتم اختيار فاتورة معلقة.", "No held invoice was selected."), UiText.T("تنبيه", "Notice"));
                     return;
                 }
 
                 LoadInvoiceIntoPOS(win.SelectedInvoice);
+                FocusBarcodeInput();
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"تعذر استئناف الفاتورة المعلقة: {ex.Message}", "خطأ");
+                MessageBox.Show($"{UiText.T("تعذر استئناف الفاتورة المعلقة", "Could not resume the held invoice")}: {ex.Message}", UiText.T("خطأ", "Error"));
+                FocusBarcodeInput();
             }
         }
         private void LoadInvoiceIntoPOS(InvoiceReadDto invoice)
@@ -982,23 +1522,19 @@ namespace RaccoonWarehouse.Invoices
         //delete invoice line
         private void DeleteItemBtn_Click(object sender, RoutedEventArgs e)
         {
-            // Get row from CurrentCell or from SelectedCells
-            InvoiceLineWriteDto? selectedRow = null;
-
-            if (InvoiceGrid.CurrentCell.Item is InvoiceLineWriteDto cellItem)
-                selectedRow = cellItem;
-            else if (InvoiceGrid.SelectedCells.Count > 0)
-                selectedRow = InvoiceGrid.SelectedCells[0].Item as InvoiceLineWriteDto;
+            var selectedRow = GetSelectedInvoiceLine();
 
             if (selectedRow == null)
             {
-                MessageBox.Show("يرجى تحديد مادة أولاً", "تنبيه");
+                MessageBox.Show(UiText.T("يرجى تحديد مادة أولاً", "Please select an item first."), UiText.T("تنبيه", "Notice"));
                 return;
             }
 
             var confirm = MessageBox.Show(
-                $"هل تريد حذف المادة:\n{selectedRow.ProductName} ؟",
-                "تأكيد الحذف",
+                UiText.T(
+                    $"هل تريد حذف المادة:\n{selectedRow.ProductName} ؟",
+                    $"Do you want to remove the item:\n{selectedRow.ProductName}?"),
+                UiText.T("تأكيد الحذف", "Confirm deletion"),
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Warning);
 
@@ -1010,7 +1546,7 @@ namespace RaccoonWarehouse.Invoices
             RecalculateTotals();
             InvoiceGrid.Items.Refresh();
 
-            BarcodeTextBox.Focus();
+            FocusBarcodeInput();
         }
 
 
@@ -1031,15 +1567,11 @@ namespace RaccoonWarehouse.Invoices
         {
             try
             {
-                InvoiceLineWriteDto? selectedRow = null;
-                if (InvoiceGrid.CurrentCell.Item is InvoiceLineWriteDto cellItem)
-                    selectedRow = cellItem;
-                else if (InvoiceGrid.SelectedCells.Count > 0)
-                    selectedRow = InvoiceGrid.SelectedCells[0].Item as InvoiceLineWriteDto;
+                var selectedRow = GetSelectedInvoiceLine();
 
                 if (selectedRow == null)
                 {
-                    MessageBox.Show("يرجى تحديد مادة للاستبدال");
+                    MessageBox.Show(UiText.T("يرجى تحديد مادة للاستبدال", "Please select an item to exchange."), UiText.T("تنبيه", "Notice"));
                     return;
                 }
 
@@ -1057,14 +1589,15 @@ namespace RaccoonWarehouse.Invoices
                     -Math.Abs(selectedRow.Quantity),
                     win.OriginalInvoiceId));
 
-                MessageBox.Show("امسح المادة الجديدة بالباركود");
+                MessageBox.Show(UiText.T("امسح المادة الجديدة بالباركود", "Scan the new item barcode."), UiText.T("تنبيه", "Notice"));
                 RecalculateTotals();
                 InvoiceGrid.Items.Refresh();
-                BarcodeTextBox.Focus();
+                FocusBarcodeInput();
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"تعذر تنفيذ الاستبدال: {ex.Message}", "خطأ");
+                MessageBox.Show($"{UiText.T("تعذر تنفيذ الاستبدال", "Could not complete the exchange")}: {ex.Message}", UiText.T("خطأ", "Error"));
+                FocusBarcodeInput();
             }
         }
 
@@ -1073,15 +1606,11 @@ namespace RaccoonWarehouse.Invoices
         {
             try
             {
-                InvoiceLineWriteDto? selectedRow = null;
-                if (InvoiceGrid.CurrentCell.Item is InvoiceLineWriteDto cellItem)
-                    selectedRow = cellItem;
-                else if (InvoiceGrid.SelectedCells.Count > 0)
-                    selectedRow = InvoiceGrid.SelectedCells[0].Item as InvoiceLineWriteDto;
+                var selectedRow = GetSelectedInvoiceLine();
 
                 if (selectedRow == null)
                 {
-                    MessageBox.Show("يرجى تحديد مادة لإرجاعها");
+                    MessageBox.Show(UiText.T("يرجى تحديد مادة لإرجاعها", "Please select an item to return."), UiText.T("تنبيه", "Notice"));
                     return;
                 }
 
@@ -1101,13 +1630,13 @@ namespace RaccoonWarehouse.Invoices
                 var originalInvoice = result?.Data?.FirstOrDefault();
                 if (originalInvoice == null)
                 {
-                    MessageBox.Show("الفاتورة غير موجودة");
+                    MessageBox.Show(UiText.T("الفاتورة غير موجودة", "The invoice was not found."), UiText.T("تنبيه", "Notice"));
                     return;
                 }
 
                 if (originalInvoice.InvoiceLines == null)
                 {
-                    MessageBox.Show("بيانات الفاتورة الأصلية غير مكتملة.", "تنبيه");
+                    MessageBox.Show(UiText.T("بيانات الفاتورة الأصلية غير مكتملة.", "The original invoice data is incomplete."), UiText.T("تنبيه", "Notice"));
                     return;
                 }
 
@@ -1116,7 +1645,7 @@ namespace RaccoonWarehouse.Invoices
 
                 if (!exists)
                 {
-                    MessageBox.Show("لا يمكن إرجاع مادة غير موجودة في الفاتورة الأصلية");
+                    MessageBox.Show(UiText.T("لا يمكن إرجاع مادة غير موجودة في الفاتورة الأصلية", "You cannot return an item that does not exist in the original invoice."), UiText.T("تنبيه", "Notice"));
                     return;
                 }
 
@@ -1136,14 +1665,16 @@ namespace RaccoonWarehouse.Invoices
 
                 RecalculateTotals();
                 InvoiceGrid.Items.Refresh();
+                FocusBarcodeInput();
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"تعذر تنفيذ الإرجاع: {ex.Message}", "خطأ");
+                MessageBox.Show($"{UiText.T("تعذر تنفيذ الإرجاع", "Could not complete the return")}: {ex.Message}", UiText.T("خطأ", "Error"));
             }
             finally
             {
                 _loading.Hide();
+                FocusBarcodeInput();
             }
         }
 
@@ -1229,8 +1760,8 @@ namespace RaccoonWarehouse.Invoices
             if (_invoiceLines.Count > 0)
             {
                 var confirm = MessageBox.Show(
-                    "سيتم مسح الفاتورة الحالية.\nهل تريد المتابعة؟",
-                    "فاتورة جديدة",
+                    UiText.T("سيتم مسح الفاتورة الحالية.\nهل تريد المتابعة؟", "The current invoice will be cleared.\nDo you want to continue?"),
+                    UiText.T("فاتورة جديدة", "New invoice"),
                     MessageBoxButton.YesNo,
                     MessageBoxImage.Question);
 
@@ -1239,6 +1770,7 @@ namespace RaccoonWarehouse.Invoices
             }
 
             ResetPOS();
+            FocusBarcodeInput();
         }
 
         //Cancel Invoice
@@ -1253,8 +1785,8 @@ namespace RaccoonWarehouse.Invoices
                 }
 
                 var confirm = MessageBox.Show(
-                    "هل تريد إلغاء الفاتورة الحالية؟",
-                    "إلغاء",
+                    UiText.T("هل تريد إلغاء الفاتورة الحالية؟", "Do you want to cancel the current invoice?"),
+                    UiText.T("إلغاء", "Cancel"),
                     MessageBoxButton.YesNo,
                     MessageBoxImage.Warning);
 
@@ -1272,7 +1804,7 @@ namespace RaccoonWarehouse.Invoices
                     var updateResult = await _invoiceService.UpdateAsync(_currentInvoice);
                     if (!updateResult.Success)
                     {
-                        MessageBox.Show(updateResult.Message ?? "فشل إلغاء الفاتورة", "خطأ");
+                        MessageBox.Show(updateResult.Message ?? UiText.T("فشل إلغاء الفاتورة", "Failed to cancel the invoice."), UiText.T("خطأ", "Error"));
                         return;
                     }
                 }
@@ -1281,11 +1813,12 @@ namespace RaccoonWarehouse.Invoices
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"حدث خطأ أثناء إلغاء الفاتورة: {ex.Message}", "خطأ", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"{UiText.T("حدث خطأ أثناء إلغاء الفاتورة", "An error occurred while cancelling the invoice")}: {ex.Message}", UiText.T("خطأ", "Error"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {
                 _loading.Hide();
+                FocusBarcodeInput();
             }
         }
 
@@ -1295,11 +1828,11 @@ namespace RaccoonWarehouse.Invoices
         {
             try
             {
-                if (_lastSavedInvoice == null)
+                if (_lastSavedInvoice == null || string.IsNullOrWhiteSpace(_lastSavedInvoice.InvoiceNumber))
                 {
                     MessageBox.Show(
-                        "لا توجد فاتورة للطباعة.\nيرجى إنهاء البيع أولاً.",
-                        "تنبيه",
+                        UiText.T("لا توجد فاتورة للطباعة.\nيرجى إنهاء البيع أولاً.", "There is no invoice to print.\nPlease finish the sale first."),
+                        UiText.T("تنبيه", "Notice"),
                         MessageBoxButton.OK,
                         MessageBoxImage.Warning
                     );
@@ -1310,8 +1843,13 @@ namespace RaccoonWarehouse.Invoices
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"تعذر طباعة الفاتورة: {ex.Message}", "خطأ");
+                MessageBox.Show($"{UiText.T("تعذر طباعة الفاتورة", "Could not print the invoice")}: {ex.Message}", UiText.T("خطأ", "Error"));
             }
+        }
+
+        private void DiscountBtn_Click(object sender, RoutedEventArgs e)
+        {
+            MessageBox.Show(UiText.T("ميزة الخصم في شاشة نقاط البيع غير مفعلة حالياً. لن يتم تنفيذ أي تغيير حتى تتم إضافتها بشكل آمن.", "The discount feature in POS is not enabled yet. No change will be applied until it is added safely."), UiText.T("تنبيه", "Notice"));
         }
         private void SaveSalesInvoicePdf(InvoiceReadDto invoice)
         {
@@ -1327,7 +1865,7 @@ namespace RaccoonWarehouse.Invoices
 
                 PdfGenerator.SalesInvoice(invoice, path);
 
-                MessageBox.Show("تم حفظ ملف PDF بنجاح.", "تم الحفظ", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(UiText.T("تم حفظ ملف PDF بنجاح.", "The PDF file was saved successfully."), UiText.T("تم الحفظ", "Saved"), MessageBoxButton.OK, MessageBoxImage.Information);
 
                 System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
                 {
@@ -1353,10 +1891,12 @@ namespace RaccoonWarehouse.Invoices
                 };
 
                 win.ShowDialog();
+                FocusBarcodeInput();
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"تعذر فتح نافذة المقبوضات: {ex.Message}", "خطأ");
+                MessageBox.Show($"{UiText.T("تعذر فتح نافذة المقبوضات", "Could not open the receipts window")}: {ex.Message}", UiText.T("خطأ", "Error"));
+                FocusBarcodeInput();
             }
         }
 
@@ -1377,10 +1917,12 @@ namespace RaccoonWarehouse.Invoices
                 };
 
                 win.ShowDialog();
+                FocusBarcodeInput();
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"تعذر فتح نافذة المدفوعات: {ex.Message}", "خطأ");
+                MessageBox.Show($"{UiText.T("تعذر فتح نافذة المدفوعات", "Could not open the payments window")}: {ex.Message}", UiText.T("خطأ", "Error"));
+                FocusBarcodeInput();
             }
             /*            WindowManager.ShowDialog<PaymentWindow>(WindowSizeType.SmallRectangle);
             */
@@ -1412,141 +1954,244 @@ namespace RaccoonWarehouse.Invoices
     = new();
         private readonly SemaphoreSlim _searchLock = new(1, 1);
 
-        private void ProductCombo_PreviewKeyDown(object sender, KeyEventArgs e)
+        private void ProductSearchResetTimer_Tick(object? sender, EventArgs e)
         {
-            if (e.Key == Key.Down)
-            {
-                if (sender is ComboBox combo)
-                {
-                    if (combo.IsDropDownOpen && combo.SelectedItem != null)
-                    {
-                        e.Handled = true; // stop DataGrid from moving to new row
-                    }
-                }
-            }
+            _productSearchResetTimer.Stop();
+            _productSearchText = string.Empty;
         }
 
-
-
-
-        private async void ProductCombo_PreviewKeyUp(object sender, KeyEventArgs e)
+        private async void ProductCombo_PreviewKeyDown(object sender, KeyEventArgs e)
         {
             if (sender is not ComboBox combo)
                 return;
 
-            // Ignore navigation keys
-            if (e.Key is Key.Down or Key.Up or Key.Enter or Key.Escape)
-                return;
-
-            var text = combo.Text?.Trim();
-            if (string.IsNullOrWhiteSpace(text) || text.Length < 2)
+            if (e.Key == Key.Back)
             {
-                combo.IsDropDownOpen = false;
-                return;
-            }
+                e.Handled = true;
 
-            // Cancel previous search
-            _searchCts?.Cancel();
-            _searchCts = new CancellationTokenSource();
-            var token = _searchCts.Token;
-
-            try
-            {
-                await Task.Delay(300, token); // debounce
-
-                await _searchLock.WaitAsync(token); // 🔒 prevent concurrent DbContext use
-
-                var result = await _stockService.GetAllWithFilteringAndIncludeAsync(
-                    s => s.Quantity > 0 &&
-                         (s.Product.Name.Contains(text) ||
-                          s.Product.ITEMCODE.ToString().Contains(text)),
-                    new Expression<Func<Stock, object>>[]
-                    {
-                s => s.Product,
-                s => s.Product.ProductUnits
-                    });
-
-                if (token.IsCancellationRequested)
+                if (string.IsNullOrEmpty(_productSearchText))
                     return;
 
-                ProductSuggestions.Clear();
-                ProductSuggestions.Clear();
-                foreach (var item in result.Data.Select(s => s.Product).Distinct())
+                _productSearchText = _productSearchText[..^1];
+                _ = SearchProductsForComboAsync(combo, _productSearchText);
+                RestartProductSearchResetTimer();
+                return;
+            }
+
+            if (e.Key == Key.Down)
+            {
+                if (!combo.IsDropDownOpen)
                 {
-                    ProductSuggestions.Add(item);
+                    combo.IsDropDownOpen = true;
+                    e.Handled = true;
+                    return;
                 }
 
-                combo.IsDropDownOpen = ProductSuggestions.Any();
+                if (combo.IsDropDownOpen && combo.SelectedItem != null)
+                {
+                    e.Handled = true; // stop DataGrid from moving to new row
+                }
             }
-            catch (TaskCanceledException)
+
+            if (e.Key == Key.Enter)
             {
-                // expected when typing fast
+                e.Handled = true;
+
+                if (combo.SelectedItem is ProductReadDto selectedProduct)
+                {
+                    if (combo.DataContext is InvoiceLineWriteDto line)
+                    {
+                        line.SelectedProduct = selectedProduct;
+                        if (!await ApplyLinePricingFromProductAsync(line, selectedProduct))
+                        {
+                            MessageBox.Show(UiText.T("لا يوجد مخزون متاح لهذا الصنف.", "There is no available stock for this item."), UiText.T("تنبيه", "Notice"));
+                            return;
+                        }
+                        RecalculateTotals();
+                    }
+
+                    combo.IsDropDownOpen = false;
+                    FocusQuantityCell(combo);
+                    return;
+                }
+
+                if (combo.IsDropDownOpen)
+                    return;
             }
-            finally
+
+            if (e.Key == Key.Escape)
             {
-                if (_searchLock.CurrentCount == 0)
-                    _searchLock.Release();
+                combo.IsDropDownOpen = false;
+                _productSearchText = string.Empty;
+                _productSearchResetTimer.Stop();
+                e.Handled = true;
             }
         }
-        private void ProductCombo_KeyUp(object sender, KeyEventArgs e)
-        {
-            if (sender is not ComboBox combo) return;
 
-            string text = combo.Text?.Trim() ?? "";
+        private void ProductCombo_PreviewTextInput(object sender, TextCompositionEventArgs e)
+        {
+            if (sender is not ComboBox combo || string.IsNullOrWhiteSpace(e.Text))
+                return;
+
+            _productSearchText += e.Text;
+            RestartProductSearchResetTimer();
+            _ = SearchProductsForComboAsync(combo, _productSearchText);
+            e.Handled = true;
+        }
+
+        private void RestartProductSearchResetTimer()
+        {
+            _productSearchResetTimer.Stop();
+            _productSearchResetTimer.Start();
+        }
+
+        private async Task SearchProductsForComboAsync(ComboBox combo, string searchText)
+        {
+            var text = searchText?.Trim();
+            var searchVersion = ++_comboSearchVersion;
 
             if (string.IsNullOrWhiteSpace(text))
             {
                 ProductSuggestions.Clear();
-                foreach (var p in Products)
-                    ProductSuggestions.Add(p);
-                combo.IsDropDownOpen = true;
+                foreach (var product in Products)
+                    ProductSuggestions.Add(product);
+
+                combo.IsDropDownOpen = ProductSuggestions.Any();
+                if (ProductSuggestions.Any())
+                    combo.SelectedIndex = 0;
                 return;
             }
 
-            var filtered = Products
-                .Where(p => (p.Name?.Contains(text, StringComparison.OrdinalIgnoreCase) ?? false)
-                         || p.ITEMCODE.ToString().Contains(text))
-                .ToList();
+            var lockTaken = false;
+            try
+            {
+                await Task.Delay(180);
+                if (searchVersion != _comboSearchVersion)
+                    return;
+
+                await _searchLock.WaitAsync();
+                lockTaken = true;
+
+                if (searchVersion != _comboSearchVersion)
+                    return;
+
+                var matches = new List<ProductReadDto>();
+                var pageNumber = 1;
+                var hasMore = true;
+
+                while (matches.Count < ProductDropdownPageSize && hasMore)
+                {
+                    var page = await _stockService.GetReadDtoPagedListAsync(
+                        pageNumber,
+                        ProductStockFetchSize,
+                        s => s.Quantity > 0 &&
+                             s.Product != null &&
+                             ((s.Product.Name != null && s.Product.Name.Contains(text)) ||
+                              s.Product.ITEMCODE.ToString().Contains(text)),
+                        q => q.OrderBy(s => s.Product.Name).ThenBy(s => s.ProductId),
+                        s => s.Product,
+                        s => s.Product.SubCategory,
+                        s => s.Product.Brand,
+                        s => s.Product.ProductUnits);
+
+                    var pageItems = page?.Items?.Where(s => s.Product != null).ToList() ?? new List<StockReadDto>();
+                    if (pageItems.Count == 0)
+                        break;
+
+                    CacheStocks(pageItems);
+
+                    foreach (var stock in pageItems)
+                    {
+                        var product = stock.Product;
+                        if (product == null || matches.Any(p => p.Id == product.Id))
+                            continue;
+
+                        matches.Add(product);
+                        if (matches.Count >= ProductDropdownPageSize)
+                            break;
+                    }
+
+                    pageNumber++;
+                    hasMore = pageItems.Count == ProductStockFetchSize &&
+                              (page?.TotalCount ?? 0) > ((pageNumber - 1) * ProductStockFetchSize);
+                }
+
+                if (searchVersion != _comboSearchVersion)
+                    return;
+
+                ProductSuggestions.Clear();
+                foreach (var product in matches.OrderBy(p => p.Name))
+                    ProductSuggestions.Add(product);
+
+                combo.IsDropDownOpen = ProductSuggestions.Any();
+                if (ProductSuggestions.Any())
+                    combo.SelectedIndex = 0;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"{UiText.T("تعذر البحث عن الصنف", "Could not search for the item")}: {ex.Message}", UiText.T("خطأ", "Error"));
+            }
+            finally
+            {
+                if (lockTaken)
+                    _searchLock.Release();
+            }
+        }
+
+        private async Task LoadNextProductPageAsync()
+        {
+            if (_isLoadingProductPage)
+                return;
+
+            if (!_hasMoreProductPages && Products.Any())
+            {
+                ProductSuggestions.Clear();
+                foreach (var product in Products.Take(ProductDropdownPageSize))
+                    ProductSuggestions.Add(product);
+                return;
+            }
+
+            await LoadSellableProductsAsync();
 
             ProductSuggestions.Clear();
-            foreach (var p in filtered)
-                ProductSuggestions.Add(p);
-
-            combo.IsDropDownOpen = filtered.Any();
+            foreach (var product in Products.Take(ProductDropdownPageSize))
+                ProductSuggestions.Add(product);
         }
+
 
 
 
         private void ProductCombo_Loaded(object sender, RoutedEventArgs e)
         {
-            if (sender is ComboBox combo)
-            {
-                if (combo.Template.FindName("PART_EditableTextBox", combo) is TextBox tb)
-                {
-                    tb.TextChanged += ProductCombo_TextBox_TextChanged;
-                }
-            }
+            if (sender is ComboBox combo && combo.SelectedItem is ProductReadDto selectedProduct)
+                _ = EnsureSelectedProductVisibleAsync(selectedProduct);
         }
 
-        private void ProductCombo_DropDownOpened(object sender, EventArgs e)
+        private async void ProductCombo_DropDownOpened(object sender, EventArgs e)
         {
             if (sender is ComboBox combo)
             {
-                // Initialize ProductSuggestions with all products if empty
-                if (!ProductSuggestions.Any() && Products.Any())
+                _productSearchText = string.Empty;
+                _productSearchResetTimer.Stop();
+
+                if (!ProductSuggestions.Any())
                 {
-                    ProductSuggestions.Clear();
-                    foreach (var p in Products)
-                        ProductSuggestions.Add(p);
+                    await LoadNextProductPageAsync();
                 }
 
-                // Find and wire up the DataGrid events
                 Dispatcher.BeginInvoke(() =>
                 {
                     var popup = combo.Template?.FindName("Popup", combo) as Popup;
                     if (popup?.Child is Border border)
                     {
+                        if (_productDropdownScrollViewer != null)
+                            _productDropdownScrollViewer.ScrollChanged -= ProductDropdownScrollViewer_ScrollChanged;
+
                         var scrollViewer = border.Child as ScrollViewer;
+                        _productDropdownScrollViewer = scrollViewer;
+                        if (_productDropdownScrollViewer != null)
+                            _productDropdownScrollViewer.ScrollChanged += ProductDropdownScrollViewer_ScrollChanged;
+
                         var grid = scrollViewer?.Content as DataGrid;
                         if (grid != null)
                         {
@@ -1554,10 +2199,24 @@ namespace RaccoonWarehouse.Invoices
                             grid.PreviewKeyDown -= ProductGrid_PreviewKeyDown;
                             grid.MouseDoubleClick += ProductGrid_MouseDoubleClick;
                             grid.PreviewKeyDown += ProductGrid_PreviewKeyDown;
+
+                            if (grid.SelectedItem == null && ProductSuggestions.Any())
+                                grid.SelectedIndex = 0;
                         }
                     }
                 }, DispatcherPriority.Loaded);
             }
+        }
+
+        private async void ProductDropdownScrollViewer_ScrollChanged(object sender, ScrollChangedEventArgs e)
+        {
+            if (e.VerticalChange <= 0)
+                return;
+
+            if (e.VerticalOffset + e.ViewportHeight < e.ExtentHeight - 40)
+                return;
+
+            await LoadNextProductPageAsync();
         }
 
         private void ProductGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
@@ -1584,12 +2243,13 @@ namespace RaccoonWarehouse.Invoices
                     if (combo != null)
                     {
                         combo.IsDropDownOpen = false;
+                        combo.Focus();
                     }
                 }
             }
         }
 
-        private void SelectProductFromGrid(ProductReadDto product, DataGrid grid)
+        private async void SelectProductFromGrid(ProductReadDto product, DataGrid grid)
         {
             // Find the ComboBox that contains this DataGrid
             var combo = FindParent<ComboBox>(grid);
@@ -1602,11 +2262,14 @@ namespace RaccoonWarehouse.Invoices
             line.SelectedProduct = product;
             line.ProductId = product.Id;
             line.ProductName = product.Name ?? string.Empty;
-            var defaultSaleUnit = ProductUnitSelector.GetDefaultSaleUnit(product.ProductUnits);
-            line.ProductUnitId = defaultSaleUnit?.Id ?? 0;
-            line.UnitPrice = defaultSaleUnit?.SalePrice ?? 0;
             if (line.Quantity <= 0)
                 line.Quantity = 1;
+
+            if (!await ApplyLinePricingFromProductAsync(line, product))
+            {
+                MessageBox.Show(UiText.T("لا يوجد مخزون متاح لهذا الصنف.", "There is no available stock for this item."), UiText.T("تنبيه", "Notice"));
+                return;
+            }
 
             // Update ComboBox selection and text
             combo.SelectedItem = product;
@@ -1629,11 +2292,12 @@ namespace RaccoonWarehouse.Invoices
 
                     Dispatcher.BeginInvoke(() =>
                     {
-                        var qtyColumn = dataGrid.Columns.FirstOrDefault(c => c.Header?.ToString() == "الكمية");
+                        var qtyColumn = FindColumnByHeader(dataGrid, "الكمية");
                         if (qtyColumn != null)
                         {
                             dataGrid.CurrentCell = new DataGridCellInfo(line, qtyColumn);
                             dataGrid.ScrollIntoView(line, qtyColumn);
+                            dataGrid.SelectedItem = line;
                             dataGrid.BeginEdit();
                         }
                         RecalculateTotals();
@@ -1653,80 +2317,7 @@ namespace RaccoonWarehouse.Invoices
             }
         }
 
-        private async void ProductCombo_TextBox_TextChanged(object sender, TextChangedEventArgs e)
-        {
-            if (sender is not TextBox textBox) return;
-
-            // Find the ComboBox parent
-            var combo = FindParent<ComboBox>(textBox);
-            if (combo == null) return;
-
-            var text = textBox.Text?.Trim();
-
-            // If empty or too short, show all products
-            if (string.IsNullOrWhiteSpace(text) || text.Length < 1)
-            {
-                ProductSuggestions.Clear();
-                foreach (var p in Products)
-                    ProductSuggestions.Add(p);
-                return;
-            }
-
-            // Cancel previous search
-            _searchCts?.Cancel();
-            _searchCts = new CancellationTokenSource();
-            var token = _searchCts.Token;
-
-            try
-            {
-                await Task.Delay(300, token); // debounce
-
-                await _searchLock.WaitAsync(token);
-
-                var result = await _stockService.GetAllWithFilteringAndIncludeAsync(
-                    s => s.Quantity > 0 &&
-                         ((s.Product.Name != null && s.Product.Name.Contains(text)) ||
-                          (s.Product.ITEMCODE != null && s.Product.ITEMCODE.ToString().Contains(text))),
-                    new Expression<Func<Stock, object>>[]
-                    {
-                        s => s.Product,
-                        s => s.Product.SubCategory,
-                        s => s.Product.Brand,
-                        s => s.Product.ProductUnits
-                    });
-
-                if (token.IsCancellationRequested)
-                    return;
-
-                ProductSuggestions.Clear();
-
-                foreach (var item in result.Data.Select(s => s.Product).Distinct())
-                {
-                    ProductSuggestions.Add(item);
-                }
-
-                // Open dropdown if there are suggestions
-                if (ProductSuggestions.Any())
-                {
-                    combo.IsDropDownOpen = true;
-                }
-            }
-            catch (TaskCanceledException)
-            {
-                // Expected when typing fast
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"خطأ في البحث: {ex.Message}", "خطأ");
-            }
-            finally
-            {
-                if (_searchLock.CurrentCount == 0)
-                    _searchLock.Release();
-            }
-        }
-
-        private void ProductCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private async void ProductCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (sender is not ComboBox combo) return;
             if (combo.SelectedItem is not ProductReadDto product) return;
@@ -1734,17 +2325,17 @@ namespace RaccoonWarehouse.Invoices
             if (combo.DataContext is not InvoiceLineWriteDto line) return;
 
             line.SelectedProduct = product;
-            line.ProductId = product.Id;
-            line.ProductName = product.Name;
-            var defaultSaleUnit = ProductUnitSelector.GetDefaultSaleUnit(product.ProductUnits);
-            line.ProductUnitId = defaultSaleUnit?.Id ?? 0;
-            line.UnitPrice = defaultSaleUnit?.SalePrice ?? 0;
             line.Quantity = 1;
+            if (!await ApplyLinePricingFromProductAsync(line, product))
+            {
+                MessageBox.Show(UiText.T("لا يوجد مخزون متاح لهذا الصنف.", "There is no available stock for this item."), UiText.T("تنبيه", "Notice"));
+                return;
+            }
 
             FocusQuantityCell(combo);
         }
 
-        private void ApplyProduct(ComboBox combo)
+        private async void ApplyProduct(ComboBox combo)
         {
             if (combo.SelectedItem is not ProductReadDto product)
                 return;
@@ -1752,11 +2343,12 @@ namespace RaccoonWarehouse.Invoices
             if (combo.DataContext is not InvoiceLineWriteDto line)
                 return;
 
-            var unit = product.ProductUnits.FirstOrDefault();
-            if (unit == null) return;
-
             line.Quantity = 1;
-            ApplyLinePricingFromProduct(line, product);
+            if (!await ApplyLinePricingFromProductAsync(line, product))
+            {
+                MessageBox.Show("لا يوجد مخزون متاح لهذا الصنف.", "تنبيه");
+                return;
+            }
             RecalculateTotals();
 
             FocusQuantityCell(combo);
@@ -1772,13 +2364,31 @@ namespace RaccoonWarehouse.Invoices
             grid.Dispatcher.BeginInvoke(() =>
             {
                 grid.CurrentCell = new DataGridCellInfo(
-                    grid.SelectedItem,
-                    grid.Columns.First(c => c.Header.ToString() == "الكمية")
+                    combo.DataContext,
+                    FindColumnByHeader(grid, "الكمية")!
                 );
 
+                grid.ScrollIntoView(combo.DataContext, FindColumnByHeader(grid, "الكمية"));
+                grid.Focus();
                 grid.BeginEdit();
             }, DispatcherPriority.Background);
         }
+
+        private void MoveGridFocusToColumn(DataGrid grid, object item, string headerText)
+        {
+            var targetColumn = grid.Columns.FirstOrDefault(c => string.Equals(c.Header?.ToString(), headerText, StringComparison.Ordinal));
+            if (targetColumn == null)
+                return;
+
+            grid.Dispatcher.BeginInvoke(() =>
+            {
+                grid.CurrentCell = new DataGridCellInfo(item, targetColumn);
+                grid.ScrollIntoView(item, targetColumn);
+                grid.Focus();
+                grid.BeginEdit();
+            }, DispatcherPriority.Background);
+        }
+
         private static T FindParent<T>(DependencyObject child) where T : DependencyObject
         {
             while (child != null)
@@ -1817,25 +2427,24 @@ namespace RaccoonWarehouse.Invoices
             if (tb.DataContext is not InvoiceLineWriteDto line) return;
 
             string text = tb.Text.Trim();
+            var searchVersion = ++_popupSearchVersion;
             if (text.Length < 2)
             {
                 if (_currentPopup != null) _currentPopup.IsOpen = false;
                 return;
             }
 
-            _searchCts?.Cancel();
-            _searchCts = new CancellationTokenSource();
-            var token = _searchCts.Token;
-
             try
             {
-                await Task.Delay(300, token); // debounce
+                await Task.Delay(300); // debounce
+                if (searchVersion != _popupSearchVersion)
+                    return;
 
                 var result = await _stockService.GetAllWithFilteringAndIncludeAsync(
                     s => s.Product.Name.Contains(text) || s.Product.ITEMCODE.ToString().Contains(text),
                     new Expression<Func<Stock, object>>[] { s => s.Product, s => s.Product.ProductUnits });
 
-                if (token.IsCancellationRequested) return;
+                if (searchVersion != _popupSearchVersion) return;
 
                 var suggestions = result.Data.Select(s => s.Product).Distinct().ToList();
 
@@ -1849,8 +2458,7 @@ namespace RaccoonWarehouse.Invoices
                     }
                 }
             }
-            catch (TaskCanceledException) { }
-            catch (Exception ex) { MessageBox.Show(ex.Message, "خطأ"); }
+            catch (Exception ex) { MessageBox.Show(ex.Message, UiText.T("خطأ", "Error")); }
         }
 
         private async void ProductSuggestionsListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -1974,19 +2582,14 @@ namespace RaccoonWarehouse.Invoices
                     e.Handled = true;
                     if (listBox.SelectedItem != null)
                     {
-                        // Force selection
-                        ProductSuggestionsListBox_SelectionChanged(
-                            listBox,
-                            new SelectionChangedEventArgs(
-                                Selector.SelectionChangedEvent,
-                                new List<object>(),
-                                new List<object> { listBox.SelectedItem }));
+                        _ = SelectProduct((ProductReadDto)listBox.SelectedItem);
                     }
                     break;
 
                 case Key.Escape:
                     e.Handled = true;
                     _currentPopup.IsOpen = false;
+                    _currentEditingTextBox?.Focus();
                     break;
             }
         }
@@ -2005,7 +2608,7 @@ namespace RaccoonWarehouse.Invoices
         }
         private void InvoiceGrid_PreparingCellForEdit(object sender, DataGridPreparingCellForEditEventArgs e)
         {
-            if (e.Column.Header.ToString() == "الصنف")
+            if (HeaderMatches(e.Column, "الصنف"))
             {
                 if (e.EditingElement is ComboBox combo)
                 {
@@ -2035,6 +2638,74 @@ namespace RaccoonWarehouse.Invoices
                     }, DispatcherPriority.Loaded);
                 }
             }
+
+            if ((HeaderMatches(e.Column, "الكمية") ||
+                 HeaderMatches(e.Column, "السعر")) &&
+                e.EditingElement is TextBox numericTextBox)
+            {
+                numericTextBox.FlowDirection = FlowDirection.LeftToRight;
+                numericTextBox.TextAlignment = TextAlignment.Left;
+                numericTextBox.Language = XmlLanguage.GetLanguage("en-US");
+                numericTextBox.PreviewKeyDown -= NumericEditor_PreviewKeyDown;
+                numericTextBox.PreviewKeyDown += NumericEditor_PreviewKeyDown;
+                numericTextBox.PreviewTextInput -= NumericEditor_PreviewTextInput;
+                numericTextBox.PreviewTextInput += NumericEditor_PreviewTextInput;
+            }
+        }
+
+        private void NumericEditor_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (sender is not TextBox textBox)
+                return;
+
+            if (e.Key is Key.Decimal or Key.OemPeriod or Key.OemComma)
+            {
+                InsertDecimalSeparator(textBox);
+                e.Handled = true;
+            }
+        }
+
+        private void NumericEditor_PreviewTextInput(object sender, TextCompositionEventArgs e)
+        {
+            if (sender is not TextBox textBox)
+                return;
+
+            if (!string.IsNullOrWhiteSpace(e.Text) &&
+                e.Text.Any(ch => !char.IsDigit(ch)))
+            {
+                InsertDecimalSeparator(textBox);
+                e.Handled = true;
+            }
+        }
+
+        private static void InsertDecimalSeparator(TextBox textBox)
+        {
+            var text = textBox.Text ?? string.Empty;
+            var selectionStart = textBox.SelectionStart;
+            var selectionLength = textBox.SelectionLength;
+            var decimalSeparator = CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator;
+
+            if (string.IsNullOrEmpty(decimalSeparator))
+                decimalSeparator = ".";
+
+            var textWithoutSelection = selectionLength > 0
+                ? text.Remove(selectionStart, selectionLength)
+                : text;
+
+            if (textWithoutSelection.Contains('.') ||
+                textWithoutSelection.Contains(',') ||
+                textWithoutSelection.Contains(decimalSeparator))
+            {
+                return;
+            }
+
+            var updatedText = selectionLength > 0
+                ? text.Remove(selectionStart, selectionLength).Insert(selectionStart, decimalSeparator)
+                : text.Insert(selectionStart, decimalSeparator);
+
+            textBox.Text = updatedText;
+            textBox.SelectionStart = selectionStart + decimalSeparator.Length;
+            textBox.SelectionLength = 0;
         }
         private void ProductCombo_LostFocus(object sender, RoutedEventArgs e)
         {
@@ -2050,18 +2721,12 @@ namespace RaccoonWarehouse.Invoices
             if (_currentEditingTextBox?.DataContext is not InvoiceLineWriteDto line)
                 return;
 
-            var result = await _stockService.GetAllWithFilteringAndIncludeAsync(
-                s => s.Product.Id == selectedProduct.Id,
-                new Expression<Func<Stock, object>>[]
-                {
-            s => s.Product,
-            s => s.Product.ProductUnits
-                });
-
-            var product = result.Data.First().Product;
-
             line.Quantity = 1;
-            ApplyLinePricingFromProduct(line, product);
+            if (!await ApplyLinePricingFromProductAsync(line, selectedProduct))
+            {
+                MessageBox.Show(UiText.T("لا يوجد مخزون متاح لهذا الصنف.", "There is no available stock for this item."), UiText.T("تنبيه", "Notice"));
+                return;
+            }
             RecalculateTotals();
 
             _currentPopup.IsOpen = false;
@@ -2070,9 +2735,10 @@ namespace RaccoonWarehouse.Invoices
             InvoiceGrid.CommitEdit(DataGridEditingUnit.Row, true);
 
             var qtyColumn = InvoiceGrid.Columns
-                .First(c => c.Header.ToString().Contains("الكمية"));
+                .First(c => HeaderMatches(c, "الكمية"));
 
             InvoiceGrid.CurrentCell = new DataGridCellInfo(line, qtyColumn);
+            InvoiceGrid.ScrollIntoView(line, qtyColumn);
             InvoiceGrid.Focus();
             InvoiceGrid.BeginEdit();
         }
@@ -2112,15 +2778,32 @@ namespace RaccoonWarehouse.Invoices
                     return;
 
                 PrepareInvoiceForSave();
+                var expandedLines = await ExpandInvoiceLinesByFefoAsync(_invoiceLines);
+                _currentInvoice.InvoiceLines = expandedLines;
+                _currentInvoice.SubTotal = expandedLines.Sum(l => l.LineSubTotal);
+                _currentInvoice.TotalTax = expandedLines.Sum(l => l.TaxAmount);
+                _currentInvoice.TotalCOGS = expandedLines.Sum(l => l.Quantity * l.UnitCost);
+                _currentInvoice.NetSales = _currentInvoice.SubTotal - (_currentInvoice.DiscountAmount ?? 0m);
+                _currentInvoice.GrossProfit = _currentInvoice.NetSales - _currentInvoice.TotalCOGS;
+                _currentInvoice.TotalAmount = expandedLines.Sum(l => l.Quantity * l.UnitPrice) - (_currentInvoice.DiscountAmount ?? 0m);
 
                 var result = await _invoiceService.CreateAsync(_currentInvoice);
-                if (!result.Success)
+                if (!result.Success || result.Data == null)
                 {
-                    MessageBox.Show(result.Message ?? "فشل حفظ الفاتورة", "خطأ");
+                    MessageBox.Show(result.Message ?? UiText.T("فشل حفظ الفاتورة", "Failed to save the invoice."), UiText.T("خطأ", "Error"));
                     return;
                 }
 
                 var savedInvoiceId = result.Data.Id;
+
+                _lastSavedInvoice = await _invoiceService.GetFullInvoiceByIdAsync(savedInvoiceId);
+
+                var movementResult = await _stockService.PostMovementsAsync(BuildPosStockMovements(expandedLines, savedInvoiceId, session));
+                if (!movementResult.Success)
+                {
+                    MessageBox.Show(movementResult.Message ?? UiText.T("فشل تحديث المخزون.", "Failed to update stock."), UiText.T("خطأ", "Error"));
+                    return;
+                }
 
                 if (paymentType != PaymentType.Credit)
                 {
@@ -2143,30 +2826,21 @@ namespace RaccoonWarehouse.Invoices
                     var postResult = await _financialService.PostAsync(postDto);
                     if (!postResult.Success)
                     {
-                        MessageBox.Show(postResult.Message ?? "تم حفظ الفاتورة لكن فشل تسجيل الحركة المالية", "تحذير");
+                        MessageBox.Show(postResult.Message ?? UiText.T("تم حفظ الفاتورة وتحديث المخزون لكن فشل تسجيل الحركة المالية", "The invoice was saved and stock was updated, but posting the financial transaction failed."), UiText.T("تحذير", "Warning"));
                         return;
                     }
                 }
 
                 MessageBox.Show(
                     paymentType == PaymentType.Credit
-                        ? "تم حفظ الفاتورة الآجلة بنجاح ✅"
-                        : "تم حفظ الفاتورة وتسجيل الحركة المالية ✅",
-                    "نجاح");
-
-                _lastSavedInvoice = await _invoiceService.GetFullInvoiceByIdAsync(savedInvoiceId);
-
-                var movementResult = await _stockService.PostMovementsAsync(BuildPosStockMovements(savedInvoiceId, session));
-                if (!movementResult.Success)
-                {
-                    MessageBox.Show(movementResult.Message ?? "فشل تحديث المخزون.", "خطأ");
-                    return;
-                }
+                        ? UiText.T("تم حفظ الفاتورة الآجلة بنجاح ✅", "The credit invoice was saved successfully.")
+                        : UiText.T("تم حفظ الفاتورة وتسجيل الحركة المالية ✅", "The invoice was saved and the financial transaction was posted successfully."),
+                    UiText.T("نجاح", "Success"));
                 ResetPOS();
             }
             catch (Exception ex)
             {
-                MessageBox.Show(ex.Message, "خطأ");
+                MessageBox.Show($"{UiText.T("تعذر إتمام عملية الدفع", "Could not complete the payment")}: {ex.Message}", UiText.T("خطأ", "Error"));
             }
             finally
             {
@@ -2232,7 +2906,7 @@ namespace RaccoonWarehouse.Invoices
 
             var postResult = await _financialService.PostAsync(postDto);
             if (!postResult.Success)
-                throw new Exception(postResult.Message ?? "فشل تسجيل الحركة المالية");
+                throw new Exception(postResult.Message ?? UiText.T("فشل تسجيل الحركة المالية", "Failed to post the financial transaction."));
         }
 
 
@@ -2266,7 +2940,7 @@ namespace RaccoonWarehouse.Invoices
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"تعذر فتح جلسة الكاشير: {ex.Message}", "خطأ");
+                MessageBox.Show($"{UiText.T("تعذر فتح جلسة الكاشير", "Could not open the cashier session")}: {ex.Message}", UiText.T("خطأ", "Error"));
             }
         }
 
@@ -2282,8 +2956,14 @@ namespace RaccoonWarehouse.Invoices
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"تعذر إغلاق جلسة الكاشير: {ex.Message}", "خطأ");
+                MessageBox.Show($"{UiText.T("تعذر إغلاق جلسة الكاشير", "Could not close the cashier session")}: {ex.Message}", UiText.T("خطأ", "Error"));
             }
+        }
+
+        private static bool TryParseDecimalInput(string? text, out decimal value)
+        {
+            return decimal.TryParse(text, NumberStyles.Number, CultureInfo.CurrentCulture, out value)
+                || decimal.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out value);
         }
         #endregion
 

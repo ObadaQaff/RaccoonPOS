@@ -1,27 +1,16 @@
 using AutoMapper;
-using Microsoft.Extensions.DependencyInjection;
+using RaccoonWarehouse;
 using RaccoonWarehouse.Application.Service.Categories;
 using RaccoonWarehouse.Application.Service.SubCategories;
 using RaccoonWarehouse.Common.Loading;
-using RaccoonWarehouse.Categories;
 using RaccoonWarehouse.Domain.SubCategories.DTOs;
-using RaccoonWarehouse;
+using RaccoonWarehouse.Helpers.Localization;
 using System;
 using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Shapes;
 
 namespace RaccoonWarehouse.SubCategories
 {
-    /// <summary>
-    /// Interaction logic for UpdateSubCategory.xaml
-    /// </summary>
     public partial class UpdateSubCategory : Window
     {
         private readonly ISubCategoryService _subCategoryService;
@@ -42,11 +31,12 @@ namespace RaccoonWarehouse.SubCategories
             _categoryService = categoryService;
             _loadingService = loadingService;
             InitializeComponent();
+            UiText.ApplyWindow(this);
         }
 
         private void BackBtn_Click(object sender, RoutedEventArgs e)
         {
-            this.Close();
+            Close();
         }
 
         public async void Load_SubCategory_For_Update(int id)
@@ -74,15 +64,16 @@ namespace RaccoonWarehouse.SubCategories
                     SubCategoryDes.Text = subCategory.Description;
                     SubCategoryImageUrl.Text = subCategory.ImageUrl;
                     ParentCategoryCombo.SelectedValue = subCategory.ParentCategoryId;
+                    UiText.ApplyTranslations(this);
                 }
                 else
                 {
-                    MessageBox.Show(result.Message ?? "Failed to load sub-category data.");
+                    MessageBox.Show(result.Message ?? UiText.T("تعذر تحميل بيانات الفئة الفرعية.", "Could not load the subcategory data."));
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Unexpected error while loading sub-category: {ex.Message}");
+                MessageBox.Show($"{UiText.T("حدث خطأ أثناء تحميل الفئة الفرعية", "An error occurred while loading the subcategory")}: {ex.Message}");
             }
             finally
             {
@@ -92,10 +83,13 @@ namespace RaccoonWarehouse.SubCategories
 
         private async void UpdateSubCategoryBtn_Click(object sender, RoutedEventArgs e)
         {
-            // Required only by non-nullable DTO fields: Name + ParentCategoryId.
             if (string.IsNullOrWhiteSpace(SubCategoryName.Text) || ParentCategoryCombo.SelectedValue == null)
             {
-                MessageBox.Show("Please fill in all required fields.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(
+                    UiText.T("يرجى تعبئة جميع الحقول المطلوبة.", "Please fill in all required fields."),
+                    UiText.T("خطأ في التحقق", "Validation Error"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
                 return;
             }
 
@@ -105,23 +99,22 @@ namespace RaccoonWarehouse.SubCategories
 
                 _writeDto.Name = SubCategoryName.Text.Trim();
                 _writeDto.ParentCategoryId = Convert.ToInt32(ParentCategoryCombo.SelectedValue);
-                // Nullable fields are allowed to be null/empty in UI.
                 _writeDto.Description = string.IsNullOrWhiteSpace(SubCategoryDes.Text) ? null : SubCategoryDes.Text.Trim();
                 _writeDto.ImageUrl = string.IsNullOrWhiteSpace(SubCategoryImageUrl.Text) ? null : SubCategoryImageUrl.Text.Trim();
 
                 var result = await _subCategoryService.UpdateAsync(_writeDto);
                 if (result.Success)
                 {
-                    MessageBox.Show("Sub-category updated successfully!");
+                    MessageBox.Show(UiText.T("تم تحديث الفئة الفرعية بنجاح.", "The subcategory was updated successfully."));
                 }
                 else
                 {
-                    MessageBox.Show(result.Message ?? "Failed to update sub-category.");
+                    MessageBox.Show(result.Message ?? UiText.T("فشل تحديث الفئة الفرعية.", "Failed to update the subcategory."));
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Unexpected error while updating sub-category: {ex.Message}");
+                MessageBox.Show($"{UiText.T("حدث خطأ أثناء تحديث الفئة الفرعية", "An error occurred while updating the subcategory")}: {ex.Message}");
             }
             finally
             {

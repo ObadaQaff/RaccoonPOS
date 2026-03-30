@@ -1,8 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 using RaccoonWarehouse.Application.Service.Stocks;
 using RaccoonWarehouse.Domain.Stock.DTOs;
+using RaccoonWarehouse.Helpers.Localization;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using System.Windows;
@@ -18,6 +16,7 @@ namespace RaccoonWarehouse.Stocks.Reports
         {
             _stockReportService = stockReportService;
             InitializeComponent();
+            UiText.ApplyWindow(this);
             LowStockGrid.ItemsSource = _items;
             Loaded += LowStockReport_Loaded;
         }

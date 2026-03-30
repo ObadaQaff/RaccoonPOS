@@ -26,6 +26,8 @@ namespace RaccoonWarehouse.Domain.Invoices.DTOs
         public int? SupplierId { get; set; }
         public int? CustomerId { get; set; }
         public UserWriteDto? User { get; set; }
+        public int? DelegateId { get; set; }
+        public string? DelegateName { get; set; }
         public int? VoucherId { get; set; }
         public VoucherWriteDto? Voucher { get; set; }
         public decimal TotalAmount { get; set; }

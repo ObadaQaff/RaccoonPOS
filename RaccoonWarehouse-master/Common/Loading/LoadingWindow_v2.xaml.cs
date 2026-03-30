@@ -11,6 +11,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
+using RaccoonWarehouse.Helpers.Localization;
 
 namespace RaccoonWarehouse.Common.Loading
 {
@@ -22,6 +23,9 @@ namespace RaccoonWarehouse.Common.Loading
         public LoadingWindow_v2()
         {
             InitializeComponent();
+            MessageText.Text = UiText.T("جاري تجهيز مساحة العمل...", "Preparing your workspace...");
+            HintText.Text = UiText.T("يتم تحميل لوحة التحكم والعمليات", "Loading dashboard and actions");
+            UiText.ApplyWindow(this);
         }
     }
 }

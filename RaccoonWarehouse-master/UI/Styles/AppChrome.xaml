@@ -40,7 +40,7 @@
         <Setter Property="FontSize" Value="15"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
         <Setter Property="Cursor" Value="Hand"/>
-        <Setter Property="FlowDirection" Value="RightToLeft"/>
+        <Setter Property="FlowDirection" Value="{DynamicResource CurrentFlowDirection}"/>
         <Setter Property="HorizontalContentAlignment" Value="Center"/>
         <Setter Property="VerticalContentAlignment" Value="Center"/>
         <Setter Property="Background" Value="{StaticResource AppPrimaryBrush}"/>
@@ -84,16 +84,16 @@
         <Setter Property="FontWeight" Value="SemiBold"/>
         <Setter Property="Foreground" Value="#243746"/>
         <Setter Property="Margin" Value="0,0,0,8"/>
-        <Setter Property="FlowDirection" Value="RightToLeft"/>
-        <Setter Property="TextAlignment" Value="Right"/>
+        <Setter Property="FlowDirection" Value="{DynamicResource CurrentFlowDirection}"/>
+        <Setter Property="TextAlignment" Value="{DynamicResource CurrentTextAlignment}"/>
     </Style>
 
     <Style x:Key="AppTextInputStyle" TargetType="TextBox">
         <Setter Property="Height" Value="54"/>
         <Setter Property="Padding" Value="14,0"/>
         <Setter Property="FontSize" Value="15"/>
-        <Setter Property="FlowDirection" Value="RightToLeft"/>
-        <Setter Property="TextAlignment" Value="Right"/>
+        <Setter Property="FlowDirection" Value="{DynamicResource CurrentFlowDirection}"/>
+        <Setter Property="TextAlignment" Value="{DynamicResource CurrentTextAlignment}"/>
         <Setter Property="Background" Value="White"/>
         <Setter Property="BorderBrush" Value="{StaticResource AppBorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
@@ -117,7 +117,7 @@
     <Style x:Key="AppComboBoxStyle" TargetType="ComboBox">
         <Setter Property="Height" Value="54"/>
         <Setter Property="FontSize" Value="15"/>
-        <Setter Property="FlowDirection" Value="RightToLeft"/>
+        <Setter Property="FlowDirection" Value="{DynamicResource CurrentFlowDirection}"/>
         <Setter Property="Background" Value="White"/>
         <Setter Property="BorderBrush" Value="{StaticResource AppBorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
@@ -176,14 +176,14 @@
     <Style x:Key="AppMenuItemStyle" TargetType="MenuItem">
         <Setter Property="FontSize" Value="14"/>
         <Setter Property="Padding" Value="12,8"/>
-        <Setter Property="FlowDirection" Value="RightToLeft"/>
+        <Setter Property="FlowDirection" Value="{DynamicResource CurrentFlowDirection}"/>
     </Style>
 
     <Style x:Key="DashboardNavButtonStyle" TargetType="Button">
         <Setter Property="Background" Value="Transparent"/>
         <Setter Property="BorderBrush" Value="Transparent"/>
         <Setter Property="Foreground" Value="{StaticResource AppSidebarTextBrush}"/>
-        <Setter Property="FlowDirection" Value="RightToLeft"/>
+        <Setter Property="FlowDirection" Value="{DynamicResource CurrentFlowDirection}"/>
         <Setter Property="HorizontalContentAlignment" Value="Right"/>
         <Setter Property="Padding" Value="18,12"/>
         <Setter Property="Cursor" Value="Hand"/>

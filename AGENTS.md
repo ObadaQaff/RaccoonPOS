@@ -58,6 +58,11 @@ These instructions apply to the repository rooted at `C:\Users\obadaqafisheh\sou
   - `dotnet build RaccoonWarehouse-master/RaccoonWarehouse.sln`
 - Preferred app build:
   - `dotnet build RaccoonWarehouse-master/RaccoonWarehouse.csproj`
+- For requests to export, build, or publish an `.exe` for delivery, always rebuild from the latest current source code first and produce a fresh publish output before sharing the executable path.
+- For requests to sync, update, or recreate the installer/setup executable, always rebuild from the latest current source code first, publish a fresh output, then regenerate `publish\installer\ROCCOPOS-Setup.exe` from the new publish output.
+- Do not rely on older files already present in `bin`, `obj`, or prior `publish` folders when fulfilling `.exe` export requests.
+- After publishing an `.exe`, report the exact output path of the newly generated file.
+- After recreating the installer/setup executable, report the exact output path of the newly generated setup file.
 - If a task changes EF Core models or persistence, also inspect `RaccoonWarehouse.Data/Migrations`.
 - There do not appear to be dedicated test projects in this repository, so verification will often be build-focused unless tests are added later.
 
@@ -109,6 +114,15 @@ These instructions apply to the repository rooted at `C:\Users\obadaqafisheh\sou
 - The app uses DI to resolve windows and services on startup.
 - Many screens are code-behind heavy WPF windows rather than MVVM-first components. Match the local pattern unless the task explicitly asks for a broader refactor.
 - Reports and PDF generation use libraries already referenced in the main app project, including QuestPDF, MigraDocCore, and PdfSharpCore.
+
+## Localization Rules
+- The app now supports Arabic and English localization.
+- Any new feature, window, dialog, report, or UI change must support localization.
+- Do not add new user-visible text in only one language.
+- New labels, buttons, titles, table headers, menu items, and message boxes must be compatible with the shared localization/translation flow already used in the repo.
+- When adding new visible text, also add the corresponding translation entry to the shared localization store.
+- New dynamic UI actions must not depend on translated display text for logic or routing. Use stable keys such as `Tag`, enums, or internal identifiers.
+- Language switching must continue to work for any new or updated UI.
 
 ## Change Guidance
 - For bug fixes, inspect both the WPF window and the corresponding application service before editing.

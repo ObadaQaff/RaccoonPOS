@@ -4,6 +4,7 @@ using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Reports.Financial.Filters;
 using RaccoonWarehouse.Domain.Reports.Sales.Dtos;
 using RaccoonWarehouse.Domain.Users.DTOs;
+using RaccoonWarehouse.Helpers.Localization;
 using RaccoonWarehouse.Helpers.Pdf;
 using RaccoonWarehouse.Helpers.Pdf.Reports;
 using System;
@@ -25,6 +26,7 @@ namespace RaccoonWarehouse.Reports
         public SalesReport(IInvoiceService invoiceService, IUserService userService)
         {
             InitializeComponent();
+            UiText.ApplyWindow(this);
 
             _invoiceService = invoiceService;
             _userService = userService;
@@ -41,15 +43,15 @@ namespace RaccoonWarehouse.Reports
             // ✅ invoice type filter
             // مهم: نخزن القيمة كـ enum داخل ComboBoxItem.Tag حتى ما نعتمد على string
             InvoiceTypeComboBox.Items.Clear();
-            InvoiceTypeComboBox.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = "الكل", Tag = (InvoiceType?)null });
-            InvoiceTypeComboBox.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = "مبيعات", Tag = (InvoiceType?)InvoiceType.Sale });
-            InvoiceTypeComboBox.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = "مرتجع", Tag = (InvoiceType?)InvoiceType.Return });
+            InvoiceTypeComboBox.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = UiText.T("الكل", "All"), Tag = (InvoiceType?)null });
+            InvoiceTypeComboBox.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = UiText.T("مبيعات", "Sales"), Tag = (InvoiceType?)InvoiceType.Sale });
+            InvoiceTypeComboBox.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = UiText.T("مرتجع", "Return"), Tag = (InvoiceType?)InvoiceType.Return });
             InvoiceTypeComboBox.SelectedIndex = 0;
 
             PosFilterComboBox.Items.Clear();
-            PosFilterComboBox.Items.Add(new ComboBoxItem { Content = "الكل", Tag = null });
-            PosFilterComboBox.Items.Add(new ComboBoxItem { Content = "فواتير POS فقط", Tag = true });
-            PosFilterComboBox.Items.Add(new ComboBoxItem { Content = "فواتير غير POS", Tag = false });
+            PosFilterComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("الكل", "All"), Tag = null });
+            PosFilterComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("فواتير POS فقط", "POS invoices only"), Tag = true });
+            PosFilterComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("فواتير غير POS", "Non-POS invoices"), Tag = false });
             PosFilterComboBox.SelectedIndex = 0;
 
             // ✅ load customers
@@ -57,11 +59,12 @@ namespace RaccoonWarehouse.Reports
             _customers = usersRes.Data ?? new List<UserReadDto>();
 
             var list = new List<UserReadDto>();
-            list.Add(new UserReadDto { Id = 0, Name = "الكل" });
+            list.Add(new UserReadDto { Id = 0, Name = UiText.T("الكل", "All") });
             list.AddRange(_customers);
 
             CustomerComboBox.ItemsSource = list;
             CustomerComboBox.SelectedValue = 0;
+            UiText.ApplyTranslations(this);
 
             // ✅ init cards
             ClearSummary();
@@ -73,7 +76,7 @@ namespace RaccoonWarehouse.Reports
             {
                 if (FromDatePicker.SelectedDate == null || ToDatePicker.SelectedDate == null)
                 {
-                    MessageBox.Show("يرجى اختيار تاريخ البداية والنهاية.");
+                    MessageBox.Show(UiText.T("يرجى اختيار تاريخ البداية والنهاية.", "Please choose the start and end dates."));
                     return;
                 }
 
@@ -109,7 +112,7 @@ namespace RaccoonWarehouse.Reports
 
                 if (!res.Success)
                 {
-                    MessageBox.Show(res.Message ?? "فشل تحميل التقرير.");
+                    MessageBox.Show(res.Message ?? UiText.T("فشل تحميل التقرير.", "Failed to load the report."));
                     return;
                 }
 
@@ -122,7 +125,7 @@ namespace RaccoonWarehouse.Reports
                 FillSummary(rows); // أو FillSummary(res.Data.summary) حسب طريقتك
                 if (!res.Success)
                 {
-                    MessageBox.Show(res.Message ?? "فشل تحميل التقرير.");
+                    MessageBox.Show(res.Message ?? UiText.T("فشل تحميل التقرير.", "Failed to load the report."));
                     return;
                 }
 
@@ -130,7 +133,7 @@ namespace RaccoonWarehouse.Reports
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"خطأ: {ex.Message}");
+                MessageBox.Show($"{UiText.T("خطأ", "Error")}: {ex.Message}");
             }
         }
 
@@ -187,7 +190,7 @@ namespace RaccoonWarehouse.Reports
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"خطأ في تصدير التقرير: {ex.Message}");
+                MessageBox.Show($"{UiText.T("خطأ في تصدير التقرير", "Error exporting report")}: {ex.Message}");
             }
         }
 
@@ -203,7 +206,7 @@ namespace RaccoonWarehouse.Reports
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"خطأ في طباعة التقرير: {ex.Message}");
+                MessageBox.Show($"{UiText.T("خطأ في طباعة التقرير", "Error printing report")}: {ex.Message}");
             }
         }
 
@@ -211,11 +214,11 @@ namespace RaccoonWarehouse.Reports
         {
             if (_currentRows.Count == 0)
             {
-                MessageBox.Show("اعرض التقرير أولاً قبل التصدير أو الطباعة.");
+                MessageBox.Show(UiText.T("اعرض التقرير أولاً قبل التصدير أو الطباعة.", "Generate the report before exporting or printing."));
                 return null;
             }
 
-            var customerName = (CustomerComboBox.SelectedItem as UserReadDto)?.Name ?? "الكل";
+            var customerName = (CustomerComboBox.SelectedItem as UserReadDto)?.Name ?? UiText.T("الكل", "All");
             return new SalesSummaryReportDocument(_currentRows, FromDatePicker.SelectedDate, ToDatePicker.SelectedDate, customerName);
         }
     }

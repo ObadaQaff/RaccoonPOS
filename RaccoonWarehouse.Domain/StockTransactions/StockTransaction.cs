@@ -5,6 +5,8 @@ using RaccoonWarehouse.Domain.Invoices;
 using RaccoonWarehouse.Domain.Products;
 using RaccoonWarehouse.Domain.ProductUnits;
 using RaccoonWarehouse.Domain.Stock;
+using RaccoonWarehouse.Domain.StockAdjustments;
+using RaccoonWarehouse.Domain.StockLots;
 using RaccoonWarehouse.Domain.Users;
 using RaccoonWarehouse.Domain.Vouchers;
 using System;
@@ -24,11 +26,16 @@ namespace RaccoonWarehouse.Domain.StockTransactions
         public int ProductUnitId { get; set; }
         public int? StockId { get; set; }
         public Stock.Stock? Stock { get; set; }
+        public int? StockLotId { get; set; }
+        public StockLot? StockLot { get; set; }
+        public int? StockAdjustmentId { get; set; }
+        public StockAdjustment? StockAdjustment { get; set; }
 
         public decimal Quantity { get; set; }
         public decimal QuantityPerUnitSnapshot { get; set; }
         public decimal BaseQuantity { get; set; }
         public decimal UnitPrice { get; set; }
+        public DateTime? ExpiryDate { get; set; }
         public TransactionType TransactionType { get; set; }
         public Invoice? Invoice { get; set; }
         public int? InvoiceId { get; set; }
@@ -42,6 +49,7 @@ namespace RaccoonWarehouse.Domain.StockTransactions
         public int? CustomerId { get; set; }
         public DateTime TransactionDate { get; set; }
         public string? Notes { get; set; }
+        public string? ReferenceNumber { get; set; }
   
     }
 }

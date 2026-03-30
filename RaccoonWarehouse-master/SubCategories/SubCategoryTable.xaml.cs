@@ -5,6 +5,7 @@ using RaccoonWarehouse.Application.Service.SubCategories;
 using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Domain.SubCategories.DTOs;
 using RaccoonWarehouse.Domain.Users.DTOs;
+using RaccoonWarehouse.Helpers.Localization;
 using RaccoonWarehouse.Navigation;
 using RaccoonWarehouse.Stocks;
 using System;
@@ -35,6 +36,8 @@ namespace RaccoonWarehouse.SubCategories
             _mapper = mapper;
             _loadingService = loadingService;
             InitializeComponent();
+            UiText.ApplyWindow(this);
+            SubCategoriesTable1.AutoGeneratingColumn += SubCategoriesTable1_AutoGeneratingColumn;
             _ = Load_SubCategoriesAsync();
         }
 
@@ -51,12 +54,12 @@ namespace RaccoonWarehouse.SubCategories
                 }
                 else
                 {
-                    MessageBox.Show(result.Message ?? "Failed to load sub-categories.");
+                    MessageBox.Show(result.Message ?? UiText.T("فشل تحميل الفئات الفرعية.", "Failed to load subcategories."));
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Unexpected error while loading sub-categories: {ex.Message}");
+                MessageBox.Show($"{UiText.T("حدث خطأ غير متوقع أثناء تحميل الفئات الفرعية", "Unexpected error while loading subcategories")}: {ex.Message}");
             }
             finally
             {
@@ -92,13 +95,15 @@ namespace RaccoonWarehouse.SubCategories
             var selectedSubCategory = SubCategoriesTable1.SelectedItem as SubCategoryReadDto;
             if (selectedSubCategory == null)
             {
-                MessageBox.Show("No subcategory selected.");
+                MessageBox.Show(UiText.T("لم يتم اختيار فئة فرعية.", "No subcategory selected."));
                 return;
             }
 
             var messageResult = MessageBox.Show(
-                $"Are you sure you want to delete  '{selectedSubCategory.Name}' Category ?",
-                "Confirm Delete",
+                UiText.IsEnglish
+                    ? $"Are you sure you want to delete the subcategory '{selectedSubCategory.Name}'?"
+                    : $"هل أنت متأكد من أنك تريد حذف الفئة الفرعية '{selectedSubCategory.Name}'؟",
+                UiText.T("تأكيد الحذف", "Confirm Delete"),
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Warning);
 
@@ -114,17 +119,17 @@ namespace RaccoonWarehouse.SubCategories
 
                 if (result.Success)
                 {
-                    MessageBox.Show("Delete was successful !!");
+                    MessageBox.Show(UiText.T("تم الحذف بنجاح !!", "Delete was successful."));
                     await Load_SubCategoriesAsync();
                 }
                 else
                 {
-                    MessageBox.Show(result.Message ?? "Delete failed.");
+                    MessageBox.Show(result.Message ?? UiText.T("فشل الحذف.", "Delete failed."));
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Unexpected error while deleting sub-category: {ex.Message}");
+                MessageBox.Show($"{UiText.T("حدث خطأ غير متوقع أثناء حذف الفئة الفرعية", "Unexpected error while deleting subcategory")}: {ex.Message}");
             }
             finally
             {
@@ -136,7 +141,7 @@ namespace RaccoonWarehouse.SubCategories
         {
             if (SubCategoriesTable1.SelectedItem is not SubCategoryReadDto selectedCategory)
             {
-                MessageBox.Show("No subcategory selected.");
+                MessageBox.Show(UiText.T("لم يتم اختيار فئة فرعية.", "No subcategory selected."));
                 return;
             }
 
@@ -144,6 +149,18 @@ namespace RaccoonWarehouse.SubCategories
             {
                 w.Load_SubCategory_For_Update(selectedCategory.Id);
             });
+        }
+
+        private void SubCategoriesTable1_AutoGeneratingColumn(object? sender, DataGridAutoGeneratingColumnEventArgs e)
+        {
+            e.Column.Header = e.PropertyName switch
+            {
+                "Id" => UiText.T("الرقم التعريفي", "ID"),
+                "Name" => UiText.T("اسم الفئة الفرعية", "Subcategory Name"),
+                "CreatedDate" => UiText.T("تاريخ الإنشاء", "Created Date"),
+                "UpdatedDate" => UiText.T("آخر تحديث", "Last Updated"),
+                _ => UiText.Translate(e.Column.Header?.ToString() ?? e.PropertyName)
+            };
         }
     }
 }

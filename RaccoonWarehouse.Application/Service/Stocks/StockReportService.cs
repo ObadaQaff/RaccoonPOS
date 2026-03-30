@@ -11,8 +11,10 @@ using RaccoonWarehouse.Domain.Reports.Stocks.Dtos;
 using RaccoonWarehouse.Domain.Reports.Stocks.Filters;
 using RaccoonWarehouse.Domain.Stock;
 using RaccoonWarehouse.Domain.Stock.DTOs;
+using RaccoonWarehouse.Domain.StockAdjustments;
 using RaccoonWarehouse.Domain.Stock.Filters;
 using RaccoonWarehouse.Domain.StockItems;
+using RaccoonWarehouse.Domain.StockLots;
 using RaccoonWarehouse.Domain.StockTransactions;
 using System;
 using System.Collections.Generic;
@@ -41,6 +43,7 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                 .Include(s => s.ProductUnit)
                     .ThenInclude(pu => pu.Unit)
                 .ToListAsync();
+            var nearestLots = await GetNearestLotsByProductAsync();
 
             return stocks
                 .GroupBy(s => s.ProductId)
@@ -48,6 +51,7 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                 {
                     var sample = group.First();
                     var baseUnit = GetBaseUnit(sample.Product, sample.ProductUnit);
+                    var nearestLot = nearestLots.TryGetValue(group.Key, out var lot) ? lot : null;
 
                     return new CurrentStockDto
                     {
@@ -56,7 +60,10 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                         ITEMCODE = sample.Product?.ITEMCODE.ToString(),
                         UnitName = baseUnit?.Unit?.Name ?? sample.ProductUnit?.Unit?.Name,
                         Quantity = group.Sum(GetNormalizedStockQuantity),
-                        MinimumQuantity = sample.Product?.MiniQuantity
+                        MinimumQuantity = sample.Product?.MiniQuantity,
+                        PurchasePrice = nearestLot?.PurchasePrice ?? sample.PurchasePrice,
+                        SalePrice = nearestLot?.SalePrice ?? sample.SalePrice,
+                        NearestExpiryDate = nearestLot?.ExpiryDate
                     };
                 })
                 .OrderBy(x => x.ProductName)
@@ -73,6 +80,8 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                         .ThenInclude(pu => pu.Unit)
                 .Include(x => x.ProductUnit)
                     .ThenInclude(pu => pu.Unit)
+                .Include(x => x.StockLot)
+                .Include(x => x.StockAdjustment)
                 .Include(x => x.Invoice)
                 .Include(x => x.Casher)
                 .Include(x => x.Customer);
@@ -95,8 +104,11 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                     ProductName = x.Product?.Name,
                     UnitName = GetBaseUnit(x.Product, x.ProductUnit)?.Unit?.Name ?? x.ProductUnit?.Unit?.Name,
                     Quantity = x.BaseQuantity != 0 ? x.BaseQuantity : x.Quantity * GetUnitFactor(x.ProductUnit, x.QuantityPerUnitSnapshot),
-                    PurchasePrice = x.ProductUnit?.PurchasePrice ?? 0m,
+                    PurchasePrice = x.StockLot?.PurchasePrice ?? x.ProductUnit?.PurchasePrice ?? 0m,
                     SalePrice = x.UnitPrice,
+                    ExpiryDate = x.ExpiryDate,
+                    BatchStatus = x.StockLot?.Status.ToString(),
+                    Reference = x.ReferenceNumber,
                     CreatedBy = x.Casher?.Name ?? x.Customer?.Name ?? string.Empty
                 })
                 .OrderByDescending(x => x.Date)
@@ -115,12 +127,14 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                     .ThenInclude(pu => pu.Unit)
                 .Where(s => s.Product.MiniQuantity != null)
                 .ToListAsync();
+            var nearestLots = await GetNearestLotsByProductAsync();
 
             return stocks
                 .GroupBy(s => s.ProductId)
                 .Select(group =>
                 {
                     var sample = group.First();
+                    var nearestLot = nearestLots.TryGetValue(group.Key, out var lot) ? lot : null;
                     return new LowStockDto
                     {
                         ProductId = group.Key,
@@ -128,7 +142,8 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                         ITEMCODE = sample.Product?.ITEMCODE.ToString(),
                         UnitName = GetBaseUnit(sample.Product, sample.ProductUnit)?.Unit?.Name ?? sample.ProductUnit?.Unit?.Name,
                         CurrentQuantity = group.Sum(GetNormalizedStockQuantity),
-                        MinimumQuantity = sample.Product?.MiniQuantity ?? 0m
+                        MinimumQuantity = sample.Product?.MiniQuantity ?? 0m,
+                        NearestExpiryDate = nearestLot?.ExpiryDate
                     };
                 })
                 .Where(x => x.CurrentQuantity <= x.MinimumQuantity)
@@ -140,6 +155,7 @@ namespace RaccoonWarehouse.Application.Service.Stocks
         {
             var end = date.Date.AddDays(1).AddTicks(-1);
             var transactionRepo = _uow.GetRepository<StockTransaction>();
+            var nearestLots = await GetNearestLotsByProductAsync();
             IQueryable<StockTransaction> query = transactionRepo.AsQueryable()
                 .Include(x => x.Product)
                     .ThenInclude(p => p.ProductUnits)
@@ -179,6 +195,7 @@ namespace RaccoonWarehouse.Application.Service.Stocks
 
             foreach (var row in dict.Values)
             {
+                row.NearestExpiryDate = nearestLots.TryGetValue(row.ProductId, out var lot) ? lot.ExpiryDate : null;
                 row.StatusText = (row.MinimumQuantity > 0 && row.Quantity <= row.MinimumQuantity)
                     ? "تحت الحد الأدنى"
                     : "طبيعي";
@@ -406,6 +423,7 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                 .Include(s => s.ProductUnit)
                     .ThenInclude(pu => pu.Unit)
                 .ToListAsync();
+            var nearestLots = await GetNearestLotsByProductAsync();
 
             return stocks
                 .GroupBy(s => s.ProductId)
@@ -413,7 +431,8 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                 {
                     var sample = group.First();
                     var baseUnit = GetBaseUnit(sample.Product, sample.ProductUnit);
-                    var unitCost = GetBaseUnitCost(sample.Product, sample.ProductUnit);
+                    var nearestLot = nearestLots.TryGetValue(group.Key, out var lot) ? lot : null;
+                    var unitCost = nearestLot?.PurchasePrice ?? GetBaseUnitCost(sample.Product, sample.ProductUnit);
                     var quantity = group.Sum(GetNormalizedStockQuantity);
 
                     return new StockValuationRowDto
@@ -425,7 +444,8 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                         Quantity = quantity,
                         UnitCost = unitCost,
                         TotalValue = quantity * unitCost,
-                        MinimumQuantity = sample.Product?.MiniQuantity ?? 0m
+                        MinimumQuantity = sample.Product?.MiniQuantity ?? 0m,
+                        NearestExpiryDate = nearestLot?.ExpiryDate
                     };
                 })
                 .OrderByDescending(x => x.TotalValue)
@@ -483,6 +503,8 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                         .ThenInclude(pu => pu.Unit)
                 .Include(x => x.ProductUnit)
                     .ThenInclude(pu => pu.Unit)
+                .Include(x => x.StockLot)
+                .Include(x => x.StockAdjustment)
                 .Include(x => x.Casher)
                 .Where(x => x.TransactionType == TransactionType.Adjustment);
 
@@ -502,9 +524,11 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                     UnitName = GetBaseUnit(x.Product, x.ProductUnit)?.Unit?.Name ?? x.ProductUnit?.Unit?.Name,
                     Quantity = x.BaseQuantity != 0 ? x.BaseQuantity : x.Quantity * GetUnitFactor(x.ProductUnit, x.QuantityPerUnitSnapshot),
                     UnitPrice = x.UnitPrice,
+                    AdjustmentType = x.StockAdjustment?.AdjustmentType.ToString() ?? "Adjustment",
+                    BatchAction = x.StockLot?.Status.ToString() ?? string.Empty,
                     Notes = x.Notes,
                     CreatedBy = x.Casher?.Name ?? string.Empty,
-                    SourceReference = x.StockId.HasValue ? $"STK-{x.StockId}" : (x.InvoiceId.HasValue ? $"INV-{x.InvoiceId}" : $"TRX-{x.Id}")
+                    SourceReference = x.ReferenceNumber ?? (x.StockId.HasValue ? $"STK-{x.StockId}" : (x.InvoiceId.HasValue ? $"INV-{x.InvoiceId}" : $"TRX-{x.Id}"))
                 })
                 .OrderByDescending(x => x.TransactionDate)
                 .ToList();
@@ -513,6 +537,7 @@ namespace RaccoonWarehouse.Application.Service.Stocks
         public async Task<List<PriceListRowDto>> GetPriceListAsync()
         {
             var productRepo = _uow.GetRepository<Product>();
+            var lotLookup = await GetNearestLotsByProductUnitAsync();
             var products = await productRepo.GetAllAsQueryable()
                 .Include(p => p.ProductUnits)
                     .ThenInclude(pu => pu.Unit)
@@ -520,17 +545,22 @@ namespace RaccoonWarehouse.Application.Service.Stocks
 
             return products
                 .SelectMany(product => (product.ProductUnits ?? new List<ProductUnit>())
-                    .Select(unit => new PriceListRowDto
+                    .Select(unit =>
                     {
-                        ProductId = product.Id,
-                        ItemID = product.ITEMCODE.ToString(),
-                        ItemName = product.Name,
-                        Barcode = product.ITEMCODE.ToString(),
-                        UnitName = unit.Unit?.Name ?? string.Empty,
-                        PurchasePrice = unit.PurchasePrice,
-                        SalePrice = unit.SalePrice,
-                        IsDefaultSaleUnit = unit.IsDefaultSaleUnit,
-                        IsDefaultPurchaseUnit = unit.IsDefaultPurchaseUnit
+                        lotLookup.TryGetValue((product.Id, unit.Id), out var lot);
+                        return new PriceListRowDto
+                        {
+                            ProductId = product.Id,
+                            ItemID = product.ITEMCODE.ToString(),
+                            ItemName = product.Name,
+                            Barcode = product.ITEMCODE.ToString(),
+                            UnitName = unit.Unit?.Name ?? string.Empty,
+                            PurchasePrice = lot?.PurchasePrice ?? unit.PurchasePrice,
+                            SalePrice = lot?.SalePrice ?? unit.SalePrice,
+                            ExpiryDate = lot?.ExpiryDate,
+                            IsDefaultSaleUnit = unit.IsDefaultSaleUnit,
+                            IsDefaultPurchaseUnit = unit.IsDefaultPurchaseUnit
+                        };
                     }))
                 .OrderBy(x => x.ItemName)
                 .ThenByDescending(x => x.IsDefaultSaleUnit)
@@ -563,6 +593,44 @@ namespace RaccoonWarehouse.Application.Service.Stocks
         private static ProductUnit? GetBaseUnit(Product? product, ProductUnit? fallbackUnit = null)
         {
             return ProductUnitSelector.GetBaseUnit(product?.ProductUnits) ?? fallbackUnit;
+        }
+
+        private async Task<Dictionary<int, StockLot>> GetNearestLotsByProductAsync()
+        {
+            var lotRepo = _uow.GetRepository<StockLot>();
+            var today = DateTime.Today;
+            var lots = await lotRepo.GetAllAsQueryable()
+                .Where(l => l.RemainingQuantity > 0 &&
+                            (!l.ExpiryDate.HasValue || l.ExpiryDate.Value >= today))
+                .ToListAsync();
+
+            return lots
+                .GroupBy(l => l.ProductId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.OrderBy(l => l.ExpiryDate == null ? 1 : 0)
+                        .ThenBy(l => l.ExpiryDate)
+                        .ThenBy(l => l.CreatedDate)
+                        .First());
+        }
+
+        private async Task<Dictionary<(int ProductId, int ProductUnitId), StockLot>> GetNearestLotsByProductUnitAsync()
+        {
+            var lotRepo = _uow.GetRepository<StockLot>();
+            var today = DateTime.Today;
+            var lots = await lotRepo.GetAllAsQueryable()
+                .Where(l => l.RemainingQuantity > 0 &&
+                            (!l.ExpiryDate.HasValue || l.ExpiryDate.Value >= today))
+                .ToListAsync();
+
+            return lots
+                .GroupBy(l => (l.ProductId, l.ProductUnitId))
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.OrderBy(l => l.ExpiryDate == null ? 1 : 0)
+                        .ThenBy(l => l.ExpiryDate)
+                        .ThenBy(l => l.CreatedDate)
+                        .First());
         }
 
         private static decimal GetUnitFactor(ProductUnit? unit, decimal snapshotFactor = 0m)

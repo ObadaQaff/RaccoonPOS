@@ -10,5 +10,6 @@ namespace RaccoonWarehouse.Domain.Reports.Stocks.Dtos
         public decimal UnitCost { get; set; }
         public decimal TotalValue { get; set; }
         public decimal MinimumQuantity { get; set; }
+        public DateTime? NearestExpiryDate { get; set; }
     }
 }

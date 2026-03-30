@@ -1,31 +1,19 @@
-﻿using RaccoonWarehouse.Application.Service.Products;
+using RaccoonWarehouse.Application.Service.Products;
 using RaccoonWarehouse.Application.Service.Stocks;
 using RaccoonWarehouse.Domain.Products.DTOs;
 using RaccoonWarehouse.Domain.Reports.Products.Dtos;
 using RaccoonWarehouse.Domain.Reports.Products.Filters;
-using System;
+using RaccoonWarehouse.Helpers.Localization;
 using System;
 using System.Collections.Generic;
-using System.Collections.Generic;
 using System.Linq;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Shapes;
 
 namespace RaccoonWarehouse.Products.Reports
 {
     public partial class ProductProfitReport : Window
     {
-        private readonly IStockReportService _reportsService; // أو IFinancialReportService
+        private readonly IStockReportService _reportsService;
         private readonly IProductService _productService;
 
         public ProductProfitReport(IStockReportService reportsService, IProductService productService)
@@ -33,7 +21,7 @@ namespace RaccoonWarehouse.Products.Reports
             InitializeComponent();
             _reportsService = reportsService;
             _productService = productService;
-
+            UiText.ApplyWindow(this);
             Loaded += ProductProfitReport_Loaded;
         }
 
@@ -42,21 +30,18 @@ namespace RaccoonWarehouse.Products.Reports
             FromDatePicker.SelectedDate = DateTime.Today;
             ToDatePicker.SelectedDate = DateTime.Today;
 
-            // تحميل المنتجات (اختياري)
             try
             {
                 var pRes = await _productService.GetAllAsync();
                 var products = pRes.Data ?? new List<ProductReadDto>();
-
-                // خيار "الكل"
-                products.Insert(0, new ProductReadDto { Id = 0, Name = "الكل" });
+                products.Insert(0, new ProductReadDto { Id = 0, Name = UiText.T("الكل", "All") });
 
                 ProductComboBox.ItemsSource = products;
                 ProductComboBox.SelectedValue = 0;
+                UiText.ApplyTranslations(this);
             }
             catch
             {
-                // ignore
             }
         }
 
@@ -66,7 +51,7 @@ namespace RaccoonWarehouse.Products.Reports
             {
                 if (FromDatePicker.SelectedDate == null || ToDatePicker.SelectedDate == null)
                 {
-                    MessageBox.Show("يرجى اختيار تاريخ البداية والنهاية.");
+                    MessageBox.Show(UiText.T("يرجى اختيار تاريخ البداية والنهاية.", "Please choose the start and end dates."));
                     return;
                 }
 
@@ -79,27 +64,29 @@ namespace RaccoonWarehouse.Products.Reports
                 };
 
                 if (ProductComboBox.SelectedValue is int pid && pid != 0)
+                {
                     filter.ProductId = pid;
+                }
 
                 var rows = await _reportsService.GetProductProfitAsync(filter);
                 ProductProfitGrid.ItemsSource = rows;
-
                 FillSummary(rows);
+                UiText.ApplyTranslations(this);
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"خطأ: {ex.Message}");
+                MessageBox.Show($"{UiText.T("خطأ", "Error")}: {ex.Message}");
             }
         }
 
         private void FillSummary(List<ProductProfitRowDto> rows)
         {
-            decimal netSales = rows.Sum(x => x.NetSales);
-            decimal tax = rows.Sum(x => x.Tax);
-            decimal discount = rows.Sum(x => x.Discount);
-            decimal cogs = rows.Sum(x => x.COGS);
-            decimal gp = rows.Sum(x => x.GrossProfit);
-            decimal margin = netSales == 0 ? 0 : Math.Round((gp / netSales) * 100m, 2);
+            var netSales = rows.Sum(x => x.NetSales);
+            var tax = rows.Sum(x => x.Tax);
+            var discount = rows.Sum(x => x.Discount);
+            var cogs = rows.Sum(x => x.COGS);
+            var gp = rows.Sum(x => x.GrossProfit);
+            var margin = netSales == 0 ? 0 : Math.Round((gp / netSales) * 100m, 2);
 
             NetSalesText.Text = netSales.ToString("0.00");
             TotalTaxText.Text = tax.ToString("0.00");

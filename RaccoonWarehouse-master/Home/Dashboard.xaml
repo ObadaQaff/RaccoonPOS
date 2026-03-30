@@ -15,7 +15,7 @@
 
     <Grid Background="{StaticResource AppPageBackgroundBrush}">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="290"/>
+            <ColumnDefinition Width="320"/>
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
@@ -24,7 +24,7 @@
                 Background="{StaticResource AppSidebarBrush}"
                 CornerRadius="28"
                 Padding="18">
-            <DockPanel LastChildFill="True" FlowDirection="RightToLeft">
+            <DockPanel LastChildFill="True" FlowDirection="{DynamicResource CurrentFlowDirection}">
                 <Border DockPanel.Dock="Top"
                         Padding="18"
                         Margin="0,0,0,18"
@@ -43,71 +43,78 @@
                               HorizontalScrollBarVisibility="Disabled">
                     <StackPanel>
                         <Button Style="{StaticResource DashboardNavButtonStyle}" Margin="0,0,0,8" Click="POSBtn_Click">
-                            <StackPanel Orientation="Horizontal" FlowDirection="RightToLeft">
+                            <StackPanel Orientation="Horizontal" FlowDirection="{DynamicResource CurrentFlowDirection}">
                                 <fa:ImageAwesome Icon="ShoppingCart" Width="22" Height="22" Foreground="{StaticResource AppAccentBrush}" Margin="0,0,12,0"/>
-                                <TextBlock Text="نقطة البيع" Foreground="{StaticResource AppSidebarTextBrush}" FontSize="18" VerticalAlignment="Center"/>
+                                <TextBlock Text="نقطة البيع" Foreground="{StaticResource AppSidebarTextBrush}" FontSize="18" VerticalAlignment="Center" TextWrapping="Wrap"/>
                             </StackPanel>
                         </Button>
 
                         <Button Style="{StaticResource DashboardNavButtonStyle}" Margin="0,0,0,8" Click="Button_Click_3">
-                            <StackPanel Orientation="Horizontal" FlowDirection="RightToLeft">
+                            <StackPanel Orientation="Horizontal" FlowDirection="{DynamicResource CurrentFlowDirection}">
                                 <fa:ImageAwesome Icon="FolderOpen" Width="22" Height="22" Foreground="#F0A34A" Margin="0,0,12,0"/>
-                                <TextBlock Text="التصنيف والفئات" Foreground="{StaticResource AppSidebarTextBrush}" FontSize="18"/>
+                                <TextBlock Text="التصنيف والفئات" Foreground="{StaticResource AppSidebarTextBrush}" FontSize="18" TextWrapping="Wrap"/>
                             </StackPanel>
                         </Button>
 
                         <Button Style="{StaticResource DashboardNavButtonStyle}" Margin="0,0,0,8" Click="StocksBtn_Click">
-                            <StackPanel Orientation="Horizontal" FlowDirection="RightToLeft">
+                            <StackPanel Orientation="Horizontal" FlowDirection="{DynamicResource CurrentFlowDirection}">
                                 <fa:ImageAwesome Icon="Dropbox" Width="22" Height="22" Foreground="#E7D7A5" Margin="0,0,12,0"/>
-                                <TextBlock Text="الأصناف" Foreground="{StaticResource AppSidebarTextBrush}" FontSize="18"/>
+                                <TextBlock Text="الأصناف" Foreground="{StaticResource AppSidebarTextBrush}" FontSize="18" TextWrapping="Wrap"/>
                             </StackPanel>
                         </Button>
 
                         <Button Style="{StaticResource DashboardNavButtonStyle}" Margin="0,0,0,8" Click="Button_Click_6">
-                            <StackPanel Orientation="Horizontal" FlowDirection="RightToLeft">
+                            <StackPanel Orientation="Horizontal" FlowDirection="{DynamicResource CurrentFlowDirection}">
                                 <fa:ImageAwesome Icon="Building" Width="22" Height="22" Foreground="#D2B7FF" Margin="0,0,12,0"/>
-                                <TextBlock Text="المستودعات" Foreground="{StaticResource AppSidebarTextBrush}" FontSize="18"/>
+                                <TextBlock Text="المستودعات" Foreground="{StaticResource AppSidebarTextBrush}" FontSize="18" TextWrapping="Wrap"/>
                             </StackPanel>
                         </Button>
 
                         <Button Style="{StaticResource DashboardNavButtonStyle}" Margin="0,0,0,8" Click="Receipt_Click">
-                            <StackPanel Orientation="Horizontal" FlowDirection="RightToLeft">
+                            <StackPanel Orientation="Horizontal" FlowDirection="{DynamicResource CurrentFlowDirection}">
                                 <fa:ImageAwesome Icon="File" Width="22" Height="22" Foreground="#CED8DC" Margin="0,0,12,0"/>
-                                <TextBlock Text="الفواتير والسندات" Foreground="{StaticResource AppSidebarTextBrush}" FontSize="18"/>
+                                <TextBlock Text="الفواتير والسندات" Foreground="{StaticResource AppSidebarTextBrush}" FontSize="18" TextWrapping="Wrap"/>
                             </StackPanel>
                         </Button>
 
                         <Button Style="{StaticResource DashboardNavButtonStyle}" Margin="0,0,0,8" Click="Button_Click_2">
-                            <StackPanel Orientation="Horizontal" FlowDirection="RightToLeft">
+                            <StackPanel Orientation="Horizontal" FlowDirection="{DynamicResource CurrentFlowDirection}">
                                 <fa:ImageAwesome Icon="Tags" Width="22" Height="22" Foreground="#FF8D7A" Margin="0,0,12,0"/>
-                                <TextBlock Text="العلامات التجارية" Foreground="{StaticResource AppSidebarTextBrush}" FontSize="18"/>
+                                <TextBlock Text="العلامات التجارية" Foreground="{StaticResource AppSidebarTextBrush}" FontSize="18" TextWrapping="Wrap"/>
                             </StackPanel>
                         </Button>
 
                         <Button Style="{StaticResource DashboardNavButtonStyle}" Margin="0,0,0,8" Click="Reports_Click">
-                            <StackPanel Orientation="Horizontal" FlowDirection="RightToLeft">
+                            <StackPanel Orientation="Horizontal" FlowDirection="{DynamicResource CurrentFlowDirection}">
                                 <fa:ImageAwesome Icon="BarChart" Width="22" Height="22" Foreground="#CFE1E8" Margin="0,0,12,0"/>
-                                <TextBlock Text="التقارير" Foreground="{StaticResource AppSidebarTextBrush}" FontSize="18"/>
+                                <TextBlock Text="التقارير" Foreground="{StaticResource AppSidebarTextBrush}" FontSize="18" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Button>
+
+                        <Button x:Name="AccountingNavButton" Style="{StaticResource DashboardNavButtonStyle}" Margin="0,0,0,8" Click="Accounting_Click">
+                            <StackPanel Orientation="Horizontal" FlowDirection="{DynamicResource CurrentFlowDirection}">
+                                <fa:ImageAwesome Icon="Calculator" Width="22" Height="22" Foreground="#A9E5BB" Margin="0,0,12,0"/>
+                                <TextBlock Text="المحاسبة" Foreground="{StaticResource AppSidebarTextBrush}" FontSize="18" TextWrapping="Wrap"/>
                             </StackPanel>
                         </Button>
 
                         <Button Style="{StaticResource DashboardNavButtonStyle}" Margin="0,0,0,8" Click="Customers_Click">
-                            <StackPanel Orientation="Horizontal" FlowDirection="RightToLeft">
+                            <StackPanel Orientation="Horizontal" FlowDirection="{DynamicResource CurrentFlowDirection}">
                                 <fa:ImageAwesome Icon="Users" Width="22" Height="22" Foreground="#F0A34A" Margin="0,0,12,0"/>
-                                <TextBlock Text="المستخدمين" Foreground="{StaticResource AppSidebarTextBrush}" FontSize="18"/>
+                                <TextBlock Text="المستخدمين" Foreground="{StaticResource AppSidebarTextBrush}" FontSize="18" TextWrapping="Wrap"/>
                             </StackPanel>
                         </Button>
 
                         <Button Style="{StaticResource DashboardNavButtonStyle}" Click="Button_Click_5">
-                            <StackPanel Orientation="Horizontal" FlowDirection="RightToLeft">
+                            <StackPanel Orientation="Horizontal" FlowDirection="{DynamicResource CurrentFlowDirection}">
                                 <fa:ImageAwesome Icon="Cog" Width="22" Height="22" Foreground="#CED8DC" Margin="0,0,12,0"/>
-                                <TextBlock Text="إعدادات المستودع" Foreground="{StaticResource AppSidebarTextBrush}" FontSize="18"/>
+                                <TextBlock Text="إعدادات المستودع" Foreground="{StaticResource AppSidebarTextBrush}" FontSize="18" TextWrapping="Wrap"/>
                             </StackPanel>
                         </Button>
                         <Button Style="{StaticResource DashboardNavButtonStyle}" Margin="0,16,0,0" Click="LogoutBtn_Click">
-                            <StackPanel Orientation="Horizontal" FlowDirection="RightToLeft">
+                            <StackPanel Orientation="Horizontal" FlowDirection="{DynamicResource CurrentFlowDirection}">
                                 <fa:ImageAwesome Icon="SignOut" Width="22" Height="22" Foreground="#FF8D7A" Margin="0,0,12,0"/>
-                                <TextBlock Text="تسجيل خروج" Foreground="{StaticResource AppSidebarTextBrush}" FontSize="18"/>
+                                <TextBlock Text="تسجيل خروج" Foreground="{StaticResource AppSidebarTextBrush}" FontSize="18" TextWrapping="Wrap"/>
                             </StackPanel>
                         </Button>
                     </StackPanel>

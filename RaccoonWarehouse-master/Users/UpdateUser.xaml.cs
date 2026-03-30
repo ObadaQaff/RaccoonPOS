@@ -1,8 +1,9 @@
 using AutoMapper;
+using RaccoonWarehouse.Application.Service.Permissions;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Users.DTOs;
-using System;
+using RaccoonWarehouse.Helpers.Localization;
 using System.Threading.Tasks;
 using System.Windows;
 
@@ -12,12 +13,17 @@ namespace RaccoonWarehouse
     {
         private UserWriteDto _user;
         private readonly IUserService _userService;
+        private readonly IUserSession _userSession;
+        private readonly IPermissionService _permissionService;
         public int UserId { get; private set; }
 
-        public UpdateUser(IUserService userService, IMapper mapper)
+        public UpdateUser(IUserService userService, IMapper mapper, IUserSession userSession, IPermissionService permissionService)
         {
             _userService = userService;
+            _userSession = userSession;
+            _permissionService = permissionService;
             InitializeComponent();
+            UiText.ApplyWindow(this);
             _user = new UserWriteDto();
         }
 
@@ -39,7 +45,7 @@ namespace RaccoonWarehouse
 
             if (!result.Success || result.Data == null)
             {
-                MessageBox.Show("المستخدم غير موجود.");
+                MessageBox.Show(UiText.T("المستخدم غير موجود.", "The user was not found."));
                 Close();
                 return;
             }
@@ -55,22 +61,29 @@ namespace RaccoonWarehouse
 
         private async void Update_User(object sender, RoutedEventArgs e)
         {
+            var currentRole = _userSession.CurrentUser?.Role;
+            if (!currentRole.HasValue || !await _permissionService.HasPermissionAsync(currentRole.Value, "Users.Edit"))
+            {
+                MessageBox.Show(UiText.T("ليس لديك صلاحية تعديل المستخدمين.", "You do not have permission to edit users."));
+                return;
+            }
+
             if (string.IsNullOrWhiteSpace(FullName.Text) || string.IsNullOrWhiteSpace(Password.Text))
             {
-                MessageBox.Show("الرجاء تعبئة الاسم وكلمة المرور على الأقل.");
+                MessageBox.Show(UiText.T("الرجاء تعبئة الاسم وكلمة المرور على الأقل.", "Please fill in at least the name and password."));
                 return;
             }
 
             if (Password.Text != ConfirmPassword.Text)
             {
-                MessageBox.Show("تأكيد كلمة المرور غير مطابق.");
+                MessageBox.Show(UiText.T("تأكيد كلمة المرور غير مطابق.", "Password confirmation does not match."));
                 ConfirmPassword.Focus();
                 return;
             }
 
             if (Role.SelectedItem is not UserRole selectedRole)
             {
-                MessageBox.Show("الرجاء اختيار نوع الحساب.");
+                MessageBox.Show(UiText.T("الرجاء اختيار نوع الحساب.", "Please choose an account type."));
                 return;
             }
 
@@ -86,7 +99,7 @@ namespace RaccoonWarehouse
                 return;
             }
 
-            MessageBox.Show("تم تحديث البيانات بنجاح");
+            MessageBox.Show(UiText.T("تم تحديث البيانات بنجاح", "The user was updated successfully."));
             Close();
         }
 

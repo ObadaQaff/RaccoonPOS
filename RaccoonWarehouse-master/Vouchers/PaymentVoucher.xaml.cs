@@ -23,6 +23,7 @@ using System.Windows.Markup;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
+using RaccoonWarehouse.Helpers.Localization;
 
 namespace RaccoonWarehouse.Vouchers
 {
@@ -55,6 +56,7 @@ namespace RaccoonWarehouse.Vouchers
             _loadingService = loadingService;
 
             InitializeComponent();
+            UiText.ApplyWindow(this);
             Loaded += async (s, e) => await CreateVoucher_Loaded();
             ReceiptNumber.Text = GenerateDocumentNumber();
         }
@@ -76,10 +78,11 @@ namespace RaccoonWarehouse.Vouchers
                 AccountComboBox.ItemsSource = users.Data;
                 AccountComboBox.DisplayMemberPath = "Name";
                 AccountComboBox.SelectedValuePath = "Id";
+                UiText.ApplyTranslations(this);
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"حدث خطأ أثناء تحميل البيانات:\n{ex.Message}", "خطأ", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"{UiText.T("حدث خطأ أثناء تحميل البيانات", "An error occurred while loading data")}:\n{ex.Message}", UiText.T("خطأ", "Error"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {
@@ -93,7 +96,7 @@ namespace RaccoonWarehouse.Vouchers
             if (session != null)
                 return true;
 
-            MessageBox.Show("لا توجد جلسة كاشير مفتوحة. الرجاء فتح جلسة أولاً.", "خطأ");
+            MessageBox.Show(UiText.T("لا توجد جلسة كاشير مفتوحة. الرجاء فتح جلسة أولاً.", "There is no open cashier session. Please open a session first."), UiText.T("خطأ", "Error"));
             return false;
         }
         private async void SaveReceiptBtn_Click(object sender, RoutedEventArgs e)
@@ -102,13 +105,13 @@ namespace RaccoonWarehouse.Vouchers
             {
                 if (!decimal.TryParse(Amount.Text, out decimal amount) || amount <= 0)
                 {
-                    MessageBox.Show("يرجى إدخال مبلغ صالح.", "تحذير", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show(UiText.T("يرجى إدخال مبلغ صالح.", "Please enter a valid amount."), UiText.T("تحذير", "Warning"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
 
                 if (PaymentTypeCombo.SelectedItem is not ComboBoxItem paymentItem || paymentItem.Tag == null)
                 {
-                    MessageBox.Show("يرجى اختيار طريقة الدفع.", "تنبيه");
+                    MessageBox.Show(UiText.T("يرجى اختيار طريقة الدفع.", "Please choose a payment method."), UiText.T("تنبيه", "Notice"));
                     return;
                 }
 
@@ -142,7 +145,7 @@ namespace RaccoonWarehouse.Vouchers
 
                 if (paymentType == PaymentType.Check && (dto.Checks == null || dto.Checks.Count == 0))
                 {
-                    MessageBox.Show("يرجى إضافة شيك واحد على الأقل.", "تنبيه");
+                    MessageBox.Show(UiText.T("يرجى إضافة شيك واحد على الأقل.", "Please add at least one check."), UiText.T("تنبيه", "Notice"));
                     return;
                 }
 
@@ -166,7 +169,7 @@ namespace RaccoonWarehouse.Vouchers
 
                 if (!saveResult.Success)
                 {
-                    MessageBox.Show(saveResult.Message ?? "فشل حفظ السند", "خطأ");
+                    MessageBox.Show(saveResult.Message ?? UiText.T("فشل حفظ السند", "Failed to save the voucher"), UiText.T("خطأ", "Error"));
                     return;
                 }
 
@@ -187,7 +190,7 @@ namespace RaccoonWarehouse.Vouchers
 
                     if (!voidResult.Success)
                     {
-                        MessageBox.Show(voidResult.Message ?? "تم تحديث السند لكن فشل إلغاء الحركة المالية السابقة", "تحذير");
+                        MessageBox.Show(voidResult.Message ?? UiText.T("تم تحديث السند لكن فشل إلغاء الحركة المالية السابقة", "The voucher was updated, but voiding the previous financial transaction failed."), UiText.T("تحذير", "Warning"));
                         return;
                     }
                 }
@@ -213,14 +216,18 @@ namespace RaccoonWarehouse.Vouchers
 
                 if (!postResult.Success)
                 {
-                    MessageBox.Show(postResult.Message ?? "تم حفظ السند لكن فشل تسجيل الحركة المالية", "تحذير");
+                    MessageBox.Show(postResult.Message ?? UiText.T("تم حفظ السند لكن فشل تسجيل الحركة المالية", "The voucher was saved, but posting the financial transaction failed."), UiText.T("تحذير", "Warning"));
                     return;
                 }
 
                 // =========================
                 // 3) UI Success
                 // =========================
-                MessageBox.Show(isUpdate ? "تم تحديث السند وتسجيل الحركة المالية ✅" : "تم حفظ السند وتسجيل الحركة المالية ✅", "نجاح");
+                MessageBox.Show(
+                    isUpdate
+                        ? UiText.T("تم تحديث السند وتسجيل الحركة المالية ✅", "The voucher was updated and the financial transaction was posted successfully.")
+                        : UiText.T("تم حفظ السند وتسجيل الحركة المالية ✅", "The voucher was saved and the financial transaction was posted successfully."),
+                    UiText.T("نجاح", "Success"));
 
                 _currentVoucherId = savedVoucherId;
                 PrintBtn.Visibility = Visibility.Visible;
@@ -228,7 +235,7 @@ namespace RaccoonWarehouse.Vouchers
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"حدث خطأ أثناء حفظ السند:\n{ex.Message}", "خطأ", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"{UiText.T("حدث خطأ أثناء حفظ السند", "An error occurred while saving the voucher")}:\n{ex.Message}", UiText.T("خطأ", "Error"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {
@@ -271,6 +278,7 @@ namespace RaccoonWarehouse.Vouchers
             CheckFieldsPanel.Visibility = Visibility.Collapsed;
             ChecksGrid.Visibility = Visibility.Collapsed;
             AddCheckButton.Visibility = Visibility.Collapsed;
+            UiText.ApplyTranslations(this);
         }
 
 
@@ -327,20 +335,20 @@ namespace RaccoonWarehouse.Vouchers
             {
                 if (string.IsNullOrWhiteSpace(CheckNumberBox.Text))
                 {
-                    MessageBox.Show("يرجى إدخال رقم الشيك.", "تنبيه", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show(UiText.T("يرجى إدخال رقم الشيك.", "Please enter the check number."), UiText.T("تنبيه", "Notice"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
 
                 if (!decimal.TryParse(CheckAmountBox.Text, out var checkAmount) || checkAmount <= 0)
                 {
-                    MessageBox.Show("يرجى إدخال مبلغ شيك صالح.", "تنبيه", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show(UiText.T("يرجى إدخال مبلغ شيك صالح.", "Please enter a valid check amount."), UiText.T("تنبيه", "Notice"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
 
                 var checkNumber = CheckNumberBox.Text.Trim();
                 if (_checks.Any(c => string.Equals(c.CheckNumber, checkNumber, StringComparison.OrdinalIgnoreCase)))
                 {
-                    MessageBox.Show("رقم الشيك مكرر.", "تنبيه", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show(UiText.T("رقم الشيك مكرر.", "The check number is duplicated."), UiText.T("تنبيه", "Notice"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
 
@@ -361,6 +369,7 @@ namespace RaccoonWarehouse.Vouchers
                 ChecksGrid.ItemsSource = _checks;
 
                 ChecksGrid.Visibility = Visibility.Visible;
+                UiText.ApplyTranslations(ChecksGrid);
 
                 // Clear input fields
                 CheckNumberBox.Text = "";
@@ -371,7 +380,7 @@ namespace RaccoonWarehouse.Vouchers
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"حدث خطأ أثناء إضافة الشيك:\n{ex.Message}", "خطأ", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"{UiText.T("حدث خطأ أثناء إضافة الشيك", "An error occurred while adding the check")}:\n{ex.Message}", UiText.T("خطأ", "Error"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
         private void DeleteCheck_Click(object sender, RoutedEventArgs e)
@@ -418,7 +427,7 @@ namespace RaccoonWarehouse.Vouchers
                 FontSize = 18,
                 FontWeight = FontWeights.Bold
             };
-            subHeader.Inlines.Add("سند دفع");
+            subHeader.Inlines.Add(UiText.T("سند دفع", "Payment Voucher"));
             doc.Blocks.Add(subHeader);
 
             doc.Blocks.Add(new Paragraph(new Run("────────────────────────────────────────")));
@@ -439,16 +448,16 @@ namespace RaccoonWarehouse.Vouchers
                 infoRowGroup.Rows.Add(row);
             }
 
-            AddInfoRow("رقم السند:", ReceiptNumber.Text);
-            AddInfoRow("التاريخ:", (dto.CreatedDate).ToString("yyyy/MM/dd"));
-            AddInfoRow("العميل / الجهة:", (AccountComboBox.Text ?? ""));
-            AddInfoRow("المبلغ:", dto.Amount.ToString("N2"));
-            AddInfoRow("طريقة الدفع:", dto.PaymentType.ToString());
+            AddInfoRow(UiText.T("رقم السند:", "Voucher No:"), ReceiptNumber.Text);
+            AddInfoRow(UiText.T("التاريخ:", "Date:"), (dto.CreatedDate).ToString("yyyy/MM/dd"));
+            AddInfoRow(UiText.T("العميل / الجهة:", "Customer / Party:"), (AccountComboBox.Text ?? ""));
+            AddInfoRow(UiText.T("المبلغ:", "Amount:"), dto.Amount.ToString("N2"));
+            AddInfoRow(UiText.T("طريقة الدفع:", "Payment Method:"), dto.PaymentType.ToString());
 
             doc.Blocks.Add(infoTable);
 
             doc.Blocks.Add(new Paragraph(new Run(" ")));// spacer
-            doc.Blocks.Add(new Paragraph(new Run("تفاصيل الشيكات:"))
+            doc.Blocks.Add(new Paragraph(new Run(UiText.T("تفاصيل الشيكات:", "Check Details:")))
             {
                 FontWeight = FontWeights.Bold,
                 FontSize = 16
@@ -470,7 +479,14 @@ namespace RaccoonWarehouse.Vouchers
 
                 // Header row
                 var headerRow = new TableRow();
-                string[] headers = { "رقم الشيك", "البنك", "المبلغ", "تاريخ الاستحقاق", "ملاحظات" };
+                string[] headers =
+                {
+                    UiText.T("رقم الشيك", "Check Number"),
+                    UiText.T("البنك", "Bank"),
+                    UiText.T("المبلغ", "Amount"),
+                    UiText.T("تاريخ الاستحقاق", "Due Date"),
+                    UiText.T("ملاحظات", "Notes")
+                };
                 foreach (var h in headers)
                 {
                     var cell = new TableCell(new Paragraph(new Run(h)))
@@ -512,30 +528,31 @@ namespace RaccoonWarehouse.Vouchers
             }
             else
             {
-                doc.Blocks.Add(new Paragraph(new Run("لا يوجد شيكات.")));
+                doc.Blocks.Add(new Paragraph(new Run(UiText.T("لا يوجد شيكات.", "There are no checks."))));
             }
 
             // ==== NOTES ====
             doc.Blocks.Add(new Paragraph(new Run(" ")));// spacer
-            doc.Blocks.Add(new Paragraph(new Run("ملاحظات:"))
+            doc.Blocks.Add(new Paragraph(new Run(UiText.T("ملاحظات:", "Notes:")))
             {
                 FontWeight = FontWeights.Bold
             });
             doc.Blocks.Add(new Paragraph(new Run(dto.Notes ?? "")));
 
             doc.Blocks.Add(new Paragraph(new Run("────────────────────────────────────────")));
-            doc.Blocks.Add(new Paragraph(new Run("شكراً لتعاملكم"))
+            doc.Blocks.Add(new Paragraph(new Run(UiText.T("شكراً لتعاملكم", "Thank you for your business")))
             {
                 TextAlignment = TextAlignment.Center,
                 FontStyle = FontStyles.Italic
             });
+            UiText.ApplyDocument(doc);
 
             // ==== PRINT DIALOG ====
             var printDialog = new PrintDialog();
             if (printDialog.ShowDialog() == true)
             {
                 IDocumentPaginatorSource dps = doc;
-                printDialog.PrintDocument(dps.DocumentPaginator, "طباعة سند دفع");
+                printDialog.PrintDocument(dps.DocumentPaginator, UiText.T("طباعة سند دفع", "Print Payment Voucher"));
             }
         }
 
@@ -566,7 +583,7 @@ namespace RaccoonWarehouse.Vouchers
                 FontSize = 24,
                 FontWeight = FontWeights.Bold
             };
-            title.Inlines.Add("سند دفع");
+            title.Inlines.Add(UiText.T("سند دفع", "Payment Voucher"));
             doc.Blocks.Add(title);
 
             doc.Blocks.Add(new Paragraph(new Run("-----------------------------------------------------------")));
@@ -588,11 +605,11 @@ namespace RaccoonWarehouse.Vouchers
                 group.Rows.Add(row);
             }
 
-            AddInfo("رقم السند:", dto.Id.ToString());
-            AddInfo("التاريخ:", dto.CreatedDate.ToString("yyyy/MM/dd"));
-            AddInfo("العميل:", AccountComboBox.Text);
-            AddInfo("طريقة الدفع:", dto.PaymentType.ToString());
-            AddInfo("المبلغ:", dto.Amount.ToString("N2"));
+            AddInfo(UiText.T("رقم السند:", "Voucher No:"), dto.Id.ToString());
+            AddInfo(UiText.T("التاريخ:", "Date:"), dto.CreatedDate.ToString("yyyy/MM/dd"));
+            AddInfo(UiText.T("العميل:", "Customer:"), AccountComboBox.Text);
+            AddInfo(UiText.T("طريقة الدفع:", "Payment Method:"), dto.PaymentType.ToString());
+            AddInfo(UiText.T("المبلغ:", "Amount:"), dto.Amount.ToString("N2"));
 
             doc.Blocks.Add(infoTable);
 
@@ -600,7 +617,7 @@ namespace RaccoonWarehouse.Vouchers
 
 
             // CHECKS SECTION
-            Paragraph checkTitle = new Paragraph(new Run("تفاصيل الشيكات"))
+            Paragraph checkTitle = new Paragraph(new Run(UiText.T("تفاصيل الشيكات", "Check Details")))
             {
                 FontWeight = FontWeights.Bold,
                 FontSize = 20
@@ -612,7 +629,14 @@ namespace RaccoonWarehouse.Vouchers
                 Table tbl = new Table();
                 tbl.CellSpacing = 0;
 
-                string[] headers = { "رقم الشيك", "البنك", "المبلغ", "تاريخ الاستحقاق", "ملاحظات" };
+                string[] headers =
+                {
+                    UiText.T("رقم الشيك", "Check Number"),
+                    UiText.T("البنك", "Bank"),
+                    UiText.T("المبلغ", "Amount"),
+                    UiText.T("تاريخ الاستحقاق", "Due Date"),
+                    UiText.T("ملاحظات", "Notes")
+                };
 
                 foreach (var _ in headers)
                     tbl.Columns.Add(new TableColumn());
@@ -651,11 +675,11 @@ namespace RaccoonWarehouse.Vouchers
             }
             else
             {
-                doc.Blocks.Add(new Paragraph(new Run("لا يوجد شيكات.")));
+                doc.Blocks.Add(new Paragraph(new Run(UiText.T("لا يوجد شيكات.", "There are no checks."))));
             }
 
             doc.Blocks.Add(new Paragraph(new Run(" ")));
-            doc.Blocks.Add(new Paragraph(new Run("ملاحظات:")) { FontWeight = FontWeights.Bold });
+            doc.Blocks.Add(new Paragraph(new Run(UiText.T("ملاحظات:", "Notes:"))) { FontWeight = FontWeights.Bold });
             doc.Blocks.Add(new Paragraph(new Run(dto.Notes ?? "")));
 
             doc.Blocks.Add(new Paragraph(new Run("-----------------------------------------------------------")));
@@ -666,8 +690,9 @@ namespace RaccoonWarehouse.Vouchers
                 FontSize = 18,
                 FontWeight = FontWeights.Bold
             };
-            footer.Inlines.Add("توقيع الموظف: ________________________");
+            footer.Inlines.Add(UiText.T("توقيع الموظف: ________________________", "Employee Signature: ________________________"));
             doc.Blocks.Add(footer);
+            UiText.ApplyDocument(doc);
 
             // PRINT
             PrintDialog dialog = new PrintDialog();
@@ -694,8 +719,8 @@ namespace RaccoonWarehouse.Vouchers
             {
                 PdfGenerator.GeneratePaymentVoucherPdf(dto, dlg.FileName);
 
-                MessageBox.Show("تم حفظ ملف PDF بنجاح.",
-                    "تم الحفظ",
+                MessageBox.Show(UiText.T("تم حفظ ملف PDF بنجاح.", "The PDF file was saved successfully."),
+                    UiText.T("تم الحفظ", "Saved"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
 
@@ -737,7 +762,7 @@ namespace RaccoonWarehouse.Vouchers
                 FontSize = 24,
                 FontWeight = FontWeights.Bold
             };
-            title.Inlines.Add("سند قبض");
+            title.Inlines.Add(UiText.T("سند دفع", "Payment Voucher"));
             doc.Blocks.Add(title);
 
             doc.Blocks.Add(new Paragraph(new Run("-----------------------------------------------------------")));
@@ -759,17 +784,17 @@ namespace RaccoonWarehouse.Vouchers
                 group.Rows.Add(row);
             }
 
-            AddInfo("رقم السند:", dto.Id.ToString());
-            AddInfo("التاريخ:", dto.CreatedDate.ToString("yyyy/MM/dd"));
-            AddInfo("العميل:", AccountComboBox.Text);
-            AddInfo("طريقة الدفع:", dto.PaymentType.ToString());
-            AddInfo("المبلغ:", dto.Amount.ToString("N2"));
+            AddInfo(UiText.T("رقم السند:", "Voucher No:"), dto.Id.ToString());
+            AddInfo(UiText.T("التاريخ:", "Date:"), dto.CreatedDate.ToString("yyyy/MM/dd"));
+            AddInfo(UiText.T("العميل:", "Customer:"), AccountComboBox.Text);
+            AddInfo(UiText.T("طريقة الدفع:", "Payment Method:"), dto.PaymentType.ToString());
+            AddInfo(UiText.T("المبلغ:", "Amount:"), dto.Amount.ToString("N2"));
 
             doc.Blocks.Add(infoTable);
             doc.Blocks.Add(new Paragraph(new Run(" ")));
 
             // CHECKS TABLE
-            Paragraph checkTitle = new Paragraph(new Run("تفاصيل الشيكات"))
+            Paragraph checkTitle = new Paragraph(new Run(UiText.T("تفاصيل الشيكات", "Check Details")))
             {
                 FontWeight = FontWeights.Bold,
                 FontSize = 20
@@ -781,7 +806,14 @@ namespace RaccoonWarehouse.Vouchers
                 Table tbl = new Table();
                 tbl.CellSpacing = 0;
 
-                string[] headers = { "رقم الشيك", "البنك", "المبلغ", "تاريخ الاستحقاق", "ملاحظات" };
+                string[] headers =
+                {
+                    UiText.T("رقم الشيك", "Check Number"),
+                    UiText.T("البنك", "Bank"),
+                    UiText.T("المبلغ", "Amount"),
+                    UiText.T("تاريخ الاستحقاق", "Due Date"),
+                    UiText.T("ملاحظات", "Notes")
+                };
                 foreach (var _ in headers)
                     tbl.Columns.Add(new TableColumn());
 
@@ -820,7 +852,7 @@ namespace RaccoonWarehouse.Vouchers
 
             // NOTES
             doc.Blocks.Add(new Paragraph(new Run(" ")));
-            doc.Blocks.Add(new Paragraph(new Run("ملاحظات:")) { FontWeight = FontWeights.Bold });
+            doc.Blocks.Add(new Paragraph(new Run(UiText.T("ملاحظات:", "Notes:"))) { FontWeight = FontWeights.Bold });
             doc.Blocks.Add(new Paragraph(new Run(dto.Notes ?? "")));
 
             doc.Blocks.Add(new Paragraph(new Run("-----------------------------------------------------------")));
@@ -831,8 +863,9 @@ namespace RaccoonWarehouse.Vouchers
                 FontSize = 18,
                 FontWeight = FontWeights.Bold
             };
-            footer.Inlines.Add("توقيع الموظف: ________________________");
+            footer.Inlines.Add(UiText.T("توقيع الموظف: ________________________", "Employee Signature: ________________________"));
             doc.Blocks.Add(footer);
+            UiText.ApplyDocument(doc);
 
             return doc;
         }
@@ -901,13 +934,13 @@ namespace RaccoonWarehouse.Vouchers
 
                 if (!decimal.TryParse(Amount.Text, out decimal amount))
                 {
-                    MessageBox.Show("يرجى إدخال مبلغ صالح.", "تنبيه");
+                    MessageBox.Show(UiText.T("يرجى إدخال مبلغ صالح.", "Please enter a valid amount."), UiText.T("تنبيه", "Notice"));
                     return;
                 }
 
                 if (PaymentTypeCombo.SelectedItem is not ComboBoxItem paymentItem || paymentItem.Tag == null)
                 {
-                    MessageBox.Show("يرجى اختيار طريقة الدفع.", "تنبيه");
+                    MessageBox.Show(UiText.T("يرجى اختيار طريقة الدفع.", "Please choose a payment method."), UiText.T("تنبيه", "Notice"));
                     return;
                 }
 
@@ -937,7 +970,7 @@ namespace RaccoonWarehouse.Vouchers
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"حدث خطأ أثناء الطباعة:\n{ex.Message}", "خطأ", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"{UiText.T("حدث خطأ أثناء الطباعة", "An error occurred while printing")}:\n{ex.Message}", UiText.T("خطأ", "Error"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -955,7 +988,7 @@ namespace RaccoonWarehouse.Vouchers
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"حدث خطأ أثناء البحث عن السند:\n{ex.Message}", "خطأ", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"{UiText.T("حدث خطأ أثناء البحث عن السند", "An error occurred while searching for the voucher")}:\n{ex.Message}", UiText.T("خطأ", "Error"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -989,6 +1022,8 @@ namespace RaccoonWarehouse.Vouchers
             ChecksGrid.ItemsSource = _checks;
             ChecksGrid.Visibility = dto.PaymentType == PaymentType.Check ? Visibility.Visible : Visibility.Collapsed;
             AddCheckButton.Visibility = dto.PaymentType == PaymentType.Check ? Visibility.Visible : Visibility.Collapsed;
+            CheckFieldsPanel.Visibility = dto.PaymentType == PaymentType.Check ? Visibility.Visible : Visibility.Collapsed;
+            UiText.ApplyTranslations(this);
 
             PrintBtn.Visibility = Visibility.Visible;
             NewVoucherBtn.Visibility = Visibility.Visible;
@@ -1035,13 +1070,13 @@ namespace RaccoonWarehouse.Vouchers
         {
             if (_checks.Count == 0)
             {
-                MessageBox.Show("يرجى إضافة شيك واحد على الأقل.", "تنبيه", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(UiText.T("يرجى إضافة شيك واحد على الأقل.", "Please add at least one check."), UiText.T("تنبيه", "Notice"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return false;
             }
 
             if (_checks.Any(c => string.IsNullOrWhiteSpace(c.CheckNumber) || c.Amount <= 0))
             {
-                MessageBox.Show("بيانات الشيك غير مكتملة أو تحتوي مبالغ غير صالحة.", "تنبيه", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(UiText.T("بيانات الشيك غير مكتملة أو تحتوي مبالغ غير صالحة.", "The check data is incomplete or contains invalid amounts."), UiText.T("تنبيه", "Notice"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return false;
             }
 
@@ -1052,14 +1087,14 @@ namespace RaccoonWarehouse.Vouchers
 
             if (duplicateCheck)
             {
-                MessageBox.Show("لا يمكن تكرار رقم الشيك داخل نفس السند.", "تنبيه", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(UiText.T("لا يمكن تكرار رقم الشيك داخل نفس السند.", "The check number cannot be duplicated within the same voucher."), UiText.T("تنبيه", "Notice"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return false;
             }
 
             var totalChecks = _checks.Sum(c => c.Amount);
             if (totalChecks != voucherAmount)
             {
-                MessageBox.Show("مجموع مبالغ الشيكات يجب أن يساوي مبلغ السند.", "تنبيه", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(UiText.T("مجموع مبالغ الشيكات يجب أن يساوي مبلغ السند.", "The total of the checks must equal the voucher amount."), UiText.T("تنبيه", "Notice"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return false;
             }
 

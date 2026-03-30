@@ -66,7 +66,8 @@
             <Setter Property="OverridesDefaultStyle" Value="True"/>
             <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Auto"/>
             <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto"/>
-            <Setter Property="IsEditable" Value="True"/>
+            <Setter Property="IsEditable" Value="False"/>
+            <Setter Property="IsTextSearchEnabled" Value="False"/>
             <Setter Property="Height" Value="44"/>
             <Setter Property="FontSize" Value="15"/>
             <Setter Property="Padding" Value="10,0"/>
@@ -82,11 +83,11 @@
                                 <ColumnDefinition Width="34"/>
                             </Grid.ColumnDefinitions>
                             <Border x:Name="Border" Grid.ColumnSpan="2" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="12"/>
-                            <TextBox x:Name="PART_EditableTextBox" Grid.Column="0" Margin="8,5,4,5" Padding="0" Focusable="True" Background="Transparent" BorderThickness="0" HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalContentAlignment="Center" IsReadOnly="{Binding IsReadOnly, RelativeSource={RelativeSource TemplatedParent}}"/>
+                            <TextBox x:Name="PART_EditableTextBox" Grid.Column="0" Margin="8,5,4,5" Padding="0" Focusable="False" Visibility="Hidden" Background="Transparent" BorderThickness="0" HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalContentAlignment="Center" IsReadOnly="{Binding IsReadOnly, RelativeSource={RelativeSource TemplatedParent}}"/>
                             <ToggleButton x:Name="ToggleButton" Grid.Column="1" Width="34" Focusable="False" Background="Transparent" BorderThickness="0" ClickMode="Press" IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
                                 <Path x:Name="Arrow" Fill="#667784" HorizontalAlignment="Center" VerticalAlignment="Center" Data="M 0 0 L 4 4 L 8 0 Z"/>
                             </ToggleButton>
-                            <ContentPresenter Name="ContentSite" Grid.Column="0" Margin="10,0,0,0" VerticalAlignment="Center" HorizontalAlignment="Left" IsHitTestVisible="False" Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}" ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"/>
+                            <ContentPresenter Name="ContentSite" Grid.Column="0" Margin="10,0,0,0" VerticalAlignment="Center" HorizontalAlignment="Stretch" IsHitTestVisible="False" Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}" ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"/>
                             <Popup x:Name="Popup" Placement="Bottom" IsOpen="{TemplateBinding IsDropDownOpen}" AllowsTransparency="True" Focusable="False" PopupAnimation="Slide" VerticalOffset="2">
                                 <Border x:Name="DropDownBorder" MaxHeight="460" MinWidth="{TemplateBinding ActualWidth}" Width="1080" Background="White" BorderBrush="{StaticResource AppBorderBrush}" BorderThickness="1" CornerRadius="14" Margin="0,6,0,0" Padding="6">
                                     <ScrollViewer SnapsToDevicePixels="True" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
@@ -97,7 +98,7 @@
                                                 <DataGridTextColumn Header="الفئة" Width="160" Binding="{Binding SubCategory.Name, TargetNullValue=---}"/>
                                                 <DataGridTextColumn Header="العلامة التجارية" Width="160" Binding="{Binding Brand.Name, TargetNullValue=---}"/>
                                                 <DataGridTextColumn Header="الوصف" Width="320" Binding="{Binding Description, TargetNullValue=---}"/>
-                                                <DataGridTextColumn Header="السعر" Width="130" Binding="{Binding DefaultSalePrice, StringFormat={}{0:N2}, FallbackValue=0.00}"/>
+                                                <DataGridTextColumn Header="سعر المخزون الحالي" Width="150" Binding="{Binding CurrentSalePrice, StringFormat={}{0:N2}, FallbackValue=0.00}"/>
                                             </DataGrid.Columns>
                                         </DataGrid>
                                     </ScrollViewer>
@@ -179,7 +180,7 @@
                         <Border Grid.Column="2" Margin="0,0,8,0" Style="{StaticResource POSSummaryCardStyle}" Background="#FBFAF6">
                             <StackPanel VerticalAlignment="Center">
                                 <TextBlock Style="{StaticResource POSInfoLabelStyle}" Text="العميل" Margin="0,0,0,4" FontSize="11"/>
-                                <ComboBox x:Name="CustomerComboBox" Height="34" DisplayMemberPath="Name" Style="{StaticResource AppComboBoxStyle}"/>
+                                <ComboBox x:Name="CustomerComboBox" Height="34" DisplayMemberPath="Name" Style="{StaticResource AppComboBoxStyle}" PreviewKeyDown="CustomerComboBox_PreviewKeyDown" GotKeyboardFocus="CustomerComboBox_GotKeyboardFocus" IsEditable="True"/>
                             </StackPanel>
                         </Border>
 
@@ -226,7 +227,7 @@
                             </DockPanel>
                             <DataGrid x:Name="InvoiceGrid" Grid.Row="1" AutoGenerateColumns="False" FontSize="14" FlowDirection="RightToLeft" Style="{StaticResource AppModernDataGridStyle}" Background="White" RowHeight="40" HeadersVisibility="Column" SelectionUnit="Cell" SelectionMode="Single" IsReadOnly="False" CanUserAddRows="False" CanUserDeleteRows="True" KeyboardNavigation.TabNavigation="Continue" PreviewKeyDown="InvoiceGrid_PreviewKeyDown" PreparingCellForEdit="InvoiceGrid_PreparingCellForEdit" CellEditEnding="InvoiceGrid_CellEditEnding">
                                 <DataGrid.Columns>
-                                    <DataGridTextColumn Header="رمز الصنف" Width="*" Binding="{Binding ProductId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                    <DataGridTextColumn Header="رمز الصنف" Width="*" IsReadOnly="True" Binding="{Binding ProductId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                                     <DataGridTemplateColumn Header="الصنف" Width="2.2*">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
@@ -235,12 +236,60 @@
                                         </DataGridTemplateColumn.CellTemplate>
                                         <DataGridTemplateColumn.CellEditingTemplate>
                                             <DataTemplate>
-                                                <ComboBox x:Name="ProductComboBox" DisplayMemberPath="Name" Style="{StaticResource ProductComboBoxWithGridStyle}" SelectedItem="{Binding SelectedProduct, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" ItemsSource="{Binding DataContext.ProductSuggestions, RelativeSource={RelativeSource AncestorType=Window}}" SelectionChanged="ProductCombo_SelectionChanged" Loaded="ProductCombo_Loaded" DropDownOpened="ProductCombo_DropDownOpened" LostFocus="ProductCombo_LostFocus"/>
+                                                <ComboBox x:Name="ProductComboBox" DisplayMemberPath="Name" Style="{StaticResource ProductComboBoxWithGridStyle}" SelectedItem="{Binding SelectedProduct, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" ItemsSource="{Binding DataContext.ProductSuggestions, RelativeSource={RelativeSource AncestorType=Window}}" SelectionChanged="ProductCombo_SelectionChanged" Loaded="ProductCombo_Loaded" DropDownOpened="ProductCombo_DropDownOpened" LostFocus="ProductCombo_LostFocus" PreviewKeyDown="ProductCombo_PreviewKeyDown" PreviewTextInput="ProductCombo_PreviewTextInput"/>
                                             </DataTemplate>
                                         </DataGridTemplateColumn.CellEditingTemplate>
                                     </DataGridTemplateColumn>
-                                    <DataGridTextColumn Header="الكمية" Width="*" Binding="{Binding Quantity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
-                                    <DataGridTextColumn Header="السعر" Width="*" Binding="{Binding UnitPrice, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                    <DataGridTemplateColumn Header="الكمية" Width="*">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Quantity}"
+                                                           Padding="8,0"
+                                                           VerticalAlignment="Center"
+                                                           FlowDirection="LeftToRight"
+                                                           TextAlignment="Left"/>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                        <DataGridTemplateColumn.CellEditingTemplate>
+                                            <DataTemplate>
+                                                <TextBox Text="{Binding Quantity, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                         Padding="6,2"
+                                                         BorderThickness="0"
+                                                         Background="Transparent"
+                                                         VerticalContentAlignment="Center"
+                                                         HorizontalContentAlignment="Left"
+                                                         FlowDirection="LeftToRight"
+                                                         Language="en-US"
+                                                         PreviewKeyDown="NumericEditor_PreviewKeyDown"
+                                                         PreviewTextInput="NumericEditor_PreviewTextInput"/>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellEditingTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTemplateColumn Header="السعر" Width="*">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding UnitPrice}"
+                                                           Padding="8,0"
+                                                           VerticalAlignment="Center"
+                                                           FlowDirection="LeftToRight"
+                                                           TextAlignment="Left"/>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                        <DataGridTemplateColumn.CellEditingTemplate>
+                                            <DataTemplate>
+                                                <TextBox Text="{Binding UnitPrice, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                         Padding="6,2"
+                                                         BorderThickness="0"
+                                                         Background="Transparent"
+                                                         VerticalContentAlignment="Center"
+                                                         HorizontalContentAlignment="Left"
+                                                         FlowDirection="LeftToRight"
+                                                         Language="en-US"
+                                                         PreviewKeyDown="NumericEditor_PreviewKeyDown"
+                                                         PreviewTextInput="NumericEditor_PreviewTextInput"/>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellEditingTemplate>
+                                    </DataGridTemplateColumn>
                                     <DataGridTextColumn Header="الإجمالي" Width="*" IsReadOnly="True" Binding="{Binding LineTotal}"/>
                                 </DataGrid.Columns>
                             </DataGrid>
@@ -276,7 +325,7 @@
                                                         <TextBlock Text="بحث عن مادة"/>
                                                     </StackPanel>
                                                 </Button>
-                                                <Button Style="{StaticResource POSAdjustmentButton}" Click="ExchangeItemBtn_Click">
+                                                <Button Style="{StaticResource POSAdjustmentButton}" Click="ExchangeItemBtn_Click" ToolTip="اختصار: Shift+F2 أو من التحديد الحالي">
                                                     <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
                                                         <iconPacks:PackIconMaterial Kind="SwapHorizontal" Width="22" Height="22"/>
                                                         <TextBlock Text="استبدال"/>
@@ -288,7 +337,7 @@
                                                         <TextBlock Text="حذف مادة"/>
                                                     </StackPanel>
                                                 </Button>
-                                                <Button Style="{StaticResource POSDangerButton}" Click="ReturnItemBtn_Click">
+                                                <Button Style="{StaticResource POSDangerButton}" Click="ReturnItemBtn_Click" ToolTip="اختصار: من التحديد الحالي">
                                                     <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
                                                         <iconPacks:PackIconMaterial Kind="Undo" Width="22" Height="22"/>
                                                         <TextBlock Text="مرتجع"/>
@@ -306,25 +355,25 @@
                                                         <TextBlock Text="فاتورة جديدة"/>
                                                     </StackPanel>
                                                 </Button>
-                                                <Button Style="{StaticResource POSNeutralButton}" Click="PrintBtn_Click">
+                                                <Button Style="{StaticResource POSNeutralButton}" Click="PrintBtn_Click" ToolTip="اختصار: F9">
                                                     <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
                                                         <iconPacks:PackIconMaterial Kind="Printer" Width="22" Height="22"/>
                                                         <TextBlock Text="طباعة"/>
                                                     </StackPanel>
                                                 </Button>
-                                                <Button Style="{StaticResource POSPrimaryButton}" Click="OpenReceipt_Click">
+                                                <Button Style="{StaticResource POSPrimaryButton}" Click="OpenReceipt_Click" ToolTip="اختصار: F7">
                                                     <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
                                                         <iconPacks:PackIconMaterial Kind="CashPlus" Width="22" Height="22"/>
                                                         <TextBlock Text="مقبوضات"/>
                                                     </StackPanel>
                                                 </Button>
-                                                <Button Style="{StaticResource POSDangerButton}" Click="OpenPayment_Click">
+                                                <Button Style="{StaticResource POSDangerButton}" Click="OpenPayment_Click" ToolTip="اختصار: F8">
                                                     <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
                                                         <iconPacks:PackIconMaterial Kind="CashMinus" Width="22" Height="22"/>
                                                         <TextBlock Text="مدفوعات"/>
                                                     </StackPanel>
                                                 </Button>
-                                                <Button Style="{StaticResource POSAdjustmentButton}">
+                                                <Button Style="{StaticResource POSAdjustmentButton}" Click="DiscountBtn_Click" ToolTip="اختصار: F11">
                                                     <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
                                                         <iconPacks:PackIconMaterial Kind="Sale" Width="22" Height="22"/>
                                                         <TextBlock Text="خصم"/>
@@ -342,7 +391,7 @@
                                                         <TextBlock Text="إلغاء"/>
                                                     </StackPanel>
                                                 </Button>
-                                                <Button Style="{StaticResource POSNeutralButton}" Click="DailyReportBtn_Click">
+                                                <Button Style="{StaticResource POSNeutralButton}" Click="DailyReportBtn_Click" ToolTip="اختصار: F10">
                                                     <StackPanel Orientation="Vertical" HorizontalAlignment="Center">
                                                         <iconPacks:PackIconMaterial Kind="ChartBar" Width="22" Height="22"/>
                                                         <TextBlock Text="تقرير يومي"/>
@@ -362,43 +411,43 @@
                                     <StackPanel>
                                         <TextBlock Text="طرق الدفع" Margin="0,0,0,10" Foreground="{StaticResource AppMutedTextBrush}" FontSize="13" FontWeight="SemiBold"/>
                                         <WrapPanel ItemHeight="44" ItemWidth="120" HorizontalAlignment="Right">
-                                            <Button Style="{StaticResource POSPrimaryButton}" Height="44" MinWidth="120" Click="CashPaymentBtn_Click">
+                                            <Button Style="{StaticResource POSPrimaryButton}" Height="44" MinWidth="120" Click="CashPaymentBtn_Click" ToolTip="اختصار: Ctrl+1">
                                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                                     <iconPacks:PackIconMaterial Kind="Cash" Width="18" Height="18"/>
                                                     <TextBlock Text="كاش" Margin="8,0,0,0"/>
                                                 </StackPanel>
                                             </Button>
-                                            <Button Style="{StaticResource POSNeutralButton}" Height="44" MinWidth="120" Click="VisaPaymentBtn_Click">
+                                            <Button Style="{StaticResource POSNeutralButton}" Height="44" MinWidth="120" Click="VisaPaymentBtn_Click" ToolTip="اختصار: Ctrl+2">
                                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                                     <iconPacks:PackIconMaterial Kind="CreditCard" Width="18" Height="18"/>
                                                     <TextBlock Text="Visa" Margin="8,0,0,0"/>
                                                 </StackPanel>
                                             </Button>
-                                            <Button Style="{StaticResource POSNeutralButton}" Height="44" MinWidth="120" Click="MasterCardPaymentBtn_Click">
+                                            <Button Style="{StaticResource POSNeutralButton}" Height="44" MinWidth="120" Click="MasterCardPaymentBtn_Click" ToolTip="اختصار: Ctrl+3">
                                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                                     <iconPacks:PackIconMaterial Kind="CreditCardOutline" Width="18" Height="18"/>
                                                     <TextBlock Text="Master" Margin="8,0,0,0"/>
                                                 </StackPanel>
                                             </Button>
-                                            <Button Style="{StaticResource POSNeutralButton}" Height="44" MinWidth="120" Click="DebitPaymentBtn_Click">
+                                            <Button Style="{StaticResource POSNeutralButton}" Height="44" MinWidth="120" Click="DebitPaymentBtn_Click" ToolTip="اختصار: Ctrl+4">
                                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                                     <iconPacks:PackIconMaterial Kind="BankTransfer" Width="18" Height="18"/>
                                                     <TextBlock Text="Debit" Margin="8,0,0,0"/>
                                                 </StackPanel>
                                             </Button>
-                                            <Button Style="{StaticResource POSNeutralButton}" Height="44" MinWidth="120" Click="CheckPaymentBtn_Click">
+                                            <Button Style="{StaticResource POSNeutralButton}" Height="44" MinWidth="120" Click="CheckPaymentBtn_Click" ToolTip="اختصار: Ctrl+5">
                                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                                     <iconPacks:PackIconMaterial Kind="FileDocumentCheckOutline" Width="18" Height="18"/>
                                                     <TextBlock Text="Check" Margin="8,0,0,0"/>
                                                 </StackPanel>
                                             </Button>
-                                            <Button Style="{StaticResource POSNeutralButton}" Height="44" MinWidth="120" Click="MobilePaymentBtn_Click">
+                                            <Button Style="{StaticResource POSNeutralButton}" Height="44" MinWidth="120" Click="MobilePaymentBtn_Click" ToolTip="اختصار: Ctrl+6">
                                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                                     <iconPacks:PackIconMaterial Kind="CellphoneNfc" Width="18" Height="18"/>
                                                     <TextBlock Text="Mobile" Margin="8,0,0,0"/>
                                                 </StackPanel>
                                             </Button>
-                                            <Button Style="{StaticResource POSAdjustmentButton}" Height="44" MinWidth="120" Click="CreditPaymentBtn_Click">
+                                            <Button Style="{StaticResource POSAdjustmentButton}" Height="44" MinWidth="120" Click="CreditPaymentBtn_Click" ToolTip="اختصار: Ctrl+7 أو F12">
                                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                                     <iconPacks:PackIconMaterial Kind="AccountClock" Width="18" Height="18"/>
                                                     <TextBlock Text="آجل" Margin="8,0,0,0"/>

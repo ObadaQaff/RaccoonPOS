@@ -6,6 +6,7 @@ using RaccoonWarehouse.Application.Service.ProductUnits;
 using RaccoonWarehouse.Application.Service.Stocks;
 using RaccoonWarehouse.Application.Service.StockTransactions;
 using RaccoonWarehouse.Application.Service.Users;
+using RaccoonWarehouse.Common;
 using RaccoonWarehouse.Domain.Cashiers.DTOs;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.FinancialTransactions.DTOs;
@@ -19,9 +20,11 @@ using RaccoonWarehouse.Domain.Stock;
 using RaccoonWarehouse.Domain.Users.DTOs;
 using RaccoonWarehouse.Domain.StockTransactions.DTOs;
 using RaccoonWarehouse.Helpers.Pdf;
+using RaccoonWarehouse.Helpers.Localization;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Threading.Tasks;
@@ -73,6 +76,7 @@ namespace RaccoonWarehouse.Invoices
             _isLoadingUnits = false;
 
             InitializeComponent();
+            UiText.ApplyWindow(this);
 
             DataContext = this;
 
@@ -83,6 +87,8 @@ namespace RaccoonWarehouse.Invoices
             ProductsGrid.ItemsSource = InvoiceLines;
 
             Loaded += PayInvoice_Loaded;
+            Closed += PayInvoice_Closed;
+            CatalogRefreshNotifier.CatalogChanged += CatalogRefreshNotifier_CatalogChanged;
         }
 
         private string GenerateInvoiceNumber()
@@ -97,6 +103,7 @@ namespace RaccoonWarehouse.Invoices
         {
             try
             {
+                UiText.ApplyTranslations(this);
                 // المورّدين (نفس users لكن أنت تختار اللي يمثل الموردين)
                 var result = await _userService.GetAllAsync();
                 _allSuppliers = new ObservableCollection<UserReadDto>(result?.Data ?? new List<UserReadDto>());
@@ -106,12 +113,14 @@ namespace RaccoonWarehouse.Invoices
                 InvoiceDatePicker.SelectedDate = DateTime.Now;
 
                 PaymentMethodComboBox.SelectedIndex = 0;
+                UiText.ApplyTranslations(PaymentMethodComboBox);
 
                 await LoadProductsAsync();
+                UiText.ApplyTranslations(this);
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"حدث خطأ أثناء تحميل البيانات: {ex.Message}", "خطأ",
+                MessageBox.Show($"{UiText.T("حدث خطأ أثناء تحميل البيانات", "An error occurred while loading data")}: {ex.Message}", UiText.T("خطأ", "Error"),
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
@@ -146,8 +155,21 @@ namespace RaccoonWarehouse.Invoices
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"خطأ عند تحميل المنتجات: {ex.Message}", "خطأ");
+                MessageBox.Show($"{UiText.T("خطأ عند تحميل المنتجات", "Error loading products")}: {ex.Message}", UiText.T("خطأ", "Error"));
             }
+        }
+
+        private async void CatalogRefreshNotifier_CatalogChanged(object? sender, EventArgs e)
+        {
+            if (!IsLoaded)
+                return;
+
+            await LoadProductsAsync();
+        }
+
+        private void PayInvoice_Closed(object? sender, EventArgs e)
+        {
+            CatalogRefreshNotifier.CatalogChanged -= CatalogRefreshNotifier_CatalogChanged;
         }
         private bool TryGetActiveCashierSession(out CashierSessionReadDto? session)
         {
@@ -155,7 +177,7 @@ namespace RaccoonWarehouse.Invoices
             if (session != null)
                 return true;
 
-            MessageBox.Show("لا توجد جلسة كاشير مفتوحة. الرجاء فتح جلسة أولاً.", "خطأ");
+            MessageBox.Show(UiText.T("لا توجد جلسة كاشير مفتوحة. الرجاء فتح جلسة أولاً.", "There is no open cashier session. Please open a session first."), UiText.T("خطأ", "Error"));
             return false;
         }
 
@@ -256,7 +278,7 @@ namespace RaccoonWarehouse.Invoices
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"خطأ أثناء تحميل الوحدات: {ex.Message}", "خطأ");
+                MessageBox.Show($"{UiText.T("خطأ أثناء تحميل الوحدات", "Error while loading units")}: {ex.Message}", UiText.T("خطأ", "Error"));
             }
             finally
             {
@@ -279,19 +301,19 @@ namespace RaccoonWarehouse.Invoices
         {
             if (ProductBox.SelectedItem is not ProductReadDto product)
             {
-                MessageBox.Show("يرجى اختيار منتج.", "تنبيه");
+                MessageBox.Show(UiText.T("يرجى اختيار منتج.", "Please choose a product."), UiText.T("تنبيه", "Notice"));
                 return;
             }
 
             if (UnitBox.SelectedItem is not ProductUnitWriteDto unit)
             {
-                MessageBox.Show("يرجى اختيار وحدة.", "تنبيه");
+                MessageBox.Show(UiText.T("يرجى اختيار وحدة.", "Please choose a unit."), UiText.T("تنبيه", "Notice"));
                 return;
             }
 
-            if (!decimal.TryParse(QtyBox.Text, out decimal qty) || qty <= 0)
+            if (!TryParseDecimalInput(QtyBox.Text, out decimal qty) || qty <= 0)
             {
-                MessageBox.Show("الكمية غير صحيحة.", "تنبيه");
+                MessageBox.Show(UiText.T("الكمية غير صحيحة.", "The quantity is invalid."), UiText.T("تنبيه", "Notice"));
                 return;
             }
 
@@ -305,7 +327,7 @@ namespace RaccoonWarehouse.Invoices
                 BaseQuantity = qty * (unit.QuantityPerUnit > 0 ? unit.QuantityPerUnit : 1m),
                 UnitName = unit.Unit?.Name,
                 Quantity = qty,
-                UnitPrice = decimal.TryParse(PurchaseBox.Text,out var p) ? p : 0,  // 👈 حسب اختيارك (A)
+                UnitPrice = TryParseDecimalInput(PurchaseBox.Text, out var p) ? p : 0,
                 ExpiryDate = ExpiryBox.SelectedDate ?? DateTime.Now.AddMonths(6),
                 CreatedDate = DateTime.Now,
                 UpdatedDate = DateTime.Now
@@ -528,6 +550,7 @@ namespace RaccoonWarehouse.Invoices
                         selectedPaymentType == PaymentType.Credit
                             ? "تم إنشاء فاتورة مشتريات آجلة بنجاح ✅"
                             : "تم إنشاء فاتورة المشتريات وتسجيل الحركة المالية ✅");
+                    UiText.ApplyTranslations(this);
                 }
                 else
                 {
@@ -626,6 +649,7 @@ namespace RaccoonWarehouse.Invoices
                         selectedPaymentType == PaymentType.Credit
                             ? "تم تحديث فاتورة المشتريات الآجلة بنجاح ✅"
                             : "تم تحديث فاتورة المشتريات وتسجيل الحركة المالية ✅");
+                    UiText.ApplyTranslations(this);
                 }
                 PrintBtn.Visibility = Visibility.Visible;
                 NewInvoiceBtn.Visibility = Visibility.Visible;
@@ -674,7 +698,7 @@ namespace RaccoonWarehouse.Invoices
         {
             if (_currentInvoiceId == null)
             {
-                MessageBox.Show("لا توجد فاتورة للطباعة.");
+                MessageBox.Show(UiText.T("لا توجد فاتورة للطباعة.", "There is no invoice to print."));
                 return;
             }
 
@@ -682,7 +706,7 @@ namespace RaccoonWarehouse.Invoices
 
             if (invoice == null)
             {
-                MessageBox.Show("الفاتورة غير موجودة.", "خطأ");
+                MessageBox.Show(UiText.T("الفاتورة غير موجودة.", "The invoice was not found."), UiText.T("خطأ", "Error"));
                 return;
             }
 
@@ -704,7 +728,7 @@ namespace RaccoonWarehouse.Invoices
                 // نفس SalesInvoice لكن عنوان "فاتورة مشتريات" داخل PdfGenerator
                 PdfGenerator.PurchaseInvoice(invoice, path);
 
-                MessageBox.Show("تم حفظ ملف PDF بنجاح.", "تم الحفظ", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(UiText.T("تم حفظ ملف PDF بنجاح.", "The PDF file was saved successfully."), UiText.T("تم الحفظ", "Saved"), MessageBoxButton.OK, MessageBoxImage.Information);
 
                 System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
                 {
@@ -741,6 +765,7 @@ namespace RaccoonWarehouse.Invoices
 
             SupplierComboBox.SelectedItem =
                 _allSuppliers.FirstOrDefault(c => c.Id == invoice.SupplierId);
+            UiText.ApplyTranslations(PaymentMethodComboBox);
 
             InvoiceLines.Clear();
 
@@ -764,6 +789,7 @@ namespace RaccoonWarehouse.Invoices
             }
 
             UpdateTotal();
+            UiText.ApplyTranslations(ProductsGrid);
 
             PrintBtn.Visibility = Visibility.Visible;
             NewInvoiceBtn.Visibility = Visibility.Visible;
@@ -830,6 +856,12 @@ namespace RaccoonWarehouse.Invoices
 
             if (filtered.Count == 1)
                 ProductBox.SelectedItem = filtered.First();
+        }
+
+        private static bool TryParseDecimalInput(string? text, out decimal value)
+        {
+            return decimal.TryParse(text, NumberStyles.Number, CultureInfo.CurrentCulture, out value)
+                || decimal.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out value);
         }
     }
 }

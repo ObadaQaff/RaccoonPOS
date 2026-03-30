@@ -1,0 +1,191 @@
+<Window x:Class="RaccoonWarehouse.Accounting.JournalEntriesBrowser"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:fa="http://schemas.fontawesome.io/icons/"
+        Title="سجل القيود"
+        Height="920"
+        Width="1520"
+        WindowStartupLocation="CenterScreen"
+        FlowDirection="RightToLeft"
+        Background="{StaticResource AppPageBackgroundBrush}">
+    <Grid Background="{StaticResource AppPageBackgroundBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="220"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" CornerRadius="0,0,34,34" Background="{StaticResource AppDashboardHeroBrush}">
+            <Grid Margin="34,24,34,34">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="سجل القيود" FontSize="34" FontWeight="Bold" Foreground="White"/>
+                    <TextBlock Text="مراجعة القيود المرحلة، تتبع مراجعها، وعكس القيد بشكل آمن مع سبب واضح."
+                               Margin="0,8,0,0"
+                               FontSize="16"
+                               Foreground="#D6E7E2"/>
+                </StackPanel>
+                <Border Grid.Column="1" Padding="18,12" CornerRadius="20" Background="#1FFFFFFF" VerticalAlignment="Center">
+                    <StackPanel>
+                        <TextBlock Text="المراجعة" FontSize="12" Foreground="#CFE8E3" HorizontalAlignment="Center"/>
+                        <TextBlock Text="القيود" Margin="0,4,0,0" FontSize="18" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="1" Margin="24,-52,24,24">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="220"/>
+            </Grid.RowDefinitions>
+
+            <Border Grid.Row="0" Style="{StaticResource AppCardBorderStyle}" Padding="24">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="220"/>
+                        <ColumnDefinition Width="220"/>
+                        <ColumnDefinition Width="220"/>
+                        <ColumnDefinition Width="220"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Margin="0,0,16,0">
+                        <TextBlock Text="من تاريخ" FontWeight="SemiBold"/>
+                        <DatePicker x:Name="FromDatePicker" Margin="0,8,0,0" Height="40"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1" Margin="0,0,16,0">
+                        <TextBlock Text="إلى تاريخ" FontWeight="SemiBold"/>
+                        <DatePicker x:Name="ToDatePicker" Margin="0,8,0,0" Height="40"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2" Margin="0,0,16,0">
+                        <TextBlock Text="الحالة" FontWeight="SemiBold"/>
+                        <ComboBox x:Name="StatusComboBox" Margin="0,8,0,0" Height="40" SelectedIndex="0">
+                            <ComboBoxItem Content="الكل" Tag="{x:Null}"/>
+                            <ComboBoxItem Content="مرحّل" Tag="Posted"/>
+                            <ComboBoxItem Content="معكوس" Tag="Reversed"/>
+                            <ComboBoxItem Content="مسودة" Tag="Draft"/>
+                        </ComboBox>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="3" Margin="0,0,16,0">
+                        <TextBlock Text="نوع المرجع" FontWeight="SemiBold"/>
+                        <TextBox x:Name="ReferenceTypeTextBox" Margin="0,8,0,0" Height="40" Padding="12,8"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="4" Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Bottom">
+                        <Button Width="170" Style="{StaticResource AppHeroButtonStyle}" Click="LoadBtn_Click">
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <fa:ImageAwesome Icon="Search" Width="15" Height="15" Margin="0,0,8,0"
+                                                 Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                                <TextBlock Text="تحميل القيود"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Width="130" Style="{StaticResource AppSecondaryButtonStyle}" Click="BackBtn_Click">
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <fa:ImageAwesome Icon="ArrowRight" Width="15" Height="15" Margin="0,0,8,0"
+                                                 Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                                <TextBlock Text="رجوع"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <Grid Grid.Row="1" Margin="0,18,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="2*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <Border Grid.Column="0" Style="{StaticResource AppCardBorderStyle}" Padding="18">
+                    <TextBlock x:Name="SelectionSummaryText" FontSize="20" FontWeight="Bold" Text="اختر قيداً لعرض تفاصيله"/>
+                </Border>
+                <Border Grid.Column="1" Style="{StaticResource AppCardBorderStyle}" Padding="18" Margin="12,0">
+                    <StackPanel>
+                        <TextBlock Text="المدين" Foreground="#6B7280"/>
+                        <TextBlock x:Name="SelectedDebitText" FontSize="22" FontWeight="Bold" Text="0.00"/>
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="2" Style="{StaticResource AppCardBorderStyle}" Padding="18">
+                    <StackPanel>
+                        <TextBlock Text="الدائن" Foreground="#6B7280"/>
+                        <TextBlock x:Name="SelectedCreditText" FontSize="22" FontWeight="Bold" Text="0.00"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <Border Grid.Row="2" Margin="0,18,0,0" Style="{StaticResource AppCardBorderStyle}" Padding="16">
+                <DataGrid x:Name="JournalEntriesGrid"
+                          Style="{StaticResource AppModernDataGridStyle}"
+                          AutoGenerateColumns="False"
+                          IsReadOnly="True"
+                          SelectionChanged="JournalEntriesGrid_SelectionChanged">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="التاريخ" Binding="{Binding EntryDate, StringFormat=yyyy-MM-dd}" Width="130"/>
+                        <DataGridTextColumn Header="رقم القيد" Binding="{Binding EntryNumber}" Width="170"/>
+                        <DataGridTextColumn Header="الوصف" Binding="{Binding Description}" Width="*"/>
+                        <DataGridTextColumn Header="الحالة" Binding="{Binding StatusLabel}" Width="120"/>
+                        <DataGridTextColumn Header="نوع المرجع" Binding="{Binding ReferenceType}" Width="150"/>
+                        <DataGridTextColumn Header="رقم المرجع" Binding="{Binding ReferenceId}" Width="120"/>
+                        <DataGridTextColumn Header="إجمالي المدين" Binding="{Binding TotalDebit, StringFormat=N2}" Width="140"/>
+                        <DataGridTextColumn Header="إجمالي الدائن" Binding="{Binding TotalCredit, StringFormat=N2}" Width="140"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Border>
+
+            <Grid Grid.Row="3" Margin="0,18,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="1.2*"/>
+                    <ColumnDefinition Width="1.5*"/>
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" Style="{StaticResource AppCardBorderStyle}" Padding="20" Margin="0,0,18,0">
+                    <StackPanel>
+                        <TextBlock Text="عكس القيد المحدد" FontSize="22" FontWeight="Bold" Foreground="#183C36"/>
+                        <TextBlock Margin="0,8,0,0"
+                                   Foreground="{StaticResource AppMutedTextBrush}"
+                                   Text="سيتم إنشاء قيد عكسي جديد، وتحديث القيد الأصلي إلى حالة معكوس."/>
+                        <TextBlock Margin="0,18,0,0" Text="سبب العكس" FontWeight="SemiBold"/>
+                        <TextBox x:Name="ReverseReasonTextBox"
+                                 Margin="0,8,0,0"
+                                 Height="92"
+                                 Padding="12"
+                                 AcceptsReturn="True"
+                                 TextWrapping="Wrap"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,18,0,0">
+                            <Button Width="170" Style="{StaticResource AppHeroButtonStyle}" Click="ReverseSelectedBtn_Click">
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                    <fa:ImageAwesome Icon="Undo" Width="15" Height="15" Margin="0,0,8,0"
+                                                     Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                                    <TextBlock Text="عكس القيد المحدد"/>
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="1" Style="{StaticResource AppCardBorderStyle}" Padding="16">
+                    <DataGrid x:Name="JournalLinesGrid"
+                              Style="{StaticResource AppModernDataGridStyle}"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="True">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="الحساب" Binding="{Binding AccountCode}" Width="110"/>
+                            <DataGridTextColumn Header="اسم الحساب" Binding="{Binding AccountName}" Width="*"/>
+                            <DataGridTextColumn Header="الوصف" Binding="{Binding Description}" Width="220"/>
+                            <DataGridTextColumn Header="مدين" Binding="{Binding Debit, StringFormat=N2}" Width="110"/>
+                            <DataGridTextColumn Header="دائن" Binding="{Binding Credit, StringFormat=N2}" Width="110"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Border>
+            </Grid>
+        </Grid>
+    </Grid>
+</Window>

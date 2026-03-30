@@ -5,6 +5,8 @@
              ShutdownMode="OnMainWindowClose">
     <Application.Resources>
         <ResourceDictionary>
+            <FlowDirection x:Key="CurrentFlowDirection">RightToLeft</FlowDirection>
+            <TextAlignment x:Key="CurrentTextAlignment">Right</TextAlignment>
             <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
             <DropShadowEffect x:Key="DropShadowSoft"
                   BlurRadius="20"

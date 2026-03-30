@@ -5,6 +5,7 @@ using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.InvoiceLines;
 using RaccoonWarehouse.Domain.Users;
 using RaccoonWarehouse.Domain.Vouchers;
+using DelegateEntity = RaccoonWarehouse.Domain.Delegates.Delegate;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -24,6 +25,8 @@ namespace RaccoonWarehouse.Domain.Invoices
           public int? SupplierId { get; set; }
           public int? CustomerId { get; set; }
           public User? User { get; set; }
+          public int? DelegateId { get; set; }
+          public DelegateEntity? Delegate { get; set; }
           public int? VoucherId { get; set; }
           public Voucher? Voucher { get; set; }
           public decimal TotalAmount { get; set; }

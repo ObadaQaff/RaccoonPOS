@@ -4,6 +4,7 @@ using RaccoonWarehouse;
 using RaccoonWarehouse.Application.Service.Brands;
 using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Domain.Brands.DTOs;
+using RaccoonWarehouse.Helpers.Localization;
 using RaccoonWarehouse.Navigation;
 using System;
 using System.Threading.Tasks;
@@ -11,9 +12,6 @@ using System.Windows;
 
 namespace RaccoonWarehouse.Brands
 {
-    /// <summary>
-    /// Interaction logic for BrandsTable.xaml
-    /// </summary>
     public partial class BrandsTable : Window
     {
         private readonly IBrandService _brandService;
@@ -26,10 +24,11 @@ namespace RaccoonWarehouse.Brands
             _mapper = mapper;
             _loadingService = loadingService;
             InitializeComponent();
-            _ = Load_BrandsAsync();
+            UiText.ApplyWindow(this);
+            _ = LoadBrandsAsync();
         }
 
-        private async Task Load_BrandsAsync()
+        private async Task LoadBrandsAsync()
         {
             try
             {
@@ -41,12 +40,12 @@ namespace RaccoonWarehouse.Brands
                 }
                 else
                 {
-                    MessageBox.Show(result.Message ?? "Failed to load brands.");
+                    MessageBox.Show(result.Message ?? UiText.T("فشل تحميل العلامات التجارية.", "Failed to load brands."));
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Unexpected error while loading brands: {ex.Message}");
+                MessageBox.Show($"{UiText.T("حدث خطأ أثناء تحميل العلامات التجارية", "An error occurred while loading brands")}: {ex.Message}");
             }
             finally
             {
@@ -58,7 +57,7 @@ namespace RaccoonWarehouse.Brands
         {
             if (BrandsTable1.SelectedItem is not BrandReadDto selectedBrand)
             {
-                MessageBox.Show("Please select a brand before update or delete.");
+                MessageBox.Show(UiText.T("يرجى اختيار علامة تجارية قبل التعديل أو الحذف.", "Please select a brand before editing or deleting."));
                 return;
             }
 
@@ -70,16 +69,19 @@ namespace RaccoonWarehouse.Brands
 
         private async void Delete_Brand(object sender, RoutedEventArgs e)
         {
-            var selectedBrand = BrandsTable1.SelectedItem as BrandReadDto;
-            if (selectedBrand == null)
+            if (BrandsTable1.SelectedItem is not BrandReadDto selectedBrand)
             {
-                MessageBox.Show("No brand selected.");
+                MessageBox.Show(UiText.T("لم يتم اختيار علامة تجارية.", "No brand selected."));
                 return;
             }
 
+            var message = UiText.IsEnglish
+                ? $"Are you sure you want to delete the brand '{selectedBrand.Name}'?"
+                : $"هل أنت متأكد من أنك تريد حذف العلامة التجارية '{selectedBrand.Name}'؟";
+
             var messageResult = MessageBox.Show(
-                $"Are you sure you want to delete brand: '{selectedBrand.Name}'?",
-                "Confirm Delete",
+                message,
+                UiText.T("تأكيد الحذف", "Confirm Delete"),
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Warning);
 
@@ -94,17 +96,17 @@ namespace RaccoonWarehouse.Brands
                 var result = await _brandService.DeleteAsync(selectedBrand.Id);
                 if (result.Success)
                 {
-                    MessageBox.Show("Deleted successfully !!");
-                    await Load_BrandsAsync();
+                    MessageBox.Show(UiText.T("تم الحذف بنجاح.", "Delete was successful."));
+                    await LoadBrandsAsync();
                 }
                 else
                 {
-                    MessageBox.Show(result.Message ?? "Delete failed.");
+                    MessageBox.Show(result.Message ?? UiText.T("فشل الحذف.", "Delete failed."));
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Unexpected error while deleting brand: {ex.Message}");
+                MessageBox.Show($"{UiText.T("حدث خطأ أثناء حذف العلامة التجارية", "An error occurred while deleting the brand")}: {ex.Message}");
             }
             finally
             {
@@ -114,15 +116,13 @@ namespace RaccoonWarehouse.Brands
 
         private void CreateCategoryBtn_Click(object sender, RoutedEventArgs e)
         {
-            var createCategory = ((App)System.Windows.Application.Current)
-                       .ServiceProvider.GetRequiredService<CreateBrand>();
-            createCategory.ShowDialog();
-
+            var createBrand = ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<CreateBrand>();
+            createBrand.ShowDialog();
         }
 
         private void BackBtn_Click(object sender, RoutedEventArgs e)
         {
-            this.Close();
+            Close();
         }
     }
 }

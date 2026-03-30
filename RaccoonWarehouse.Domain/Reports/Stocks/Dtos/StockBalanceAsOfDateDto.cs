@@ -17,6 +17,7 @@ namespace RaccoonWarehouse.Domain.Reports.Stocks.Dtos
 
             public decimal Quantity { get; set; }
             public decimal MinimumQuantity { get; set; }
+            public DateTime? NearestExpiryDate { get; set; }
 
             public string StatusText { get; set; } = "طبيعي";
         }

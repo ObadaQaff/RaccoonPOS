@@ -1,27 +1,29 @@
-﻿<Window x:Class="RaccoonWarehouse.POS.DailySalesReport"
+<Window x:Class="RaccoonWarehouse.POS.DailySalesReport"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="التقرير اليومي"
-        Height="650"
-        Width="1000"
+        Height="620"
+        Width="1280"
+        MinHeight="560"
+        MinWidth="1000"
+        ResizeMode="CanResize"
         WindowStartupLocation="CenterOwner"
-        Background="#F2F6FA">
+        Background="#F2F6FA"
+        FlowDirection="RightToLeft">
 
-    <Grid Margin="20">
+    <Grid Margin="18">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- HEADER -->
-        <TextBlock Text="📊 التقرير اليومي للمبيعات"
-                   FontSize="28"
+        <TextBlock Text="التقرير اليومي للمبيعات"
+                   FontSize="24"
                    FontWeight="Bold"
                    Foreground="#2D8DCF"
                    HorizontalAlignment="Center"/>
 
-        <!-- FILTER -->
         <Border Grid.Row="1"
                 Background="White"
                 CornerRadius="12"
@@ -29,48 +31,38 @@
                 Margin="0,15"
                 BorderBrush="#D0D7DD"
                 BorderThickness="1">
-
             <StackPanel Orientation="Horizontal"
-                        FlowDirection="RightToLeft"
                         HorizontalAlignment="Center">
-
-                <TextBlock Text="التاريخ:"
+                <TextBlock Text="تاريخ الجلسة:"
                            FontSize="18"
-                           Margin="10,0"/>
+                           Margin="10,0"
+                           VerticalAlignment="Center"/>
 
                 <DatePicker x:Name="ReportDatePicker"
                             SelectedDate="{Binding ReportDate}"
                             FontSize="16"
-                            Width="200" Height="47"/>
-
-                <Button Style="{StaticResource PrimaryButtonStyle}"
-                        Content="تحميل"
-                        Width="140"
-                        Margin="20,0"
-                        Click="LoadReportBtn_Click"/>
+                            Width="200"
+                            Height="42"
+                            IsEnabled="False"
+                            Focusable="False"/>
             </StackPanel>
         </Border>
 
-        <!-- REPORT GRID -->
         <Border Grid.Row="2"
                 Background="White"
                 CornerRadius="12"
                 Padding="10"
                 BorderBrush="#D0D7DD"
                 BorderThickness="1">
-
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
-                <!-- SUMMARY -->
                 <StackPanel Orientation="Horizontal"
-                            FlowDirection="RightToLeft"
                             HorizontalAlignment="Center"
                             Margin="0,10">
-
                     <TextBlock Text="{Binding TotalInvoices, StringFormat=عدد الفواتير: {0}}"
                                FontSize="18"
                                Margin="20,0"/>
@@ -90,43 +82,42 @@
                                Margin="20,0"/>
                 </StackPanel>
 
-                <!-- DETAILS -->
                 <DataGrid Grid.Row="1"
                           ItemsSource="{Binding Invoices}"
                           Style="{StaticResource MinimalDataGrid}"
                           AutoGenerateColumns="False"
-                          FlowDirection="RightToLeft">
-
+                          IsReadOnly="True"
+                          HorizontalScrollBarVisibility="Auto"
+                          VerticalScrollBarVisibility="Auto">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="رقم الفاتورة"
                                             Binding="{Binding InvoiceNumber}"
-                                            Width="200"/>
+                                            Width="190"/>
 
                         <DataGridTextColumn Header="التاريخ"
                                             Binding="{Binding ClosedAt}"
-                                            Width="200"/>
-                        
+                                            Width="210"/>
+
                         <DataGridTextColumn Header="العميل"
                                             Binding="{Binding User.Name}"
-                                            Width="200"/>
-                        
+                                            Width="220"/>
+
                         <DataGridTextColumn Header="نوع الفاتورة"
                                             Binding="{Binding InvoiceType}"
-                                            Width="130"/>
+                                            Width="140"/>
 
                         <DataGridTextColumn Header="الإجمالي"
-                                            Binding="{Binding TotalAmount}"
+                                            Binding="{Binding TotalAmount, StringFormat={}{0:N2}}"
                                             Width="150"/>
 
                         <DataGridTextColumn Header="الخصم"
-                                            Binding="{Binding DiscountAmount}"
-                                            Width="150"/>
+                                            Binding="{Binding DiscountAmount, StringFormat={}{0:N2}}"
+                                            Width="130"/>
 
                         <DataGridTextColumn Header="الصافي"
-                                            Binding="{Binding NetAmount}"
-                                            Width="120"/>
+                                            Binding="{Binding NetSales, StringFormat={}{0:N2}}"
+                                            Width="150"/>
                     </DataGrid.Columns>
-
                 </DataGrid>
             </Grid>
         </Border>

@@ -11,6 +11,8 @@ namespace RaccoonWarehouse.Domain.Reports.Stocks.Dtos
         public string? UnitName { get; set; }
         public decimal Quantity { get; set; }
         public decimal UnitPrice { get; set; }
+        public string AdjustmentType { get; set; } = string.Empty;
+        public string BatchAction { get; set; } = string.Empty;
         public string? Notes { get; set; }
         public string? CreatedBy { get; set; }
         public string SourceReference { get; set; } = string.Empty;

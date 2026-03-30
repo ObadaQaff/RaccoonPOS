@@ -1,24 +1,11 @@
-﻿using RaccoonWarehouse.Application.Service.Invoices;
+using RaccoonWarehouse.Application.Service.Invoices;
 using RaccoonWarehouse.Domain.Invoices.DTOs;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using RaccoonWarehouse.Helpers.Localization;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
 using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Shapes;
 
 namespace RaccoonWarehouse.POS
 {
-    /// <summary>
-    /// Interaction logic for ResumeHeldInvoiceWindow.xaml
-    /// </summary>
     public partial class ResumeHeldInvoiceWindow : Window
     {
         private readonly IInvoiceService _invoiceService;
@@ -29,6 +16,7 @@ namespace RaccoonWarehouse.POS
         {
             InitializeComponent();
             _invoiceService = invoiceService;
+            UiText.ApplyWindow(this);
             Loaded += ResumeHeldInvoiceWindow_Loaded;
         }
 
@@ -36,7 +24,14 @@ namespace RaccoonWarehouse.POS
         {
             var result = await _invoiceService.GetHeldPOSInvoicesAsync();
             if (result.Success)
+            {
                 HeldInvoicesGrid.ItemsSource = result.Data;
+                UiText.ApplyTranslations(this);
+            }
+            else
+            {
+                MessageBox.Show(result.Message ?? UiText.T("تعذر تحميل الفواتير المعلقة.", "Failed to load held invoices."));
+            }
         }
 
         private void Grid_DoubleClick(object sender, MouseButtonEventArgs e)
@@ -49,5 +44,4 @@ namespace RaccoonWarehouse.POS
             }
         }
     }
-
 }

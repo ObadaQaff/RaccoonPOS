@@ -15,6 +15,7 @@ namespace RaccoonWarehouse.Domain.Stock.DTOs
         public string? UnitName { get; set; }
         public decimal CurrentQuantity { get; set; }
         public decimal MinimumQuantity { get; set; }
+        public DateTime? NearestExpiryDate { get; set; }
 
         // Optional: Extra info for UI or reports
         public decimal StockGap => MinimumQuantity - CurrentQuantity;

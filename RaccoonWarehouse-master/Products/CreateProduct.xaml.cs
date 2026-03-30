@@ -5,6 +5,7 @@ using RaccoonWarehouse.Application.Service.Products;
 using RaccoonWarehouse.Application.Service.ProductUnits;
 using RaccoonWarehouse.Application.Service.SubCategories;
 using RaccoonWarehouse.Application.Service.Units;
+using RaccoonWarehouse.Helpers.Localization;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Products.DTOs;
 using RaccoonWarehouse.Domain.ProductUnits.DTOs;
@@ -72,13 +73,14 @@ namespace RaccoonWarehouse.Products
             UnitComboBox.SelectedValuePath = "Id";
 
             StatusComboBox.ItemsSource = Enum.GetValues(typeof(ProductStatus)).Cast<ProductStatus>();
+            UiText.ApplyTranslations(this);
         }
 
         private void AddUnit_Click(object sender, RoutedEventArgs e)
         {
             if (UnitComboBox.SelectedValue == null)
             {
-                MessageBox.Show("يرجى اختيار وحدة أولاً.", "تنبيه", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(UiText.T("يرجى اختيار وحدة أولاً.", "Please choose a unit first."), UiText.T("تنبيه", "Notice"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
@@ -86,14 +88,14 @@ namespace RaccoonWarehouse.Products
                 !decimal.TryParse(PurchasePriceTextBox.Text, out var purchasePrice) ||
                 !decimal.TryParse(QuantityPerUnitTextBox.Text, out var qty))
             {
-                MessageBox.Show("يرجى إدخال أسعار وأرقام صحيحة.", "خطأ في الإدخال", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show(UiText.T("يرجى إدخال أسعار وأرقام صحيحة.", "Please enter valid prices and numbers."), UiText.T("خطأ في الإدخال", "Input Error"), MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
             var selectedUnitId = (int)UnitComboBox.SelectedValue;
             if (_productUnits.Any(u => u.UnitId == selectedUnitId))
             {
-                MessageBox.Show("لا يمكن تكرار نفس الوحدة أكثر من مرة للصنف نفسه.", "تنبيه", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(UiText.T("لا يمكن تكرار نفس الوحدة أكثر من مرة للصنف نفسه.", "The same unit cannot be added more than once for the same product."), UiText.T("تنبيه", "Notice"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
@@ -121,6 +123,7 @@ namespace RaccoonWarehouse.Products
             UnitsStackPanel.Children.Clear();
             foreach (var unit in _productUnits)
                 AddUnitRow(unit, UnitComboBoxItemText(unit.UnitId));
+            UiText.ApplyTranslations(UnitsStackPanel);
         }
 
         private string UnitComboBoxItemText(int unitId)
@@ -227,13 +230,13 @@ namespace RaccoonWarehouse.Products
         private static string? ValidateUnits(List<ProductUnitWriteDto> units)
         {
             if (units.Count == 0)
-                return "يجب إضافة وحدة واحدة على الأقل.";
+                return UiText.T("يجب إضافة وحدة واحدة على الأقل.", "At least one unit must be added.");
 
             if (units.Any(u => u.QuantityPerUnit <= 0))
-                return "الكمية لكل وحدة يجب أن تكون أكبر من صفر.";
+                return UiText.T("الكمية لكل وحدة يجب أن تكون أكبر من صفر.", "Quantity per unit must be greater than zero.");
 
             if (units.GroupBy(u => u.UnitId).Any(g => g.Count() > 1))
-                return "لا يمكن تكرار نفس الوحدة أكثر من مرة.";
+                return UiText.T("لا يمكن تكرار نفس الوحدة أكثر من مرة.", "The same unit cannot be repeated more than once.");
 
             return null;
         }
@@ -257,7 +260,7 @@ namespace RaccoonWarehouse.Products
                 var unitsValidation = ValidateUnits(_productUnits);
                 if (unitsValidation != null)
                 {
-                    MessageBox.Show(unitsValidation, "تنبيه", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show(unitsValidation, UiText.T("تنبيه", "Notice"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
 
@@ -288,7 +291,7 @@ namespace RaccoonWarehouse.Products
                 var result = await _productService.CreateAsync(dto);
                 if (!result.Success)
                 {
-                    MessageBox.Show($"❌ فشل في إنشاء المنتج: {result.Message}", "خطأ", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show($"{UiText.T("فشل في إنشاء المنتج", "Failed to create the product")}: {result.Message}", UiText.T("خطأ", "Error"), MessageBoxButton.OK, MessageBoxImage.Error);
                     return;
                 }
 
@@ -301,12 +304,12 @@ namespace RaccoonWarehouse.Products
                     await _productUnitService.CreateAsync(unit);
                 }
 
-                MessageBox.Show("✅ تم إنشاء المنتج والوحدات بنجاح!", "نجاح", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(UiText.T("تم إنشاء المنتج والوحدات بنجاح!", "The product and units were created successfully!"), UiText.T("نجاح", "Success"), MessageBoxButton.OK, MessageBoxImage.Information);
                 ClearForm();
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"خطأ: {ex.Message}", "استثناء", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"{UiText.T("خطأ", "Error")}: {ex.Message}", UiText.T("استثناء", "Exception"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -335,7 +338,7 @@ namespace RaccoonWarehouse.Products
         {
             var openFileDialog = new OpenFileDialog
             {
-                Title = "اختر صورة المنتج",
+                Title = UiText.T("اختر صورة المنتج", "Choose Product Image"),
                 Filter = "Image Files|*.jpg;*.jpeg;*.png;*.bmp;*.gif"
             };
 

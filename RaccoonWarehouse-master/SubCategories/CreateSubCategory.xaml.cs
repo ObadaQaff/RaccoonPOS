@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using RaccoonWarehouse.Application.Service.Categories;
 using RaccoonWarehouse.Application.Service.SubCategories;
 using RaccoonWarehouse.Common.Loading;
+using RaccoonWarehouse.Helpers.Localization;
 using RaccoonWarehouse;
 using System;
 using System.Threading.Tasks;
@@ -29,6 +30,7 @@ namespace RaccoonWarehouse.SubCategories
             _subCategoryService = subCategoryService;
             _loadingService = loadingService;
             InitializeComponent();
+            UiText.ApplyWindow(this);
             _ = LoadDataAsync();
         }
 
@@ -44,7 +46,7 @@ namespace RaccoonWarehouse.SubCategories
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Unexpected error while loading categories: {ex.Message}");
+                MessageBox.Show($"{UiText.T("حدث خطأ أثناء تحميل الفئات", "An error occurred while loading categories")}: {ex.Message}");
             }
             finally
             {
@@ -57,7 +59,7 @@ namespace RaccoonWarehouse.SubCategories
             // Required only by non-nullable DTO fields: Name + ParentCategoryId.
             if (string.IsNullOrWhiteSpace(SubCategoryName.Text) || ParentCategoryCombo.SelectedItem == null)
             {
-                MessageBox.Show("Please fill in all required fields.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(UiText.T("يرجى تعبئة جميع الحقول المطلوبة.", "Please fill in all required fields."), UiText.T("خطأ في التحقق", "Validation Error"), MessageBoxButton.OK, MessageBoxImage.Warning);
                 return false;
             }
 
@@ -87,7 +89,7 @@ namespace RaccoonWarehouse.SubCategories
                 var result = await _subCategoryService.CreateAsync(newSubCategory);
                 if (result.Success)
                 {
-                    MessageBox.Show("Sub-category created successfully!", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+                    MessageBox.Show(UiText.T("تم إنشاء الفئة الفرعية بنجاح.", "The subcategory was created successfully."), UiText.T("نجاح", "Success"), MessageBoxButton.OK, MessageBoxImage.Information);
                     if (closeAfterSuccess)
                     {
                         Close();
@@ -96,13 +98,13 @@ namespace RaccoonWarehouse.SubCategories
                 else
                 {
                     var errors = string.Join("\n", result.Errors ?? new System.Collections.Generic.List<string>());
-                    var message = string.IsNullOrWhiteSpace(errors) ? (result.Message ?? "Failed to create sub-category.") : errors;
-                    MessageBox.Show($"Failed to create sub-category:\n{message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    var message = string.IsNullOrWhiteSpace(errors) ? (result.Message ?? UiText.T("فشل إنشاء الفئة الفرعية.", "Failed to create the subcategory.")) : errors;
+                    MessageBox.Show($"{UiText.T("فشل إنشاء الفئة الفرعية", "Failed to create the subcategory")}:\n{message}", UiText.T("خطأ", "Error"), MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Unexpected error while creating sub-category: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"{UiText.T("حدث خطأ أثناء إنشاء الفئة الفرعية", "An error occurred while creating the subcategory")}: {ex.Message}", UiText.T("خطأ", "Error"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {

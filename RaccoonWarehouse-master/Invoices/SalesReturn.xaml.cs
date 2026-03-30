@@ -11,6 +11,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
+using RaccoonWarehouse.Helpers.Localization;
 
 namespace RaccoonWarehouse.Invoices
 {
@@ -22,6 +23,7 @@ namespace RaccoonWarehouse.Invoices
         public SalesReturn()
         {
             InitializeComponent();
+            UiText.ApplyWindow(this);
         }
         private void BackBtn_Click(object sender, RoutedEventArgs e)
         {

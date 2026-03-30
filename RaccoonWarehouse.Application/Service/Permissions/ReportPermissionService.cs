@@ -1,11 +1,7 @@
-using AutoMapper;
-using Microsoft.EntityFrameworkCore;
 using RaccoonWarehouse.Core.Common;
-using RaccoonWarehouse.Data;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Permissions;
 using RaccoonWarehouse.Domain.Permissions.DTOs;
-using RaccoonWarehouse.Application.Service.Users;
 
 namespace RaccoonWarehouse.Application.Service.Permissions
 {
@@ -19,83 +15,101 @@ namespace RaccoonWarehouse.Application.Service.Permissions
 
     public class ReportPermissionService : IReportPermissionService
     {
-        private readonly ApplicationDbContext _dbContext;
-        private readonly IMapper _mapper;
-        private readonly IUserSession _userSession;
+        private readonly IPermissionService _permissionService;
 
-        public ReportPermissionService(ApplicationDbContext dbContext, IMapper mapper, IUserSession userSession)
+        public ReportPermissionService(IPermissionService permissionService)
         {
-            _dbContext = dbContext;
-            _mapper = mapper;
-            _userSession = userSession;
+            _permissionService = permissionService;
         }
 
         public async Task<Dictionary<string, Dictionary<UserRole, bool>>> GetPermissionsMapAsync()
         {
-            var permissions = await _dbContext.ReportPermissions.AsNoTracking().ToListAsync();
+            await _permissionService.EnsureSeedDataAsync();
 
-            return permissions
-                .GroupBy(x => x.ReportKey)
-                .ToDictionary(
-                    group => group.Key,
-                    group => group.ToDictionary(item => item.Role, item => item.CanView));
+            var roles = Enum.GetValues<UserRole>();
+            var reportDefinitions = PermissionCatalog.All
+                .Where(x => x.Module == "Reports" && x.Action == "View" && x.LegacyReportKey != null)
+                .ToList();
+            var permissionKeys = reportDefinitions.Select(x => x.Key).ToList();
+
+            var result = new Dictionary<string, Dictionary<UserRole, bool>>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var role in roles)
+            {
+                var permissionMap = await _permissionService.GetPermissionMapAsync(role, permissionKeys);
+                foreach (var report in reportDefinitions)
+                {
+                    if (!result.TryGetValue(report.LegacyReportKey!, out var roleMap))
+                    {
+                        roleMap = new Dictionary<UserRole, bool>();
+                        result[report.LegacyReportKey!] = roleMap;
+                    }
+
+                    roleMap[role] = permissionMap.TryGetValue(report.Key, out var allowed) ? allowed : true;
+                }
+            }
+
+            return result;
         }
 
         public async Task<HashSet<string>> GetDeniedReportKeysAsync(UserRole role)
         {
-            var deniedKeys = await _dbContext.ReportPermissions
-                .AsNoTracking()
-                .Where(x => x.Role == role && !x.CanView)
-                .Select(x => x.ReportKey)
-                .ToListAsync();
+            await _permissionService.EnsureSeedDataAsync();
 
-            return deniedKeys.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var reportDefinitions = PermissionCatalog.All
+                .Where(x => x.Module == "Reports" && x.Action == "View" && x.LegacyReportKey != null)
+                .ToList();
+            var permissionChecks = await _permissionService.GetPermissionMapAsync(role, reportDefinitions.Select(x => x.Key));
+
+            return reportDefinitions
+                .Where(report => !permissionChecks[report.Key])
+                .Select(report => report.LegacyReportKey!)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
         }
 
         public async Task<bool> CanViewAsync(UserRole role, string reportKey)
         {
-            var permission = await _dbContext.ReportPermissions
-                .AsNoTracking()
-                .FirstOrDefaultAsync(x => x.Role == role && x.ReportKey == reportKey);
+            await _permissionService.EnsureSeedDataAsync();
 
-            return permission?.CanView ?? true;
+            var definition = PermissionCatalog.FindByLegacyReportKey(reportKey);
+            if (definition == null)
+                return true;
+
+            return await _permissionService.HasPermissionAsync(role, definition.Key);
         }
 
         public async Task<Result<bool>> SavePermissionsAsync(IEnumerable<ReportPermissionWriteDto> permissions)
         {
-            if (_userSession.CurrentUser?.Role != UserRole.Admin)
-                return Result<bool>.Fail("فقط المدير يمكنه تعديل صلاحيات التقارير.");
+            var grouped = permissions.GroupBy(x => x.Role);
+            Result<bool>? lastResult = null;
 
-            try
+            foreach (var roleGroup in grouped)
             {
-                var now = DateTime.Now;
-
-                foreach (var dto in permissions)
-                {
-                    var existing = await _dbContext.ReportPermissions
-                        .FirstOrDefaultAsync(x => x.ReportKey == dto.ReportKey && x.Role == dto.Role);
-
-                    if (existing == null)
+                var mapped = roleGroup
+                    .Select(dto =>
                     {
-                        var entity = _mapper.Map<ReportPermission>(dto);
-                        entity.CreatedDate = now;
-                        entity.UpdatedDate = now;
-                        await _dbContext.ReportPermissions.AddAsync(entity);
-                    }
-                    else
-                    {
-                        existing.CanView = dto.CanView;
-                        existing.UpdatedDate = now;
-                    }
-                }
+                        var definition = PermissionCatalog.FindByLegacyReportKey(dto.ReportKey);
+                        return definition == null
+                            ? null
+                            : new RolePermissionWriteDto
+                            {
+                                Role = dto.Role,
+                                PermissionKey = definition.Key,
+                                IsAllowed = dto.CanView
+                            };
+                    })
+                    .OfType<RolePermissionWriteDto>()
+                    .ToList();
 
-                await _dbContext.SaveChangesAsync();
-                return Result<bool>.Ok(true, "تم حفظ صلاحيات التقارير بنجاح.");
+                if (mapped.Count == 0)
+                    continue;
+
+                lastResult = await _permissionService.SavePermissionsAsync(roleGroup.Key, mapped);
+                if (!lastResult.Success)
+                    return lastResult;
             }
-            catch (Exception ex)
-            {
-                return Result<bool>.Fail($"فشل حفظ صلاحيات التقارير: {ex.Message}");
-            }
+
+            return lastResult ?? Result<bool>.Ok(true, "لا توجد صلاحيات تقارير بحاجة للتحديث.");
         }
     }
 }

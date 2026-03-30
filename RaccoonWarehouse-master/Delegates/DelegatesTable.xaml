@@ -1,0 +1,102 @@
+<Window x:Class="RaccoonWarehouse.Delegates.DelegatesTable"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:fa="http://schemas.fontawesome.io/icons/"
+        Title="إدارة المندوبين"
+        Height="800"
+        Width="1400"
+        WindowStartupLocation="CenterScreen"
+        WindowState="Maximized"
+        FlowDirection="RightToLeft"
+        Background="{StaticResource AppPageBackgroundBrush}">
+    <Grid Background="{StaticResource AppPageBackgroundBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="220"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        <Border Grid.Row="0" CornerRadius="0,0,34,34" Background="{StaticResource AppDashboardHeroBrush}">
+            <Grid Margin="34,24,34,34">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="إدارة المندوبين" FontSize="34" FontWeight="Bold" Foreground="White"/>
+                    <TextBlock x:Name="FeatureStateText" Margin="0,10,0,0" FontSize="14" Foreground="#D7F1FF"/>
+                </StackPanel>
+                <Border Grid.Column="1" Padding="18,12" CornerRadius="20" Background="#1FFFFFFF" VerticalAlignment="Center">
+                    <StackPanel>
+                        <TextBlock Text="إجمالي المندوبين" FontSize="12" Foreground="#CFE8E3" HorizontalAlignment="Center"/>
+                        <TextBlock x:Name="TotalDelegatesText" Margin="0,4,0,0" FontSize="18" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
+        <Grid Grid.Row="1" Margin="24,-52,24,24">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+            <Border Grid.Row="0" Style="{StaticResource AppCardBorderStyle}" Padding="24">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="270"/>
+                            <ColumnDefinition Width="180"/>
+                            <ColumnDefinition Width="180"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="SearchBox" Grid.Column="0" Margin="0,0,10,0" Style="{StaticResource AppSearchTextBoxStyle}" TextChanged="FilterChanged"/>
+                        <ComboBox x:Name="StatusFilter" Grid.Column="1" Margin="0,0,10,0" Style="{StaticResource AppComboBoxStyle}" SelectionChanged="FilterChanged"/>
+                        <ComboBox x:Name="TypeFilter" Grid.Column="2" Margin="0,0,10,0" Style="{StaticResource AppComboBoxStyle}" SelectionChanged="FilterChanged"/>
+                        <TextBlock x:Name="HintText" Grid.Column="3" VerticalAlignment="Center" FontSize="13" Foreground="{StaticResource AppMutedTextBrush}"/>
+                        <StackPanel Grid.Column="4" Orientation="Horizontal" HorizontalAlignment="Left">
+                            <Button x:Name="FeatureSettingsBtn" Width="150" Style="{StaticResource AppSecondaryButtonStyle}" Click="FeatureSettingsBtn_Click">
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                    <fa:ImageAwesome Icon="Cog" Width="16" Height="16" Margin="0,0,8,0"/>
+                                    <TextBlock Text="إعدادات المندوبين"/>
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="CreateDelegateBtn" Width="150" Margin="10,0,0,0" Style="{StaticResource AppHeroButtonStyle}" Click="CreateDelegateBtn_Click">
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                    <fa:ImageAwesome Icon="Plus" Width="16" Height="16" Margin="0,0,8,0"/>
+                                    <TextBlock Text="مندوب جديد"/>
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="BackBtn" Width="120" Margin="10,0,0,0" Style="{StaticResource AppSecondaryButtonStyle}" Click="BackBtn_Click">
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                    <fa:ImageAwesome Icon="ArrowRight" Width="16" Height="16" Margin="0,0,8,0"/>
+                                    <TextBlock Text="عودة"/>
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </Border>
+            <Border Grid.Row="1" Margin="0,18,0,0" Style="{StaticResource AppCardBorderStyle}" Padding="16">
+                <DataGrid x:Name="DelegatesGrid" Style="{StaticResource AppModernDataGridStyle}" SelectionMode="Single" SelectionUnit="FullRow" MouseDoubleClick="DelegatesGrid_MouseDoubleClick">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="المعرف" Binding="{Binding Id}" Width="80"/>
+                        <DataGridTextColumn Header="الكود" Binding="{Binding Code}" Width="120"/>
+                        <DataGridTextColumn Header="الاسم" Binding="{Binding FullName}" Width="2*"/>
+                        <DataGridTextColumn Header="الهاتف" Binding="{Binding PhoneNumber}" Width="1.2*"/>
+                        <DataGridTextColumn Header="النوع" Binding="{Binding DelegateType}" Width="1.1*"/>
+                        <DataGridTextColumn Header="الحالة" Binding="{Binding Status}" Width="1.1*"/>
+                        <DataGridTextColumn Header="المستخدم" Binding="{Binding UserName}" Width="1.4*"/>
+                        <DataGridTextColumn Header="عدد الفواتير" Binding="{Binding InvoiceCount}" Width="1.1*"/>
+                        <DataGridTextColumn Header="إجمالي المبيعات" Binding="{Binding TotalSales}" Width="1.2*"/>
+                    </DataGrid.Columns>
+                    <DataGrid.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Style="{StaticResource AppMenuItemStyle}" Header="التفاصيل" Click="Details_Click"/>
+                            <MenuItem Style="{StaticResource AppMenuItemStyle}" Header="تعديل" Click="Edit_Click"/>
+                            <MenuItem Style="{StaticResource AppMenuItemStyle}" Header="تفعيل" Click="Activate_Click"/>
+                            <MenuItem Style="{StaticResource AppMenuItemStyle}" Header="تعطيل" Click="Deactivate_Click"/>
+                        </ContextMenu>
+                    </DataGrid.ContextMenu>
+                </DataGrid>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>

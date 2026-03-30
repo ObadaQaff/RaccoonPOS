@@ -3,6 +3,8 @@ using RaccoonWarehouse.Application.Service.Products;
 using RaccoonWarehouse.Application.Service.ProductUnits;
 using RaccoonWarehouse.Application.Service.SubCategories;
 using RaccoonWarehouse.Application.Service.Units;
+using RaccoonWarehouse.Common;
+using RaccoonWarehouse.Helpers.Localization;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Products.DTOs;
 using RaccoonWarehouse.Domain.ProductUnits.DTOs;
@@ -50,38 +52,48 @@ namespace RaccoonWarehouse.Products
 
         private async Task LoadDataAsync()
         {
-            SubCategoryComboBox.ItemsSource = (await _subCategoryService.GetAllAsync()).Data;
-            SubCategoryComboBox.DisplayMemberPath = "Name";
-            SubCategoryComboBox.SelectedValuePath = "Id";
+            try
+            {
+                SubCategoryComboBox.ItemsSource = (await _subCategoryService.GetAllAsync()).Data;
+                SubCategoryComboBox.DisplayMemberPath = "Name";
+                SubCategoryComboBox.SelectedValuePath = "Id";
 
-            BrandComboBox.ItemsSource = (await _brandService.GetAllAsync()).Data;
-            BrandComboBox.DisplayMemberPath = "Name";
-            BrandComboBox.SelectedValuePath = "Id";
+                BrandComboBox.ItemsSource = (await _brandService.GetAllAsync()).Data;
+                BrandComboBox.DisplayMemberPath = "Name";
+                BrandComboBox.SelectedValuePath = "Id";
 
-            UnitComboBox.ItemsSource = (await _unitService.GetAllAsync()).Data;
-            UnitComboBox.DisplayMemberPath = "Name";
-            UnitComboBox.SelectedValuePath = "Id";
+                UnitComboBox.ItemsSource = (await _unitService.GetAllAsync()).Data;
+                UnitComboBox.DisplayMemberPath = "Name";
+                UnitComboBox.SelectedValuePath = "Id";
 
-            StatusComboBox.ItemsSource = Enum.GetValues(typeof(ProductStatus)).Cast<ProductStatus>();
+                StatusComboBox.ItemsSource = Enum.GetValues(typeof(ProductStatus)).Cast<ProductStatus>();
 
-            var product = await _productService.GetByIdAsync(_productId);
-            if (product.Data == null)
-                return;
+                var product = await _productService.GetByIdAsync(_productId);
+                if (!product.Success || product.Data == null)
+                {
+                    MessageBox.Show(product.Message ?? UiText.T("تعذر تحميل بيانات الصنف.", "Could not load the product data."));
+                    return;
+                }
 
-            NameTextBox.Text = product.Data.Name;
-            ITEMCODE.Text = product.Data.ITEMCODE?.ToString();
-            DescriptionTextBox.Text = product.Data.Description;
-            StatusComboBox.SelectedValue = product.Data.Status;
-            TaxExemptCheckBox.IsChecked = product.Data.TaxExempt;
-            MinimumQuantityTextBox.Text = product.Data.MiniQuantity?.ToString();
-            BrandComboBox.SelectedValue = product.Data.BrandId;
-            SubCategoryComboBox.SelectedValue = product.Data.SubCategoryId;
-            TaxRate.Text = product.Data.TaxRate.ToString();
+                NameTextBox.Text = product.Data.Name;
+                ITEMCODE.Text = product.Data.ITEMCODE?.ToString();
+                DescriptionTextBox.Text = product.Data.Description;
+                StatusComboBox.SelectedValue = product.Data.Status;
+                TaxExemptCheckBox.IsChecked = product.Data.TaxExempt;
+                MinimumQuantityTextBox.Text = product.Data.MiniQuantity?.ToString();
+                BrandComboBox.SelectedValue = product.Data.BrandId;
+                SubCategoryComboBox.SelectedValue = product.Data.SubCategoryId;
+                TaxRate.Text = product.Data.TaxRate.ToString();
 
-            var units = await _productUnitService.GetAllWriteDtoWithFilteringAndIncludeAsync(pu => pu.ProductId == _productId, pu => pu.Unit);
-            _productUnits = units.Data?.ToList() ?? new List<ProductUnitWriteDto>();
-            NormalizeUnitFlags(_productUnits);
-            RebuildUnitsPanel();
+                var units = await _productUnitService.GetAllWriteDtoWithFilteringAndIncludeAsync(pu => pu.ProductId == _productId, pu => pu.Unit);
+                _productUnits = units.Data?.ToList() ?? new List<ProductUnitWriteDto>();
+                NormalizeUnitFlags(_productUnits);
+                RebuildUnitsPanel();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"{UiText.T("حدث خطأ أثناء تحميل بيانات الصنف", "An error occurred while loading the product data")}: {ex.Message}");
+            }
         }
 
         private void RebuildUnitsPanel()
@@ -89,6 +101,8 @@ namespace RaccoonWarehouse.Products
             UnitsStackPanel.Children.Clear();
             foreach (var unit in _productUnits)
                 AddUnitRow(unit);
+
+            UiText.ApplyTranslations(UnitsStackPanel);
         }
 
         private void AddUnitRow(ProductUnitWriteDto unit)
@@ -120,7 +134,7 @@ namespace RaccoonWarehouse.Products
 
             deleteBtn.Click += async (_, _) =>
             {
-                var result = MessageBox.Show("هل أنت متأكد من حذف هذه الوحدة؟", "تأكيد الحذف", MessageBoxButton.YesNo);
+                var result = MessageBox.Show(UiText.T("هل أنت متأكد من حذف هذه الوحدة؟", "Are you sure you want to delete this unit?"), UiText.T("تأكيد الحذف", "Delete confirmation"), MessageBoxButton.YesNo);
                 if (result != MessageBoxResult.Yes)
                     return;
 
@@ -129,7 +143,7 @@ namespace RaccoonWarehouse.Products
                     var deleteResult = await _productUnitService.DeleteAsync(unit.Id);
                     if (!deleteResult.Success)
                     {
-                        MessageBox.Show($"❌ فشل الحذف: {deleteResult.Message}");
+                        MessageBox.Show($"{UiText.T("فشل الحذف", "Delete failed")}: {deleteResult.Message}");
                         return;
                     }
                 }
@@ -191,14 +205,14 @@ namespace RaccoonWarehouse.Products
                 !decimal.TryParse(QuantityPerUnitTextBox.Text, out var qty) ||
                 UnitComboBox.SelectedValue == null)
             {
-                MessageBox.Show("❌ يرجى ملء جميع بيانات الوحدة بشكل صحيح.");
+                MessageBox.Show(UiText.T("يرجى ملء جميع بيانات الوحدة بشكل صحيح.", "Please fill in all unit fields correctly."));
                 return;
             }
 
             var selectedUnitId = (int)UnitComboBox.SelectedValue;
             if (_productUnits.Any(u => u.UnitId == selectedUnitId))
             {
-                MessageBox.Show("لا يمكن تكرار نفس الوحدة أكثر من مرة للصنف نفسه.");
+                MessageBox.Show(UiText.T("لا يمكن تكرار نفس الوحدة أكثر من مرة للصنف نفسه.", "The same unit cannot be added more than once for the same product."));
                 return;
             }
 
@@ -219,7 +233,7 @@ namespace RaccoonWarehouse.Products
             var addResult = await _productUnitService.CreateAsync(unit);
             if (!addResult.Success)
             {
-                MessageBox.Show($"❌ فشل في إضافة الوحدة: {addResult.Message}");
+                MessageBox.Show($"{UiText.T("فشل في إضافة الوحدة", "Failed to add the unit")}: {addResult.Message}");
                 return;
             }
 
@@ -258,17 +272,18 @@ namespace RaccoonWarehouse.Products
                 NormalizeUnitFlags(unitsDto);
 
                 var result = await _productService.UpdateProductWithUnitsAsync(productDto, unitsDto);
-                MessageBox.Show(result.Success ? "✅ تم تحديث المنتج والوحدات!" : $"❌ فشل التحديث: {result.Message}");
+                MessageBox.Show(result.Success ? UiText.T("تم تحديث المنتج والوحدات بنجاح.", "The product and units were updated successfully.") : $"{UiText.T("فشل التحديث", "Update failed")}: {result.Message}");
 
                 if (result.Success)
                 {
                     _productUnits = unitsDto;
                     RebuildUnitsPanel();
+                    CatalogRefreshNotifier.NotifyCatalogChanged();
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"❌ خطأ: {ex.Message}");
+                MessageBox.Show($"{UiText.T("خطأ", "Error")}: {ex.Message}");
             }
         }
 
@@ -298,7 +313,7 @@ namespace RaccoonWarehouse.Products
                     !decimal.TryParse(purchaseBox.Text, out var purchase) ||
                     !decimal.TryParse(qtyBox.Text, out var qty))
                 {
-                    throw new Exception("يوجد وحدة فيها قيم غير رقمية.");
+                    throw new Exception(UiText.T("يوجد وحدة فيها قيم غير رقمية.", "A unit row contains non-numeric values."));
                 }
 
                 unit.SalePrice = sale;

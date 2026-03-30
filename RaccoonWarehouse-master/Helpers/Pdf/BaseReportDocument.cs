@@ -1,5 +1,6 @@
 ﻿using QuestPDF.Fluent;
 using QuestPDF.Infrastructure;
+using RaccoonWarehouse.Helpers.Localization;
 using System.Collections.Generic;
 
 namespace RaccoonWarehouse.Helpers.Pdf
@@ -8,7 +9,7 @@ namespace RaccoonWarehouse.Helpers.Pdf
     {
         public abstract string ArabicTitle { get; }
         public abstract string EnglishTitle { get; }
-        public virtual string FileName => EnglishTitle.Replace(" ", "_");
+        public virtual string FileName => (UiText.IsEnglish ? EnglishTitle : ArabicTitle).Replace(" ", "_");
 
         // Dictionary for info box (label → value)
         public abstract Dictionary<string, string> InfoFields { get; }
@@ -20,7 +21,7 @@ namespace RaccoonWarehouse.Helpers.Pdf
         public abstract List<List<string>> TableRows { get; }
 
         public DocumentMetadata GetMetadata() =>
-            new DocumentMetadata { Title = EnglishTitle };
+            new DocumentMetadata { Title = UiText.IsEnglish ? EnglishTitle : ArabicTitle };
 
         public void Compose(IDocumentContainer container)
         {
@@ -28,13 +29,17 @@ namespace RaccoonWarehouse.Helpers.Pdf
             {
                 page.Margin(40);
 
-                // Global Arabic RTL setup
-                page.DefaultTextStyle(t => t
-                    .FontFamily("Arial")
-                    .FontSize(14)
-                    .DirectionFromRightToLeft()
-                    .FontColor("#000000")
-                );
+                page.DefaultTextStyle(t =>
+                {
+                    var style = t
+                        .FontFamily("Arial")
+                        .FontSize(14)
+                        .FontColor("#000000");
+
+                    return UiText.IsEnglish
+                        ? style.DirectionFromLeftToRight()
+                        : style.DirectionFromRightToLeft();
+                });
 
                 // ====================== HEADER ============================
                 page.Header().Column(col =>
@@ -46,7 +51,7 @@ namespace RaccoonWarehouse.Helpers.Pdf
                         .Bold()
                         .FontColor("#000000");
 
-                    col.Item().AlignCenter().Text(ArabicTitle)
+                    col.Item().AlignCenter().Text(UiText.IsEnglish ? EnglishTitle : ArabicTitle)
                         .FontSize(20)
                         .Bold();
                 });
@@ -64,7 +69,7 @@ namespace RaccoonWarehouse.Helpers.Pdf
                         {
                             info.Spacing(6);
                             foreach (var f in InfoFields)
-                                info.Item().Text($"{f.Key}: {f.Value}")
+                                info.Item().Text($"{UiText.Translate(f.Key)}: {UiText.Translate(f.Value)}")
                                     .FontSize(14)
                                     .Bold();
                         });
@@ -89,7 +94,7 @@ namespace RaccoonWarehouse.Helpers.Pdf
                         {
                             foreach (var h in TableHeaders)
                             {
-                                header.Cell().Element(HeaderCell).Text(h);
+                                header.Cell().Element(HeaderCell).Text(UiText.Translate(h));
                             }
                         });
 
@@ -106,13 +111,13 @@ namespace RaccoonWarehouse.Helpers.Pdf
                                 fixedRow = fixedRow.GetRange(0, TableHeaders.Count);
 
                             foreach (var cell in fixedRow)
-                                table.Cell().Element(DataCell).Text(cell);
+                                table.Cell().Element(DataCell).Text(UiText.Translate(cell));
                         }
                     });
 
                     // -------- FOOTER SIGNATURE ----------
                     col.Item().PaddingTop(20)
-                        .Text("توقيع الموظف: __________________________")
+                        .Text(UiText.Translate("توقيع الموظف: __________________________"))
                         .FontSize(16)
                         .Bold();
                 });
@@ -122,17 +127,19 @@ namespace RaccoonWarehouse.Helpers.Pdf
                 {
                     footer.Column(col =>
                     {
-                        col.Item().DefaultTextStyle(t => t
-                            .FontSize(12)
-                            .FontColor("#444444")
-                            .DirectionFromRightToLeft()
-                        );
+                        col.Item().DefaultTextStyle(t =>
+                        {
+                            var style = t.FontSize(12).FontColor("#444444");
+                            return UiText.IsEnglish
+                                ? style.DirectionFromLeftToRight()
+                                : style.DirectionFromRightToLeft();
+                        });
 
                         col.Item().Text(txt =>
                         {
-                            txt.Span("الصفحة ");
+                            txt.Span(UiText.Translate("الصفحة "));
                             txt.CurrentPageNumber();
-                            txt.Span(" من ");
+                            txt.Span(UiText.Translate(" من "));
                             txt.TotalPages();
                         });
                     });

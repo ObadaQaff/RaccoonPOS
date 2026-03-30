@@ -21,6 +21,9 @@ namespace RaccoonWarehouse.Domain.Stock.DTOs
 
         public decimal PurchasePrice { get; set; }
         public decimal SalePrice { get; set; }
+        public DateTime? ExpiryDate { get; set; }
+        public string? BatchStatus { get; set; }
+        public string? Reference { get; set; }
 
         public string? CreatedBy { get; set; }
 

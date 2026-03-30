@@ -1,0 +1,34 @@
+<Window x:Class="RaccoonWarehouse.Employees.EmployeeDetails"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="تفاصيل موظف"
+        FlowDirection="RightToLeft"
+        Background="{StaticResource AppPageBackgroundBrush}">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <StackPanel>
+            <TextBlock x:Name="NameText" FontSize="28" FontWeight="Bold"/>
+            <TextBlock x:Name="MetaText" Margin="0,8,0,18" Foreground="{StaticResource AppMutedTextBrush}"/>
+            <UniformGrid Columns="2" Rows="6">
+                <Border Style="{StaticResource AppBadgeBorderStyle}"><StackPanel><TextBlock Text="الكود"/><TextBlock x:Name="CodeText" FontWeight="Bold"/></StackPanel></Border>
+                <Border Style="{StaticResource AppBadgeBorderStyle}"><StackPanel><TextBlock Text="الحالة"/><TextBlock x:Name="StatusText" FontWeight="Bold"/></StackPanel></Border>
+                <Border Style="{StaticResource AppBadgeBorderStyle}"><StackPanel><TextBlock Text="الهاتف"/><TextBlock x:Name="PhoneText" FontWeight="Bold"/></StackPanel></Border>
+                <Border Style="{StaticResource AppBadgeBorderStyle}"><StackPanel><TextBlock Text="البريد"/><TextBlock x:Name="EmailText" FontWeight="Bold"/></StackPanel></Border>
+                <Border Style="{StaticResource AppBadgeBorderStyle}"><StackPanel><TextBlock Text="الوظيفة"/><TextBlock x:Name="JobTitleText" FontWeight="Bold"/></StackPanel></Border>
+                <Border Style="{StaticResource AppBadgeBorderStyle}"><StackPanel><TextBlock Text="المدير"/><TextBlock x:Name="ManagerText" FontWeight="Bold"/></StackPanel></Border>
+                <Border Style="{StaticResource AppBadgeBorderStyle}"><StackPanel><TextBlock Text="المستخدم"/><TextBlock x:Name="UserText" FontWeight="Bold"/></StackPanel></Border>
+                <Border Style="{StaticResource AppBadgeBorderStyle}"><StackPanel><TextBlock Text="الفرع"/><TextBlock x:Name="BranchText" FontWeight="Bold"/></StackPanel></Border>
+                <Border Style="{StaticResource AppBadgeBorderStyle}"><StackPanel><TextBlock Text="القسم"/><TextBlock x:Name="DepartmentText" FontWeight="Bold"/></StackPanel></Border>
+                <Border Style="{StaticResource AppBadgeBorderStyle}"><StackPanel><TextBlock Text="الراتب"/><TextBlock x:Name="SalaryText" FontWeight="Bold"/></StackPanel></Border>
+                <Border Style="{StaticResource AppBadgeBorderStyle}"><StackPanel><TextBlock Text="العنوان"/><TextBlock x:Name="AddressText" TextWrapping="Wrap" FontWeight="Bold"/></StackPanel></Border>
+                <Border Style="{StaticResource AppBadgeBorderStyle}"><StackPanel><TextBlock Text="الملاحظات"/><TextBlock x:Name="NotesText" TextWrapping="Wrap" FontWeight="Bold"/></StackPanel></Border>
+            </UniformGrid>
+        </StackPanel>
+        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,18,0,0">
+            <Button Content="إغلاق" Width="120" Style="{StaticResource AppSecondaryButtonStyle}" Click="Close_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

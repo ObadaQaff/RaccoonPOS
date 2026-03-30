@@ -4,17 +4,21 @@ using Microsoft.Extensions.DependencyInjection;
 using PdfSharpCore.Fonts;
 using PdfSharpCore.Utils;
 using QuestPDF.Infrastructure;
+using RaccoonWarehouse.Application.Service.Accounting;
 using RaccoonWarehouse.Application.Service.AuthService;
 using RaccoonWarehouse.Application.Service.Brands;
 using RaccoonWarehouse.Application.Service.Cashers;
 using RaccoonWarehouse.Application.Service.Categories;
 using RaccoonWarehouse.Application.Service.Checks;
+using RaccoonWarehouse.Application.Service.Delegates;
+using RaccoonWarehouse.Application.Service.Employees;
 using RaccoonWarehouse.Application.Service.FinancialTransactions;
 using RaccoonWarehouse.Application.Service.InvoiceLines;
 using RaccoonWarehouse.Application.Service.Invoices;
 using RaccoonWarehouse.Application.Service.Permissions;
 using RaccoonWarehouse.Application.Service.Products;
 using RaccoonWarehouse.Application.Service.ProductUnits;
+using RaccoonWarehouse.Application.Service.Settings;
 using RaccoonWarehouse.Application.Service.StockDocuments;
 using RaccoonWarehouse.Application.Service.Stocks;
 using RaccoonWarehouse.Application.Service.StockTransactions;
@@ -24,15 +28,19 @@ using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Application.Service.Vouchers;
 using RaccoonWarehouse.Application.Service.Warehouses;
 using RaccoonWarehouse.Auth;
+using RaccoonWarehouse.Accounting;
 using RaccoonWarehouse.Brands;
 using RaccoonWarehouse.Categories;
 using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Core.Interface;
 using RaccoonWarehouse.Data;
 using RaccoonWarehouse.Data.Repository;
+using RaccoonWarehouse.Delegates;
+using RaccoonWarehouse.Employees;
 using RaccoonWarehouse.Domain.InvoiceLines;
 using RaccoonWarehouse.FinancialTransactions;
 using RaccoonWarehouse.FinancialTransactions.Reports;
+using RaccoonWarehouse.Helpers.Localization;
 using RaccoonWarehouse.Invoices;
 using RaccoonWarehouse.Invoices.Reports;
 using RaccoonWarehouse.Navigation;
@@ -47,8 +55,15 @@ using RaccoonWarehouse.Settings;
 using RaccoonWarehouse.Units;
 using RaccoonWarehouse.Vouchers;
 using RaccoonWarehouse.Warehouses;
+using System.Diagnostics;
+using System.Globalization;
 using System.IO;
+using System.Reflection;
+using System.Text;
+using System.Threading;
 using System.Windows;               
+using System.Windows.Controls;
+using System.Windows.Threading;
 
 namespace RaccoonWarehouse
 {
@@ -58,14 +73,34 @@ namespace RaccoonWarehouse
     public partial class App : System.Windows.Application
     {
         public IServiceProvider ServiceProvider { get; private set; }
+        public AppLanguage CurrentLanguage { get; private set; } = AppLanguage.Arabic;
+        private static readonly DependencyProperty IsWindowLocalizedProperty =
+            DependencyProperty.RegisterAttached(
+                "IsWindowLocalized",
+                typeof(bool),
+                typeof(App),
+                new PropertyMetadata(false));
+        private static readonly DependencyProperty IsWindowLocalizationScheduledProperty =
+            DependencyProperty.RegisterAttached(
+                "IsWindowLocalizationScheduled",
+                typeof(bool),
+                typeof(App),
+                new PropertyMetadata(false));
+
         protected override async void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
+            DispatcherUnhandledException += App_DispatcherUnhandledException;
+            AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
+            TaskScheduler.UnobservedTaskException += TaskScheduler_UnobservedTaskException;
             QuestPDF.Settings.License = LicenseType.Community;
+            RegisterLocalizationHooks();
 
             var services = new ServiceCollection();
             ConfigureServices(services);
             ServiceProvider = services.BuildServiceProvider();
+            await InitializeLocalizationAsync();
+            WriteRuntimeInfo();
 
             var loading = ServiceProvider.GetRequiredService<LoadingWindow>();
 
@@ -88,11 +123,13 @@ namespace RaccoonWarehouse
 
             // 🔐 Login
             var login = ServiceProvider.GetRequiredService<LoginWindow>();
+            ApplyRuntimeTitle(login);
             var loginResult = login.ShowDialog();
 
             if (loginResult == true)
             {
                 var dashboard = ServiceProvider.GetRequiredService<Dashboard>();
+                ApplyRuntimeTitle(dashboard);
 
                 // ✅ غيّر MainWindow قبل الإغلاق
                 MainWindow = dashboard;
@@ -104,6 +141,135 @@ namespace RaccoonWarehouse
             {
                 Shutdown();
             }
+        }
+
+        private void RegisterLocalizationHooks()
+        {
+            EventManager.RegisterClassHandler(
+                typeof(Window),
+                FrameworkElement.LoadedEvent,
+                new RoutedEventHandler(LocalizeWindowOnLoaded),
+                handledEventsToo: true);
+        }
+
+        private void LocalizeWindowOnLoaded(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Window window || ReferenceEquals(window, e.OriginalSource) is false)
+                return;
+
+            UiText.ApplyWindow(window);
+            window.SetValue(IsWindowLocalizedProperty, true);
+            ScheduleDeferredLocalization(window);
+        }
+
+        private void ScheduleDeferredLocalization(Window window)
+        {
+            if (window.GetValue(IsWindowLocalizationScheduledProperty) is true)
+                return;
+
+            window.SetValue(IsWindowLocalizationScheduledProperty, true);
+
+            _ = window.Dispatcher.BeginInvoke(async () =>
+            {
+                var delays = new[] { 0, 150, 500, 1200 };
+
+                foreach (var delay in delays)
+                {
+                    if (delay > 0)
+                        await Task.Delay(delay);
+
+                    if (!window.IsLoaded)
+                        break;
+
+                    UiText.ApplyWindow(window);
+                    UiText.ApplyTranslations(window);
+                }
+
+                window.SetValue(IsWindowLocalizationScheduledProperty, false);
+            }, DispatcherPriority.Background);
+        }
+
+        private void App_DispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
+        {
+            LogUnhandledException("DispatcherUnhandledException", e.Exception);
+            MessageBox.Show("حدث خطأ غير متوقع وتم تسجيله. الرجاء إعادة المحاولة أو التواصل مع الدعم إذا تكرر الخطأ.", "خطأ", MessageBoxButton.OK, MessageBoxImage.Error);
+            e.Handled = true;
+        }
+
+        private void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
+        {
+            LogUnhandledException("AppDomainUnhandledException", e.ExceptionObject as Exception);
+        }
+
+        private void TaskScheduler_UnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
+        {
+            LogUnhandledException("TaskSchedulerUnobservedTaskException", e.Exception);
+            e.SetObserved();
+        }
+
+        private static void LogUnhandledException(string source, Exception? exception)
+        {
+            try
+            {
+                var logDirectory = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "RaccoonWarehouse");
+                Directory.CreateDirectory(logDirectory);
+
+                var logPath = Path.Combine(logDirectory, "crash.log");
+                var builder = new StringBuilder()
+                    .AppendLine("========================================")
+                    .AppendLine($"Date: {DateTime.Now:yyyy-MM-dd HH:mm:ss}")
+                    .AppendLine($"Source: {source}")
+                    .AppendLine(exception?.ToString() ?? "No exception details.");
+
+                File.AppendAllText(logPath, builder.ToString(), Encoding.UTF8);
+            }
+            catch
+            {
+                // Avoid secondary failures while reporting a crash.
+            }
+        }
+
+        private static void WriteRuntimeInfo()
+        {
+            try
+            {
+                var logDirectory = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "RaccoonWarehouse");
+                Directory.CreateDirectory(logDirectory);
+
+                var executablePath = Environment.ProcessPath ?? Assembly.GetExecutingAssembly().Location;
+                var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "unknown";
+                var buildTime = File.Exists(executablePath)
+                    ? File.GetLastWriteTime(executablePath).ToString("yyyy-MM-dd HH:mm:ss")
+                    : "unknown";
+
+                var content = new StringBuilder()
+                    .AppendLine($"StartedAt={DateTime.Now:yyyy-MM-dd HH:mm:ss}")
+                    .AppendLine($"ExecutablePath={executablePath}")
+                    .AppendLine($"AssemblyVersion={version}")
+                    .AppendLine($"BuildTime={buildTime}")
+                    .ToString();
+
+                File.WriteAllText(Path.Combine(logDirectory, "runtime-info.log"), content, Encoding.UTF8);
+            }
+            catch
+            {
+                // Avoid startup failure while writing diagnostics.
+            }
+        }
+
+        private static void ApplyRuntimeTitle(Window window)
+        {
+            var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "unknown";
+            var executablePath = Environment.ProcessPath ?? Assembly.GetExecutingAssembly().Location;
+            var buildTime = File.Exists(executablePath)
+                ? File.GetLastWriteTime(executablePath).ToString("yyyy-MM-dd HH:mm")
+                : "unknown";
+
+            window.Title = $"{window.Title} | build {version} | {buildTime}";
         }
 
         // ----------------------------------
@@ -118,6 +284,16 @@ namespace RaccoonWarehouse
                 var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
                 await db.Database.CanConnectAsync();
                 await EnsureReportPermissionsTableAsync(db);
+                await EnsureUnifiedPermissionsSchemaAsync(db);
+                await EnsureAppSettingsTableAsync(db);
+                await EnsureDelegateSchemaAsync(db);
+                await EnsureEmployeeSchemaAsync(db);
+                await scope.ServiceProvider.GetRequiredService<IPermissionService>().EnsureSeedDataAsync();
+                await scope.ServiceProvider.GetRequiredService<ILanguageSettingsService>().EnsureDefaultsAsync();
+                await scope.ServiceProvider.GetRequiredService<IDelegateFeatureService>().EnsureDefaultsAsync();
+                await scope.ServiceProvider.GetRequiredService<IEmployeeFeatureService>().EnsureDefaultsAsync();
+                await scope.ServiceProvider.GetRequiredService<IAccountingFeatureService>().EnsureDefaultsAsync();
+                await scope.ServiceProvider.GetRequiredService<IAccountingService>().EnsureDefaultAccountsAsync();
 
                 // Force EF model & query compilation
                 await db.Database.ExecuteSqlRawAsync("SELECT 1");
@@ -173,6 +349,359 @@ END;";
             await db.Database.ExecuteSqlRawAsync(sql);
         }
 
+        private static async Task EnsureAppSettingsTableAsync(ApplicationDbContext db)
+        {
+            const string sql = @"
+IF OBJECT_ID(N'dbo.AppSettings', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[AppSettings]
+    (
+        [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [Key] NVARCHAR(150) NOT NULL,
+        [Value] NVARCHAR(MAX) NULL,
+        [Description] NVARCHAR(500) NULL,
+        [CreatedDate] DATETIME2 NOT NULL,
+        [UpdatedDate] DATETIME2 NOT NULL
+    );
+END;
+
+IF NOT EXISTS
+(
+    SELECT 1
+    FROM sys.indexes
+    WHERE name = N'IX_AppSettings_Key'
+      AND object_id = OBJECT_ID(N'dbo.AppSettings')
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_AppSettings_Key]
+        ON [dbo].[AppSettings] ([Key]);
+END;";
+
+            await db.Database.ExecuteSqlRawAsync(sql);
+        }
+
+        private static async Task EnsureUnifiedPermissionsSchemaAsync(ApplicationDbContext db)
+        {
+            const string sql = @"
+IF OBJECT_ID(N'dbo.PermissionDefinitions', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[PermissionDefinitions]
+    (
+        [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [Key] NVARCHAR(200) NOT NULL,
+        [Module] NVARCHAR(100) NOT NULL,
+        [Resource] NVARCHAR(100) NOT NULL,
+        [Action] NVARCHAR(100) NOT NULL,
+        [DisplayName] NVARCHAR(200) NOT NULL,
+        [Description] NVARCHAR(500) NULL,
+        [LegacyReportKey] NVARCHAR(150) NULL,
+        [SortOrder] INT NOT NULL,
+        [IsActive] BIT NOT NULL,
+        [CreatedDate] DATETIME2 NOT NULL,
+        [UpdatedDate] DATETIME2 NOT NULL
+    );
+END;
+
+IF OBJECT_ID(N'dbo.RolePermissions', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[RolePermissions]
+    (
+        [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [Role] INT NOT NULL,
+        [PermissionKey] NVARCHAR(200) NOT NULL,
+        [IsAllowed] BIT NOT NULL,
+        [CreatedDate] DATETIME2 NOT NULL,
+        [UpdatedDate] DATETIME2 NOT NULL
+    );
+END;
+
+IF NOT EXISTS
+(
+    SELECT 1
+    FROM sys.indexes
+    WHERE name = N'IX_PermissionDefinitions_Key'
+      AND object_id = OBJECT_ID(N'dbo.PermissionDefinitions')
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_PermissionDefinitions_Key]
+        ON [dbo].[PermissionDefinitions] ([Key]);
+END;
+
+IF NOT EXISTS
+(
+    SELECT 1
+    FROM sys.indexes
+    WHERE name = N'IX_RolePermissions_Role_PermissionKey'
+      AND object_id = OBJECT_ID(N'dbo.RolePermissions')
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_RolePermissions_Role_PermissionKey]
+        ON [dbo].[RolePermissions] ([Role], [PermissionKey]);
+END;";
+
+            await db.Database.ExecuteSqlRawAsync(sql);
+        }
+
+        private static async Task EnsureDelegateSchemaAsync(ApplicationDbContext db)
+        {
+            const string sql = @"
+IF OBJECT_ID(N'dbo.[Delegate]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[Delegate]
+    (
+        [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [UserId] INT NULL,
+        [Code] NVARCHAR(50) NOT NULL,
+        [FullName] NVARCHAR(200) NOT NULL,
+        [PhoneNumber] NVARCHAR(50) NULL,
+        [AlternatePhoneNumber] NVARCHAR(50) NULL,
+        [Status] INT NOT NULL DEFAULT(1),
+        [DelegateType] INT NOT NULL DEFAULT(5),
+        [RegionId] INT NULL,
+        [AreaName] NVARCHAR(200) NULL,
+        [HireDate] DATETIME2 NULL,
+        [Notes] NVARCHAR(1000) NULL,
+        [CreatedBy] INT NULL,
+        [ModifiedBy] INT NULL,
+        [IsDeleted] BIT NOT NULL DEFAULT(0),
+        [CreatedDate] DATETIME2 NOT NULL,
+        [UpdatedDate] DATETIME2 NOT NULL
+    );
+END;
+
+IF COL_LENGTH('Delegate', 'AreaName') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[Delegate] ADD [AreaName] NVARCHAR(200) NULL;
+END;
+
+IF COL_LENGTH('Invoice', 'DelegateId') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[Invoice] ADD [DelegateId] INT NULL;
+END;
+
+IF NOT EXISTS
+(
+    SELECT 1 FROM sys.indexes
+    WHERE name = N'IX_Delegate_Code'
+      AND object_id = OBJECT_ID(N'dbo.[Delegate]')
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_Delegate_Code] ON [dbo].[Delegate]([Code]);
+END;
+
+IF NOT EXISTS
+(
+    SELECT 1 FROM sys.indexes
+    WHERE name = N'IX_Delegate_UserId'
+      AND object_id = OBJECT_ID(N'dbo.[Delegate]')
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_Delegate_UserId]
+        ON [dbo].[Delegate]([UserId])
+        WHERE [UserId] IS NOT NULL;
+END;
+
+IF NOT EXISTS
+(
+    SELECT 1 FROM sys.indexes
+    WHERE name = N'IX_Invoice_DelegateId'
+      AND object_id = OBJECT_ID(N'dbo.[Invoice]')
+)
+BEGIN
+    CREATE INDEX [IX_Invoice_DelegateId] ON [dbo].[Invoice]([DelegateId]);
+END;
+
+IF NOT EXISTS
+(
+    SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_Delegate_User_UserId'
+)
+BEGIN
+    ALTER TABLE [dbo].[Delegate]
+        ADD CONSTRAINT [FK_Delegate_User_UserId]
+        FOREIGN KEY ([UserId]) REFERENCES [dbo].[User]([Id]);
+END;
+
+IF NOT EXISTS
+(
+    SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_Invoice_Delegate_DelegateId'
+)
+BEGIN
+    ALTER TABLE [dbo].[Invoice]
+        ADD CONSTRAINT [FK_Invoice_Delegate_DelegateId]
+        FOREIGN KEY ([DelegateId]) REFERENCES [dbo].[Delegate]([Id]);
+END;";
+
+            await db.Database.ExecuteSqlRawAsync(sql);
+        }
+
+        private static async Task EnsureEmployeeSchemaAsync(ApplicationDbContext db)
+        {
+            const string sql = @"
+IF OBJECT_ID(N'dbo.Employee', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[Employee]
+    (
+        [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [UserId] INT NULL,
+        [Code] NVARCHAR(50) NOT NULL,
+        [FullName] NVARCHAR(200) NOT NULL,
+        [PhoneNumber] NVARCHAR(50) NULL,
+        [AlternatePhoneNumber] NVARCHAR(50) NULL,
+        [Email] NVARCHAR(200) NULL,
+        [NationalId] NVARCHAR(100) NULL,
+        [HireDate] DATETIME2 NULL,
+        [TerminationDate] DATETIME2 NULL,
+        [Status] INT NOT NULL DEFAULT(1),
+        [Gender] INT NULL,
+        [JobTitle] NVARCHAR(150) NULL,
+        [DepartmentId] INT NULL,
+        [BranchId] INT NULL,
+        [ManagerId] INT NULL,
+        [BasicSalary] DECIMAL(18,2) NULL,
+        [Notes] NVARCHAR(1000) NULL,
+        [Address] NVARCHAR(500) NULL,
+        [DateOfBirth] DATETIME2 NULL,
+        [CreatedBy] INT NULL,
+        [ModifiedBy] INT NULL,
+        [IsDeleted] BIT NOT NULL DEFAULT(0),
+        [CreatedDate] DATETIME2 NOT NULL,
+        [UpdatedDate] DATETIME2 NOT NULL
+    );
+END;
+
+IF NOT EXISTS
+(
+    SELECT 1 FROM sys.indexes
+    WHERE name = N'IX_Employee_Code'
+      AND object_id = OBJECT_ID(N'dbo.Employee')
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_Employee_Code] ON [dbo].[Employee]([Code]);
+END;
+
+IF NOT EXISTS
+(
+    SELECT 1 FROM sys.indexes
+    WHERE name = N'IX_Employee_UserId'
+      AND object_id = OBJECT_ID(N'dbo.Employee')
+)
+BEGIN
+    CREATE UNIQUE INDEX [IX_Employee_UserId]
+        ON [dbo].[Employee]([UserId])
+        WHERE [UserId] IS NOT NULL;
+END;
+
+IF NOT EXISTS
+(
+    SELECT 1 FROM sys.indexes
+    WHERE name = N'IX_Employee_BranchId'
+      AND object_id = OBJECT_ID(N'dbo.Employee')
+)
+BEGIN
+    CREATE INDEX [IX_Employee_BranchId] ON [dbo].[Employee]([BranchId]);
+END;
+
+IF NOT EXISTS
+(
+    SELECT 1 FROM sys.indexes
+    WHERE name = N'IX_Employee_DepartmentId'
+      AND object_id = OBJECT_ID(N'dbo.Employee')
+)
+BEGIN
+    CREATE INDEX [IX_Employee_DepartmentId] ON [dbo].[Employee]([DepartmentId]);
+END;
+
+IF NOT EXISTS
+(
+    SELECT 1 FROM sys.indexes
+    WHERE name = N'IX_Employee_Status'
+      AND object_id = OBJECT_ID(N'dbo.Employee')
+)
+BEGIN
+    CREATE INDEX [IX_Employee_Status] ON [dbo].[Employee]([Status]);
+END;
+
+IF NOT EXISTS
+(
+    SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_Employee_User_UserId'
+)
+BEGIN
+    ALTER TABLE [dbo].[Employee]
+        ADD CONSTRAINT [FK_Employee_User_UserId]
+        FOREIGN KEY ([UserId]) REFERENCES [dbo].[User]([Id]);
+END;
+
+IF NOT EXISTS
+(
+    SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_Employee_Employee_ManagerId'
+)
+BEGIN
+    ALTER TABLE [dbo].[Employee]
+        ADD CONSTRAINT [FK_Employee_Employee_ManagerId]
+        FOREIGN KEY ([ManagerId]) REFERENCES [dbo].[Employee]([Id]);
+END;";
+
+            await db.Database.ExecuteSqlRawAsync(sql);
+        }
+
+        private async Task InitializeLocalizationAsync()
+        {
+            try
+            {
+                using var scope = ServiceProvider.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                await EnsureAppSettingsTableAsync(db);
+
+                var languageService = scope.ServiceProvider.GetRequiredService<ILanguageSettingsService>();
+                await languageService.EnsureDefaultsAsync();
+                var language = await languageService.GetCurrentLanguageAsync();
+                ApplyLanguage(language);
+            }
+            catch
+            {
+                ApplyLanguage(AppLanguage.Arabic);
+            }
+        }
+
+        public void ApplyLanguage(AppLanguage language)
+        {
+            CurrentLanguage = language;
+
+            var culture = language == AppLanguage.English
+                ? new CultureInfo("en-US")
+                : new CultureInfo("ar-JO");
+
+            CultureInfo.DefaultThreadCurrentCulture = culture;
+            CultureInfo.DefaultThreadCurrentUICulture = culture;
+            Thread.CurrentThread.CurrentCulture = culture;
+            Thread.CurrentThread.CurrentUICulture = culture;
+
+            UiText.ResetCache();
+
+            Resources["CurrentFlowDirection"] = language == AppLanguage.English
+                ? FlowDirection.LeftToRight
+                : FlowDirection.RightToLeft;
+
+            Resources["CurrentTextAlignment"] = language == AppLanguage.English
+                ? TextAlignment.Left
+                : TextAlignment.Right;
+        }
+
+        public bool IsEnglish => CurrentLanguage == AppLanguage.English;
+
+        public void Restart()
+        {
+            var executablePath = Environment.ProcessPath ?? Assembly.GetExecutingAssembly().Location;
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = executablePath,
+                UseShellExecute = true,
+                WorkingDirectory = AppContext.BaseDirectory
+            });
+
+            Shutdown();
+        }
+
         private void ConfigureServices(IServiceCollection services)
         {
             // Database
@@ -209,7 +738,15 @@ END;";
             services.AddScoped<IStockReportService, StockReportService>();
             services.AddScoped<ICheckService, CheckService>();
             services.AddScoped<IFinancialTransactionService, FinancialTransactionService>();
+            services.AddScoped<IAccountingService, AccountingService>();
+            services.AddScoped<IAccountingFeatureService, AccountingFeatureService>();
+            services.AddScoped<ILanguageSettingsService, LanguageSettingsService>();
+            services.AddScoped<IPermissionService, PermissionService>();
             services.AddScoped<IReportPermissionService, ReportPermissionService>();
+            services.AddScoped<IDelegateService, DelegateService>();
+            services.AddScoped<IDelegateFeatureService, DelegateFeatureService>();
+            services.AddScoped<IEmployeeService, EmployeeService>();
+            services.AddScoped<IEmployeeFeatureService, EmployeeFeatureService>();
             services.AddSingleton<ILoadingService, LoadingService>();
             services.AddScoped<ICashierSessionService, CashierSessionService>();
             services.AddScoped<IAuthService, AuthService>();
@@ -219,11 +756,28 @@ END;";
             #region Views
             // Views (Windows)
             services.AddTransient<Dashboard>();
+            services.AddTransient<AccountsTable>();
+            services.AddTransient<CreateJournalEntry>();
+            services.AddTransient<JournalEntriesBrowser>();
+            services.AddTransient<TrialBalanceReport>();
+            services.AddTransient<GeneralLedgerReport>();
+            services.AddTransient<BalanceSheetReport>();
+            services.AddTransient<AccountingFeatureSettingsWindow>();
 
 
             services.AddTransient<UsersTable>();
             services.AddTransient<UpdateUser>();
             services.AddTransient<CreateUser>();
+            services.AddTransient<DelegatesTable>();
+            services.AddTransient<CreateDelegate>();
+            services.AddTransient<UpdateDelegate>();
+            services.AddTransient<DelegateDetails>();
+            services.AddTransient<DelegateFeatureSettingsWindow>();
+            services.AddTransient<EmployeesTable>();
+            services.AddTransient<CreateEmployee>();
+            services.AddTransient<UpdateEmployee>();
+            services.AddTransient<EmployeeDetails>();
+            services.AddTransient<EmployeeFeatureSettingsWindow>();
 
             services.AddTransient<CategoriesTable>();
             services.AddTransient<CreateCategory>();
@@ -264,6 +818,7 @@ END;";
             services.AddTransient<StockOut>();
             services.AddTransient<StockIn>();
             services.AddTransient<CurrentStock>();
+            services.AddTransient<StockAdjustmentWindow>();
             services.AddTransient<ImportOrder>();
             services.AddTransient<MaterialMovementsReport>();
             services.AddTransient<RaccoonWarehouse.Stocks.Reports.StockMovementsReport>();
@@ -295,6 +850,7 @@ END;";
             services.AddTransient<StartCashierSessionWindow>();
             services.AddTransient<CloseCashierSessionWindow>();
             services.AddTransient<ReportPermissionsManager>();
+            services.AddTransient<LanguageSettingsWindow>();
             #endregion
 
         }

@@ -1,0 +1,139 @@
+<Window x:Class="RaccoonWarehouse.Stocks.StockAdjustmentWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="تصحيح وتسوية المخزون"
+        Height="860"
+        Width="1510"
+        WindowStartupLocation="CenterScreen"
+        WindowState="Maximized"
+        Background="{StaticResource AppPageBackgroundBrush}"
+        FlowDirection="RightToLeft">
+    <Grid Background="{StaticResource AppPageBackgroundBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="220"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" CornerRadius="0,0,34,34" Background="{StaticResource AppDashboardHeroBrush}">
+            <Grid Margin="34,24,34,34">
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="تصحيح وتسوية المخزون" FontSize="34" FontWeight="Bold" Foreground="White"/>
+                    <TextBlock Margin="0,10,0,0"
+                               Text="عدّل الرصيد أو استبدل الدفعة من خلال حركة واضحة وقابلة للمراجعة بدون تغيير الفواتير أو التقارير السابقة."
+                               FontSize="15"
+                               Foreground="#E7F1F8"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="1" Margin="24,-52,24,24">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2.6*"/>
+                <ColumnDefinition Width="1*"/>
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Style="{StaticResource AppCardBorderStyle}" Padding="24" Margin="0,0,20,0">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <UniformGrid Columns="2" Margin="0,0,0,10">
+                            <StackPanel Margin="8,0">
+                                <TextBlock Text="الصنف" Style="{StaticResource AppFieldLabelStyle}"/>
+                                <ComboBox x:Name="ProductComboBox"
+                                          Style="{StaticResource AppComboBoxStyle}"
+                                          IsEditable="True"
+                                          IsTextSearchEnabled="False"
+                                          StaysOpenOnEdit="True"
+                                          DisplayMemberPath="Name"
+                                          Loaded="ProductComboBox_Loaded"
+                                          DropDownOpened="ProductComboBox_DropDownOpened"
+                                          PreviewKeyDown="ProductComboBox_PreviewKeyDown"
+                                          LostFocus="ProductComboBox_LostFocus"
+                                          SelectionChanged="ProductComboBox_SelectionChanged"/>
+                            </StackPanel>
+                            <StackPanel Margin="8,0">
+                                <TextBlock Text="الدفعة" Style="{StaticResource AppFieldLabelStyle}"/>
+                                <ComboBox x:Name="BatchComboBox"
+                                          Style="{StaticResource AppComboBoxStyle}"
+                                          IsEditable="True"
+                                          IsTextSearchEnabled="False"
+                                          StaysOpenOnEdit="True"
+                                          DisplayMemberPath="DisplayName"
+                                          Loaded="BatchComboBox_Loaded"
+                                          SelectionChanged="BatchComboBox_SelectionChanged"/>
+                            </StackPanel>
+                        </UniformGrid>
+
+                        <UniformGrid Columns="3" Margin="0,0,0,10">
+                            <StackPanel Margin="8,0">
+                                <TextBlock Text="نوع الإجراء" Style="{StaticResource AppFieldLabelStyle}"/>
+                                <ComboBox x:Name="AdjustmentTypeComboBox"
+                                          Style="{StaticResource AppComboBoxStyle}"
+                                          SelectionChanged="AdjustmentTypeComboBox_SelectionChanged"/>
+                            </StackPanel>
+                            <StackPanel Margin="8,0">
+                                <TextBlock Text="الكمية" Style="{StaticResource AppFieldLabelStyle}"/>
+                                <TextBox x:Name="QuantityTextBox" Style="{StaticResource AppTextInputStyle}"/>
+                            </StackPanel>
+                            <StackPanel Margin="8,0">
+                                <TextBlock Text="المرجع" Style="{StaticResource AppFieldLabelStyle}"/>
+                                <TextBox x:Name="ReferenceTextBox" Style="{StaticResource AppTextInputStyle}"/>
+                            </StackPanel>
+                        </UniformGrid>
+
+                        <UniformGrid Columns="3" Margin="0,0,0,10">
+                            <StackPanel Margin="8,0">
+                                <TextBlock Text="سعر الشراء الجديد" Style="{StaticResource AppFieldLabelStyle}"/>
+                                <TextBox x:Name="PurchasePriceTextBox" Style="{StaticResource AppTextInputStyle}"/>
+                            </StackPanel>
+                            <StackPanel Margin="8,0">
+                                <TextBlock Text="سعر البيع الجديد" Style="{StaticResource AppFieldLabelStyle}"/>
+                                <TextBox x:Name="SalePriceTextBox" Style="{StaticResource AppTextInputStyle}"/>
+                            </StackPanel>
+                            <StackPanel Margin="8,0">
+                                <TextBlock Text="تاريخ الانتهاء الجديد" Style="{StaticResource AppFieldLabelStyle}"/>
+                                <DatePicker x:Name="ExpiryDatePicker" Height="46" FontSize="15"/>
+                            </StackPanel>
+                        </UniformGrid>
+
+                        <StackPanel Margin="8,0,8,10">
+                            <TextBlock Text="السبب" Style="{StaticResource AppFieldLabelStyle}"/>
+                            <TextBox x:Name="ReasonTextBox"
+                                     Style="{StaticResource AppTextInputStyle}"
+                                     Height="88"
+                                     AcceptsReturn="True"
+                                     TextWrapping="Wrap"/>
+                        </StackPanel>
+
+                        <Border Background="#F4F8FB" BorderBrush="#D9E5EF" BorderThickness="1" CornerRadius="18" Padding="16" Margin="8,12,8,0">
+                            <StackPanel>
+                                <TextBlock Text="ملخص الدفعة الحالية" FontSize="18" FontWeight="Bold" Foreground="{StaticResource AppPrimaryBrush}"/>
+                                <TextBlock x:Name="BatchSummaryTextBlock" Margin="0,10,0,0" Foreground="{StaticResource AppMutedTextBrush}" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+
+            <Border Grid.Column="1" Style="{StaticResource AppCardBorderStyle}" Padding="24">
+                <StackPanel>
+                    <TextBlock Text="إجراءات" FontSize="24" FontWeight="Bold" Foreground="{StaticResource AppPrimaryBrush}"/>
+                    <TextBlock Margin="0,12,0,0"
+                               FontSize="14"
+                               Foreground="{StaticResource AppMutedTextBrush}"
+                               Text="الزيادة والنقصان يسجلان كحركات مستقلة. تغيير الأسعار أو الانتهاء للدفعات المستخدمة يتم عبر إغلاق الدفعة وإنشاء بديل جديد."/>
+                    <Button Content="حفظ التسوية"
+                            Margin="0,34,0,0"
+                            Width="160"
+                            Style="{StaticResource AppFormButtonStyle}"
+                            Click="SaveButton_Click"/>
+                    <Button Content="إلغاء"
+                            Margin="0,14,0,0"
+                            Width="160"
+                            Style="{StaticResource AppSecondaryButtonStyle}"
+                            Click="CancelButton_Click"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>

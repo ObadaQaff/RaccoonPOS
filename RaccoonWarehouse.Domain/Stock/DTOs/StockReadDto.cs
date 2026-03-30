@@ -19,6 +19,9 @@ namespace RaccoonWarehouse.Domain.Stock.DTOs
         public int ProductUnitId { get; set; }
         public ProductUnit? ProductUnit { get; set; }
         public decimal Quantity { get; set; }
+        public decimal PurchasePrice { get; set; }
+        public decimal SalePrice { get; set; }
+        public DateTime? ExpiryDate { get; set; }
         public DateTime CreatedDate { get; set; }
         public DateTime UpdatedDate { get; set; }
     }

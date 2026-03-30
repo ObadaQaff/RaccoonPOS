@@ -132,8 +132,12 @@
                                         Binding="{Binding Product.Name}"
                                         Width="*"/>
 
-                    <DataGridTextColumn Header="السعر"
-                                        Binding="{Binding Product.DefaultSalePrice}"
+                    <DataGridTextColumn Header="سعر المخزون"
+                                        Binding="{Binding CurrentSalePrice, StringFormat={}{0:N2}}"
+                                        Width="160"/>
+
+                    <DataGridTextColumn Header="أقرب انتهاء"
+                                        Binding="{Binding CurrentExpiryDate, StringFormat=yyyy-MM-dd, TargetNullValue=-}"
                                         Width="160"/>
                 </DataGrid.Columns>
             </DataGrid>

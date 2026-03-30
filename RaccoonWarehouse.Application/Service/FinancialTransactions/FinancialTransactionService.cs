@@ -1,5 +1,6 @@
 ﻿using AutoMapper;
 using Microsoft.EntityFrameworkCore;
+using RaccoonWarehouse.Application.Service.Accounting;
 using RaccoonWarehouse.Application.Service.Generic;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Core.Common;
@@ -27,12 +28,18 @@ namespace RaccoonWarehouse.Application.Service.FinancialTransactions
         private readonly IUOW _uow;
         private readonly IMapper _mapper;
         private IUserSession _userSession;
+        private readonly IAccountingService? _accountingService;
 
-        public FinancialTransactionService(ApplicationDbContext context, IUOW uow, IMapper mapper, IUserSession userSession) : base(context, uow, mapper)
+        public FinancialTransactionService(ApplicationDbContext context, IUOW uow, IMapper mapper, IUserSession userSession) : this(context, uow, mapper, userSession, null)
+        {
+        }
+
+        public FinancialTransactionService(ApplicationDbContext context, IUOW uow, IMapper mapper, IUserSession userSession, IAccountingService? accountingService) : base(context, uow, mapper)
         {
             _userSession = userSession;
             _uow = uow;
             _mapper = mapper;
+            _accountingService = accountingService;
         }
         public async Task<Result<FinancialTransactionReadDto>> PostAsync(FinancialPostDto dto)
         {
@@ -64,6 +71,13 @@ namespace RaccoonWarehouse.Application.Service.FinancialTransactions
             await repo.AddAsync(entity);
             await _uow.CommitAsync();
 
+            if (_accountingService != null)
+            {
+                var journalResult = await _accountingService.PostFinancialTransactionEntryAsync(dto, entity.Id);
+                if (!journalResult.Success)
+                    return Result<FinancialTransactionReadDto>.Fail($"Transaction posted but accounting journal failed: {journalResult.Message}");
+            }
+
             var readDto = _mapper.Map<FinancialTransactionReadDto>(entity);
             return Result<FinancialTransactionReadDto>.Ok(readDto, "Transaction posted successfully.");
         }
@@ -89,6 +103,17 @@ namespace RaccoonWarehouse.Application.Service.FinancialTransactions
 
             await repo.UpdateAsync(entity);
             await _uow.CommitAsync();
+
+            if (_accountingService != null)
+            {
+                var reverseResult = await _accountingService.ReverseJournalByReferenceAsync(
+                    "FinancialTransaction",
+                    transactionId,
+                    $"Void financial transaction #{transactionId}: {reason}");
+
+                if (!reverseResult.Success)
+                    return Result.Fail($"Transaction voided but accounting reversal failed: {reverseResult.Message}");
+            }
 
             return Result.Ok("Transaction voided successfully.");
         }
@@ -129,6 +154,20 @@ namespace RaccoonWarehouse.Application.Service.FinancialTransactions
             }
 
             await _uow.CommitAsync();
+
+            if (_accountingService != null)
+            {
+                foreach (var entity in transactions)
+                {
+                    var reverseResult = await _accountingService.ReverseJournalByReferenceAsync(
+                        "FinancialTransaction",
+                        entity.Id,
+                        $"Void {sourceType} source #{sourceId}: {reason}");
+
+                    if (!reverseResult.Success)
+                        return Result.Fail($"Transactions voided but accounting reversal failed: {reverseResult.Message}");
+                }
+            }
 
             return Result.Ok("Transactions voided successfully.");
         }

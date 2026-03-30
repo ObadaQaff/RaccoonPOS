@@ -47,7 +47,20 @@ namespace RaccoonWarehouse.Domain.InvoiceLines.DTOs
         public ProductUnitWriteDto? ProductUnit { get; set; }
         public decimal QuantityPerUnitSnapshot { get; set; } = 1m;
         public decimal BaseQuantity { get; set; }
-        public decimal UnitPrice { get; set; }
+        private decimal _unitPrice;
+        public decimal UnitPrice
+        {
+            get => _unitPrice;
+            set
+            {
+                if (_unitPrice != value)
+                {
+                    _unitPrice = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(LineTotal));
+                }
+            }
+        }
         public string? ProductName { get; set; }
         public string? UnitName { get; set; }
         public decimal LineTotal => Quantity * UnitPrice;

@@ -503,7 +503,13 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Property<int>("ProductUnitId")
                         .HasColumnType("int");
 
+                    b.Property<decimal>("PurchasePrice")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<decimal>("Quantity")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("SalePrice")
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<DateTime>("UpdatedDate")

@@ -1,10 +1,9 @@
-﻿using RaccoonWarehouse.Application.Service.Products;
+using RaccoonWarehouse.Application.Service.Products;
 using RaccoonWarehouse.Application.Service.Stocks;
 using RaccoonWarehouse.Domain.Reports.Stocks.Filters;
-using RaccoonWarehouse.Domain.Stock.DTOs;
+using RaccoonWarehouse.Helpers.Localization;
 using System;
 using System.Linq;
-using System.Threading.Tasks;
 using System.Windows;
 
 namespace RaccoonWarehouse.Stocks.Reports
@@ -19,6 +18,7 @@ namespace RaccoonWarehouse.Stocks.Reports
             InitializeComponent();
             _stockReportService = stockReportService;
             _productService = productService;
+            UiText.ApplyWindow(this);
 
             Loaded += InventoryMovementSummary_Loaded;
         }
@@ -28,10 +28,9 @@ namespace RaccoonWarehouse.Stocks.Reports
             FromDatePicker.SelectedDate = DateTime.Now.Date;
             ToDatePicker.SelectedDate = DateTime.Now.Date;
 
-            // Products (optional filter)
             var productsRes = await _productService.GetAllAsync();
             var list = productsRes?.Data?.ToList() ?? new();
-            list.Insert(0, new RaccoonWarehouse.Domain.Products.DTOs.ProductReadDto { Id = 0, Name = "الكل" });
+            list.Insert(0, new RaccoonWarehouse.Domain.Products.DTOs.ProductReadDto { Id = 0, Name = UiText.T("الكل", "All") });
 
             ProductComboBox.ItemsSource = list;
             ProductComboBox.SelectedValue = 0;
@@ -43,7 +42,11 @@ namespace RaccoonWarehouse.Stocks.Reports
             {
                 if (FromDatePicker.SelectedDate == null || ToDatePicker.SelectedDate == null)
                 {
-                    MessageBox.Show("اختر من/إلى تاريخ");
+                    MessageBox.Show(
+                        UiText.T("اختر من/إلى تاريخ", "Choose a from/to date."),
+                        UiText.T("تنبيه", "Notice"),
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
                     return;
                 }
 
@@ -62,7 +65,11 @@ namespace RaccoonWarehouse.Stocks.Reports
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"خطأ: {ex.Message}");
+                MessageBox.Show(
+                    $"{UiText.T("خطأ", "Error")}: {ex.Message}",
+                    UiText.T("خطأ", "Error"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
             }
         }
 

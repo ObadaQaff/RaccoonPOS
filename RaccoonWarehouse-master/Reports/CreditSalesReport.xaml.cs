@@ -1,6 +1,7 @@
 using RaccoonWarehouse.Application.Service.FinancialTransactions;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Domain.Users.DTOs;
+using RaccoonWarehouse.Helpers.Localization;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -19,6 +20,7 @@ namespace RaccoonWarehouse.Reports
             _financialTransactionService = financialTransactionService;
             _userService = userService;
             InitializeComponent();
+            UiText.ApplyWindow(this);
             Loaded += CreditSalesReport_Loaded;
         }
 
@@ -28,15 +30,15 @@ namespace RaccoonWarehouse.Reports
             ToDatePicker.SelectedDate = DateTime.Today;
 
             StatusComboBox.Items.Clear();
-            StatusComboBox.Items.Add(new ComboBoxItem { Content = "الكل" });
-            StatusComboBox.Items.Add(new ComboBoxItem { Content = "غير مسدد" });
-            StatusComboBox.Items.Add(new ComboBoxItem { Content = "مسدد جزئي" });
-            StatusComboBox.Items.Add(new ComboBoxItem { Content = "مسدد بالكامل" });
+            StatusComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("الكل", "All") });
+            StatusComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("غير مسدد", "Unpaid") });
+            StatusComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("مسدد جزئي", "Partially Paid") });
+            StatusComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("مسدد بالكامل", "Fully Paid") });
             StatusComboBox.SelectedIndex = 0;
 
             var usersRes = await _userService.GetAllAsync();
             var users = usersRes?.Data ?? new List<UserReadDto>();
-            var customerList = new List<UserReadDto> { new UserReadDto { Id = 0, Name = "الكل" } };
+            var customerList = new List<UserReadDto> { new UserReadDto { Id = 0, Name = UiText.T("الكل", "All") } };
             customerList.AddRange(users);
 
             CustomerComboBox.ItemsSource = customerList;
@@ -63,7 +65,7 @@ namespace RaccoonWarehouse.Reports
             {
                 if (FromDatePicker.SelectedDate == null || ToDatePicker.SelectedDate == null)
                 {
-                    MessageBox.Show("يرجى اختيار تاريخ البداية والنهاية.");
+                    MessageBox.Show(UiText.T("يرجى اختيار تاريخ البداية والنهاية.", "Please choose the start and end dates."));
                     return;
                 }
 
@@ -87,7 +89,7 @@ namespace RaccoonWarehouse.Reports
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"خطأ: {ex.Message}");
+                MessageBox.Show($"{UiText.T("خطأ", "Error")}: {ex.Message}");
             }
         }
     }

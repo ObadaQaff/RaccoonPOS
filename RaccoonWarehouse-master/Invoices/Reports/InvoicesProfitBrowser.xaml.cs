@@ -1,10 +1,10 @@
-﻿using Microsoft.EntityFrameworkCore;
 using RaccoonWarehouse.Application.Service.Invoices;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Invoices.DTOs;
 using RaccoonWarehouse.Domain.InvoiceLines.DTOs;
 using RaccoonWarehouse.Domain.Users.DTOs;
+using RaccoonWarehouse.Helpers.Localization;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -30,6 +30,7 @@ namespace RaccoonWarehouse.Invoices.Reports
             _userService = userService;
 
             InitializeComponent();
+            UiText.ApplyWindow(this);
 
             InvoicesGrid.ItemsSource = _invoices;
             LinesGrid.ItemsSource = _lines;
@@ -44,29 +45,23 @@ namespace RaccoonWarehouse.Invoices.Reports
                 FromDatePicker.SelectedDate = DateTime.Now.Date;
                 ToDatePicker.SelectedDate = DateTime.Now.Date;
 
-                // Customers
                 var users = await _userService.GetAllAsync();
                 _customers = new ObservableCollection<UserReadDto>(users?.Data ?? new List<UserReadDto>());
-
-                // add "All"
                 CustomerComboBox.ItemsSource = _customers;
                 CustomerComboBox.SelectedIndex = -1;
 
-                // Invoice Types (Tag = enum)
                 InvoiceTypeComboBox.Items.Clear();
-
-                InvoiceTypeComboBox.Items.Add(new ComboBoxItem { Content = "الكل", Tag = null });
-                InvoiceTypeComboBox.Items.Add(new ComboBoxItem { Content = "مبيعات", Tag = InvoiceType.Sale });
-                InvoiceTypeComboBox.Items.Add(new ComboBoxItem { Content = "مرتجعات", Tag = InvoiceType.Return });
-
+                InvoiceTypeComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("الكل", "All"), Tag = null });
+                InvoiceTypeComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("مبيعات", "Sales"), Tag = InvoiceType.Sale });
+                InvoiceTypeComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("مرتجعات", "Returns"), Tag = InvoiceType.Return });
                 InvoiceTypeComboBox.SelectedIndex = 0;
 
-                // Initial load
                 await LoadInvoicesAsync();
+                UiText.ApplyTranslations(this);
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"خطأ أثناء التحميل: {ex.Message}", "خطأ");
+                MessageBox.Show($"{UiText.T("خطأ أثناء التحميل", "Loading error")}: {ex.Message}", UiText.T("خطأ", "Error"));
             }
         }
 
@@ -79,7 +74,7 @@ namespace RaccoonWarehouse.Invoices.Reports
         {
             if (FromDatePicker.SelectedDate == null || ToDatePicker.SelectedDate == null)
             {
-                MessageBox.Show("يرجى اختيار تاريخ البداية والنهاية.");
+                MessageBox.Show(UiText.T("يرجى اختيار تاريخ البداية والنهاية.", "Please choose the start and end dates."));
                 return;
             }
 
@@ -88,11 +83,15 @@ namespace RaccoonWarehouse.Invoices.Reports
 
             int? customerId = null;
             if (CustomerComboBox.SelectedValue is int cid)
+            {
                 customerId = cid;
+            }
 
             InvoiceType? invoiceType = null;
-            if (InvoiceTypeComboBox.SelectedItem is ComboBoxItem it && it.Tag is InvoiceType t)
-                invoiceType = t;
+            if (InvoiceTypeComboBox.SelectedItem is ComboBoxItem item && item.Tag is InvoiceType type)
+            {
+                invoiceType = type;
+            }
 
             try
             {
@@ -100,93 +99,81 @@ namespace RaccoonWarehouse.Invoices.Reports
                 _lines.Clear();
                 ClearSelectedSummary();
 
-                // ✅ IMPORTANT:
-                // Here we load invoice headers (fast).
-                // Use your existing method - adjust name if different in your IInvoiceService.
-                // Option A: if you already have GetAllWithFilteringAndIncludeAsync(...)
-                var res = await _invoiceService.GetAllWithFilteringAndIncludeAsync(
-                    x => x.CreatedDate >= from && x.CreatedDate <= to
-                      && (!customerId.HasValue || x.CustomerId == customerId.Value)
-                      && (invoiceType.HasValue
-                            ? x.InvoiceType == invoiceType.Value
-                            : x.InvoiceType == InvoiceType.Sale),
-                    x => x.User);
+                var result = await _invoiceService.GetAllWithFilteringAndIncludeAsync(
+                    invoice => invoice.CreatedDate >= from && invoice.CreatedDate <= to
+                        && (!customerId.HasValue || invoice.CustomerId == customerId.Value)
+                        && (invoiceType.HasValue ? invoice.InvoiceType == invoiceType.Value : invoice.InvoiceType == InvoiceType.Sale),
+                    invoice => invoice.User);
 
-                if (!res.Success)
+                if (!result.Success)
                 {
-                    MessageBox.Show(res.Message ?? "فشل تحميل الفواتير");
+                    MessageBox.Show(result.Message ?? UiText.T("فشل تحميل الفواتير.", "Failed to load invoices."));
                     return;
                 }
 
-                var list = res.Data ?? new List<InvoiceReadDto>();
-
-                foreach (var inv in list.OrderByDescending(x => x.CreatedDate))
+                var list = result.Data ?? new List<InvoiceReadDto>();
+                foreach (var invoice in list.OrderByDescending(x => x.CreatedDate))
                 {
-                    var discount = inv.DiscountAmount ?? 0m;
-                    var subTotal = inv.SubTotal;
-                    var tax = inv.TotalTax;
-                    var cogs = inv.TotalCOGS;
-
+                    var discount = invoice.DiscountAmount ?? 0m;
+                    var subTotal = invoice.SubTotal;
+                    var tax = invoice.TotalTax;
+                    var cogs = invoice.TotalCOGS;
                     var netProfit = (subTotal - discount) - cogs;
 
                     _invoices.Add(new InvoiceHeaderVm
                     {
-                        Id = inv.Id,
-                        InvoiceNumber = inv.InvoiceNumber,
-                        Date = inv.CreatedDate,
-                        CustomerName = inv.User?.Name ?? "—",
-
+                        Id = invoice.Id,
+                        InvoiceNumber = invoice.InvoiceNumber,
+                        Date = invoice.CreatedDate,
+                        CustomerName = invoice.User?.Name ?? "—",
+                        DelegateName = invoice.DelegateName ?? "—",
                         SubTotal = subTotal,
                         TotalTax = tax,
                         Discount = discount,
                         TotalCOGS = cogs,
-
-                        TotalAmount = inv.TotalAmount,
+                        TotalAmount = invoice.TotalAmount,
                         NetProfit = netProfit,
-
-                        InvoiceType = inv.InvoiceType.ToString(),
-                        PaymentMethod = inv.PaymentType?.ToString() ?? "—",
-                        Status = inv.Status?.ToString() ?? "—",
+                        InvoiceType = invoice.InvoiceType.ToString(),
+                        PaymentMethod = invoice.PaymentType?.ToString() ?? "—",
+                        Status = invoice.Status?.ToString() ?? "—",
                     });
                 }
+
+                UiText.ApplyTranslations(this);
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"خطأ أثناء تحميل الفواتير: {ex.Message}");
+                MessageBox.Show($"{UiText.T("خطأ أثناء تحميل الفواتير", "Error while loading invoices")}: {ex.Message}");
             }
         }
 
         private async void InvoicesGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (InvoicesGrid.SelectedItem is not InvoiceHeaderVm header)
+            {
                 return;
+            }
 
             try
             {
                 _lines.Clear();
 
-                // Load full invoice with lines
-                var full = await _invoiceService.GetFullInvoiceByIdAsync(header.Id);
-
-                if (full == null)
+                var fullInvoice = await _invoiceService.GetFullInvoiceByIdAsync(header.Id);
+                if (fullInvoice == null)
                 {
-                    MessageBox.Show("الفاتورة غير موجودة");
+                    MessageBox.Show(UiText.T("الفاتورة غير موجودة.", "The invoice was not found."));
                     return;
                 }
 
-                var discount = full.DiscountAmount ?? 0m;
-                var subTotal = full.SubTotal;
-                var tax = full.TotalTax;
+                var discount = fullInvoice.DiscountAmount ?? 0m;
+                var subTotal = fullInvoice.SubTotal;
+                var tax = fullInvoice.TotalTax;
 
-                // If you already save TotalCOGS / GrossProfit, use them.
-                // If not, compute from lines:
-                var lines = full.InvoiceLines?.ToList() ?? new List<InvoiceLineReadDto>();
-                var cogs = lines.Sum(l => l.Quantity * l.UnitCost);
-
+                var lines = fullInvoice.InvoiceLines?.ToList() ?? new List<InvoiceLineReadDto>();
+                var cogs = lines.Sum(line => line.Quantity * line.UnitCost);
                 var grossProfit = (subTotal - discount) - cogs;
                 var netProfit = grossProfit;
 
-                // Fill summary UI
                 SelSubTotalText.Text = subTotal.ToString("0.###");
                 SelTaxText.Text = tax.ToString("0.###");
                 SelDiscountText.Text = discount.ToString("0.###");
@@ -194,38 +181,35 @@ namespace RaccoonWarehouse.Invoices.Reports
                 SelGrossProfitText.Text = grossProfit.ToString("0.###");
                 SelNetProfitText.Text = netProfit.ToString("0.###");
 
-                foreach (var l in lines)
+                foreach (var line in lines)
                 {
-                    var qty = l.Quantity;
-                    var unitCost = l.UnitCost;
-
-                    var lineSub = l.LineSubTotal > 0 ? l.LineSubTotal : (qty * l.UnitPrice);
-                    var costTotal = qty * unitCost;
-                    var taxAmount = l.TaxAmount;
-
-                    var profitBeforeTax = lineSub - costTotal;
+                    var quantity = line.Quantity;
+                    var unitCost = line.UnitCost;
+                    var lineSubTotal = line.LineSubTotal > 0 ? line.LineSubTotal : quantity * line.UnitPrice;
+                    var costTotal = quantity * unitCost;
+                    var taxAmount = line.TaxAmount;
+                    var profitBeforeTax = lineSubTotal - costTotal;
 
                     _lines.Add(new InvoiceLineVm
                     {
-                        ProductName = l.Product?.Name ?? l.ProductName ?? "—",
-                        UnitName = l.ProductUnit?.Unit?.Name  ?? "—",
-                        Quantity = qty,
-                        UnitPrice = l.UnitPrice,
-
-                        LineSubTotal = lineSub,
+                        ProductName = line.Product?.Name ?? line.ProductName ?? "—",
+                        UnitName = line.ProductUnit?.Unit?.Name ?? "—",
+                        Quantity = quantity,
+                        UnitPrice = line.UnitPrice,
+                        LineSubTotal = lineSubTotal,
                         TaxAmount = taxAmount,
-
                         UnitCost = unitCost,
                         CostTotal = costTotal,
-
                         ProfitBeforeTax = profitBeforeTax,
                         Profit = profitBeforeTax
                     });
                 }
+
+                UiText.ApplyTranslations(this);
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"خطأ أثناء تحميل تفاصيل الفاتورة: {ex.Message}");
+                MessageBox.Show($"{UiText.T("خطأ أثناء تحميل تفاصيل الفاتورة", "Error while loading invoice details")}: {ex.Message}");
             }
         }
 
@@ -244,23 +228,19 @@ namespace RaccoonWarehouse.Invoices.Reports
             Close();
         }
 
-        // ---------------- ViewModels ----------------
-
         public class InvoiceHeaderVm
         {
             public int Id { get; set; }
             public string InvoiceNumber { get; set; }
             public DateTime Date { get; set; }
             public string CustomerName { get; set; }
-
+            public string DelegateName { get; set; }
             public decimal SubTotal { get; set; }
             public decimal TotalTax { get; set; }
             public decimal Discount { get; set; }
             public decimal TotalCOGS { get; set; }
-
             public decimal TotalAmount { get; set; }
             public decimal NetProfit { get; set; }
-
             public string InvoiceType { get; set; }
             public string PaymentMethod { get; set; }
             public string Status { get; set; }
@@ -271,15 +251,11 @@ namespace RaccoonWarehouse.Invoices.Reports
             public string ProductName { get; set; }
             public string UnitName { get; set; }
             public decimal Quantity { get; set; }
-
             public decimal UnitPrice { get; set; }
             public decimal LineSubTotal { get; set; }
-
             public decimal TaxAmount { get; set; }
-
             public decimal UnitCost { get; set; }
             public decimal CostTotal { get; set; }
-
             public decimal ProfitBeforeTax { get; set; }
             public decimal Profit { get; set; }
         }

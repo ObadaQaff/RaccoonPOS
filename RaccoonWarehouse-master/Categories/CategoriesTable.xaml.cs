@@ -6,6 +6,7 @@ using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Domain.Categories.DTOs;
 using RaccoonWarehouse.Domain.Users.DTOs;
+using RaccoonWarehouse.Helpers.Localization;
 using RaccoonWarehouse.Navigation;
 using System;
 using System.Collections.Generic;
@@ -40,6 +41,8 @@ namespace RaccoonWarehouse.Categories
             _mapper = mapper;
             _loadingService = loadingService;
             InitializeComponent();
+            UiText.ApplyWindow(this);
+            CategoriesTable1.AutoGeneratingColumn += CategoriesTable1_AutoGeneratingColumn;
             _ = Load_CategoriesAsync();
         }
 
@@ -55,12 +58,12 @@ namespace RaccoonWarehouse.Categories
                 }
                 else
                 {
-                    MessageBox.Show(result.Message ?? "Failed to load categories.");
+                    MessageBox.Show(result.Message ?? UiText.T("فشل تحميل الفئات.", "Failed to load categories."));
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Unexpected error while loading categories: {ex.Message}");
+                MessageBox.Show($"{UiText.T("حدث خطأ غير متوقع أثناء تحميل الفئات", "Unexpected error while loading categories")}: {ex.Message}");
             }
             finally
             {
@@ -72,7 +75,7 @@ namespace RaccoonWarehouse.Categories
         {
             if (CategoriesTable1.SelectedItem is not CategoryReadDto selectedCategory)
             {
-                MessageBox.Show("No category selected.");
+                MessageBox.Show(UiText.T("لم يتم اختيار فئة.", "No category selected."));
                 return;
             }
 
@@ -88,13 +91,15 @@ namespace RaccoonWarehouse.Categories
             var selectedCategory = CategoriesTable1.SelectedItem as CategoryReadDto;
             if (selectedCategory == null)
             {
-                MessageBox.Show("No category selected.");
+                MessageBox.Show(UiText.T("لم يتم اختيار فئة.", "No category selected."));
                 return;
             }
 
             var messageResult = MessageBox.Show(
-                $"Are you sure you want to delete  '{selectedCategory.Name}' Category ?",
-                "Confirm Delete",
+                UiText.IsEnglish
+                    ? $"Are you sure you want to delete the category '{selectedCategory.Name}'?"
+                    : $"هل أنت متأكد من أنك تريد حذف الفئة '{selectedCategory.Name}'؟",
+                UiText.T("تأكيد الحذف", "Confirm Delete"),
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Warning);
 
@@ -109,17 +114,17 @@ namespace RaccoonWarehouse.Categories
                 var result = await _categoryService.DeleteAsync(selectedCategory.Id);
                 if (result.Success)
                 {
-                    MessageBox.Show("Delete was successful !!");
+                    MessageBox.Show(UiText.T("تم الحذف بنجاح !!", "Delete was successful."));
                     await Load_CategoriesAsync();
                 }
                 else
                 {
-                    MessageBox.Show(result.Message ?? "Delete failed.");
+                    MessageBox.Show(result.Message ?? UiText.T("فشل الحذف.", "Delete failed."));
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Unexpected error while deleting category: {ex.Message}");
+                MessageBox.Show($"{UiText.T("حدث خطأ غير متوقع أثناء حذف الفئة", "Unexpected error while deleting category")}: {ex.Message}");
             }
             finally
             {
@@ -141,6 +146,18 @@ namespace RaccoonWarehouse.Categories
         {
 
             this.Close();
+        }
+
+        private void CategoriesTable1_AutoGeneratingColumn(object? sender, DataGridAutoGeneratingColumnEventArgs e)
+        {
+            e.Column.Header = e.PropertyName switch
+            {
+                "Id" => UiText.T("الرقم التعريفي", "ID"),
+                "Name" => UiText.T("اسم الفئة", "Category Name"),
+                "CreatedDate" => UiText.T("تاريخ الإنشاء", "Created Date"),
+                "UpdatedDate" => UiText.T("آخر تحديث", "Last Updated"),
+                _ => UiText.Translate(e.Column.Header?.ToString() ?? e.PropertyName)
+            };
         }
     }
 }
