@@ -488,22 +488,61 @@ namespace RaccoonWarehouse.Invoices
                 UpdatedDate = DateTime.Now
             };
 
-            var expandDraftResult = await ExpandInvoiceLinesByFefoAsync(new[] { line });
+            if (!await AddOrResplitDraftInvoiceLineAsync(line))
+                return;
+
+            UpdateTotals();   // ✅ ADD: new totals method
+            ClearProductInputs();
+        }
+
+        private async Task<bool> AddOrResplitDraftInvoiceLineAsync(InvoiceLineWriteDto newLine)
+        {
+            var matchingLines = InvoiceLines
+                .Where(l => l.ProductId == newLine.ProductId && l.ProductUnitId == newLine.ProductUnitId && l.Quantity > 0)
+                .ToList();
+
+            var templateLine = matchingLines.FirstOrDefault() ?? newLine;
+            var totalQuantity = matchingLines.Sum(l => l.Quantity) + newLine.Quantity;
+            var insertIndex = matchingLines.Any() ? InvoiceLines.IndexOf(matchingLines.First()) : InvoiceLines.Count;
+
+            var aggregateLine = new InvoiceLineWriteDto
+            {
+                Id = templateLine.Id,
+                InvoiceId = templateLine.InvoiceId,
+                OriginalInvoiceId = templateLine.OriginalInvoiceId,
+                ProductId = newLine.ProductId,
+                ProductName = newLine.ProductName,
+                ProductUnitId = newLine.ProductUnitId,
+                UnitName = newLine.UnitName,
+                Quantity = totalQuantity,
+                QuantityPerUnitSnapshot = newLine.QuantityPerUnitSnapshot,
+                BaseQuantity = totalQuantity * (newLine.QuantityPerUnitSnapshot > 0 ? newLine.QuantityPerUnitSnapshot : 1m),
+                UnitPrice = newLine.UnitPrice,
+                UnitCost = newLine.UnitCost,
+                TaxExempt = newLine.TaxExempt,
+                TaxRate = newLine.TaxRate,
+                ExpiryDate = newLine.ExpiryDate,
+                CreatedDate = templateLine.CreatedDate == default ? DateTime.Now : templateLine.CreatedDate,
+                UpdatedDate = DateTime.Now
+            };
+
+            var expandDraftResult = await ExpandInvoiceLinesByFefoAsync(new[] { aggregateLine });
             if (!expandDraftResult.Success || expandDraftResult.Data == null)
             {
                 MessageBox.Show(
                     expandDraftResult.Message ?? UiText.T("تعذر تخصيص المخزون للصنف المحدد.", "Could not allocate stock for the selected item."),
                     UiText.T("تنبيه", "Notice"));
-                return;
+                return false;
             }
+
+            foreach (var line in matchingLines)
+                InvoiceLines.Remove(line);
 
             foreach (var expandedLine in expandDraftResult.Data)
-            {
-                InvoiceLines.Add(expandedLine);
-            }
+                InvoiceLines.Insert(insertIndex++, expandedLine);
 
-            UpdateTotals();   // ✅ ADD: new totals method
-            ClearProductInputs();
+            ProductsGrid.Items.Refresh();
+            return true;
         }
 
 

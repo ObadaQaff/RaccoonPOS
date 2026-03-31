@@ -57,6 +57,17 @@ namespace RaccoonWarehouse.Invoices
                 : new HashSet<string>();
             ProductsGrid.ItemsSource = _products;
             _searchDebounceTimer.Tick += SearchDebounceTimer_Tick;
+            Loaded += ProductSearchWindow_Loaded;
+        }
+
+        private async void ProductSearchWindow_Loaded(object sender, RoutedEventArgs e)
+        {
+            await Dispatcher.BeginInvoke(() =>
+            {
+                SearchTextBox.Focus();
+                Keyboard.Focus(SearchTextBox);
+                SearchTextBox.SelectAll();
+            }, DispatcherPriority.Input);
         }
 
         private void SearchTextBox_TextChanged(object sender, TextChangedEventArgs e)

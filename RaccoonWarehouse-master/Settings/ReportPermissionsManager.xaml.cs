@@ -3,12 +3,11 @@ using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Permissions;
 using RaccoonWarehouse.Domain.Permissions.DTOs;
+using RaccoonWarehouse.Helpers.Localization;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
-using System.Windows.Data;
 
 namespace RaccoonWarehouse.Settings
 {
@@ -17,14 +16,14 @@ namespace RaccoonWarehouse.Settings
         private readonly IPermissionService _permissionService;
         private readonly IUserSession _userSession;
         private readonly ObservableCollection<PermissionMatrixRowViewModel> _rows = new();
-        private ICollectionView? _rowsView;
-        private List<string> _actions = new();
+        private readonly List<string> _actions = new();
         private bool _isInitializing;
         private bool _isLoading;
 
         public ReportPermissionsManager(IPermissionService permissionService, IUserSession userSession)
         {
             InitializeComponent();
+            UiText.ApplyWindow(this);
             _permissionService = permissionService;
             _userSession = userSession;
             Loaded += ReportPermissionsManager_Loaded;
@@ -34,7 +33,9 @@ namespace RaccoonWarehouse.Settings
         {
             if (_userSession.CurrentUser?.Role != UserRole.Admin)
             {
-                MessageBox.Show("فقط المدير يمكنه إدارة صلاحيات النظام.");
+                MessageBox.Show(
+                    UiText.T("فقط المدير يمكنه إدارة صلاحيات النظام.", "Only the administrator can manage system permissions."),
+                    UiText.T("تنبيه", "Notice"));
                 Close();
                 return;
             }
@@ -44,63 +45,17 @@ namespace RaccoonWarehouse.Settings
             RoleComboBox.SelectedItem = UserRole.Casher;
 
             var modules = await _permissionService.GetModuleNamesAsync();
-            ModuleComboBox.ItemsSource = new List<string> { "الكل" }.Concat(modules);
+            ModuleComboBox.ItemsSource = new List<string> { UiText.T("الكل", "All") }.Concat(modules);
             ModuleComboBox.SelectedIndex = 0;
 
-            _actions = await _permissionService.GetActionNamesAsync();
-            BuildColumns();
+            _actions.Clear();
+            _actions.AddRange(await _permissionService.GetActionNamesAsync());
+
+            PermissionsItemsControl.ItemsSource = _rows;
+
             _isInitializing = false;
             await LoadRowsAsync();
-        }
-
-        private void BuildColumns()
-        {
-            PermissionsGrid.Columns.Clear();
-
-            PermissionsGrid.Columns.Add(new DataGridTextColumn
-            {
-                Header = "الوحدة",
-                Binding = new Binding(nameof(PermissionMatrixRowViewModel.Module)),
-                Width = new DataGridLength(1.2, DataGridLengthUnitType.Star),
-                IsReadOnly = true
-            });
-
-            PermissionsGrid.Columns.Add(new DataGridTextColumn
-            {
-                Header = "العنصر",
-                Binding = new Binding(nameof(PermissionMatrixRowViewModel.DisplayName)),
-                Width = new DataGridLength(1.8, DataGridLengthUnitType.Star),
-                IsReadOnly = true
-            });
-
-            var rowButtonFactory = new FrameworkElementFactory(typeof(Button));
-            rowButtonFactory.SetValue(ContentProperty, "الكل");
-            rowButtonFactory.AddHandler(ButtonBase.ClickEvent, new RoutedEventHandler(SelectAllRow_Click));
-            PermissionsGrid.Columns.Add(new DataGridTemplateColumn
-            {
-                Header = "الصف",
-                Width = 90,
-                CellTemplate = new DataTemplate { VisualTree = rowButtonFactory }
-            });
-
-            foreach (var action in _actions)
-            {
-                var factory = new FrameworkElementFactory(typeof(CheckBox));
-                factory.SetValue(HorizontalAlignmentProperty, HorizontalAlignment.Center);
-                factory.SetValue(VerticalAlignmentProperty, VerticalAlignment.Center);
-                factory.SetBinding(ToggleButton.IsCheckedProperty, new Binding($"Actions[{action}]")
-                {
-                    Mode = BindingMode.TwoWay,
-                    UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged
-                });
-
-                PermissionsGrid.Columns.Add(new DataGridTemplateColumn
-                {
-                    Header = action,
-                    CellTemplate = new DataTemplate { VisualTree = factory },
-                    Width = 95
-                });
-            }
+            UiText.ApplyTranslations(this);
         }
 
         private async Task LoadRowsAsync()
@@ -111,36 +66,51 @@ namespace RaccoonWarehouse.Settings
             _isLoading = true;
             try
             {
-            if (RoleComboBox.SelectedItem is not UserRole role)
-                return;
+                if (RoleComboBox.SelectedItem is not UserRole role)
+                    return;
 
-            var module = ModuleComboBox.SelectedItem as string;
-            var search = SearchTextBox.Text?.Trim();
-            var selectedModule = string.Equals(module, "الكل", StringComparison.Ordinal) ? null : module;
+                var module = ModuleComboBox.SelectedItem as string;
+                var search = SearchTextBox.Text?.Trim();
+                var allLabel = UiText.T("الكل", "All");
+                var selectedModule = string.Equals(module, allLabel, StringComparison.Ordinal) ? null : module;
 
-            var matrix = await _permissionService.GetPermissionMatrixAsync(role, search, selectedModule);
+                var matrix = await _permissionService.GetPermissionMatrixAsync(role, search, selectedModule);
 
-            _rows.Clear();
-            foreach (var row in matrix)
-            {
-                var vm = new PermissionMatrixRowViewModel
+                UnsubscribeRows();
+                _rows.Clear();
+
+                foreach (var row in matrix.OrderBy(x => x.Module).ThenBy(x => x.DisplayName))
                 {
-                    Module = row.Module,
-                    Resource = row.Resource,
-                    DisplayName = row.DisplayName
-                };
+                    var vm = new PermissionMatrixRowViewModel
+                    {
+                        Module = row.Module,
+                        Resource = row.Resource,
+                        DisplayName = row.DisplayName
+                    };
 
-                foreach (var action in _actions)
-                    vm.Actions[action] = row.Actions.TryGetValue(action, out var allowed) && allowed;
+                    foreach (var action in _actions)
+                    {
+                        var toggle = new PermissionActionToggleViewModel
+                        {
+                            ActionKey = action,
+                            DisplayName = GetActionDisplayName(action),
+                            IsAllowed = row.Actions.TryGetValue(action, out var allowed) && allowed
+                        };
 
-                _rows.Add(vm);
-            }
+                        toggle.PropertyChanged += PermissionToggle_PropertyChanged;
+                        vm.Actions.Add(toggle);
+                    }
 
-            _rowsView = CollectionViewSource.GetDefaultView(_rows);
-            PermissionsGrid.ItemsSource = _rowsView;
+                    _rows.Add(vm);
+                }
 
-            SummaryTextBlock.Text = $"العناصر الظاهرة: {_rows.Count} | الدور الحالي: {role}";
-            UpdateSelectedCount();
+                SummaryTextBlock.Text = string.Format(
+                    UiText.T("الدور الحالي: {0}\nالوحدة المحددة: {1}", "Current role: {0}\nSelected module: {1}"),
+                    role,
+                    selectedModule ?? allLabel);
+
+                UpdateSelectedCount();
+                UiText.ApplyTranslations(this);
             }
             finally
             {
@@ -148,16 +118,60 @@ namespace RaccoonWarehouse.Settings
             }
         }
 
+        private void UnsubscribeRows()
+        {
+            foreach (var row in _rows)
+            {
+                foreach (var action in row.Actions)
+                    action.PropertyChanged -= PermissionToggle_PropertyChanged;
+            }
+        }
+
+        private void PermissionToggle_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(PermissionActionToggleViewModel.IsAllowed))
+                UpdateSelectedCount();
+        }
+
+        private static string GetActionDisplayName(string action)
+        {
+            return action switch
+            {
+                "View" => UiText.T("عرض", "View"),
+                "Create" => UiText.T("إنشاء", "Create"),
+                "Edit" => UiText.T("تعديل", "Edit"),
+                "Delete" => UiText.T("حذف", "Delete"),
+                "Print" => UiText.T("طباعة", "Print"),
+                "Cancel" => UiText.T("إلغاء", "Cancel"),
+                "Return" => UiText.T("مرتجع", "Return"),
+                "Post" => UiText.T("ترحيل", "Post"),
+                "Approve" => UiText.T("اعتماد", "Approve"),
+                "Change" => UiText.T("تغيير", "Change"),
+                "Reopen" => UiText.T("إعادة فتح", "Reopen"),
+                "Close" => UiText.T("إغلاق", "Close"),
+                "Export" => UiText.T("تصدير", "Export"),
+                "Manage" => UiText.T("إدارة", "Manage"),
+                _ => action
+            };
+        }
+
         private void UpdateSelectedCount()
         {
-            var count = _rows.Sum(x => x.Actions.Values.Count(v => v));
-            SelectedCountText.Text = count.ToString();
+            var selectedActions = _rows.Sum(x => x.Actions.Count(a => a.IsAllowed));
+            SelectedCountText.Text = selectedActions.ToString();
+            VisibleRowsText.Text = string.Format(
+                UiText.T("عدد الموارد الظاهرة: {0}", "Visible resources: {0}"),
+                _rows.Count);
+            VisibleActionsText.Text = string.Format(
+                UiText.T("إجمالي مفاتيح الإجراءات لكل الموارد: {0}", "Total action slots across visible resources: {0}"),
+                _rows.Sum(x => x.Actions.Count));
         }
 
         private async void RoleComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (_isInitializing)
                 return;
+
             await LoadRowsAsync();
         }
 
@@ -165,6 +179,7 @@ namespace RaccoonWarehouse.Settings
         {
             if (_isInitializing)
                 return;
+
             await LoadRowsAsync();
         }
 
@@ -172,6 +187,7 @@ namespace RaccoonWarehouse.Settings
         {
             if (_isInitializing)
                 return;
+
             await LoadRowsAsync();
         }
 
@@ -180,31 +196,26 @@ namespace RaccoonWarehouse.Settings
             if ((sender as FrameworkElement)?.DataContext is not PermissionMatrixRowViewModel row)
                 return;
 
-            foreach (var action in _actions)
-                row.Actions[action] = true;
-
-            PermissionsGrid.Items.Refresh();
-            UpdateSelectedCount();
+            foreach (var action in row.Actions)
+                action.IsAllowed = true;
         }
 
         private void SelectAllModuleBtn_Click(object sender, RoutedEventArgs e)
         {
             foreach (var row in _rows)
-                foreach (var action in _actions)
-                    row.Actions[action] = true;
-
-            PermissionsGrid.Items.Refresh();
-            UpdateSelectedCount();
+            {
+                foreach (var action in row.Actions)
+                    action.IsAllowed = true;
+            }
         }
 
         private void ClearModuleBtn_Click(object sender, RoutedEventArgs e)
         {
             foreach (var row in _rows)
-                foreach (var action in _actions)
-                    row.Actions[action] = false;
-
-            PermissionsGrid.Items.Refresh();
-            UpdateSelectedCount();
+            {
+                foreach (var action in row.Actions)
+                    action.IsAllowed = false;
+            }
         }
 
         private async void SaveBtn_Click(object sender, RoutedEventArgs e)
@@ -213,23 +224,25 @@ namespace RaccoonWarehouse.Settings
                 return;
 
             var payload = _rows
-                .SelectMany(row => _actions.Select(action =>
+                .SelectMany(row => row.Actions.Select(action =>
                 {
-                    var catalog = PermissionCatalog.FindByKey($"{row.Resource}.{action}");
+                    var catalog = PermissionCatalog.FindByKey($"{row.Resource}.{action.ActionKey}");
                     return catalog == null
                         ? null
                         : new RolePermissionWriteDto
                         {
                             Role = role,
                             PermissionKey = catalog.Key,
-                            IsAllowed = row.Actions.TryGetValue(action, out var allowed) && allowed
+                            IsAllowed = action.IsAllowed
                         };
                 }))
                 .Where(x => x != null)!
                 .ToList();
 
             var result = await _permissionService.SavePermissionsAsync(role, payload!);
-            MessageBox.Show(result.Message, result.Success ? "نجاح" : "خطأ");
+            MessageBox.Show(
+                result.Message,
+                result.Success ? UiText.T("نجاح", "Success") : UiText.T("خطأ", "Error"));
             UpdateSelectedCount();
         }
 
@@ -239,18 +252,34 @@ namespace RaccoonWarehouse.Settings
         }
     }
 
-    public class PermissionMatrixRowViewModel : INotifyPropertyChanged
+    public class PermissionMatrixRowViewModel
     {
         public string Module { get; set; } = string.Empty;
         public string Resource { get; set; } = string.Empty;
         public string DisplayName { get; set; } = string.Empty;
-        public Dictionary<string, bool> Actions { get; } = new();
+        public ObservableCollection<PermissionActionToggleViewModel> Actions { get; } = new();
+    }
+
+    public class PermissionActionToggleViewModel : INotifyPropertyChanged
+    {
+        private bool _isAllowed;
+
+        public string ActionKey { get; set; } = string.Empty;
+        public string DisplayName { get; set; } = string.Empty;
+
+        public bool IsAllowed
+        {
+            get => _isAllowed;
+            set
+            {
+                if (_isAllowed == value)
+                    return;
+
+                _isAllowed = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsAllowed)));
+            }
+        }
 
         public event PropertyChangedEventHandler? PropertyChanged;
-
-        public void NotifyChanged(string propertyName)
-        {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-        }
     }
 }

@@ -30,15 +30,18 @@ namespace RaccoonWarehouse.Reports
             ToDatePicker.SelectedDate = DateTime.Today;
 
             StatusComboBox.Items.Clear();
-            StatusComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("الكل", "All") });
-            StatusComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("غير مسدد", "Unpaid") });
-            StatusComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("مسدد جزئي", "Partially Paid") });
-            StatusComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("مسدد بالكامل", "Fully Paid") });
+            StatusComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("الكل", "All"), Tag = "all" });
+            StatusComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("غير مسدد", "Unpaid"), Tag = "unpaid" });
+            StatusComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("مسدد جزئي", "Partially Paid"), Tag = "partial" });
+            StatusComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("مسدد بالكامل", "Fully Paid"), Tag = "paid" });
             StatusComboBox.SelectedIndex = 0;
 
             var usersRes = await _userService.GetAllAsync();
             var users = usersRes?.Data ?? new List<UserReadDto>();
-            var customerList = new List<UserReadDto> { new UserReadDto { Id = 0, Name = UiText.T("الكل", "All") } };
+            var customerList = new List<UserReadDto>
+            {
+                new UserReadDto { Id = 0, Name = UiText.T("الكل", "All") }
+            };
             customerList.AddRange(users);
 
             CustomerComboBox.ItemsSource = customerList;
@@ -73,7 +76,7 @@ namespace RaccoonWarehouse.Reports
                 if (CustomerComboBox.SelectedValue is int selectedCustomerId && selectedCustomerId != 0)
                     customerId = selectedCustomerId;
 
-                var status = (StatusComboBox.SelectedItem as ComboBoxItem)?.Content?.ToString();
+                var status = (StatusComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString();
 
                 var rows = await _financialTransactionService.GetCreditSalesReportAsync(
                     FromDatePicker.SelectedDate.Value.Date,

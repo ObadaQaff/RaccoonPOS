@@ -50,17 +50,21 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                 .Select(group =>
                 {
                     var sample = group.First();
-                    var baseUnit = GetBaseUnit(sample.Product, sample.ProductUnit);
+                    var saleUnit = GetSaleUnit(sample.Product, sample.ProductUnit);
                     var nearestLot = nearestLots.TryGetValue(group.Key, out var lot) ? lot : null;
+                    var totalBaseQuantity = group.Sum(GetNormalizedStockQuantity);
+                    var saleUnitFactor = GetUnitFactor(saleUnit);
 
                     return new CurrentStockDto
                     {
                         ProductId = group.Key,
                         ProductName = sample.Product?.Name,
                         ITEMCODE = sample.Product?.ITEMCODE.ToString(),
-                        UnitName = baseUnit?.Unit?.Name ?? sample.ProductUnit?.Unit?.Name,
-                        Quantity = group.Sum(GetNormalizedStockQuantity),
-                        MinimumQuantity = sample.Product?.MiniQuantity,
+                        UnitName = saleUnit?.Unit?.Name ?? sample.ProductUnit?.Unit?.Name,
+                        Quantity = saleUnitFactor > 0 ? totalBaseQuantity / saleUnitFactor : totalBaseQuantity,
+                        MinimumQuantity = sample.Product?.MiniQuantity is decimal minimumQuantity
+                            ? (saleUnitFactor > 0 ? minimumQuantity / saleUnitFactor : minimumQuantity)
+                            : null,
                         PurchasePrice = nearestLot?.PurchasePrice ?? sample.PurchasePrice,
                         SalePrice = nearestLot?.SalePrice ?? sample.SalePrice,
                         NearestExpiryDate = nearestLot?.ExpiryDate
@@ -593,6 +597,11 @@ namespace RaccoonWarehouse.Application.Service.Stocks
         private static ProductUnit? GetBaseUnit(Product? product, ProductUnit? fallbackUnit = null)
         {
             return ProductUnitSelector.GetBaseUnit(product?.ProductUnits) ?? fallbackUnit;
+        }
+
+        private static ProductUnit? GetSaleUnit(Product? product, ProductUnit? fallbackUnit = null)
+        {
+            return ProductUnitSelector.GetDefaultSaleUnit(product?.ProductUnits) ?? fallbackUnit;
         }
 
         private async Task<Dictionary<int, StockLot>> GetNearestLotsByProductAsync()

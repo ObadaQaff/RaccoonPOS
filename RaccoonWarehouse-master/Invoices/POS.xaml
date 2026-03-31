@@ -225,7 +225,7 @@
                                 </Border>
                                 <TextBlock Text="تفاصيل الفاتورة" VerticalAlignment="Center" Foreground="{StaticResource AppTextBrush}" FontSize="21" FontWeight="Bold"/>
                             </DockPanel>
-                            <DataGrid x:Name="InvoiceGrid" Grid.Row="1" AutoGenerateColumns="False" FontSize="14" FlowDirection="RightToLeft" Style="{StaticResource AppModernDataGridStyle}" Background="White" RowHeight="40" HeadersVisibility="Column" SelectionUnit="Cell" SelectionMode="Single" IsReadOnly="False" CanUserAddRows="False" CanUserDeleteRows="True" KeyboardNavigation.TabNavigation="Continue" PreviewKeyDown="InvoiceGrid_PreviewKeyDown" PreparingCellForEdit="InvoiceGrid_PreparingCellForEdit" CellEditEnding="InvoiceGrid_CellEditEnding">
+                            <DataGrid x:Name="InvoiceGrid" Grid.Row="1" AutoGenerateColumns="False" FontSize="14" FlowDirection="RightToLeft" Style="{StaticResource AppModernDataGridStyle}" Background="White" RowHeight="40" HeadersVisibility="Column" SelectionUnit="Cell" SelectionMode="Single" IsReadOnly="False" CanUserAddRows="False" CanUserDeleteRows="True" KeyboardNavigation.TabNavigation="Continue" PreviewKeyDown="InvoiceGrid_PreviewKeyDown" PreparingCellForEdit="InvoiceGrid_PreparingCellForEdit" CellEditEnding="InvoiceGrid_CellEditEnding" CurrentCellChanged="InvoiceGrid_CurrentCellChanged">
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="رمز الصنف" Width="*" IsReadOnly="True" Binding="{Binding ProductId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                                     <DataGridTemplateColumn Header="الصنف" Width="2.2*">

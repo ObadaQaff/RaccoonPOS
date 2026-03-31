@@ -589,8 +589,17 @@ namespace RaccoonWarehouse.Application.Service.FinancialTransactions
                 .OrderByDescending(x => x.Date)
                 .ToList();
 
-            if (!string.IsNullOrWhiteSpace(status) && status != "الكل")
-                rows = rows.Where(x => string.Equals(x.Status, status, StringComparison.Ordinal)).ToList();
+            if (!string.IsNullOrWhiteSpace(status))
+            {
+                rows = status switch
+                {
+                    "all" or "الكل" or "All" => rows,
+                    "unpaid" or "غير مسدد" or "Unpaid" => rows.Where(x => string.Equals(x.Status, "غير مسدد", StringComparison.Ordinal)).ToList(),
+                    "partial" or "مسدد جزئي" or "Partially Paid" => rows.Where(x => string.Equals(x.Status, "مسدد جزئي", StringComparison.Ordinal)).ToList(),
+                    "paid" or "مسدد بالكامل" or "Fully Paid" => rows.Where(x => string.Equals(x.Status, "مسدد بالكامل", StringComparison.Ordinal)).ToList(),
+                    _ => rows.Where(x => string.Equals(x.Status, status, StringComparison.Ordinal)).ToList()
+                };
+            }
 
             return rows;
         }

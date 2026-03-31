@@ -1,8 +1,8 @@
 using RaccoonWarehouse.Application.Service.Invoices;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Domain.Enums;
-using RaccoonWarehouse.Domain.Invoices.DTOs;
 using RaccoonWarehouse.Domain.InvoiceLines.DTOs;
+using RaccoonWarehouse.Domain.Invoices.DTOs;
 using RaccoonWarehouse.Domain.Users.DTOs;
 using RaccoonWarehouse.Helpers.Localization;
 using System;
@@ -17,12 +17,22 @@ namespace RaccoonWarehouse.Invoices.Reports
 {
     public partial class InvoicesProfitBrowser : Window
     {
+        private sealed class InvoiceMetrics
+        {
+            public decimal SubTotal { get; init; }
+            public decimal TotalTax { get; init; }
+            public decimal Discount { get; init; }
+            public decimal TotalCOGS { get; init; }
+            public decimal TotalAmount { get; init; }
+            public decimal Profit { get; init; }
+        }
+
         private readonly IInvoiceService _invoiceService;
         private readonly IUserService _userService;
 
-        private ObservableCollection<UserReadDto> _customers = new();
-        private ObservableCollection<InvoiceHeaderVm> _invoices = new();
-        private ObservableCollection<InvoiceLineVm> _lines = new();
+        private readonly ObservableCollection<UserReadDto> _customers = new();
+        private readonly ObservableCollection<InvoiceHeaderVm> _invoices = new();
+        private readonly ObservableCollection<InvoiceLineVm> _lines = new();
 
         public InvoicesProfitBrowser(IInvoiceService invoiceService, IUserService userService)
         {
@@ -46,7 +56,10 @@ namespace RaccoonWarehouse.Invoices.Reports
                 ToDatePicker.SelectedDate = DateTime.Now.Date;
 
                 var users = await _userService.GetAllAsync();
-                _customers = new ObservableCollection<UserReadDto>(users?.Data ?? new List<UserReadDto>());
+                _customers.Clear();
+                foreach (var user in users?.Data ?? new List<UserReadDto>())
+                    _customers.Add(user);
+
                 CustomerComboBox.ItemsSource = _customers;
                 CustomerComboBox.SelectedIndex = -1;
 
@@ -83,15 +96,11 @@ namespace RaccoonWarehouse.Invoices.Reports
 
             int? customerId = null;
             if (CustomerComboBox.SelectedValue is int cid)
-            {
                 customerId = cid;
-            }
 
             InvoiceType? invoiceType = null;
             if (InvoiceTypeComboBox.SelectedItem is ComboBoxItem item && item.Tag is InvoiceType type)
-            {
                 invoiceType = type;
-            }
 
             try
             {
@@ -102,8 +111,9 @@ namespace RaccoonWarehouse.Invoices.Reports
                 var result = await _invoiceService.GetAllWithFilteringAndIncludeAsync(
                     invoice => invoice.CreatedDate >= from && invoice.CreatedDate <= to
                         && (!customerId.HasValue || invoice.CustomerId == customerId.Value)
-                        && (invoiceType.HasValue ? invoice.InvoiceType == invoiceType.Value : invoice.InvoiceType == InvoiceType.Sale),
-                    invoice => invoice.User);
+                        && (!invoiceType.HasValue || invoice.InvoiceType == invoiceType.Value),
+                    invoice => invoice.User,
+                    invoice => invoice.InvoiceLines);
 
                 if (!result.Success)
                 {
@@ -111,31 +121,26 @@ namespace RaccoonWarehouse.Invoices.Reports
                     return;
                 }
 
-                var list = result.Data ?? new List<InvoiceReadDto>();
-                foreach (var invoice in list.OrderByDescending(x => x.CreatedDate))
+                foreach (var invoice in (result.Data ?? new List<InvoiceReadDto>()).OrderByDescending(x => x.CreatedDate))
                 {
-                    var discount = invoice.DiscountAmount ?? 0m;
-                    var subTotal = invoice.SubTotal;
-                    var tax = invoice.TotalTax;
-                    var cogs = invoice.TotalCOGS;
-                    var netProfit = (subTotal - discount) - cogs;
+                    var metrics = CalculateInvoiceMetrics(invoice);
 
                     _invoices.Add(new InvoiceHeaderVm
                     {
                         Id = invoice.Id,
                         InvoiceNumber = invoice.InvoiceNumber,
                         Date = invoice.CreatedDate,
-                        CustomerName = invoice.User?.Name ?? "—",
-                        DelegateName = invoice.DelegateName ?? "—",
-                        SubTotal = subTotal,
-                        TotalTax = tax,
-                        Discount = discount,
-                        TotalCOGS = cogs,
-                        TotalAmount = invoice.TotalAmount,
-                        NetProfit = netProfit,
+                        CustomerName = invoice.User?.Name ?? invoice.Customer?.Name ?? "-",
+                        DelegateName = invoice.DelegateName ?? "-",
+                        SubTotal = metrics.SubTotal,
+                        TotalTax = metrics.TotalTax,
+                        Discount = metrics.Discount,
+                        TotalCOGS = metrics.TotalCOGS,
+                        TotalAmount = metrics.TotalAmount,
+                        NetProfit = metrics.Profit,
                         InvoiceType = invoice.InvoiceType.ToString(),
-                        PaymentMethod = invoice.PaymentType?.ToString() ?? "—",
-                        Status = invoice.Status?.ToString() ?? "—",
+                        PaymentMethod = invoice.PaymentType?.ToString() ?? "-",
+                        Status = invoice.Status?.ToString() ?? "-"
                     });
                 }
 
@@ -150,9 +155,7 @@ namespace RaccoonWarehouse.Invoices.Reports
         private async void InvoicesGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (InvoicesGrid.SelectedItem is not InvoiceHeaderVm header)
-            {
                 return;
-            }
 
             try
             {
@@ -165,35 +168,29 @@ namespace RaccoonWarehouse.Invoices.Reports
                     return;
                 }
 
-                var discount = fullInvoice.DiscountAmount ?? 0m;
-                var subTotal = fullInvoice.SubTotal;
-                var tax = fullInvoice.TotalTax;
-
+                var metrics = CalculateInvoiceMetrics(fullInvoice);
                 var lines = fullInvoice.InvoiceLines?.ToList() ?? new List<InvoiceLineReadDto>();
-                var cogs = lines.Sum(line => line.Quantity * line.UnitCost);
-                var grossProfit = (subTotal - discount) - cogs;
-                var netProfit = grossProfit;
 
-                SelSubTotalText.Text = subTotal.ToString("0.###");
-                SelTaxText.Text = tax.ToString("0.###");
-                SelDiscountText.Text = discount.ToString("0.###");
-                SelCogsText.Text = cogs.ToString("0.###");
-                SelGrossProfitText.Text = grossProfit.ToString("0.###");
-                SelNetProfitText.Text = netProfit.ToString("0.###");
+                SelSubTotalText.Text = metrics.SubTotal.ToString("0.###");
+                SelTaxText.Text = metrics.TotalTax.ToString("0.###");
+                SelDiscountText.Text = metrics.Discount.ToString("0.###");
+                SelCogsText.Text = metrics.TotalCOGS.ToString("0.###");
+                SelGrossProfitText.Text = metrics.Profit.ToString("0.###");
+                SelNetProfitText.Text = metrics.Profit.ToString("0.###");
 
                 foreach (var line in lines)
                 {
                     var quantity = line.Quantity;
                     var unitCost = line.UnitCost;
-                    var lineSubTotal = line.LineSubTotal > 0 ? line.LineSubTotal : quantity * line.UnitPrice;
+                    var lineSubTotal = line.LineSubTotal != 0m ? line.LineSubTotal : quantity * line.UnitPrice;
                     var costTotal = quantity * unitCost;
                     var taxAmount = line.TaxAmount;
                     var profitBeforeTax = lineSubTotal - costTotal;
 
                     _lines.Add(new InvoiceLineVm
                     {
-                        ProductName = line.Product?.Name ?? line.ProductName ?? "—",
-                        UnitName = line.ProductUnit?.Unit?.Name ?? "—",
+                        ProductName = line.Product?.Name ?? line.ProductName ?? "-",
+                        UnitName = line.ProductUnit?.Unit?.Name ?? "-",
                         Quantity = quantity,
                         UnitPrice = line.UnitPrice,
                         LineSubTotal = lineSubTotal,
@@ -215,17 +212,49 @@ namespace RaccoonWarehouse.Invoices.Reports
 
         private void ClearSelectedSummary()
         {
-            SelSubTotalText.Text = "—";
-            SelTaxText.Text = "—";
-            SelDiscountText.Text = "—";
-            SelCogsText.Text = "—";
-            SelGrossProfitText.Text = "—";
-            SelNetProfitText.Text = "—";
+            SelSubTotalText.Text = "-";
+            SelTaxText.Text = "-";
+            SelDiscountText.Text = "-";
+            SelCogsText.Text = "-";
+            SelGrossProfitText.Text = "-";
+            SelNetProfitText.Text = "-";
         }
 
         private void BackBtn_Click(object sender, RoutedEventArgs e)
         {
             Close();
+        }
+
+        private static InvoiceMetrics CalculateInvoiceMetrics(InvoiceReadDto invoice)
+        {
+            var lines = invoice.InvoiceLines?.ToList() ?? new List<InvoiceLineReadDto>();
+            var hasLines = lines.Count > 0;
+
+            var subTotal = hasLines
+                ? lines.Sum(line => line.LineSubTotal != 0m ? line.LineSubTotal : line.Quantity * line.UnitPrice)
+                : invoice.SubTotal;
+
+            var tax = hasLines
+                ? lines.Sum(line => line.TaxAmount)
+                : invoice.TotalTax;
+
+            var cogs = hasLines
+                ? lines.Sum(line => line.Quantity * line.UnitCost)
+                : invoice.TotalCOGS;
+
+            var discount = invoice.DiscountAmount ?? 0m;
+            var totalAmount = subTotal + tax - discount;
+            var profit = (subTotal - discount) - cogs;
+
+            return new InvoiceMetrics
+            {
+                SubTotal = subTotal,
+                TotalTax = tax,
+                Discount = discount,
+                TotalCOGS = cogs,
+                TotalAmount = totalAmount,
+                Profit = profit
+            };
         }
 
         public class InvoiceHeaderVm

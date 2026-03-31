@@ -10,6 +10,7 @@ using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Auth;
 using RaccoonWarehouse.Common;
 using RaccoonWarehouse.Common.Loading;
+using RaccoonWarehouse.Core.Common;
 using RaccoonWarehouse.Domain.Cashiers;
 using RaccoonWarehouse.Domain.Cashiers.DTOs;
 using RaccoonWarehouse.Domain.Enums;
@@ -135,6 +136,9 @@ namespace RaccoonWarehouse.Invoices
         private int _nextProductStockPage = 1;
         private bool _hasMoreProductPages = true;
         private bool _isLoadingProductPage;
+        private InvoiceLineWriteDto? _pendingFefoEditedLine;
+        private bool _hasPendingFefoSplit;
+        private bool _isProcessingPendingFefoSplit;
         private readonly HashSet<int> _loadedProductIds = new();
         private readonly Dictionary<(int ProductId, int ProductUnitId), StockReadDto> _stockLookup = new();
         private ScrollViewer? _productDropdownScrollViewer;
@@ -423,6 +427,8 @@ namespace RaccoonWarehouse.Invoices
             if (e.Key == Key.Enter)
             {
                 var currentColumnHeader = grid.CurrentCell.Column?.Header?.ToString();
+                var currentLine = grid.CurrentCell.Item as InvoiceLineWriteDto;
+                var isQuantityColumn = grid.CurrentCell.Column != null && HeaderMatches(grid.CurrentCell.Column, "الكمية");
 
                 // Commit edit - handle errors gracefully
                 try
@@ -451,9 +457,16 @@ namespace RaccoonWarehouse.Invoices
                 var quantityHeader = UiText.Translate("الكمية");
                 var priceHeader = UiText.Translate("السعر");
 
-                if (grid.CurrentCell.Column != null && HeaderMatches(grid.CurrentCell.Column, "الكمية"))
+                if (isQuantityColumn && currentLine != null)
                 {
-                    MoveGridFocusToColumn(grid, grid.CurrentCell.Item, priceHeader);
+                    _pendingFefoEditedLine = currentLine;
+                    _hasPendingFefoSplit = true;
+
+                    grid.Dispatcher.BeginInvoke(async () =>
+                    {
+                        var targetLine = await ProcessPendingFefoSplitAsync();
+                        MoveGridFocusToColumn(grid, targetLine ?? currentLine, priceHeader);
+                    }, DispatcherPriority.Background);
                 }
                 else if (grid.CurrentCell.Column != null && HeaderMatches(grid.CurrentCell.Column, "السعر"))
                 {
@@ -849,12 +862,44 @@ namespace RaccoonWarehouse.Invoices
 
             if (header.Contains("الكمية") || header.Contains(UiText.Translate("الكمية")))
             {
-                await SplitEditedLineByFefoAsync(line);
+                _pendingFefoEditedLine = line;
+                _hasPendingFefoSplit = true;
                 return;
             }
 
             RecalculateLineFromCurrentValues(line);
             RecalculateTotals();
+        }
+
+        private async void InvoiceGrid_CurrentCellChanged(object? sender, EventArgs e)
+        {
+            await ProcessPendingFefoSplitAsync();
+        }
+
+        private async Task<InvoiceLineWriteDto?> ProcessPendingFefoSplitAsync()
+        {
+            if (!_hasPendingFefoSplit || _pendingFefoEditedLine == null || _isProcessingPendingFefoSplit)
+                return null;
+
+            var pendingLine = _pendingFefoEditedLine;
+            _pendingFefoEditedLine = null;
+            _hasPendingFefoSplit = false;
+            _isProcessingPendingFefoSplit = true;
+
+            try
+            {
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    InvoiceGrid.CommitEdit(DataGridEditingUnit.Cell, true);
+                    InvoiceGrid.CommitEdit(DataGridEditingUnit.Row, true);
+                }, DispatcherPriority.Background);
+
+                return await SplitEditedLineByFefoAsync(pendingLine);
+            }
+            finally
+            {
+                _isProcessingPendingFefoSplit = false;
+            }
         }
         private bool TryGetActiveCashierSession(out CashierSessionReadDto? session)
         {
@@ -1036,64 +1081,126 @@ namespace RaccoonWarehouse.Invoices
             RecalculateTotals();
         }
 
-        private async Task SplitEditedLineByFefoAsync(InvoiceLineWriteDto sourceLine)
+        private async Task<InvoiceLineWriteDto?> SplitEditedLineByFefoAsync(InvoiceLineWriteDto sourceLine)
         {
             if (sourceLine.ProductId <= 0 || sourceLine.ProductUnitId <= 0 || sourceLine.Quantity <= 0)
             {
                 RecalculateLineFromCurrentValues(sourceLine);
                 RecalculateTotals();
-                return;
+                return sourceLine;
             }
 
-            var allocationResult = await _stockService.AllocateOutgoingAsync(new[]
+            var matchingLines = _invoiceLines
+                .Where(l => l.ProductId == sourceLine.ProductId && l.ProductUnitId == sourceLine.ProductUnitId && l.Quantity > 0)
+                .ToList();
+
+            if (!matchingLines.Any())
             {
-                new StockAllocationRequestDto
-                {
-                    ProductId = sourceLine.ProductId,
-                    ProductUnitId = sourceLine.ProductUnitId,
-                    Quantity = sourceLine.Quantity
-                }
-            });
+                RecalculateLineFromCurrentValues(sourceLine);
+                RecalculateTotals();
+                return sourceLine;
+            }
+
+            var templateLine = matchingLines.FirstOrDefault(l => ReferenceEquals(l, sourceLine)) ?? matchingLines.First();
+            var insertIndex = _invoiceLines.IndexOf(matchingLines.First());
+            var totalQuantity = matchingLines.Sum(l => l.Quantity);
+
+            var allocationResult = await AllocateInvoiceLinesAsync(sourceLine.ProductId, sourceLine.ProductUnitId, totalQuantity);
 
             if (!allocationResult.Success || allocationResult.Data == null || allocationResult.Data.Count == 0)
             {
-                MessageBox.Show(allocationResult.Message ?? $"تعذر تخصيص المخزون للصنف {sourceLine.ProductName}.", "تنبيه");
-                sourceLine.Quantity = 1;
-                RecalculateLineFromCurrentValues(sourceLine);
+                var availableQuantity = await GetAvailableQuantityForProductUnitAsync(sourceLine.ProductId, sourceLine.ProductUnitId);
+                if (availableQuantity > 0)
+                {
+                    var adjustedResult = await AllocateInvoiceLinesAsync(sourceLine.ProductId, sourceLine.ProductUnitId, availableQuantity);
+                    if (adjustedResult.Success && adjustedResult.Data != null && adjustedResult.Data.Count > 0)
+                    {
+                        MessageBox.Show(
+                            UiText.T(
+                                $"الكمية المطلوبة للصنف {sourceLine.ProductName} غير متوفرة. تم تعديل الكمية إلى الحد الأقصى المتاح: {availableQuantity:0.###}",
+                                $"The requested quantity for {sourceLine.ProductName} is not available. The quantity was adjusted to the maximum available: {availableQuantity:0.###}"),
+                            UiText.T("تنبيه", "Notice"));
+
+                        return ReplaceInvoiceLinesFromAllocations(matchingLines, templateLine, insertIndex, adjustedResult.Data);
+                    }
+                }
+
+                foreach (var line in matchingLines)
+                    _invoiceLines.Remove(line);
+
+                InvoiceGrid.Items.Refresh();
                 RecalculateTotals();
-                return;
+                MessageBox.Show(
+                    UiText.T(
+                        $"الصنف {sourceLine.ProductName} غير متوفر حالياً في المخزون، وتمت إزالته من الفاتورة.",
+                        $"The item {sourceLine.ProductName} is currently unavailable in stock and was removed from the invoice."),
+                    UiText.T("تنبيه", "Notice"));
+                return null;
             }
 
-            var insertIndex = _invoiceLines.IndexOf(sourceLine);
-            _invoiceLines.Remove(sourceLine);
+            return ReplaceInvoiceLinesFromAllocations(matchingLines, templateLine, insertIndex, allocationResult.Data);
+        }
 
-            foreach (var allocation in allocationResult.Data)
+        private async Task<Result<List<StockLotAllocationDto>>> AllocateInvoiceLinesAsync(int productId, int productUnitId, decimal quantity)
+        {
+            return await _stockService.AllocateOutgoingAsync(new[]
+            {
+                new StockAllocationRequestDto
+                {
+                    ProductId = productId,
+                    ProductUnitId = productUnitId,
+                    Quantity = quantity
+                }
+            });
+        }
+
+        private async Task<decimal> GetAvailableQuantityForProductUnitAsync(int productId, int productUnitId)
+        {
+            var stocks = await GetAvailableStocksForProductAsync(productId);
+            return stocks
+                .Where(stock => stock.ProductUnitId == productUnitId)
+                .Sum(stock => Math.Max(stock.Quantity, 0m));
+        }
+
+        private InvoiceLineWriteDto? ReplaceInvoiceLinesFromAllocations(
+            IEnumerable<InvoiceLineWriteDto> matchingLines,
+            InvoiceLineWriteDto templateLine,
+            int insertIndex,
+            IEnumerable<StockLotAllocationDto> allocations)
+        {
+            foreach (var line in matchingLines)
+                _invoiceLines.Remove(line);
+
+            InvoiceLineWriteDto? targetLine = null;
+            foreach (var allocation in allocations)
             {
                 var splitLine = new InvoiceLineWriteDto
                 {
-                    SelectedProduct = sourceLine.SelectedProduct,
-                    ProductId = sourceLine.ProductId,
-                    ProductName = sourceLine.ProductName,
-                    ProductUnitId = sourceLine.ProductUnitId,
+                    SelectedProduct = templateLine.SelectedProduct,
+                    ProductId = templateLine.ProductId,
+                    ProductName = templateLine.ProductName,
+                    ProductUnitId = templateLine.ProductUnitId,
                     Quantity = allocation.Quantity,
                     QuantityPerUnitSnapshot = allocation.QuantityPerUnitSnapshot,
                     BaseQuantity = allocation.BaseQuantity,
                     UnitPrice = allocation.SalePrice,
                     UnitCost = allocation.PurchasePrice,
-                    TaxExempt = sourceLine.TaxExempt,
-                    TaxRate = sourceLine.TaxRate,
-                    ExpiryDate = allocation.ExpiryDate ?? sourceLine.ExpiryDate,
-                    OriginalInvoiceId = sourceLine.OriginalInvoiceId,
-                    CreatedDate = sourceLine.CreatedDate,
+                    TaxExempt = templateLine.TaxExempt,
+                    TaxRate = templateLine.TaxRate,
+                    ExpiryDate = allocation.ExpiryDate ?? templateLine.ExpiryDate,
+                    OriginalInvoiceId = templateLine.OriginalInvoiceId,
+                    CreatedDate = templateLine.CreatedDate,
                     UpdatedDate = DateTime.Now
                 };
 
                 RecalculateLineFromCurrentValues(splitLine);
                 _invoiceLines.Insert(insertIndex++, splitLine);
+                targetLine ??= splitLine;
             }
 
             InvoiceGrid.Items.Refresh();
             RecalculateTotals();
+            return targetLine;
         }
         private void InvoiceGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
@@ -2765,9 +2872,9 @@ namespace RaccoonWarehouse.Invoices
 
         private async Task ProcessPaymentAsync(PaymentType paymentType)
         {
+            var loadingShown = false;
             try
             {
-                _loading.Show();
                 _currentInvoice.PaymentType = paymentType;
 
                 if (!CanSaveInvoice())
@@ -2787,20 +2894,29 @@ namespace RaccoonWarehouse.Invoices
                 _currentInvoice.GrossProfit = _currentInvoice.NetSales - _currentInvoice.TotalCOGS;
                 _currentInvoice.TotalAmount = expandedLines.Sum(l => l.Quantity * l.UnitPrice) - (_currentInvoice.DiscountAmount ?? 0m);
 
-                var result = await _invoiceService.CreateAsync(_currentInvoice);
+                _loading.Show();
+                loadingShown = true;
+
+                var result = _currentInvoice.Id > 0
+                    ? await _invoiceService.UpdateAsync(_currentInvoice)
+                    : await _invoiceService.CreateAsync(_currentInvoice);
                 if (!result.Success || result.Data == null)
                 {
+                    _loading.Hide();
+                    loadingShown = false;
                     MessageBox.Show(result.Message ?? UiText.T("فشل حفظ الفاتورة", "Failed to save the invoice."), UiText.T("خطأ", "Error"));
                     return;
                 }
 
-                var savedInvoiceId = result.Data.Id;
+                var savedInvoiceId = result.Data.Id > 0 ? result.Data.Id : _currentInvoice.Id;
 
                 _lastSavedInvoice = await _invoiceService.GetFullInvoiceByIdAsync(savedInvoiceId);
 
                 var movementResult = await _stockService.PostMovementsAsync(BuildPosStockMovements(expandedLines, savedInvoiceId, session));
                 if (!movementResult.Success)
                 {
+                    _loading.Hide();
+                    loadingShown = false;
                     MessageBox.Show(movementResult.Message ?? UiText.T("فشل تحديث المخزون.", "Failed to update stock."), UiText.T("خطأ", "Error"));
                     return;
                 }
@@ -2826,11 +2942,15 @@ namespace RaccoonWarehouse.Invoices
                     var postResult = await _financialService.PostAsync(postDto);
                     if (!postResult.Success)
                     {
+                        _loading.Hide();
+                        loadingShown = false;
                         MessageBox.Show(postResult.Message ?? UiText.T("تم حفظ الفاتورة وتحديث المخزون لكن فشل تسجيل الحركة المالية", "The invoice was saved and stock was updated, but posting the financial transaction failed."), UiText.T("تحذير", "Warning"));
                         return;
                     }
                 }
 
+                _loading.Hide();
+                loadingShown = false;
                 MessageBox.Show(
                     paymentType == PaymentType.Credit
                         ? UiText.T("تم حفظ الفاتورة الآجلة بنجاح ✅", "The credit invoice was saved successfully.")
@@ -2844,7 +2964,8 @@ namespace RaccoonWarehouse.Invoices
             }
             finally
             {
-                _loading.Hide();
+                if (loadingShown)
+                    _loading.Hide();
             }
         }
         private FinancialSourceType MapSourceTypeByInvoiceType(InvoiceType invoiceType)

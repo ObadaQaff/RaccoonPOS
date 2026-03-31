@@ -50,21 +50,21 @@
                 <UniformGrid Columns="2" Margin="0,0,0,10">
                     <Border Background="#FAFAFA" CornerRadius="10" Padding="12" Margin="0,0,8,8">
                         <StackPanel>
-                            <TextBlock Text="Opening Balance" Foreground="#7F8C8D"/>
+                            <TextBlock Text="رصيد الافتتاح" Foreground="#7F8C8D"/>
                             <TextBlock x:Name="OpeningText" FontSize="20" FontWeight="Bold" Foreground="#2C3E50"/>
                         </StackPanel>
                     </Border>
 
                     <Border Background="#FAFAFA" CornerRadius="10" Padding="12" Margin="8,0,0,8">
                         <StackPanel>
-                            <TextBlock Text="Expected Cash (حسب الحركات)" Foreground="#7F8C8D"/>
+                            <TextBlock Text="النقد المتوقع (حسب الحركات)" Foreground="#7F8C8D"/>
                             <TextBlock x:Name="ExpectedText" FontSize="20" FontWeight="Bold" Foreground="#2C3E50"/>
                         </StackPanel>
                     </Border>
                 </UniformGrid>
 
                 <!-- Counted -->
-                <TextBlock Text="المبلغ الفعلي في الصندوق (Counted Cash)"
+                <TextBlock Text="المبلغ الفعلي في الصندوق"
                            FontSize="16" FontWeight="Bold" Foreground="#263238"/>
 
                 <Border Background="#FFF5F5" CornerRadius="10" Padding="12" Margin="0,10,0,0">
@@ -84,7 +84,7 @@
                                  BorderThickness="1"
                                  TextChanged="CountedTextBox_TextChanged"/>
 
-                        <TextBlock Grid.Column="1" Text="JOD"
+                        <TextBlock Grid.Column="1" Text="د.أ"
                                    HorizontalAlignment="Center"
                                    VerticalAlignment="Center"
                                    Foreground="#7F8C8D"
@@ -101,7 +101,7 @@
                         </Grid.ColumnDefinitions>
 
                         <StackPanel>
-                            <TextBlock Text="الفرق (Over/Short)" Foreground="#7F8C8D"/>
+                            <TextBlock Text="الفرق" Foreground="#7F8C8D"/>
                             <TextBlock x:Name="DiffText"
                                        FontSize="22"
                                        FontWeight="Bold"

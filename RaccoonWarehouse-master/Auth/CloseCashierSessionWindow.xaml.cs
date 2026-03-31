@@ -3,6 +3,7 @@ using RaccoonWarehouse.Application.Service.FinancialTransactions;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.FinancialTransactions.DTOs;
+using RaccoonWarehouse.Helpers.Localization;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -38,6 +39,8 @@ namespace RaccoonWarehouse.Auth
             IUserSession userSession)
         {
             InitializeComponent();
+            UiText.ApplyWindow(this);
+            UiText.ApplyTranslations(this);
 
             _cashierSessionService = cashierSessionService;
             _financialService = financialService;
@@ -52,7 +55,7 @@ namespace RaccoonWarehouse.Auth
 
             if (currentUser == null || currentSession == null)
             {
-                ErrorText.Text = "لا توجد جلسة مفتوحة.";
+                ErrorText.Text = UiText.T("لا توجد جلسة مفتوحة.", "There is no open session.");
                 ErrorText.Visibility = Visibility.Visible;
                 return;
             }
@@ -78,19 +81,19 @@ namespace RaccoonWarehouse.Auth
             var currentSession = _userSession.CurrentCashierSession;
             if (currentSession == null)
             {
-                ShowError("لا توجد جلسة مفتوحة.");
+                ShowError(UiText.T("لا توجد جلسة مفتوحة.", "There is no open session."));
                 return;
             }
 
             if (!TryParseDecimal(CountedTextBox.Text, out var counted))
             {
-                ShowError("يرجى إدخال مبلغ صحيح.");
+                ShowError(UiText.T("يرجى إدخال مبلغ صحيح.", "Please enter a valid amount."));
                 return;
             }
 
             if (counted < 0)
             {
-                ShowError("لا يمكن أن يكون المبلغ سالب.");
+                ShowError(UiText.T("لا يمكن أن يكون المبلغ سالب.", "The amount cannot be negative."));
                 return;
             }
 
@@ -125,7 +128,9 @@ namespace RaccoonWarehouse.Auth
 
                     var fin = await _financialService.PostAsync(post);
                     if (!fin.Success)
-                        MessageBox.Show(fin.Message ?? "تم إغلاق الجلسة لكن فشل تسجيل فرق الإغلاق.", "تحذير");
+                        MessageBox.Show(
+                            fin.Message ?? UiText.T("تم إغلاق الجلسة لكن فشل تسجيل فرق الإغلاق.", "The session was closed, but recording the closing difference failed."),
+                            UiText.T("تحذير", "Warning"));
                 }
 
                 // 3) Clear only cashier-session runtime state
@@ -155,7 +160,7 @@ namespace RaccoonWarehouse.Auth
         {
             if (!TryParseDecimal(CountedTextBox.Text, out var counted))
             {
-                DiffText.Text = "—";
+                DiffText.Text = "-";
                 return;
             }
 
