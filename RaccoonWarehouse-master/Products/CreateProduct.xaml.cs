@@ -30,6 +30,7 @@ namespace RaccoonWarehouse.Products
         private readonly List<ProductUnitWriteDto> _productUnits = new();
         private readonly IUnitService _unitService;
         private bool _isLoaded;
+        private List<UnitLookupItem> _unitLookupItems = new();
 
         public CreateProduct(
             IProductService productService,
@@ -68,12 +69,15 @@ namespace RaccoonWarehouse.Products
             BrandComboBox.SelectedValuePath = "Id";
 
             var units = await _unitService.GetAllAsync();
-            UnitComboBox.ItemsSource = units.Data;
-            UnitComboBox.DisplayMemberPath = "Name";
+            _unitLookupItems = units.Data?
+                .Select(unit => new UnitLookupItem(unit.Id, unit.Name, UiText.Translate(unit.Name)))
+                .ToList() ?? new List<UnitLookupItem>();
+            UnitComboBox.ItemsSource = _unitLookupItems;
+            UnitComboBox.DisplayMemberPath = nameof(UnitLookupItem.DisplayName);
             UnitComboBox.SelectedValuePath = "Id";
 
             StatusComboBox.ItemsSource = Enum.GetValues(typeof(ProductStatus)).Cast<ProductStatus>();
-            UiText.ApplyTranslations(this);
+            UiText.ApplyWindow(this);
         }
 
         private void AddUnit_Click(object sender, RoutedEventArgs e)
@@ -128,32 +132,30 @@ namespace RaccoonWarehouse.Products
 
         private string UnitComboBoxItemText(int unitId)
         {
-            var selected = UnitComboBox.ItemsSource?.Cast<object>()
-                .FirstOrDefault(x => (int)((dynamic)x).Id == unitId);
-            return selected == null ? unitId.ToString() : ((dynamic)selected).Name;
+            var selected = _unitLookupItems.FirstOrDefault(x => x.Id == unitId);
+            return selected?.DisplayName ?? unitId.ToString();
         }
 
         private void AddUnitRow(ProductUnitWriteDto unit, string unitName)
         {
-            var row = new StackPanel
+            var row = new WrapPanel
             {
-                Orientation = Orientation.Horizontal,
                 Margin = new Thickness(0, 0, 0, 10),
-                FlowDirection = FlowDirection.RightToLeft,
+                FlowDirection = UiText.CurrentFlowDirection,
                 Tag = unit
             };
 
-            row.Children.Add(CreateUnitInfoBlock("الوحدة", unitName));
-            row.Children.Add(CreateUnitInfoBlock("سعر البيع", unit.SalePrice.ToString()));
-            row.Children.Add(CreateUnitInfoBlock("سعر الشراء", unit.PurchasePrice.ToString()));
-            row.Children.Add(CreateUnitInfoBlock("الكمية", unit.QuantityPerUnit.ToString()));
-            row.Children.Add(CreateUnitInfoBlock("أساسية", unit.IsBaseUnit ? "نعم" : "لا"));
-            row.Children.Add(CreateUnitInfoBlock("بيع", unit.IsDefaultSaleUnit ? "افتراضي" : "-"));
-            row.Children.Add(CreateUnitInfoBlock("شراء", unit.IsDefaultPurchaseUnit ? "افتراضي" : "-"));
+            row.Children.Add(CreateUnitInfoBlock(UiText.T("الوحدة", "Unit"), unitName));
+            row.Children.Add(CreateUnitInfoBlock(UiText.T("سعر البيع", "Sale Price"), unit.SalePrice.ToString()));
+            row.Children.Add(CreateUnitInfoBlock(UiText.T("سعر الشراء", "Purchase Price"), unit.PurchasePrice.ToString()));
+            row.Children.Add(CreateUnitInfoBlock(UiText.T("الكمية", "Quantity"), unit.QuantityPerUnit.ToString()));
+            row.Children.Add(CreateUnitInfoBlock(UiText.T("أساسية", "Primary"), unit.IsBaseUnit ? UiText.T("نعم", "Yes") : UiText.T("لا", "No")));
+            row.Children.Add(CreateUnitInfoBlock(UiText.T("بيع", "Sale"), unit.IsDefaultSaleUnit ? UiText.T("افتراضي", "Default") : "-"));
+            row.Children.Add(CreateUnitInfoBlock(UiText.T("شراء", "Purchase"), unit.IsDefaultPurchaseUnit ? UiText.T("افتراضي", "Default") : "-"));
 
             var removeButton = new Button
             {
-                Content = "حذف",
+                Content = UiText.T("حذف", "Delete"),
                 Width = 100,
                 Height = 42,
                 Margin = new Thickness(10, 22, 0, 0),
@@ -177,8 +179,9 @@ namespace RaccoonWarehouse.Products
         {
             var panel = new StackPanel
             {
-                Width = 120,
-                Margin = new Thickness(0, 0, 10, 0)
+                Width = 150,
+                Margin = new Thickness(0, 0, 14, 10),
+                FlowDirection = UiText.CurrentFlowDirection
             };
 
             panel.Children.Add(new TextBlock
@@ -196,7 +199,9 @@ namespace RaccoonWarehouse.Products
                 Padding = new Thickness(10, 0, 10, 0),
                 VerticalContentAlignment = VerticalAlignment.Center,
                 Background = Brushes.White,
-                BorderBrush = Brushes.LightGray
+                BorderBrush = Brushes.LightGray,
+                FlowDirection = UiText.CurrentFlowDirection,
+                TextAlignment = UiText.IsEnglish ? TextAlignment.Left : TextAlignment.Right
             });
 
             return panel;
@@ -352,5 +357,7 @@ namespace RaccoonWarehouse.Products
             bitmap.CacheOption = BitmapCacheOption.OnLoad;
             bitmap.EndInit();
         }
+
+        private sealed record UnitLookupItem(int Id, string Name, string DisplayName);
     }
 }

@@ -27,6 +27,7 @@ namespace RaccoonWarehouse.Products
 
         private int _productId;
         private List<ProductUnitWriteDto> _productUnits = new();
+        private List<UnitLookupItem> _unitLookupItems = new();
 
         public UpdateProduct(
             IProductService productService,
@@ -62,8 +63,11 @@ namespace RaccoonWarehouse.Products
                 BrandComboBox.DisplayMemberPath = "Name";
                 BrandComboBox.SelectedValuePath = "Id";
 
-                UnitComboBox.ItemsSource = (await _unitService.GetAllAsync()).Data;
-                UnitComboBox.DisplayMemberPath = "Name";
+                _unitLookupItems = (await _unitService.GetAllAsync()).Data?
+                    .Select(unit => new UnitLookupItem(unit.Id, unit.Name, UiText.Translate(unit.Name)))
+                    .ToList() ?? new List<UnitLookupItem>();
+                UnitComboBox.ItemsSource = _unitLookupItems;
+                UnitComboBox.DisplayMemberPath = nameof(UnitLookupItem.DisplayName);
                 UnitComboBox.SelectedValuePath = "Id";
 
                 StatusComboBox.ItemsSource = Enum.GetValues(typeof(ProductStatus)).Cast<ProductStatus>();
@@ -89,6 +93,7 @@ namespace RaccoonWarehouse.Products
                 _productUnits = units.Data?.ToList() ?? new List<ProductUnitWriteDto>();
                 NormalizeUnitFlags(_productUnits);
                 RebuildUnitsPanel();
+                UiText.ApplyWindow(this);
             }
             catch (Exception ex)
             {
@@ -107,24 +112,24 @@ namespace RaccoonWarehouse.Products
 
         private void AddUnitRow(ProductUnitWriteDto unit)
         {
-            var row = new StackPanel
+            var row = new WrapPanel
             {
-                Orientation = Orientation.Horizontal,
                 Margin = new Thickness(0, 0, 0, 10),
+                FlowDirection = UiText.CurrentFlowDirection,
                 Tag = unit
             };
 
-            row.Children.Add(CreateReadOnlyUnitPanel("الوحدة", unit.Unit?.Name ?? unit.UnitId.ToString(), 140));
-            row.Children.Add(CreateEditableDecimalPanel("سعر البيع", unit.SalePrice.ToString(), 100));
-            row.Children.Add(CreateEditableDecimalPanel("سعر الشراء", unit.PurchasePrice.ToString(), 100));
-            row.Children.Add(CreateEditableDecimalPanel("الكمية لكل وحدة", unit.QuantityPerUnit.ToString(), 110));
-            row.Children.Add(CreateCheckPanel("أساسية", unit.IsBaseUnit));
-            row.Children.Add(CreateCheckPanel("بيع", unit.IsDefaultSaleUnit));
-            row.Children.Add(CreateCheckPanel("شراء", unit.IsDefaultPurchaseUnit));
+            row.Children.Add(CreateReadOnlyUnitPanel(UiText.T("الوحدة", "Unit"), GetLocalizedUnitName(unit), 140));
+            row.Children.Add(CreateEditableDecimalPanel(UiText.T("سعر البيع", "Sale Price"), unit.SalePrice.ToString(), 100));
+            row.Children.Add(CreateEditableDecimalPanel(UiText.T("سعر الشراء", "Purchase Price"), unit.PurchasePrice.ToString(), 100));
+            row.Children.Add(CreateEditableDecimalPanel(UiText.T("الكمية لكل وحدة", "Quantity per Unit"), unit.QuantityPerUnit.ToString(), 110));
+            row.Children.Add(CreateCheckPanel(UiText.T("أساسية", "Primary"), unit.IsBaseUnit));
+            row.Children.Add(CreateCheckPanel(UiText.T("بيع", "Sale"), unit.IsDefaultSaleUnit));
+            row.Children.Add(CreateCheckPanel(UiText.T("شراء", "Purchase"), unit.IsDefaultPurchaseUnit));
 
             var deleteBtn = new Button
             {
-                Content = "حذف",
+                Content = UiText.T("حذف", "Delete"),
                 Margin = new Thickness(0, 22, 10, 0),
                 Width = 90,
                 Style = (Style)FindResource("PrimaryButtonStyle"),
@@ -159,34 +164,54 @@ namespace RaccoonWarehouse.Products
 
         private static StackPanel CreateReadOnlyUnitPanel(string label, string value, double width)
         {
-            var panel = new StackPanel { Margin = new Thickness(0, 0, 10, 0) };
+            var panel = new StackPanel
+            {
+                Width = Math.Max(width, 150),
+                Margin = new Thickness(0, 0, 14, 10),
+                FlowDirection = UiText.CurrentFlowDirection
+            };
             panel.Children.Add(new TextBlock { Text = label, FontWeight = FontWeights.SemiBold });
             panel.Children.Add(new TextBox
             {
-                Width = width,
+                Width = Math.Max(width, 150),
                 Height = 30,
                 IsReadOnly = true,
-                Text = value
+                Text = value,
+                FlowDirection = UiText.CurrentFlowDirection,
+                TextAlignment = UiText.IsEnglish ? TextAlignment.Left : TextAlignment.Right
             });
             return panel;
         }
 
         private static StackPanel CreateEditableDecimalPanel(string label, string value, double width)
         {
-            var panel = new StackPanel { Margin = new Thickness(0, 0, 10, 0) };
+            var panel = new StackPanel
+            {
+                Width = Math.Max(width, 150),
+                Margin = new Thickness(0, 0, 14, 10),
+                FlowDirection = UiText.CurrentFlowDirection
+            };
             panel.Children.Add(new TextBlock { Text = label, FontWeight = FontWeights.SemiBold });
             panel.Children.Add(new TextBox
             {
-                Width = width,
+                Width = Math.Max(width, 150),
                 Height = 30,
-                Text = value
+                Text = value,
+                FlowDirection = UiText.CurrentFlowDirection,
+                TextAlignment = UiText.IsEnglish ? TextAlignment.Left : TextAlignment.Right
             });
             return panel;
         }
 
         private static StackPanel CreateCheckPanel(string label, bool value)
         {
-            var panel = new StackPanel { Margin = new Thickness(0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Bottom };
+            var panel = new StackPanel
+            {
+                Width = 150,
+                Margin = new Thickness(0, 0, 14, 10),
+                VerticalAlignment = VerticalAlignment.Bottom,
+                FlowDirection = UiText.CurrentFlowDirection
+            };
             panel.Children.Add(new TextBlock { Text = label, FontWeight = FontWeights.SemiBold });
             panel.Children.Add(new CheckBox
             {
@@ -371,5 +396,17 @@ namespace RaccoonWarehouse.Products
         {
             Close();
         }
+
+        private string GetLocalizedUnitName(ProductUnitWriteDto unit)
+        {
+            var rawName = unit.Unit?.Name
+                ?? _unitLookupItems.FirstOrDefault(x => x.Id == unit.UnitId)?.Name;
+
+            return string.IsNullOrWhiteSpace(rawName)
+                ? unit.UnitId.ToString()
+                : UiText.Translate(rawName);
+        }
+
+        private sealed record UnitLookupItem(int Id, string Name, string DisplayName);
     }
 }

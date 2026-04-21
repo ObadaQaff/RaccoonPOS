@@ -62,17 +62,23 @@
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
-                    <DataGrid x:Name="LinesGrid" Style="{StaticResource AppModernDataGridStyle}" AutoGenerateColumns="False" CanUserAddRows="False">
+                    <DataGrid x:Name="LinesGrid"
+                              Style="{StaticResource AppModernDataGridStyle}"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              IsReadOnly="False"
+                              SelectionMode="Single"
+                              SelectionUnit="Cell">
                         <DataGrid.Columns>
-                            <DataGridComboBoxColumn Header="الحساب"
+                            <DataGridComboBoxColumn x:Name="AccountColumn"
+                                                    Header="الحساب"
                                                     Width="280"
-                                                    SelectedValueBinding="{Binding AccountId, UpdateSourceTrigger=PropertyChanged}"
+                                                    SelectedValueBinding="{Binding AccountId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                     SelectedValuePath="Id"
-                                                    DisplayMemberPath="DisplayLabel"
-                                                    ItemsSource="{Binding AccountsSource, RelativeSource={RelativeSource AncestorType=Window}}"/>
-                            <DataGridTextColumn Header="مدين" Width="140" Binding="{Binding Debit, UpdateSourceTrigger=PropertyChanged}"/>
-                            <DataGridTextColumn Header="دائن" Width="140" Binding="{Binding Credit, UpdateSourceTrigger=PropertyChanged}"/>
-                            <DataGridTextColumn Header="الوصف" Width="*" Binding="{Binding Description, UpdateSourceTrigger=PropertyChanged}"/>
+                                                    DisplayMemberPath="DisplayLabel"/>
+                            <DataGridTextColumn Header="مدين" Width="140" Binding="{Binding Debit, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                            <DataGridTextColumn Header="دائن" Width="140" Binding="{Binding Credit, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                            <DataGridTextColumn Header="الوصف" Width="*" Binding="{Binding Description, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                         </DataGrid.Columns>
                     </DataGrid>
                     <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,16,0,0">

@@ -9,6 +9,8 @@ using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Threading;
 
 namespace RaccoonWarehouse.Accounting
 {
@@ -65,6 +67,8 @@ namespace RaccoonWarehouse.Accounting
                         DisplayLabel = $"{account.Code} - {account.Name}"
                     });
                 }
+
+                AccountColumn.ItemsSource = AccountsSource;
             }
             catch (Exception ex)
             {
@@ -76,12 +80,13 @@ namespace RaccoonWarehouse.Accounting
             }
         }
 
-        private void AddLine()
+        private JournalEntryLineEditorRow AddLine()
         {
             var row = new JournalEntryLineEditorRow();
             row.PropertyChanged += Row_PropertyChanged;
             Lines.Add(row);
             UpdateTotals();
+            return row;
         }
 
         private void Row_PropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -100,12 +105,16 @@ namespace RaccoonWarehouse.Accounting
 
         private void AddLineBtn_Click(object sender, RoutedEventArgs e)
         {
-            AddLine();
+            var row = AddLine();
+            FocusFirstEditableCell(row);
         }
 
         private void RemoveLineBtn_Click(object sender, RoutedEventArgs e)
         {
-            if (LinesGrid.SelectedItem is JournalEntryLineEditorRow selected)
+            var selected = LinesGrid.SelectedItem as JournalEntryLineEditorRow
+                ?? LinesGrid.CurrentItem as JournalEntryLineEditorRow;
+
+            if (selected != null)
             {
                 selected.PropertyChanged -= Row_PropertyChanged;
                 Lines.Remove(selected);
@@ -161,6 +170,19 @@ namespace RaccoonWarehouse.Accounting
         private void BackBtn_Click(object sender, RoutedEventArgs e)
         {
             Close();
+        }
+
+        private void FocusFirstEditableCell(JournalEntryLineEditorRow row)
+        {
+            LinesGrid.SelectedItem = row;
+            LinesGrid.CurrentCell = new DataGridCellInfo(row, LinesGrid.Columns[0]);
+            LinesGrid.ScrollIntoView(row);
+
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                LinesGrid.Focus();
+                LinesGrid.BeginEdit();
+            }), DispatcherPriority.Background);
         }
 
         public class AccountLookupItem

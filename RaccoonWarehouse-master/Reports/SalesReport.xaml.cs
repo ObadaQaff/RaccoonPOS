@@ -18,9 +18,10 @@ namespace RaccoonWarehouse.Reports
     public partial class SalesReport : Window
     {
         private readonly IInvoiceService _invoiceService;   // ✅ real invoices query
-        private readonly IUserService _userService;         // ✅ customers
+        private readonly IUserService _userService;
 
         private List<UserReadDto> _customers = new();
+        private List<UserReadDto> _cashiers = new();
         private List<SalesReportRowDto> _currentRows = new();
 
         public SalesReport(IInvoiceService invoiceService, IUserService userService)
@@ -54,16 +55,32 @@ namespace RaccoonWarehouse.Reports
             PosFilterComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("فواتير غير POS", "Non-POS invoices"), Tag = false });
             PosFilterComboBox.SelectedIndex = 0;
 
-            // ✅ load customers
+            // ✅ load report users
             var usersRes = await _userService.GetAllAsync();
-            _customers = usersRes.Data ?? new List<UserReadDto>();
+            var allUsers = usersRes.Data ?? new List<UserReadDto>();
 
-            var list = new List<UserReadDto>();
-            list.Add(new UserReadDto { Id = 0, Name = UiText.T("الكل", "All") });
-            list.AddRange(_customers);
+            _customers = allUsers
+                .Where(x => x.Role == UserRole.Customer)
+                .OrderBy(x => x.Name)
+                .ToList();
 
-            CustomerComboBox.ItemsSource = list;
+            _cashiers = allUsers
+                .Where(x => x.Role == UserRole.Casher)
+                .OrderBy(x => x.Name)
+                .ToList();
+
+            var customerList = new List<UserReadDto>();
+            customerList.Add(new UserReadDto { Id = 0, Name = UiText.T("الكل", "All") });
+            customerList.AddRange(_customers);
+
+            var cashierList = new List<UserReadDto>();
+            cashierList.Add(new UserReadDto { Id = 0, Name = UiText.T("الكل", "All") });
+            cashierList.AddRange(_cashiers);
+
+            CustomerComboBox.ItemsSource = customerList;
             CustomerComboBox.SelectedValue = 0;
+            CashierComboBox.ItemsSource = cashierList;
+            CashierComboBox.SelectedValue = 0;
             UiText.ApplyTranslations(this);
 
             // ✅ init cards
@@ -87,6 +104,10 @@ namespace RaccoonWarehouse.Reports
                 if (CustomerComboBox.SelectedValue is int cid && cid != 0)
                     customerId = cid;
 
+                int? cashierId = null;
+                if (CashierComboBox.SelectedValue is int cashierValue && cashierValue != 0)
+                    cashierId = cashierValue;
+
                 // ✅ get selected invoice type from Tag
                 InvoiceType? invoiceType = null;
 
@@ -105,6 +126,7 @@ namespace RaccoonWarehouse.Reports
                     From = from,
                     To = to,
                     CustomerId = customerId,
+                    CashierId = cashierId,
                     IncludeReturns = true
                 };
 
@@ -112,7 +134,7 @@ namespace RaccoonWarehouse.Reports
 
                 if (!res.Success)
                 {
-                    MessageBox.Show(res.Message ?? UiText.T("فشل تحميل التقرير.", "Failed to load the report."));
+                    MessageBox.Show(res.Message ?? UiText.T("فشل تحميل التقرير", "Failed to load the report."));
                     return;
                 }
 

@@ -5,6 +5,7 @@
 - 2026-03-11
 - 2026-03-24
 - 2026-03-27
+- 2026-04-11
 
 ## Scope Tested and Evaluated
 - `Category`
@@ -19,6 +20,7 @@
 - `Unified Permissions` (permission definitions, role-permission mapping, redesigned manager UI, report permission compatibility)
 - `Crash hardening scan` (global exception handling, null/empty result guards, stock document update safety)
 - `Accounting reporting` (trial balance, general ledger, balance sheet)
+- `Accounting integration audit` (posting coverage, reversal safety, duplicate-post protection, inventory/accounting consistency review)
 
 ## What Was Evaluated
 - CRUD behavior for service-layer operations.
@@ -34,6 +36,14 @@
   - add/update/remove unit rows
   - duplicate unit validation
   - tax recalculation
+- Accounting integration integrity:
+  - posting owner coverage by module
+  - balanced journal generation expectations
+  - source-reference traceability
+  - duplicate posting prevention
+  - reverse/repost behavior on update/cancel
+  - inventory value vs accounting movement expectations
+  - reporting readiness checks
 
 ## Rule Applied
 - Nullable-field UI rule is now documented and followed:
@@ -52,6 +62,12 @@
 - Direct `dotnet test` execution remains blocked intermittently in this repo because MSBuild exits with `Build FAILED` and `0 Error(s)` before running tests.
 - Failed: `0`
 - Skipped: `0`
+- Phase 3 note:
+  - this pass produced a deep audit and validation plan for accounting integration
+  - no new automated tests were executed in this documentation-only update
+  - latest solution build status for the Phase 2 integration slice:
+    - `dotnet build RaccoonWarehouse-master/RaccoonWarehouse.sln -v minimal`
+    - passed with warnings only
 
 ## Module-by-Module Notes
 
@@ -252,6 +268,115 @@
   - `RaccoonWarehouse-master/Accounting/GeneralLedgerReport.xaml`
   - `RaccoonWarehouse-master/Accounting/BalanceSheetReport.xaml`
 
+### Accounting Integration Audit
+- Phase 3 objective:
+  - validate that accounting posting is complete, balanced, non-duplicated, reversible, and reconcilable with operational inventory and money movement
+- Posting owners reviewed:
+  - `Invoice`
+  - `Voucher`
+  - `StockDocument`
+  - `FinancialTransaction`
+  - `StockAdjustment`
+- Supporting operational rows that should not post independently:
+  - `InvoiceLine`
+  - `StockItem`
+  - `StockTransaction`
+  - `Check`
+- Core audit checklist:
+  - every posted journal must be balanced
+  - every posted journal must reference its source document
+  - each business event must have one posting owner only
+  - cancel/update flows must reverse and repost instead of mutating posted entries
+  - stock value movements must use cost, not sales price
+  - returns must reverse revenue side and restore inventory side
+  - damaged/internal stock out must not use sales-return accounts
+  - `ReceiptVoucher` and `PaymentVoucher` must not double-post through `FinancialTransaction`
+- Coverage matrix summary:
+  - `Sales Invoice / POS Sale`
+    - expected accounting: revenue, tax, settlement, COGS, inventory
+  - `Sales Return / POS Return`
+    - expected accounting: sales return, settlement reversal, inventory recovery, COGS reversal
+  - `Stock In`
+    - expected accounting: inventory increase vs payable/cash/gain fallback depending owner/classification
+  - `Stock Out`
+    - expected accounting: internal consumption or loss vs inventory
+  - `Damaged Stock`
+    - expected accounting: damaged stock loss vs inventory
+  - `Receipt Voucher`
+    - expected accounting: cash/bank/POS cash vs receivable/fallback
+  - `Payment Voucher`
+    - expected accounting: payable/expense vs cash/bank/POS cash
+  - `Standalone FinancialTransaction`
+    - expected accounting only when not already owned by another posted source flow
+- Required transaction scenarios for manual/automated validation:
+  - `Stock In from supplier on credit`
+  - `Stock In from supplier paid cash`
+  - `Sales Invoice cash`
+  - `Sales Invoice credit`
+  - `POS sale`
+  - `Sales return cash refund`
+  - `Sales return against receivable`
+  - `POS return`
+  - `Stock out for internal use`
+  - `Damaged stock`
+  - `Receipt voucher from customer`
+  - `Payment voucher to supplier`
+  - `Cancellation of posted document`
+  - `Reversal entry generation`
+  - `Duplicate post attempt`
+  - `Retry after failure in mid-process`
+- Expected validations for each posted transaction:
+  - one active journal only for the source reference
+  - debit total equals credit total
+  - accounts used are active posting accounts
+  - source `PostingStatus` matches the journal state
+  - journal `ReferenceType` and `ReferenceId` match the source
+- Edge cases to test:
+  - partial return
+  - mixed payment methods
+  - cash + receivable split
+  - supplier purchase paid immediately
+  - negative stock scenario
+  - retry after account-mapping/config failure
+  - document update after posting
+  - cancelled/deleted posted document behavior
+  - concurrent posting attempts
+- Recommended validation SQL / verification logic:
+  - detect unbalanced journals
+  - detect duplicate active journals per `(ReferenceType, ReferenceId)`
+  - detect posted sources with no active journal
+  - reconcile `Inventory` account balance against stock valuation
+  - reconcile `COGS` account against posted sales cost totals
+  - reconcile AR/AP movement against credit sales, receipts, purchases, and payments
+- Reporting readiness checks:
+  - trial balance debits must equal credits
+  - general ledger running balance must reflect posted journals only
+  - inventory account must reconcile to stock valuation or approved timing difference
+  - P&L sales, returns, COGS, and expenses must match posted source activity
+  - reversed entries must not overstate balances
+- Common mistakes to watch for:
+  - posting both source document and linked financial transaction
+  - using selling price instead of cost for inventory postings
+  - restoring return inventory at wrong cost
+  - using wrong settlement account for cash vs credit
+  - updating posted journals in place instead of reversing
+  - `PostingStatus` set to `Posted` with no active journal
+  - duplicate journals for one source
+- Current result for this slice:
+  - produced a complete audit and test plan for accounting integration
+  - identified the highest-risk validation areas as:
+    - duplicate posting across overlapping modules
+    - inventory value reconciliation
+    - update/cancel reverse-repost safety
+    - fallback account-mapping correctness
+- References:
+  - `RaccoonWarehouse.Application/Service/Accounting/AccountingService.cs`
+  - `RaccoonWarehouse.Application/Service/Invoices/InvoiceService.cs`
+  - `RaccoonWarehouse.Application/Service/Vouchers/VoucherService.cs`
+  - `RaccoonWarehouse.Application/Service/StockDocuments/StockDocumentService.cs`
+  - `RaccoonWarehouse.Application/Service/FinancialTransactions/FinancialTransactionService.cs`
+  - `RaccoonWarehouse.Tests/AccountingServiceReportTests.cs`
+
 ## Files Created for QA Documentation
 - `RaccoonWarehouse.Tests/CategoryUiQaReport.md`
 - `RaccoonWarehouse.Tests/SubCategoryUiQaReport.md`
@@ -290,6 +415,36 @@
   - StockTransactions: `3`
 
 ## Remaining Coverage Gaps
+- Accounting integration audit slice update (2026-04-11):
+  - Added a Phase 3 audit and validation plan covering:
+    - database integrity
+    - business flow integrity
+    - inventory/accounting integrity
+    - voucher/financial integrity
+    - edge/failure scenarios
+    - reporting readiness
+  - Current pass/fail snapshot for this slice:
+    - Pass:
+      - Phase 2 accounting integration build
+      - audit plan documented
+    - Fail:
+      - none in this documentation pass
+    - Blocked:
+      - end-to-end execution of all accounting scenarios on a live or seeded QA database
+      - concurrency validation under real parallel posting attempts
+      - full automated scenario suite for voucher and stock-document posting/reversal
+  - Remaining manual checks for this slice:
+    - verify voucher create/update/reversal accounting on live DB
+    - verify stock document create/update/reversal accounting on live DB
+    - verify no duplicate journal is created when overlapping financial transaction rows exist
+    - verify inventory account balance matches stock valuation after sales, returns, and damaged stock flows
+    - verify AR/AP balances match voucher and invoice activity
+  - Recommended next automated tests:
+    - add service tests for voucher posting
+    - add service tests for stock document posting
+    - add duplicate-post regression tests
+    - add reverse/repost regression tests
+    - add reconciliation assertions for inventory and COGS totals
 - Accounting control slice update (2026-03-27):
   - Added service coverage for:
     - posting lock date enforcement

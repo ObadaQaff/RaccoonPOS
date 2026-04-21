@@ -36,12 +36,16 @@
             </Grid>
         </Border>
 
-        <Grid Grid.Row="1" Margin="24,-52,24,24">
+        <ScrollViewer Grid.Row="1"
+                      Margin="24,-52,24,24"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+        <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
-                <RowDefinition Height="220"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
             <Border Grid.Row="0" Style="{StaticResource AppCardBorderStyle}" Padding="24">
@@ -121,11 +125,15 @@
                 </Border>
             </Grid>
 
-            <Border Grid.Row="2" Margin="0,18,0,0" Style="{StaticResource AppCardBorderStyle}" Padding="16">
+            <Border Grid.Row="2" Margin="0,18,0,0" Style="{StaticResource AppCardBorderStyle}" Padding="16" MinHeight="300">
                 <DataGrid x:Name="JournalEntriesGrid"
                           Style="{StaticResource AppModernDataGridStyle}"
                           AutoGenerateColumns="False"
                           IsReadOnly="True"
+                          MinHeight="260"
+                          MaxHeight="420"
+                          ScrollViewer.VerticalScrollBarVisibility="Auto"
+                          ScrollViewer.HorizontalScrollBarVisibility="Auto"
                           SelectionChanged="JournalEntriesGrid_SelectionChanged">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="التاريخ" Binding="{Binding EntryDate, StringFormat=yyyy-MM-dd}" Width="130"/>
@@ -140,13 +148,13 @@
                 </DataGrid>
             </Border>
 
-            <Grid Grid.Row="3" Margin="0,18,0,0">
+            <Grid Grid.Row="3" Margin="0,18,0,0" MinHeight="320">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="1.2*"/>
                     <ColumnDefinition Width="1.5*"/>
                 </Grid.ColumnDefinitions>
 
-                <Border Grid.Column="0" Style="{StaticResource AppCardBorderStyle}" Padding="20" Margin="0,0,18,0">
+                <Border Grid.Column="0" Style="{StaticResource AppCardBorderStyle}" Padding="20" Margin="0,0,18,0" MinHeight="300">
                     <StackPanel>
                         <TextBlock Text="عكس القيد المحدد" FontSize="22" FontWeight="Bold" Foreground="#183C36"/>
                         <TextBlock Margin="0,8,0,0"
@@ -171,11 +179,15 @@
                     </StackPanel>
                 </Border>
 
-                <Border Grid.Column="1" Style="{StaticResource AppCardBorderStyle}" Padding="16">
+                <Border Grid.Column="1" Style="{StaticResource AppCardBorderStyle}" Padding="16" MinHeight="300">
                     <DataGrid x:Name="JournalLinesGrid"
                               Style="{StaticResource AppModernDataGridStyle}"
                               AutoGenerateColumns="False"
-                              IsReadOnly="True">
+                              IsReadOnly="True"
+                              MinHeight="260"
+                              MaxHeight="300"
+                              ScrollViewer.VerticalScrollBarVisibility="Auto"
+                              ScrollViewer.HorizontalScrollBarVisibility="Auto">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="الحساب" Binding="{Binding AccountCode}" Width="110"/>
                             <DataGridTextColumn Header="اسم الحساب" Binding="{Binding AccountName}" Width="*"/>
@@ -187,5 +199,6 @@
                 </Border>
             </Grid>
         </Grid>
+        </ScrollViewer>
     </Grid>
 </Window>

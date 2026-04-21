@@ -1,13 +1,18 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using RaccoonWarehouse.Core.Interface;
 using RaccoonWarehouse.Data.Configurations;
+using RaccoonWarehouse.Domain.Accounting.AccountOpeningBalances;
 using RaccoonWarehouse.Domain.Accounting.Accounts;
 using RaccoonWarehouse.Domain.Accounting.JournalEntries;
+using RaccoonWarehouse.Domain.Accounting.Periods;
 using RaccoonWarehouse.Domain.Base;
+using RaccoonWarehouse.Domain.Branches;
 using RaccoonWarehouse.Domain.Categories;
+using RaccoonWarehouse.Domain.CostCenters;
+using RaccoonWarehouse.Domain.Currencies;
 using RaccoonWarehouse.Domain.Employees;
 using RaccoonWarehouse.Domain.EntityAndDtoStructure;
+using RaccoonWarehouse.Domain.FinancialTransactions;
 using RaccoonWarehouse.Domain.InvoiceLines;
 using RaccoonWarehouse.Domain.Invoices;
 using RaccoonWarehouse.Domain.Permissions;
@@ -15,11 +20,15 @@ using RaccoonWarehouse.Domain.Products;
 using RaccoonWarehouse.Domain.ProductUnits;
 using RaccoonWarehouse.Domain.Relations;
 using RaccoonWarehouse.Domain.Settings;
+using RaccoonWarehouse.Domain.Stock;
 using RaccoonWarehouse.Domain.StockAdjustments;
+using RaccoonWarehouse.Domain.StockDocuments;
+using RaccoonWarehouse.Domain.StockItems;
 using RaccoonWarehouse.Domain.StockLots;
+using RaccoonWarehouse.Domain.StockTransactions;
 using RaccoonWarehouse.Domain.Users;
+using RaccoonWarehouse.Domain.Vouchers;
 using System.Linq.Expressions;
-using System.Reflection;
 using DelegateEntity = RaccoonWarehouse.Domain.Delegates.Delegate;
 using EmployeeEntity = RaccoonWarehouse.Domain.Employees.Employee;
 
@@ -37,6 +46,12 @@ namespace RaccoonWarehouse.Data
         public DbSet<Account> Accounts => Set<Account>();
         public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
         public DbSet<JournalEntryLine> JournalEntryLines => Set<JournalEntryLine>();
+        public DbSet<FiscalYear> FiscalYears => Set<FiscalYear>();
+        public DbSet<AccountingPeriod> AccountingPeriods => Set<AccountingPeriod>();
+        public DbSet<AccountOpeningBalance> AccountOpeningBalances => Set<AccountOpeningBalance>();
+        public DbSet<Branch> Branches => Set<Branch>();
+        public DbSet<CostCenter> CostCenters => Set<CostCenter>();
+        public DbSet<Currency> Currencies => Set<Currency>();
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
@@ -50,10 +65,10 @@ namespace RaccoonWarehouse.Data
         {
             base.OnModelCreating(modelBuilder);
             modelBuilder.ApplyConfiguration(new CategoryConfiguration());
+
             var assembly = typeof(BaseEntity).Assembly;
-            var entityTypes = assembly?.GetTypes()
+            var entityTypes = assembly.GetTypes()
                 .Where(t => t.IsSubclassOf(typeof(BaseEntity)));
-            if (entityTypes == null) return;
 
             foreach (var type in entityTypes)
             {
@@ -80,8 +95,77 @@ namespace RaccoonWarehouse.Data
                 .HasIndex(x => x.Code)
                 .IsUnique();
 
+            modelBuilder.Entity<Account>()
+                .HasOne(x => x.ParentAccount)
+                .WithMany(x => x.Children)
+                .HasForeignKey(x => x.ParentAccountId)
+                .OnDelete(DeleteBehavior.NoAction);
+
             modelBuilder.Entity<JournalEntry>()
                 .HasIndex(x => x.EntryNumber)
+                .IsUnique();
+
+            modelBuilder.Entity<JournalEntryLine>()
+                .HasIndex(x => new { x.JournalEntryId, x.LineNumber })
+                .IsUnique();
+
+            modelBuilder.Entity<JournalEntryLine>()
+                .HasOne(x => x.JournalEntry)
+                .WithMany(x => x.Lines)
+                .HasForeignKey(x => x.JournalEntryId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<JournalEntryLine>()
+                .HasOne(x => x.Account)
+                .WithMany(x => x.JournalEntryLines)
+                .HasForeignKey(x => x.AccountId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<FiscalYear>()
+                .HasIndex(x => x.Code)
+                .IsUnique();
+
+            modelBuilder.Entity<AccountingPeriod>()
+                .HasIndex(x => new { x.FiscalYearId, x.PeriodNumber })
+                .IsUnique();
+
+            modelBuilder.Entity<AccountingPeriod>()
+                .HasOne(x => x.FiscalYear)
+                .WithMany(x => x.AccountingPeriods)
+                .HasForeignKey(x => x.FiscalYearId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<AccountOpeningBalance>()
+                .HasIndex(x => new { x.FiscalYearId, x.AccountId, x.BranchId, x.CostCenterId, x.WarehouseId, x.PartyUserId });
+
+            modelBuilder.Entity<AccountOpeningBalance>()
+                .HasOne(x => x.FiscalYear)
+                .WithMany()
+                .HasForeignKey(x => x.FiscalYearId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<AccountOpeningBalance>()
+                .HasOne(x => x.Account)
+                .WithMany(x => x.OpeningBalances)
+                .HasForeignKey(x => x.AccountId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<Branch>()
+                .HasIndex(x => x.Code)
+                .IsUnique();
+
+            modelBuilder.Entity<CostCenter>()
+                .HasIndex(x => x.Code)
+                .IsUnique();
+
+            modelBuilder.Entity<CostCenter>()
+                .HasOne(x => x.ParentCostCenter)
+                .WithMany(x => x.Children)
+                .HasForeignKey(x => x.ParentCostCenterId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<Currency>()
+                .HasIndex(x => x.Code)
                 .IsUnique();
 
             modelBuilder.Entity<DelegateEntity>()
@@ -114,6 +198,31 @@ namespace RaccoonWarehouse.Data
             modelBuilder.Entity<Invoice>()
                 .HasIndex(x => x.DelegateId);
 
+            modelBuilder.Entity<Invoice>()
+                .HasIndex(x => x.ReferenceNumber);
+
+            modelBuilder.Entity<Voucher>()
+                .HasIndex(x => x.ReferenceNumber);
+
+            modelBuilder.Entity<FinancialTransaction>()
+                .HasIndex(x => new { x.SourceType, x.SourceId });
+
+            modelBuilder.Entity<StockDocument>()
+                .HasIndex(x => x.DocumentNumber)
+                .IsUnique();
+
+            modelBuilder.Entity<StockItem>()
+                .HasIndex(x => new { x.StockDocumentId, x.LineNumber });
+
+            modelBuilder.Entity<Stock>()
+                .HasIndex(x => new { x.WarehouseId, x.ProductId, x.ProductUnitId });
+
+            modelBuilder.Entity<StockTransaction>()
+                .HasIndex(x => new { x.SourceType, x.SourceId });
+
+            modelBuilder.Entity<StockTransaction>()
+                .HasIndex(x => x.StockDocumentId);
+
             modelBuilder.Entity<DelegateEntity>()
                 .HasOne(d => d.User)
                 .WithOne(u => u.DelegateProfile)
@@ -138,24 +247,6 @@ namespace RaccoonWarehouse.Data
                 .HasForeignKey(i => i.DelegateId)
                 .OnDelete(DeleteBehavior.NoAction);
 
-            modelBuilder.Entity<Account>()
-                .HasOne(x => x.ParentAccount)
-                .WithMany(x => x.Children)
-                .HasForeignKey(x => x.ParentAccountId)
-                .OnDelete(DeleteBehavior.NoAction);
-
-            modelBuilder.Entity<JournalEntryLine>()
-                .HasOne(x => x.JournalEntry)
-                .WithMany(x => x.Lines)
-                .HasForeignKey(x => x.JournalEntryId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            modelBuilder.Entity<JournalEntryLine>()
-                .HasOne(x => x.Account)
-                .WithMany(x => x.JournalEntryLines)
-                .HasForeignKey(x => x.AccountId)
-                .OnDelete(DeleteBehavior.NoAction);
-
             modelBuilder.Entity<InvoiceLine>()
                 .HasOne(il => il.Invoice)
                 .WithMany(i => i.InvoiceLines)
@@ -172,6 +263,24 @@ namespace RaccoonWarehouse.Data
                 .HasOne(il => il.ProductUnit)
                 .WithMany()
                 .HasForeignKey(il => il.ProductUnitId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<StockItem>()
+                .HasOne(si => si.StockDocument)
+                .WithMany(sd => sd.Items)
+                .HasForeignKey(si => si.StockDocumentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<StockTransaction>()
+                .HasOne(st => st.Invoice)
+                .WithMany()
+                .HasForeignKey(st => st.InvoiceId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<StockTransaction>()
+                .HasOne(st => st.Voucher)
+                .WithMany()
+                .HasForeignKey(st => st.VoucherId)
                 .OnDelete(DeleteBehavior.NoAction);
 
             modelBuilder.Entity<StockLot>()
@@ -229,8 +338,7 @@ namespace RaccoonWarehouse.Data
             var param = Expression.Parameter(type, "e");
             var prop = Expression.Property(param, nameof(ISoftDelete.IsDeleted));
             var condition = Expression.Equal(prop, Expression.Constant(false));
-            var lambda = Expression.Lambda(condition, param);
-            return lambda;
+            return Expression.Lambda(condition, param);
         }
     }
 }

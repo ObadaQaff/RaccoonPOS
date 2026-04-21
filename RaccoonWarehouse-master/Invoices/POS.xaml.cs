@@ -104,6 +104,7 @@ namespace RaccoonWarehouse.Invoices
         {
             BarcodeTextBox.Focus();
             Keyboard.Focus(BarcodeTextBox);
+            BarcodeTextBox.SelectAll();
         }
 
         private static bool HeaderMatches(DataGridColumn column, string arabicHeader)
@@ -730,7 +731,7 @@ namespace RaccoonWarehouse.Invoices
 
         private void RecalculateLineFromCurrentValues(InvoiceLineWriteDto line)
         {
-            if (line.Quantity <= 0)
+            if (line.Quantity == 0)
                 line.Quantity = 1;
 
             var lineTotal = line.Quantity * line.UnitPrice;
@@ -944,7 +945,7 @@ namespace RaccoonWarehouse.Invoices
                     return;
                 }
 
-                await AddProductToInvoiceAsync(product);
+                await AddProductToInvoiceAsync(product, moveFocusToQuantity: false);
 
             }
             catch (Exception ex)
@@ -954,11 +955,11 @@ namespace RaccoonWarehouse.Invoices
             finally
             {
                 BarcodeTextBox.Clear();
-                BarcodeTextBox.Focus();
+                FocusBarcodeInput();
             }
         }
 
-        private async Task<bool> AddProductToInvoiceAsync(ProductReadDto product)
+        private async Task<bool> AddProductToInvoiceAsync(ProductReadDto product, bool moveFocusToQuantity = true)
         {
             if (product == null)
                 return false;
@@ -1006,19 +1007,22 @@ namespace RaccoonWarehouse.Invoices
 
             RecalculateTotals();
 
-            Dispatcher.BeginInvoke(new Action(() =>
+            if (moveFocusToQuantity)
             {
-                if (InvoiceGrid.Items.Count == 0)
-                    return;
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    if (InvoiceGrid.Items.Count == 0)
+                        return;
 
-                var targetLine = _invoiceLines
-                    .LastOrDefault(l => l.ProductId == product.Id && l.ProductUnitId == targetUnitId)
-                    ?? _invoiceLines.LastOrDefault();
-                if (targetLine == null)
-                    return;
+                    var targetLine = _invoiceLines
+                        .LastOrDefault(l => l.ProductId == product.Id && l.ProductUnitId == targetUnitId)
+                        ?? _invoiceLines.LastOrDefault();
+                    if (targetLine == null)
+                        return;
 
-                MoveGridFocusToColumn(InvoiceGrid, targetLine, "الكمية");
-            }), System.Windows.Threading.DispatcherPriority.Input);
+                    MoveGridFocusToColumn(InvoiceGrid, targetLine, "الكمية");
+                }), System.Windows.Threading.DispatcherPriority.Input);
+            }
 
             return true;
         }
@@ -1321,6 +1325,13 @@ namespace RaccoonWarehouse.Invoices
         {
             var expandedLines = new List<InvoiceLineWriteDto>();
 
+            foreach (var returnLine in sourceLines.Where(line => line.Quantity < 0))
+            {
+                var signedLine = CloneLineSnapshot(returnLine, returnLine.Quantity, returnLine.OriginalInvoiceId);
+                RecalculateLineFromCurrentValues(signedLine);
+                expandedLines.Add(signedLine);
+            }
+
             foreach (var sourceLine in sourceLines.Where(line => line.Quantity > 0))
             {
                 var allocationResult = await _stockService.AllocateOutgoingAsync(new[]
@@ -1373,7 +1384,7 @@ namespace RaccoonWarehouse.Invoices
                 return false;
             }
             
-            if (_invoiceLines.Any(l => l.ProductId <= 0 || l.ProductUnitId <= 0 || l.Quantity <= 0))
+            if (_invoiceLines.Any(l => l.ProductId <= 0 || l.ProductUnitId <= 0 || l.Quantity == 0))
             {
                 MessageBox.Show(UiText.T("يوجد صنف ببيانات غير مكتملة أو كمية غير صالحة.", "There is an item with incomplete data or an invalid quantity."), UiText.T("تنبيه", "Notice"));
                 return false;
@@ -1387,6 +1398,90 @@ namespace RaccoonWarehouse.Invoices
 
             return true;
         }
+
+        private async Task<InvoiceWriteDto?> LoadOriginalInvoiceForReturnOrExchangeAsync(string? invoiceNumber)
+        {
+            if (string.IsNullOrWhiteSpace(invoiceNumber))
+                return null;
+
+            var result = await _invoiceService.GetAllWriteDtoWithFilteringAndIncludeAsync(
+                invoice => invoice.InvoiceNumber == invoiceNumber,
+                invoice => invoice.InvoiceLines);
+
+            return result?.Data?.FirstOrDefault();
+        }
+
+        private bool IsNegativeLineAllowedByOriginalInvoice(
+            InvoiceLineWriteDto line,
+            InvoiceWriteDto originalInvoice,
+            IEnumerable<InvoiceLineWriteDto> negativeLines,
+            out string message)
+        {
+            message = string.Empty;
+
+            var matchingOriginalLines = originalInvoice.InvoiceLines?
+                .Where(originalLine =>
+                    originalLine.ProductId == line.ProductId &&
+                    originalLine.ProductUnitId == line.ProductUnitId)
+                .ToList() ?? new List<InvoiceLineWriteDto>();
+
+            if (!matchingOriginalLines.Any())
+            {
+                message = UiText.T(
+                    $"لا يمكن إرجاع أو استبدال الصنف {line.ProductName} لأنه غير موجود في الفاتورة الأصلية.",
+                    $"Item {line.ProductName} cannot be returned or exchanged because it does not exist in the original invoice.");
+                return false;
+            }
+
+            var originalQuantity = matchingOriginalLines.Sum(originalLine => Math.Abs(originalLine.Quantity));
+            var requestedQuantity = negativeLines
+                .Where(invoiceLine =>
+                    invoiceLine.ProductId == line.ProductId &&
+                    invoiceLine.ProductUnitId == line.ProductUnitId)
+                .Sum(invoiceLine => Math.Abs(invoiceLine.Quantity));
+
+            if (requestedQuantity > originalQuantity)
+            {
+                message = UiText.T(
+                    $"كمية الصنف {line.ProductName} أكبر من الكمية الموجودة في الفاتورة الأصلية. الكمية الأصلية: {originalQuantity:0.###}، الكمية المطلوبة: {requestedQuantity:0.###}.",
+                    $"Item {line.ProductName} quantity exceeds the original invoice quantity. Original: {originalQuantity:0.###}, requested: {requestedQuantity:0.###}.");
+                return false;
+            }
+
+            return true;
+        }
+
+        private async Task<bool> ValidateReturnOrExchangeAgainstOriginalInvoiceAsync()
+        {
+            if (_currentInvoice.InvoiceType is not (InvoiceType.Return or InvoiceType.Exchange))
+                return true;
+
+            var negativeLines = _invoiceLines.Where(line => line.Quantity < 0).ToList();
+            if (!negativeLines.Any())
+            {
+                MessageBox.Show(UiText.T("لا يوجد صنف مرجع أو مستبدل في الفاتورة.", "There is no returned or exchanged item in the invoice."), UiText.T("تنبيه", "Notice"));
+                return false;
+            }
+
+            var originalInvoice = await LoadOriginalInvoiceForReturnOrExchangeAsync(_currentInvoice.OriginalInvoiceId);
+            if (originalInvoice?.InvoiceLines == null || !originalInvoice.InvoiceLines.Any())
+            {
+                MessageBox.Show(UiText.T("الفاتورة الأصلية غير موجودة أو لا تحتوي على أصناف.", "The original invoice was not found or has no items."), UiText.T("تنبيه", "Notice"));
+                return false;
+            }
+
+            foreach (var line in negativeLines)
+            {
+                if (!IsNegativeLineAllowedByOriginalInvoice(line, originalInvoice, negativeLines, out var message))
+                {
+                    MessageBox.Show(message, UiText.T("تنبيه", "Notice"));
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
         private void PrepareInvoiceForSave()
         {
             if (TryGetActiveCashierSession(out var session))
@@ -1670,8 +1765,9 @@ namespace RaccoonWarehouse.Invoices
         }
 
         //replace Item 
-        private void ExchangeItemBtn_Click(object sender, RoutedEventArgs e)
+        private async void ExchangeItemBtn_Click(object sender, RoutedEventArgs e)
         {
+            var loadingShown = false;
             try
             {
                 var selectedRow = GetSelectedInvoiceLine();
@@ -1686,15 +1782,40 @@ namespace RaccoonWarehouse.Invoices
                 if (win.ShowDialog() != true)
                     return;
 
+                _loading.Show();
+                loadingShown = true;
+
+                var originalInvoice = await LoadOriginalInvoiceForReturnOrExchangeAsync(win.OriginalInvoiceId);
+                if (originalInvoice?.InvoiceLines == null || !originalInvoice.InvoiceLines.Any())
+                {
+                    _loading.Hide();
+                    loadingShown = false;
+                    MessageBox.Show(UiText.T("الفاتورة الأصلية غير موجودة أو لا تحتوي على أصناف.", "The original invoice was not found or has no items."), UiText.T("تنبيه", "Notice"));
+                    return;
+                }
+
+                var exchangeLine = CloneLineSnapshot(
+                    selectedRow,
+                    -Math.Abs(selectedRow.Quantity),
+                    win.OriginalInvoiceId);
+
+                if (!IsNegativeLineAllowedByOriginalInvoice(exchangeLine, originalInvoice, new[] { exchangeLine }, out var validationMessage))
+                {
+                    _loading.Hide();
+                    loadingShown = false;
+                    MessageBox.Show(validationMessage, UiText.T("تنبيه", "Notice"));
+                    return;
+                }
+
+                _loading.Hide();
+                loadingShown = false;
+
                 CreateNewInvoice(
                     InvoiceType.Exchange,
                     win.OriginalInvoiceId
                 );
 
-                _invoiceLines.Add(CloneLineSnapshot(
-                    selectedRow,
-                    -Math.Abs(selectedRow.Quantity),
-                    win.OriginalInvoiceId));
+                _invoiceLines.Add(exchangeLine);
 
                 MessageBox.Show(UiText.T("امسح المادة الجديدة بالباركود", "Scan the new item barcode."), UiText.T("تنبيه", "Notice"));
                 RecalculateTotals();
@@ -1706,11 +1827,17 @@ namespace RaccoonWarehouse.Invoices
                 MessageBox.Show($"{UiText.T("تعذر تنفيذ الاستبدال", "Could not complete the exchange")}: {ex.Message}", UiText.T("خطأ", "Error"));
                 FocusBarcodeInput();
             }
+            finally
+            {
+                if (loadingShown)
+                    _loading.Hide();
+            }
         }
 
         //returns 
         private async void ReturnItemBtn_Click(object sender, RoutedEventArgs e)
         {
+            var loadingShown = false;
             try
             {
                 var selectedRow = GetSelectedInvoiceLine();
@@ -1726,6 +1853,7 @@ namespace RaccoonWarehouse.Invoices
                     return;
 
                 _loading.Show();
+                loadingShown = true;
 
                 // جلب الفاتورة الأصلية
                 var result = await _invoiceService
@@ -1737,12 +1865,16 @@ namespace RaccoonWarehouse.Invoices
                 var originalInvoice = result?.Data?.FirstOrDefault();
                 if (originalInvoice == null)
                 {
+                    _loading.Hide();
+                    loadingShown = false;
                     MessageBox.Show(UiText.T("الفاتورة غير موجودة", "The invoice was not found."), UiText.T("تنبيه", "Notice"));
                     return;
                 }
 
                 if (originalInvoice.InvoiceLines == null)
                 {
+                    _loading.Hide();
+                    loadingShown = false;
                     MessageBox.Show(UiText.T("بيانات الفاتورة الأصلية غير مكتملة.", "The original invoice data is incomplete."), UiText.T("تنبيه", "Notice"));
                     return;
                 }
@@ -1752,9 +1884,14 @@ namespace RaccoonWarehouse.Invoices
 
                 if (!exists)
                 {
+                    _loading.Hide();
+                    loadingShown = false;
                     MessageBox.Show(UiText.T("لا يمكن إرجاع مادة غير موجودة في الفاتورة الأصلية", "You cannot return an item that does not exist in the original invoice."), UiText.T("تنبيه", "Notice"));
                     return;
                 }
+
+                _loading.Hide();
+                loadingShown = false;
 
                 // 🟢 إنشاء فاتورة مرتجع جديدة
                 CreateNewInvoice(
@@ -1780,7 +1917,8 @@ namespace RaccoonWarehouse.Invoices
             }
             finally
             {
-                _loading.Hide();
+                if (loadingShown)
+                    _loading.Hide();
                 FocusBarcodeInput();
             }
         }
@@ -1984,6 +2122,7 @@ namespace RaccoonWarehouse.Invoices
 
         private void OpenReceipt_Click(object sender, RoutedEventArgs e)
         {
+            var loadingShown = false;
             try
             {
                 if (!TryGetActiveCashierSession(out var session))
@@ -1991,25 +2130,42 @@ namespace RaccoonWarehouse.Invoices
 
                 var sessionId = session.Id;
                 var cashierId = session.CashierId;
+
+                _loading.Show();
+                loadingShown = true;
 
                 var win = new ReceiptWindow(_financialService, sessionId, cashierId)
                 {
                     Owner = this
                 };
 
+                _loading.Hide();
+                loadingShown = false;
+
                 win.ShowDialog();
                 FocusBarcodeInput();
             }
             catch (Exception ex)
             {
+                if (loadingShown)
+                {
+                    _loading.Hide();
+                    loadingShown = false;
+                }
                 MessageBox.Show($"{UiText.T("تعذر فتح نافذة المقبوضات", "Could not open the receipts window")}: {ex.Message}", UiText.T("خطأ", "Error"));
                 FocusBarcodeInput();
+            }
+            finally
+            {
+                if (loadingShown)
+                    _loading.Hide();
             }
         }
 
 
         private void OpenPayment_Click(object sender, RoutedEventArgs e)
         {
+            var loadingShown = false;
             try
             {
                 if (!TryGetActiveCashierSession(out var session))
@@ -2018,18 +2174,34 @@ namespace RaccoonWarehouse.Invoices
                 var sessionId = session.Id;
                 var cashierId = session.CashierId;
 
+                _loading.Show();
+                loadingShown = true;
+
                 var win = new PaymentWindow(_financialService, sessionId, cashierId)
                 {
                     Owner = this
                 };
+
+                _loading.Hide();
+                loadingShown = false;
 
                 win.ShowDialog();
                 FocusBarcodeInput();
             }
             catch (Exception ex)
             {
+                if (loadingShown)
+                {
+                    _loading.Hide();
+                    loadingShown = false;
+                }
                 MessageBox.Show($"{UiText.T("تعذر فتح نافذة المدفوعات", "Could not open the payments window")}: {ex.Message}", UiText.T("خطأ", "Error"));
                 FocusBarcodeInput();
+            }
+            finally
+            {
+                if (loadingShown)
+                    _loading.Hide();
             }
             /*            WindowManager.ShowDialog<PaymentWindow>(WindowSizeType.SmallRectangle);
             */
@@ -2879,6 +3051,8 @@ namespace RaccoonWarehouse.Invoices
 
                 if (!CanSaveInvoice())
                     return;
+                if (!await ValidateReturnOrExchangeAgainstOriginalInvoiceAsync())
+                    return;
                 if (!TryGetActiveCashierSession(out var session))
                     return;
                 if (!await ValidateStockAvailabilityAsync())
@@ -2922,32 +3096,7 @@ namespace RaccoonWarehouse.Invoices
                 }
 
                 if (paymentType != PaymentType.Credit)
-                {
-                    var postDto = new FinancialPostDto
-                    {
-                        Direction = TransactionDirection.In,
-                        Method = MapPaymentMethod(paymentType),
-                        Amount = _currentInvoice.TotalAmount,
-                        TransactionDate = DateTime.Now,
-
-                        SourceType = FinancialSourceType.PosSaleInvoice,
-                        SourceId = savedInvoiceId,
-
-                        CashierSessionId = session.Id,
-                        CashierId = session.CashierId,
-
-                        Notes = $"POS Invoice #{_currentInvoice.InvoiceNumber}"
-                    };
-
-                    var postResult = await _financialService.PostAsync(postDto);
-                    if (!postResult.Success)
-                    {
-                        _loading.Hide();
-                        loadingShown = false;
-                        MessageBox.Show(postResult.Message ?? UiText.T("تم حفظ الفاتورة وتحديث المخزون لكن فشل تسجيل الحركة المالية", "The invoice was saved and stock was updated, but posting the financial transaction failed."), UiText.T("تحذير", "Warning"));
-                        return;
-                    }
-                }
+                    await PostFinancialForInvoiceAsync(savedInvoiceId);
 
                 _loading.Hide();
                 loadingShown = false;

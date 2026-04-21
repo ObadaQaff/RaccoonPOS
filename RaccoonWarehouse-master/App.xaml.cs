@@ -43,6 +43,7 @@ using RaccoonWarehouse.FinancialTransactions.Reports;
 using RaccoonWarehouse.Helpers.Localization;
 using RaccoonWarehouse.Invoices;
 using RaccoonWarehouse.Invoices.Reports;
+using RaccoonWarehouse.Modules.Reports;
 using RaccoonWarehouse.Navigation;
 using RaccoonWarehouse.Navigation.Modules;
 using RaccoonWarehouse.Orders;
@@ -706,6 +707,29 @@ END;";
 
         private void ConfigureServices(IServiceCollection services)
         {
+            var windowMap = new Dictionary<string, Type>(StringComparer.Ordinal)
+            {
+                ["current-stock"] = typeof(CurrentStock),
+                ["stock-movements"] = typeof(RaccoonWarehouse.Stocks.Reports.StockMovementsReport),
+                ["sales-report"] = typeof(SalesReport),
+                ["credit-sales"] = typeof(CreditSalesReport),
+                ["inactive-products"] = typeof(InactiveProductsReport),
+                ["discount-summary"] = typeof(DiscountSummaryReport),
+                ["item-cost-detail"] = typeof(ItemCostDetailReport),
+                ["price-list"] = typeof(PriceListReport),
+                ["below-min-stock"] = typeof(LowStockReport),
+                ["stock-balance-by-date"] = typeof(StockBalanceByDateReport),
+                ["invoices-profit"] = typeof(InvoicesProfitBrowser),
+                ["inventory-movement-summary"] = typeof(InventoryMovementSummary),
+                ["stock-valuation"] = typeof(StockValuationReport),
+                ["product-profit"] = typeof(ProductProfitReport),
+                ["cash-flow"] = typeof(CashFlowReport),
+                ["profit-loss"] = typeof(ProfitLossReport),
+                ["stock-balances"] = typeof(StockBalancesReport),
+                ["material-movements"] = typeof(MaterialMovementsReport),
+                ["inactive-items"] = typeof(InactiveItemsReport)
+            };
+
             // Database
             services.AddDbContext<ApplicationDbContext>(options =>
                 options.UseSqlServer(DatabaseConnectionStringProvider.GetConnectionString()));
@@ -716,6 +740,9 @@ END;";
 
             //session singelton 
             services.AddSingleton<IUserSession, UserSession>();
+            services.AddSingleton<IReadOnlyDictionary<string, Type>>(windowMap);
+            services.AddSingleton<IWindowNavigationService, WindowNavigationService>();
+            services.AddSingleton<RaccoonWarehouse.Core.Localization.IUiTextLocalizer, UiTextLocalizer>();
 
 
 
@@ -752,10 +779,10 @@ END;";
             services.AddSingleton<ILoadingService, LoadingService>();
             services.AddScoped<ICashierSessionService, CashierSessionService>();
             services.AddScoped<IAuthService, AuthService>();
+            services.AddAppModule(new ReportsAppModule());
             services.AddTransient<IModuleDefinitionProvider, ProductsDashboardModule>();
             services.AddTransient<IModuleDefinitionProvider, CategoriesDashboardModule>();
             services.AddTransient<IModuleDefinitionProvider, SalesDashboardModule>();
-            services.AddTransient<IModuleDefinitionProvider, ReportsDashboardModule>();
             services.AddTransient<IModuleDefinitionProvider, WarehousesDashboardModule>();
             services.AddTransient<IModuleDefinitionProvider, BrandsDashboardModule>();
             services.AddTransient<IModuleDefinitionProvider, SettingsDashboardModule>();
@@ -765,7 +792,6 @@ END;";
             services.AddTransient<IDashboardActionHandler, ProductsDashboardActionHandler>();
             services.AddTransient<IDashboardActionHandler, CategoriesDashboardActionHandler>();
             services.AddTransient<IDashboardActionHandler, SalesDashboardActionHandler>();
-            services.AddTransient<IDashboardActionHandler, ReportsDashboardActionHandler>();
             services.AddTransient<IDashboardActionHandler, WarehousesDashboardActionHandler>();
             services.AddTransient<IDashboardActionHandler, BrandsDashboardActionHandler>();
             services.AddTransient<IDashboardActionHandler, SettingsDashboardActionHandler>();

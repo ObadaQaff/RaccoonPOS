@@ -197,6 +197,17 @@ namespace RaccoonWarehouse.Vouchers
         }*/
         private async void SaveReceiptBtn_Click(object sender, RoutedEventArgs e)
         {
+            var loadingShown = false;
+
+            void HideLoadingIfShown()
+            {
+                if (!loadingShown)
+                    return;
+
+                _loadingService.Hide();
+                loadingShown = false;
+            }
+
             try
             {
                 if (!decimal.TryParse(Amount.Text, out decimal amount) || amount <= 0)
@@ -238,6 +249,7 @@ namespace RaccoonWarehouse.Vouchers
                 if (!TryGetActiveCashierSession(out var session))
                     return;
                 _loadingService.Show();
+                loadingShown = true;
 
                 var dto = new VoucherWriteDto
                 {
@@ -263,6 +275,7 @@ namespace RaccoonWarehouse.Vouchers
                     var createResult = await _voucherService.CreateAsync(dto);
                     if (!createResult.Success)
                     {
+                        HideLoadingIfShown();
                         MessageBox.Show($"{UiText.T("فشل في الحفظ", "Save failed")}: {createResult.Message}", UiText.T("خطأ", "Error"), MessageBoxButton.OK, MessageBoxImage.Error);
                         return;
                     }
@@ -277,6 +290,7 @@ namespace RaccoonWarehouse.Vouchers
                     var updateResult = await _voucherService.UpdateAsync(dto);
                     if (!updateResult.Success)
                     {
+                        HideLoadingIfShown();
                         MessageBox.Show($"{UiText.T("فشل في التحديث", "Update failed")}: {updateResult.Message}", UiText.T("خطأ", "Error"), MessageBoxButton.OK, MessageBoxImage.Error);
                         return;
                     }
@@ -306,6 +320,7 @@ namespace RaccoonWarehouse.Vouchers
                     // حتى لو ما لقى حركات قديمة، ما تعتبرها فشل
                     if (!voidRes.Success)
                     {
+                        HideLoadingIfShown();
                         MessageBox.Show(voidRes.Message ?? UiText.T("فشل في إلغاء الحركات القديمة.", "Failed to void previous transactions."), UiText.T("خطأ", "Error"));
                         return;
                     }
@@ -331,6 +346,7 @@ namespace RaccoonWarehouse.Vouchers
                 var postRes = await _financialService.PostAsync(postDto);
                 if (!postRes.Success)
                 {
+                    HideLoadingIfShown();
                     MessageBox.Show(postRes.Message ?? UiText.T("تم حفظ السند لكن فشل تسجيل الحركة المالية", "The voucher was saved, but posting the financial transaction failed."), UiText.T("تحذير", "Warning"));
                     return;
                 }
@@ -338,6 +354,7 @@ namespace RaccoonWarehouse.Vouchers
                 // =========================
                 // 3) UI
                 // =========================
+                HideLoadingIfShown();
                 MessageBox.Show(
                     isUpdate
                         ? UiText.T("تم تحديث السند وتسجيل الحركة المالية ✅", "The voucher was updated and the financial transaction was posted successfully.")
@@ -348,11 +365,12 @@ namespace RaccoonWarehouse.Vouchers
             }
             catch (Exception ex)
             {
+                HideLoadingIfShown();
                 MessageBox.Show($"{UiText.T("حدث خطأ أثناء حفظ السند", "An error occurred while saving the voucher")}:\n{ex.Message}", UiText.T("خطأ", "Error"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {
-                _loadingService.Hide();
+                HideLoadingIfShown();
             }
         }
 

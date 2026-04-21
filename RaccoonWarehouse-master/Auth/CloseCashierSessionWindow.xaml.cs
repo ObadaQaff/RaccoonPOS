@@ -117,7 +117,7 @@ namespace RaccoonWarehouse.Auth
                         Amount = Math.Abs(diff),
                         TransactionDate = DateTime.Now,
 
-                        SourceType = FinancialSourceType.Manual,
+                        SourceType = FinancialSourceType.SessionClosing,
                         SourceId = null,
 
                         CashierSessionId = sessionId,

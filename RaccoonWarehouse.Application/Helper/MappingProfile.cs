@@ -108,6 +108,7 @@ namespace RaccoonWarehouse.Application.Helper
 
             CreateMap<InvoiceWriteDto, Invoice>()
                 .ForMember(d => d.InvoiceLines, opt => opt.Ignore());
+            CreateMap<Invoice, InvoiceWriteDto>();
             CreateMap<Invoice, InvoiceReadDto>()
                 .ForMember(dest => dest.DelegateName, opt => opt.MapFrom(src => src.Delegate != null ? src.Delegate.FullName : null))
                 .ReverseMap();
@@ -115,6 +116,11 @@ namespace RaccoonWarehouse.Application.Helper
             CreateMap<InvoiceLineWriteDto, InvoiceLine>()
                 .ForMember(d => d.InvoiceId, opt => opt.Ignore())
                 .ForMember(d => d.Invoice, opt => opt.Ignore());
+            CreateMap<InvoiceLine, InvoiceLineWriteDto>()
+                .ForMember(d => d.Invoice, opt => opt.Ignore())
+                .ForMember(d => d.Product, opt => opt.Ignore())
+                .ForMember(d => d.ProductUnit, opt => opt.Ignore())
+                .ForMember(d => d.SelectedProduct, opt => opt.Ignore());
             CreateMap<InvoiceLine, InvoiceLineReadDto>()
                 .ForMember(dest => dest.ProductName, opt => opt.MapFrom(src => src.Product.Name))
                 .ReverseMap();

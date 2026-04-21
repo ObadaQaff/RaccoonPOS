@@ -1,22 +1,15 @@
-﻿using AutoMapper;
+using AutoMapper;
 using Microsoft.EntityFrameworkCore;
+using RaccoonWarehouse.Application.Service.Accounting;
 using RaccoonWarehouse.Application.Service.Generic;
 using RaccoonWarehouse.Core.Common;
 using RaccoonWarehouse.Core.Interface;
 using RaccoonWarehouse.Data;
+using RaccoonWarehouse.Domain.Accounting.Enums;
 using RaccoonWarehouse.Domain.Checks;
 using RaccoonWarehouse.Domain.Enums;
-using RaccoonWarehouse.Domain.Invoices;
-using RaccoonWarehouse.Domain.Invoices.DTOs;
-using RaccoonWarehouse.Domain.Stock;
-using RaccoonWarehouse.Domain.StockDocuments.DTOs;
 using RaccoonWarehouse.Domain.Vouchers;
 using RaccoonWarehouse.Domain.Vouchers.DTOs;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace RaccoonWarehouse.Application.Service.Vouchers
 {
@@ -24,48 +17,123 @@ namespace RaccoonWarehouse.Application.Service.Vouchers
     {
         private readonly IUOW _uow;
         private readonly IMapper _mapper;
-        public VoucherService(ApplicationDbContext context, IUOW uow, IMapper mapper) : base(context, uow, mapper)
+        private readonly IAccountingService? _accountingService;
+
+        public VoucherService(ApplicationDbContext context, IUOW uow, IMapper mapper) : this(context, uow, mapper, null)
+        {
+        }
+
+        public VoucherService(ApplicationDbContext context, IUOW uow, IMapper mapper, IAccountingService? accountingService) : base(context, uow, mapper)
         {
             _uow = uow;
             _mapper = mapper;
+            _accountingService = accountingService;
         }
+
         public override async Task<Result<VoucherWriteDto>> CreateAsync(VoucherWriteDto dto)
         {
             try
             {
-                // 1. Map DTO → Entity
+                var now = GetJordanNow();
+                dto.CreatedDate = dto.CreatedDate == default ? now : dto.CreatedDate;
+                dto.UpdatedDate = now;
+
                 var voucher = _mapper.Map<Voucher>(dto);
+                voucher.CreatedDate = dto.CreatedDate;
+                voucher.UpdatedDate = dto.UpdatedDate;
+                voucher.Checks = BuildChecks(dto, voucher, now);
 
-                // 2. Attach checks if any
-                if (dto.Checks != null && dto.Checks.Count > 0)
+                await _uow.Vouchers.AddAsync(voucher);
+                await _uow.CommitAsync();
+
+                dto.Id = voucher.Id;
+
+                if (_accountingService != null)
                 {
-                    voucher.Checks = dto.Checks.Select(c => new Check
+                    var journalResult = await _accountingService.PostVoucherEntryAsync(dto);
+                    if (!journalResult.Success)
                     {
-                        CheckNumber = c.CheckNumber,
-                        BankName = c.BankName,
-                        DueDate = c.DueDate,
-                        Amount = c.Amount,
-                        Notes = c.Notes,
+                        await _uow.Vouchers.DeleteAsync(voucher.Id);
+                        await _uow.CommitAsync();
+                        return Result<VoucherWriteDto>.Fail($"Voucher creation was rolled back because accounting posting failed: {journalResult.Message}");
+                    }
 
-                        // Parent will be assigned automatically
-                        Voucher = voucher,
-                        CreatedDate = DateTime.Now,
-                        UpdatedDate = DateTime.Now
-                    }).ToList();
+                    voucher.PostingStatus = journalResult.Data?.Id > 0
+                        ? AccountingPostingStatus.Posted
+                        : AccountingPostingStatus.NotPosted;
+                    await _uow.Vouchers.UpdateAsync(voucher);
+                    await _uow.CommitAsync();
                 }
 
-                // 3. Save voucher + checks in one transaction
-                await _uow.Vouchers.AddAsync(voucher);
-                await _context.SaveChangesAsync();
-
-                // 4. Map back to DTO
-                var resultDto = _mapper.Map<VoucherWriteDto>(voucher);
-
-                return Result<VoucherWriteDto>.Ok(resultDto);
+                return Result<VoucherWriteDto>.Ok(dto);
             }
             catch (Exception ex)
             {
                 return Result<VoucherWriteDto>.Fail("خطأ أثناء إضافة السند: " + ex.Message);
+            }
+        }
+
+        public override async Task<Result<VoucherWriteDto>> UpdateAsync(VoucherWriteDto dto)
+        {
+            try
+            {
+                if (dto.Id <= 0)
+                    return Result<VoucherWriteDto>.Fail("Voucher id is required.");
+
+                var voucher = await _uow.Vouchers.GetAllAsQueryable()
+                    .Include(x => x.Checks)
+                    .FirstOrDefaultAsync(x => x.Id == dto.Id);
+
+                if (voucher == null)
+                    return Result<VoucherWriteDto>.Fail("Voucher not found.");
+
+                var now = GetJordanNow();
+                var hadPostedAccounting = voucher.PostingStatus == AccountingPostingStatus.Posted;
+
+                dto.CreatedDate = voucher.CreatedDate;
+                dto.UpdatedDate = now;
+
+                _mapper.Map(dto, voucher);
+                voucher.CreatedDate = dto.CreatedDate;
+                voucher.UpdatedDate = dto.UpdatedDate;
+
+                if (voucher.Checks != null && voucher.Checks.Count > 0)
+                    _context.Set<Check>().RemoveRange(voucher.Checks);
+
+                voucher.Checks = BuildChecks(dto, voucher, now);
+
+                await _uow.Vouchers.UpdateAsync(voucher);
+                await _uow.CommitAsync();
+
+                if (_accountingService != null)
+                {
+                    if (hadPostedAccounting)
+                    {
+                        var reverseResult = await _accountingService.ReverseJournalByReferenceAsync(
+                            "Voucher",
+                            voucher.Id,
+                            $"Repost voucher #{voucher.VoucherNumber ?? voucher.Id.ToString()} after update");
+
+                        if (!reverseResult.Success)
+                            return Result<VoucherWriteDto>.Fail($"Voucher update was blocked because accounting reversal failed: {reverseResult.Message}");
+                    }
+
+                    var repostResult = await _accountingService.PostVoucherEntryAsync(dto);
+                    if (!repostResult.Success)
+                        return Result<VoucherWriteDto>.Fail($"Voucher data was updated but accounting repost failed: {repostResult.Message}");
+
+                    voucher.PostingStatus = repostResult.Data?.Id > 0
+                        ? AccountingPostingStatus.Posted
+                        : AccountingPostingStatus.NotPosted;
+                    await _uow.Vouchers.UpdateAsync(voucher);
+                    await _uow.CommitAsync();
+                }
+
+                return Result<VoucherWriteDto>.Ok(dto, "Voucher updated successfully.");
+            }
+            catch (Exception ex)
+            {
+                return Result<VoucherWriteDto>.Fail("خطأ أثناء تعديل السند: " + ex.Message);
             }
         }
 
@@ -77,27 +145,22 @@ namespace RaccoonWarehouse.Application.Service.Vouchers
             PaymentType? paymentType,
             VoucherType? type)
         {
-
             var query = _uow.Vouchers.GetAllAsQueryable()
-                    .Include(v => v.Checks)
-                    .Include(v => v.User)
-                    .AsNoTracking();
+                .Include(v => v.Checks)
+                .Include(v => v.User)
+                .AsNoTracking();
+
             if (type.HasValue)
-            {
                 query = query.Where(d => d.VoucherType == type.Value);
 
-
-            }
             if (paymentType.HasValue)
-            {
                 query = query.Where(d => d.PaymentType == paymentType.Value);
-            }
 
             if (!string.IsNullOrWhiteSpace(voucherNumber))
-            query = query.Where(d => d.VoucherNumber == (voucherNumber));
+                query = query.Where(d => d.VoucherNumber == voucherNumber);
 
             if (!string.IsNullOrWhiteSpace(customerName))
-                query = query.Where(d => d.User.Name.Contains(customerName));
+                query = query.Where(d => d.User != null && d.User.Name.Contains(customerName));
 
             if (dateFrom.HasValue)
                 query = query.Where(d => d.CreatedDate >= dateFrom.Value);
@@ -105,14 +168,35 @@ namespace RaccoonWarehouse.Application.Service.Vouchers
             if (dateTo.HasValue)
                 query = query.Where(d => d.CreatedDate <= dateTo.Value);
 
-            var result = await query.AsNoTracking().ToListAsync();
+            var result = await query.ToListAsync();
             return _mapper.Map<List<VoucherReadDto>>(result);
-
         }
 
+        private static List<Check> BuildChecks(VoucherWriteDto dto, Voucher voucher, DateTime now)
+        {
+            if (dto.Checks == null || dto.Checks.Count == 0)
+                return new List<Check>();
 
+            return dto.Checks.Select(c => new Check
+            {
+                CheckNumber = c.CheckNumber,
+                BankName = c.BankName,
+                DueDate = c.DueDate,
+                Amount = c.Amount,
+                Notes = c.Notes,
+                Voucher = voucher,
+                CreatedDate = now,
+                UpdatedDate = now
+            }).ToList();
+        }
 
+        private static DateTime GetJordanNow()
+        {
+            var jordanTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Jordan Standard Time");
+            return TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, jordanTimeZone);
+        }
     }
+
     public interface IVoucherService : IGenericService<Voucher, VoucherWriteDto, VoucherReadDto>
     {
         Task<List<VoucherReadDto>> SearchVouchersAsync(

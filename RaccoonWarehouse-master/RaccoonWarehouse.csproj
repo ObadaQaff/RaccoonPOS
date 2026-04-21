@@ -70,6 +70,7 @@
 		<ProjectReference Include="..\RaccoonWarehouse.Data\RaccoonWarehouse.Data.csproj" />
 		<ProjectReference Include="..\RaccoonWarehouse.Core\RaccoonWarehouse.Core.csproj" />
 		<ProjectReference Include="..\RaccoonWarehouse.Domain\RaccoonWarehouse.Domain.csproj" />
+		<ProjectReference Include="..\RaccoonWarehouse.Modules.Reports\RaccoonWarehouse.Modules.Reports.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>

@@ -12,6 +12,7 @@ namespace RaccoonWarehouse.Domain.Reports.Sales.Dtos
         public string InvoiceNumber { get; set; }
         public DateTime Date { get; set; }
         public string CustomerName { get; set; }
+        public string CashierName { get; set; }
 
         public decimal SubTotal { get; set; }       // قبل الضريبة
         public decimal TotalTax { get; set; }

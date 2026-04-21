@@ -22,6 +22,460 @@ namespace RaccoonWarehouse.Data.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Accounting.AccountOpeningBalances.AccountOpeningBalance", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AccountId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("BranchId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("CostCenterId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("CreatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("Credit")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("Debit")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("FiscalYearId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("PartyUserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ReferenceNumber")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("UpdatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("WarehouseId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AccountId");
+
+                    b.HasIndex("FiscalYearId", "AccountId", "BranchId", "CostCenterId", "WarehouseId", "PartyUserId");
+
+                    b.ToTable("AccountOpeningBalances");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Accounting.Accounts.Account", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AccountType")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("AllowManualEntry")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("ArabicName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int?>("CreatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("CurrencyId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("EnglishName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsPosting")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsSystemGenerated")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("Level")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("NormalBalanceType")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ParentAccountId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("UpdatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.HasIndex("ParentAccountId");
+
+                    b.ToTable("Accounts");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Accounting.JournalEntries.JournalEntry", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("AccountingPeriodId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("ApprovedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("ApprovedBy")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("BranchId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("CashierSessionId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("CreatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("CurrencyId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("EntryDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("EntryNumber")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int?>("FiscalYearId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsDraft")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("ReferenceId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ReferenceNumber")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ReferenceType")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("SourceId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("SourceType")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("UpdatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("WarehouseId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AccountingPeriodId");
+
+                    b.HasIndex("EntryNumber")
+                        .IsUnique();
+
+                    b.HasIndex("FiscalYearId");
+
+                    b.ToTable("JournalEntries");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Accounting.JournalEntries.JournalEntryLine", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AccountId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("BranchId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("CashierId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("CostCenterId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("Credit")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int?>("CustomerId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("Debit")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("FinancialTransactionId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("InvoiceId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("JournalEntryId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("LineNumber")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("PartyUserId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ReferenceId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ReferenceType")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("StockDocumentId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("SupplierId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("VoucherId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("WarehouseId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AccountId");
+
+                    b.HasIndex("JournalEntryId", "LineNumber")
+                        .IsUnique();
+
+                    b.ToTable("JournalEntryLines");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Accounting.Periods.AccountingPeriod", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("CreatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("EndDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("FiscalYearId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsClosed")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("PeriodNumber")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("StartDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("UpdatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FiscalYearId", "PeriodNumber")
+                        .IsUnique();
+
+                    b.ToTable("AccountingPeriods");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Accounting.Periods.FiscalYear", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int?>("CreatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("EndDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsClosed")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("StartDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("UpdatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("FiscalYears");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Branches.Branch", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Address")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ArabicName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int?>("CreatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("EnglishName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PhoneNumber")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("UpdatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("Branches");
+                });
+
             modelBuilder.Entity("RaccoonWarehouse.Domain.Brands.Brand", b =>
                 {
                     b.Property<int>("Id")
@@ -56,25 +510,43 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<int?>("BranchId")
+                        .HasColumnType("int");
+
                     b.Property<int>("CashierId")
                         .HasColumnType("int");
 
                     b.Property<DateTime?>("ClosedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<int?>("CreatedBy")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<decimal?>("DifferenceAmount")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<decimal>("EndingBalance")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal?>("ExpectedClosingBalance")
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<DateTime>("OpenedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("SessionNumber")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<decimal>("StatrBalance")
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("UpdatedBy")
                         .HasColumnType("int");
 
                     b.Property<DateTime>("UpdatedDate")
@@ -162,6 +634,285 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.ToTable("Check");
                 });
 
+            modelBuilder.Entity("RaccoonWarehouse.Domain.CostCenters.CostCenter", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ArabicName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int?>("CreatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("EnglishName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("Level")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("ParentCostCenterId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("UpdatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.HasIndex("ParentCostCenterId");
+
+                    b.ToTable("CostCenters");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Currencies.Currency", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ArabicName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int?>("CreatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("EnglishName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal>("ExchangeRate")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsBaseCurrency")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Symbol")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("UpdatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("Currencies");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Delegates.Delegate", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AlternatePhoneNumber")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("AreaName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int?>("CreatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("DelegateType")
+                        .HasColumnType("int");
+
+                    b.Property<string>("FullName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("HireDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<int?>("ModifiedBy")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PhoneNumber")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("RegionId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.HasIndex("UserId")
+                        .IsUnique()
+                        .HasFilter("[UserId] IS NOT NULL");
+
+                    b.ToTable("Delegate");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Employees.Employee", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Address")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("AlternatePhoneNumber")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal?>("BasicSalary")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int?>("BranchId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int?>("CreatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DateOfBirth")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DepartmentId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Email")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("FullName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("Gender")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("HireDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("JobTitle")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("ManagerId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ModifiedBy")
+                        .HasColumnType("int");
+
+                    b.Property<string>("NationalId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PhoneNumber")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("TerminationDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.HasIndex("DepartmentId");
+
+                    b.HasIndex("ManagerId");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("UserId")
+                        .IsUnique()
+                        .HasFilter("[UserId] IS NOT NULL");
+
+                    b.ToTable("Employee");
+                });
+
             modelBuilder.Entity("RaccoonWarehouse.Domain.FinancialTransactions.FinancialTransaction", b =>
                 {
                     b.Property<int>("Id")
@@ -173,20 +924,37 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Property<decimal>("Amount")
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<int?>("CasherId")
+                    b.Property<int?>("BranchId")
                         .HasColumnType("int");
 
+                    b.Property<int?>("CashierId")
+                        .HasColumnType("int")
+                        .HasColumnName("CasherId");
+
                     b.Property<int?>("CashierSessionId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("CreatedBy")
                         .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
 
-                    b.Property<DateTime>("Date")
-                        .HasColumnType("datetime2");
+                    b.Property<int?>("CurrencyId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Direction")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("ExchangeRate")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<int?>("InvoiceId")
                         .HasColumnType("int");
+
+                    b.Property<int>("LegacyType")
+                        .HasColumnType("int")
+                        .HasColumnName("Type");
 
                     b.Property<int>("Method")
                         .HasColumnType("int");
@@ -194,11 +962,30 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Property<string>("Notes")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int>("PostingStatus")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ReferenceNumber")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("SourceId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SourceType")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("TransactionDate")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("Date");
+
                     b.Property<string>("TransactionNumber")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int>("Type")
+                    b.Property<int?>("UpdatedBy")
                         .HasColumnType("int");
 
                     b.Property<DateTime>("UpdatedDate")
@@ -207,9 +994,16 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Property<int?>("VoucherId")
                         .HasColumnType("int");
 
+                    b.Property<int?>("WarehouseId")
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
 
+                    b.HasIndex("CashierId");
+
                     b.HasIndex("CashierSessionId");
+
+                    b.HasIndex("SourceType", "SourceId");
 
                     b.ToTable("FinancialTransaction");
                 });
@@ -222,17 +1016,20 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("datetime2");
-
                     b.Property<decimal>("BaseQuantity")
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
 
                     b.Property<DateTime>("ExpiryDate")
                         .HasColumnType("datetime2");
 
                     b.Property<int>("InvoiceId")
                         .HasColumnType("int");
+
+                    b.Property<decimal>("LineSubTotal")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("OriginalInvoiceId")
                         .HasColumnType("nvarchar(max)");
@@ -243,10 +1040,28 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Property<int>("ProductUnitId")
                         .HasColumnType("int");
 
+                    b.Property<decimal>("Profit")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("ProfitBeforeTax")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<decimal>("Quantity")
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal>("QuantityPerUnitSnapshot")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("TaxAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<bool>("TaxExempt")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal>("TaxRate")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("UnitCost")
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal>("UnitPrice")
@@ -274,6 +1089,9 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<int?>("BranchId")
+                        .HasColumnType("int");
+
                     b.Property<int?>("CasherId")
                         .HasColumnType("int");
 
@@ -283,13 +1101,31 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Property<DateTime?>("ClosedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<int?>("CreatedBy")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
+
+                    b.Property<int?>("CurrencyId")
+                        .HasColumnType("int");
 
                     b.Property<int?>("CustomerId")
                         .HasColumnType("int");
 
+                    b.Property<int?>("DelegateId")
+                        .HasColumnType("int");
+
                     b.Property<decimal?>("DiscountAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime?>("DocumentDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("ExchangeRate")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("GrossProfit")
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("InvoiceNumber")
@@ -302,6 +1138,9 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Property<bool?>("IsPOS")
                         .HasColumnType("bit");
 
+                    b.Property<decimal>("NetSales")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<DateTime?>("OpenedAt")
                         .HasColumnType("datetime2");
 
@@ -311,14 +1150,32 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Property<int?>("PaymentType")
                         .HasColumnType("int");
 
+                    b.Property<int>("PostingStatus")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ReferenceNumber")
+                        .HasColumnType("nvarchar(450)");
+
                     b.Property<int?>("Status")
                         .HasColumnType("int");
+
+                    b.Property<decimal>("SubTotal")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<int?>("SupplierId")
                         .HasColumnType("int");
 
                     b.Property<decimal>("TotalAmount")
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("TotalCOGS")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("TotalTax")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int?>("UpdatedBy")
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("UpdatedDate")
                         .HasColumnType("datetime2");
@@ -329,15 +1186,140 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Property<int?>("VoucherId")
                         .HasColumnType("int");
 
+                    b.Property<int?>("WarehouseId")
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CashierSessionId");
+
+                    b.HasIndex("DelegateId");
+
+                    b.HasIndex("ReferenceNumber");
 
                     b.HasIndex("UserId");
 
                     b.HasIndex("VoucherId");
 
                     b.ToTable("Invoice");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Permissions.PermissionDefinition", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("LegacyReportKey")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Module")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Resource")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Key")
+                        .IsUnique();
+
+                    b.ToTable("PermissionDefinitions");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Permissions.ReportPermission", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("CanView")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ReportKey")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int>("Role")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReportKey", "Role")
+                        .IsUnique();
+
+                    b.ToTable("ReportPermissions");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Permissions.RolePermission", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsAllowed")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("PermissionKey")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int>("Role")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Role", "PermissionKey")
+                        .IsUnique();
+
+                    b.ToTable("RolePermissions");
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.ProductUnits.ProductUnit", b =>
@@ -486,6 +1468,38 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.ToTable("SubCategoryBrand");
                 });
 
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Settings.AppSetting", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTime>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Value")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Key")
+                        .IsUnique();
+
+                    b.ToTable("AppSettings");
+                });
+
             modelBuilder.Entity("RaccoonWarehouse.Domain.Stock.Stock", b =>
                 {
                     b.Property<int>("Id")
@@ -495,6 +1509,9 @@ namespace RaccoonWarehouse.Data.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("LastMovementDate")
                         .HasColumnType("datetime2");
 
                     b.Property<int>("ProductId")
@@ -515,13 +1532,93 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Property<DateTime>("UpdatedDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<int?>("WarehouseId")
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ProductId");
 
                     b.HasIndex("ProductUnitId");
 
+                    b.HasIndex("WarehouseId", "ProductId", "ProductUnitId");
+
                     b.ToTable("Stock");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.StockAdjustments.StockAdjustment", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("AdjustmentDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("AdjustmentType")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("BaseQuantityDelta")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("ExpiryDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("NewStockLotId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ProductId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ProductUnitId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("PurchasePrice")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("QuantityDelta")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("QuantityPerUnitSnapshot")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Reference")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal?>("SalePrice")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("StockLotId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NewStockLotId");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("ProductUnitId");
+
+                    b.HasIndex("StockLotId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("StockAdjustment");
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.StockDocuments.StockDocument", b =>
@@ -532,14 +1629,29 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<int?>("BranchId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("CreatedBy")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DocumentDate")
                         .HasColumnType("datetime2");
 
                     b.Property<string>("DocumentNumber")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<string>("Notes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("PostingStatus")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ReferenceNumber")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<int?>("SupplierId")
@@ -548,10 +1660,19 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Property<int>("Type")
                         .HasColumnType("int");
 
+                    b.Property<int?>("UpdatedBy")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("UpdatedDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<int?>("WarehouseId")
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("DocumentNumber")
+                        .IsUnique();
 
                     b.HasIndex("SupplierId");
 
@@ -566,14 +1687,17 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("datetime2");
-
                     b.Property<decimal>("BaseQuantity")
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateTime?>("ExpiryDate")
                         .HasColumnType("datetime2");
+
+                    b.Property<int>("LineNumber")
+                        .HasColumnType("int");
 
                     b.Property<int>("ProductId")
                         .HasColumnType("int");
@@ -593,7 +1717,11 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Property<decimal>("SalePrice")
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<int>("StockId")
+                    b.Property<int>("StockDocumentId")
+                        .HasColumnType("int")
+                        .HasColumnName("StockId");
+
+                    b.Property<int?>("StockLotId")
                         .HasColumnType("int");
 
                     b.Property<DateTime>("UpdatedDate")
@@ -605,9 +1733,87 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("ProductUnitId");
 
-                    b.HasIndex("StockId");
+                    b.HasIndex("StockDocumentId", "LineNumber");
 
                     b.ToTable("StockItem");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.StockLots.StockLot", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("BaseQuantity")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int?>("ClosedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("ClosedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ClosedReason")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("ExpiryDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("ProductId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ProductUnitId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("PurchasePrice")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("Quantity")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("QuantityPerUnitSnapshot")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("RemainingBaseQuantity")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("RemainingQuantity")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int?>("ReplacedByStockLotId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ReplacesStockLotId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("SalePrice")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("ProductUnitId");
+
+                    b.HasIndex("ReplacesStockLotId")
+                        .IsUnique()
+                        .HasFilter("[ReplacesStockLotId] IS NOT NULL");
+
+                    b.ToTable("StockLot");
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.StockTransactions.StockTransaction", b =>
@@ -618,10 +1824,19 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<decimal>("BaseQuantity")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int?>("BranchId")
+                        .HasColumnType("int");
+
                     b.Property<int?>("CasherId")
                         .HasColumnType("int");
 
                     b.Property<int?>("CashierSessionId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("CreatedBy")
                         .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedDate")
@@ -629,6 +1844,9 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.Property<int?>("CustomerId")
                         .HasColumnType("int");
+
+                    b.Property<DateTime?>("ExpiryDate")
+                        .HasColumnType("datetime2");
 
                     b.Property<int?>("InvoiceId")
                         .HasColumnType("int");
@@ -645,7 +1863,28 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Property<decimal>("Quantity")
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<decimal>("QuantityPerUnitSnapshot")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("ReferenceNumber")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("SourceId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("SourceType")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("StockAdjustmentId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("StockDocumentId")
+                        .HasColumnType("int");
+
                     b.Property<int?>("StockId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("StockLotId")
                         .HasColumnType("int");
 
                     b.Property<DateTime>("TransactionDate")
@@ -663,6 +1902,9 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Property<int?>("VoucherId")
                         .HasColumnType("int");
 
+                    b.Property<int?>("WarehouseId")
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CasherId");
@@ -677,9 +1919,17 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("ProductUnitId");
 
+                    b.HasIndex("StockAdjustmentId");
+
+                    b.HasIndex("StockDocumentId");
+
                     b.HasIndex("StockId");
 
+                    b.HasIndex("StockLotId");
+
                     b.HasIndex("VoucherId");
+
+                    b.HasIndex("SourceType", "SourceId");
 
                     b.ToTable("StockTransaction");
                 });
@@ -814,17 +2064,29 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Property<decimal>("Amount")
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<int?>("BranchId")
+                        .HasColumnType("int");
+
                     b.Property<int?>("CasherId")
                         .HasColumnType("int");
 
                     b.Property<int?>("CashierSessionId")
                         .HasColumnType("int");
 
+                    b.Property<int?>("CreatedBy")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<int?>("CurrencyId")
+                        .HasColumnType("int");
+
                     b.Property<int?>("CustomerId")
                         .HasColumnType("int");
+
+                    b.Property<decimal>("ExchangeRate")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("Notes")
                         .HasColumnType("nvarchar(max)");
@@ -832,7 +2094,16 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Property<int>("PaymentType")
                         .HasColumnType("int");
 
+                    b.Property<int>("PostingStatus")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ReferenceNumber")
+                        .HasColumnType("nvarchar(450)");
+
                     b.Property<int?>("SupplierId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("UpdatedBy")
                         .HasColumnType("int");
 
                     b.Property<DateTime>("UpdatedDate")
@@ -841,15 +2112,23 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Property<int?>("UserId")
                         .HasColumnType("int");
 
+                    b.Property<DateTime?>("VoucherDate")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("VoucherNumber")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("VoucherType")
                         .HasColumnType("int");
 
+                    b.Property<int?>("WarehouseId")
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CashierSessionId");
+
+                    b.HasIndex("ReferenceNumber");
 
                     b.HasIndex("UserId");
 
@@ -863,6 +2142,15 @@ namespace RaccoonWarehouse.Data.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("BranchId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Code")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("CreatedBy")
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
@@ -883,12 +2171,89 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Property<int>("Status")
                         .HasColumnType("int");
 
+                    b.Property<int?>("UpdatedBy")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("UpdatedDate")
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
 
                     b.ToTable("Warehouse");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Accounting.AccountOpeningBalances.AccountOpeningBalance", b =>
+                {
+                    b.HasOne("RaccoonWarehouse.Domain.Accounting.Accounts.Account", "Account")
+                        .WithMany("OpeningBalances")
+                        .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("RaccoonWarehouse.Domain.Accounting.Periods.FiscalYear", "FiscalYear")
+                        .WithMany()
+                        .HasForeignKey("FiscalYearId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("Account");
+
+                    b.Navigation("FiscalYear");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Accounting.Accounts.Account", b =>
+                {
+                    b.HasOne("RaccoonWarehouse.Domain.Accounting.Accounts.Account", "ParentAccount")
+                        .WithMany("Children")
+                        .HasForeignKey("ParentAccountId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("ParentAccount");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Accounting.JournalEntries.JournalEntry", b =>
+                {
+                    b.HasOne("RaccoonWarehouse.Domain.Accounting.Periods.AccountingPeriod", "AccountingPeriod")
+                        .WithMany()
+                        .HasForeignKey("AccountingPeriodId");
+
+                    b.HasOne("RaccoonWarehouse.Domain.Accounting.Periods.FiscalYear", "FiscalYear")
+                        .WithMany()
+                        .HasForeignKey("FiscalYearId");
+
+                    b.Navigation("AccountingPeriod");
+
+                    b.Navigation("FiscalYear");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Accounting.JournalEntries.JournalEntryLine", b =>
+                {
+                    b.HasOne("RaccoonWarehouse.Domain.Accounting.Accounts.Account", "Account")
+                        .WithMany("JournalEntryLines")
+                        .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("RaccoonWarehouse.Domain.Accounting.JournalEntries.JournalEntry", "JournalEntry")
+                        .WithMany("Lines")
+                        .HasForeignKey("JournalEntryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Account");
+
+                    b.Navigation("JournalEntry");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Accounting.Periods.AccountingPeriod", b =>
+                {
+                    b.HasOne("RaccoonWarehouse.Domain.Accounting.Periods.FiscalYear", "FiscalYear")
+                        .WithMany("AccountingPeriods")
+                        .HasForeignKey("FiscalYearId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("FiscalYear");
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Cashiers.CashierSession", b =>
@@ -917,11 +2282,54 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Navigation("Voucher");
                 });
 
+            modelBuilder.Entity("RaccoonWarehouse.Domain.CostCenters.CostCenter", b =>
+                {
+                    b.HasOne("RaccoonWarehouse.Domain.CostCenters.CostCenter", "ParentCostCenter")
+                        .WithMany("Children")
+                        .HasForeignKey("ParentCostCenterId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("ParentCostCenter");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Delegates.Delegate", b =>
+                {
+                    b.HasOne("RaccoonWarehouse.Domain.Users.User", "User")
+                        .WithOne("DelegateProfile")
+                        .HasForeignKey("RaccoonWarehouse.Domain.Delegates.Delegate", "UserId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Employees.Employee", b =>
+                {
+                    b.HasOne("RaccoonWarehouse.Domain.Employees.Employee", "Manager")
+                        .WithMany("DirectReports")
+                        .HasForeignKey("ManagerId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("RaccoonWarehouse.Domain.Users.User", "User")
+                        .WithOne("EmployeeProfile")
+                        .HasForeignKey("RaccoonWarehouse.Domain.Employees.Employee", "UserId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("Manager");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("RaccoonWarehouse.Domain.FinancialTransactions.FinancialTransaction", b =>
                 {
+                    b.HasOne("RaccoonWarehouse.Domain.Users.User", "Cashier")
+                        .WithMany()
+                        .HasForeignKey("CashierId");
+
                     b.HasOne("RaccoonWarehouse.Domain.Cashiers.CashierSession", "CashierSession")
                         .WithMany()
                         .HasForeignKey("CashierSessionId");
+
+                    b.Navigation("Cashier");
 
                     b.Navigation("CashierSession");
                 });
@@ -959,6 +2367,11 @@ namespace RaccoonWarehouse.Data.Migrations
                         .WithMany()
                         .HasForeignKey("CashierSessionId");
 
+                    b.HasOne("RaccoonWarehouse.Domain.Delegates.Delegate", "Delegate")
+                        .WithMany("Invoices")
+                        .HasForeignKey("DelegateId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.HasOne("RaccoonWarehouse.Domain.Users.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId");
@@ -968,6 +2381,8 @@ namespace RaccoonWarehouse.Data.Migrations
                         .HasForeignKey("VoucherId");
 
                     b.Navigation("CashierSession");
+
+                    b.Navigation("Delegate");
 
                     b.Navigation("User");
 
@@ -1052,6 +2467,46 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Navigation("ProductUnit");
                 });
 
+            modelBuilder.Entity("RaccoonWarehouse.Domain.StockAdjustments.StockAdjustment", b =>
+                {
+                    b.HasOne("RaccoonWarehouse.Domain.StockLots.StockLot", "NewStockLot")
+                        .WithMany()
+                        .HasForeignKey("NewStockLotId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("RaccoonWarehouse.Domain.Products.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("RaccoonWarehouse.Domain.ProductUnits.ProductUnit", "ProductUnit")
+                        .WithMany()
+                        .HasForeignKey("ProductUnitId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("RaccoonWarehouse.Domain.StockLots.StockLot", "StockLot")
+                        .WithMany("StockAdjustments")
+                        .HasForeignKey("StockLotId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("RaccoonWarehouse.Domain.Users.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId");
+
+                    b.Navigation("NewStockLot");
+
+                    b.Navigation("Product");
+
+                    b.Navigation("ProductUnit");
+
+                    b.Navigation("StockLot");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("RaccoonWarehouse.Domain.StockDocuments.StockDocument", b =>
                 {
                     b.HasOne("RaccoonWarehouse.Domain.Users.User", "Supplier")
@@ -1075,9 +2530,9 @@ namespace RaccoonWarehouse.Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("RaccoonWarehouse.Domain.StockDocuments.StockDocument", "Stock")
+                    b.HasOne("RaccoonWarehouse.Domain.StockDocuments.StockDocument", "StockDocument")
                         .WithMany("Items")
-                        .HasForeignKey("StockId")
+                        .HasForeignKey("StockDocumentId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -1085,7 +2540,33 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.Navigation("ProductUnit");
 
-                    b.Navigation("Stock");
+                    b.Navigation("StockDocument");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.StockLots.StockLot", b =>
+                {
+                    b.HasOne("RaccoonWarehouse.Domain.Products.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("RaccoonWarehouse.Domain.ProductUnits.ProductUnit", "ProductUnit")
+                        .WithMany()
+                        .HasForeignKey("ProductUnitId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("RaccoonWarehouse.Domain.StockLots.StockLot", "ReplacesStockLot")
+                        .WithOne("ReplacedByStockLot")
+                        .HasForeignKey("RaccoonWarehouse.Domain.StockLots.StockLot", "ReplacesStockLotId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("Product");
+
+                    b.Navigation("ProductUnit");
+
+                    b.Navigation("ReplacesStockLot");
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.StockTransactions.StockTransaction", b =>
@@ -1104,7 +2585,8 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasOne("RaccoonWarehouse.Domain.Invoices.Invoice", "Invoice")
                         .WithMany()
-                        .HasForeignKey("InvoiceId");
+                        .HasForeignKey("InvoiceId")
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.HasOne("RaccoonWarehouse.Domain.Products.Product", "Product")
                         .WithMany()
@@ -1118,13 +2600,22 @@ namespace RaccoonWarehouse.Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("RaccoonWarehouse.Domain.StockAdjustments.StockAdjustment", "StockAdjustment")
+                        .WithMany()
+                        .HasForeignKey("StockAdjustmentId");
+
                     b.HasOne("RaccoonWarehouse.Domain.Stock.Stock", "Stock")
                         .WithMany()
                         .HasForeignKey("StockId");
 
+                    b.HasOne("RaccoonWarehouse.Domain.StockLots.StockLot", "StockLot")
+                        .WithMany()
+                        .HasForeignKey("StockLotId");
+
                     b.HasOne("RaccoonWarehouse.Domain.Vouchers.Voucher", "Voucher")
                         .WithMany()
-                        .HasForeignKey("VoucherId");
+                        .HasForeignKey("VoucherId")
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.Navigation("Casher");
 
@@ -1139,6 +2630,10 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Navigation("ProductUnit");
 
                     b.Navigation("Stock");
+
+                    b.Navigation("StockAdjustment");
+
+                    b.Navigation("StockLot");
 
                     b.Navigation("Voucher");
                 });
@@ -1169,6 +2664,25 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Accounting.Accounts.Account", b =>
+                {
+                    b.Navigation("Children");
+
+                    b.Navigation("JournalEntryLines");
+
+                    b.Navigation("OpeningBalances");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Accounting.JournalEntries.JournalEntry", b =>
+                {
+                    b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Accounting.Periods.FiscalYear", b =>
+                {
+                    b.Navigation("AccountingPeriods");
+                });
+
             modelBuilder.Entity("RaccoonWarehouse.Domain.Brands.Brand", b =>
                 {
                     b.Navigation("Products");
@@ -1179,6 +2693,21 @@ namespace RaccoonWarehouse.Data.Migrations
             modelBuilder.Entity("RaccoonWarehouse.Domain.Categories.Category", b =>
                 {
                     b.Navigation("SubCategories");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.CostCenters.CostCenter", b =>
+                {
+                    b.Navigation("Children");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Delegates.Delegate", b =>
+                {
+                    b.Navigation("Invoices");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Employees.Employee", b =>
+                {
+                    b.Navigation("DirectReports");
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Invoices.Invoice", b =>
@@ -1198,6 +2727,13 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Navigation("Items");
                 });
 
+            modelBuilder.Entity("RaccoonWarehouse.Domain.StockLots.StockLot", b =>
+                {
+                    b.Navigation("ReplacedByStockLot");
+
+                    b.Navigation("StockAdjustments");
+                });
+
             modelBuilder.Entity("RaccoonWarehouse.Domain.SubCategories.SubCategory", b =>
                 {
                     b.Navigation("Products");
@@ -1208,6 +2744,13 @@ namespace RaccoonWarehouse.Data.Migrations
             modelBuilder.Entity("RaccoonWarehouse.Domain.Units.Unit", b =>
                 {
                     b.Navigation("ProductUnits");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Users.User", b =>
+                {
+                    b.Navigation("DelegateProfile");
+
+                    b.Navigation("EmployeeProfile");
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Vouchers.Voucher", b =>

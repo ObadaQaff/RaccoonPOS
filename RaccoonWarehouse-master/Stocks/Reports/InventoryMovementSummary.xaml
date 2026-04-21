@@ -174,12 +174,16 @@
                     </StackPanel>
 
                     <StackPanel Grid.Column="2" Margin="8,0">
-                        <TextBlock Text="الصنف (اختياري)" FontWeight="SemiBold" Foreground="#27445D" Margin="0,0,0,6"/>
+                        <TextBlock Text="الصنف أو الباركود (اختياري)" FontWeight="SemiBold" Foreground="#27445D" Margin="0,0,0,6"/>
                         <ComboBox x:Name="ProductComboBox"
                                   Height="42"
                                   FontSize="15"
                                   DisplayMemberPath="Name"
-                                  SelectedValuePath="Id"/>
+                                  SelectedValuePath="Id"
+                                  IsEditable="True"
+                                  IsTextSearchEnabled="False"
+                                  StaysOpenOnEdit="True"
+                                  SelectionChanged="ProductComboBox_SelectionChanged"/>
                     </StackPanel>
 
                     <StackPanel Grid.Column="3" VerticalAlignment="Center" Margin="8,18,8,0">

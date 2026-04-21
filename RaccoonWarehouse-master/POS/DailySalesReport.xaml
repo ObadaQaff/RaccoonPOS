@@ -90,9 +90,25 @@
                           HorizontalScrollBarVisibility="Auto"
                           VerticalScrollBarVisibility="Auto">
                     <DataGrid.Columns>
-                        <DataGridTextColumn Header="رقم الفاتورة"
-                                            Binding="{Binding InvoiceNumber}"
-                                            Width="190"/>
+                        <DataGridTemplateColumn Header="رقم الفاتورة" Width="220">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <DockPanel LastChildFill="True">
+                                        <Button Content="⧉"
+                                                Width="30"
+                                                Height="28"
+                                                Margin="0,0,8,0"
+                                                Padding="0"
+                                                Cursor="Hand"
+                                                ToolTip="نسخ رقم الفاتورة"
+                                                Click="CopyInvoiceNumber_Click"/>
+                                        <TextBlock Text="{Binding InvoiceNumber}"
+                                                   VerticalAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                    </DockPanel>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
 
                         <DataGridTextColumn Header="التاريخ"
                                             Binding="{Binding ClosedAt}"

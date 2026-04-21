@@ -10,17 +10,38 @@ using RaccoonWarehouse.Domain.Accounting.JournalEntries;
 using RaccoonWarehouse.Domain.Accounting.JournalEntries.DTOs;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.FinancialTransactions.DTOs;
+using RaccoonWarehouse.Domain.InvoiceLines.DTOs;
 using RaccoonWarehouse.Domain.Invoices.DTOs;
 using RaccoonWarehouse.Domain.Reports.Accounting.Dtos;
 using RaccoonWarehouse.Domain.Reports.Accounting.Filters;
 using RaccoonWarehouse.Domain.Settings;
 using RaccoonWarehouse.Domain.StockAdjustments.DTOs;
+using RaccoonWarehouse.Domain.StockDocuments.DTOs;
+using RaccoonWarehouse.Domain.Vouchers.DTOs;
 
 namespace RaccoonWarehouse.Application.Service.Accounting
 {
     public class AccountingService : IAccountingService
     {
         public const string PostingLockDateKey = "AccountingPostingLockDate";
+        public const string CashMainAccountCodeKey = "Accounting.AccountCode.CashMain";
+        public const string BankAccountCodeKey = "Accounting.AccountCode.Bank";
+        public const string AccountsReceivableAccountCodeKey = "Accounting.AccountCode.AccountsReceivable";
+        public const string InputTaxAccountCodeKey = "Accounting.AccountCode.InputTax";
+        public const string InventoryAccountCodeKey = "Accounting.AccountCode.Inventory";
+        public const string OtherReceivablesAccountCodeKey = "Accounting.AccountCode.OtherReceivables";
+        public const string AccountsPayableAccountCodeKey = "Accounting.AccountCode.AccountsPayable";
+        public const string OutputTaxAccountCodeKey = "Accounting.AccountCode.OutputTax";
+        public const string OtherPayablesAccountCodeKey = "Accounting.AccountCode.OtherPayables";
+        public const string SalesRevenueAccountCodeKey = "Accounting.AccountCode.SalesRevenue";
+        public const string SalesReturnsAccountCodeKey = "Accounting.AccountCode.SalesReturns";
+        public const string SalesDiscountAccountCodeKey = "Accounting.AccountCode.SalesDiscount";
+        public const string StockGainAccountCodeKey = "Accounting.AccountCode.StockGain";
+        public const string CostOfGoodsSoldAccountCodeKey = "Accounting.AccountCode.Cogs";
+        public const string GeneralExpenseAccountCodeKey = "Accounting.AccountCode.GeneralExpense";
+        public const string StockLossAccountCodeKey = "Accounting.AccountCode.StockLoss";
+        public const string PosCashAccountCodeKey = "Accounting.AccountCode.PosCash";
+        public const string InternalConsumptionAccountCodeKey = "Accounting.AccountCode.InternalConsumption";
 
         private readonly ApplicationDbContext _context;
         private readonly IUOW _uow;
@@ -211,41 +232,79 @@ namespace RaccoonWarehouse.Application.Service.Accounting
             var now = GetJordanNow();
             var defaults = new[]
             {
-                new Account { Code = "1000", Name = "الصندوق", AccountType = AccountType.Asset, IsPosting = true, IsActive = true, CreatedDate = now, UpdatedDate = now },
-                new Account { Code = "1100", Name = "البنك", AccountType = AccountType.Asset, IsPosting = true, IsActive = true, CreatedDate = now, UpdatedDate = now },
-                new Account { Code = "1200", Name = "العملاء", AccountType = AccountType.Asset, IsPosting = true, IsActive = true, CreatedDate = now, UpdatedDate = now },
-                new Account { Code = "1210", Name = "ضريبة المدخلات", AccountType = AccountType.Asset, IsPosting = true, IsActive = true, CreatedDate = now, UpdatedDate = now },
-                new Account { Code = "1300", Name = "المخزون", AccountType = AccountType.Asset, IsPosting = true, IsActive = true, CreatedDate = now, UpdatedDate = now },
-                new Account { Code = "1400", Name = "ذمم مدينة أخرى", AccountType = AccountType.Asset, IsPosting = true, IsActive = true, CreatedDate = now, UpdatedDate = now },
-                new Account { Code = "2000", Name = "الموردون", AccountType = AccountType.Liability, IsPosting = true, IsActive = true, CreatedDate = now, UpdatedDate = now },
-                new Account { Code = "2100", Name = "ضريبة مستحقة", AccountType = AccountType.Liability, IsPosting = true, IsActive = true, CreatedDate = now, UpdatedDate = now },
-                new Account { Code = "2200", Name = "ذمم دائنة أخرى", AccountType = AccountType.Liability, IsPosting = true, IsActive = true, CreatedDate = now, UpdatedDate = now },
-                new Account { Code = "3000", Name = "حقوق الملكية", AccountType = AccountType.Equity, IsPosting = true, IsActive = true, CreatedDate = now, UpdatedDate = now },
-                new Account { Code = "3100", Name = "الأرباح المحتجزة", AccountType = AccountType.Equity, IsPosting = true, IsActive = true, CreatedDate = now, UpdatedDate = now },
-                new Account { Code = "4000", Name = "إيرادات المبيعات", AccountType = AccountType.Revenue, IsPosting = true, IsActive = true, CreatedDate = now, UpdatedDate = now },
-                new Account { Code = "4100", Name = "مردودات المبيعات", AccountType = AccountType.Revenue, IsPosting = true, IsActive = true, CreatedDate = now, UpdatedDate = now },
-                new Account { Code = "4200", Name = "خصومات المبيعات", AccountType = AccountType.Revenue, IsPosting = true, IsActive = true, CreatedDate = now, UpdatedDate = now },
-                new Account { Code = "4300", Name = "أرباح تسويات المخزون", AccountType = AccountType.Revenue, IsPosting = true, IsActive = true, CreatedDate = now, UpdatedDate = now },
-                new Account { Code = "5000", Name = "تكلفة البضاعة المباعة", AccountType = AccountType.Expense, IsPosting = true, IsActive = true, CreatedDate = now, UpdatedDate = now },
-                new Account { Code = "6000", Name = "المصاريف التشغيلية", AccountType = AccountType.Expense, IsPosting = true, IsActive = true, CreatedDate = now, UpdatedDate = now },
-                new Account { Code = "6100", Name = "خسائر تسويات المخزون", AccountType = AccountType.Expense, IsPosting = true, IsActive = true, CreatedDate = now, UpdatedDate = now }
+                new { Code = "1", ParentCode = (string?)null, Name = "الأصول", EnglishName = "Assets", Description = "الحساب الرئيسي للأصول", AccountType = AccountType.Asset, NormalBalanceType = NormalBalanceType.Debit, Level = 1, IsPosting = false, AllowManualEntry = false },
+                new { Code = "11", ParentCode = (string?)"1", Name = "الأصول المتداولة", EnglishName = "Current Assets", Description = "الأصول المتداولة", AccountType = AccountType.Asset, NormalBalanceType = NormalBalanceType.Debit, Level = 2, IsPosting = false, AllowManualEntry = false },
+                new { Code = "1101", ParentCode = (string?)"11", Name = "الصندوق الرئيسي", EnglishName = "Main Cash", Description = "الصندوق الرئيسي للمنشأة", AccountType = AccountType.Asset, NormalBalanceType = NormalBalanceType.Debit, Level = 3, IsPosting = true, AllowManualEntry = true },
+                new { Code = "1102", ParentCode = (string?)"11", Name = "صندوق نقطة البيع", EnglishName = "POS Cash", Description = "صندوق نقطة البيع", AccountType = AccountType.Asset, NormalBalanceType = NormalBalanceType.Debit, Level = 3, IsPosting = true, AllowManualEntry = true },
+                new { Code = "1103", ParentCode = (string?)"11", Name = "البنك", EnglishName = "Bank", Description = "الحسابات البنكية", AccountType = AccountType.Asset, NormalBalanceType = NormalBalanceType.Debit, Level = 3, IsPosting = true, AllowManualEntry = true },
+                new { Code = "1104", ParentCode = (string?)"11", Name = "الذمم المدينة - الزبائن", EnglishName = "Accounts Receivable - Customers", Description = "ذمم الزبائن", AccountType = AccountType.Asset, NormalBalanceType = NormalBalanceType.Debit, Level = 3, IsPosting = true, AllowManualEntry = true },
+                new { Code = "1105", ParentCode = (string?)"11", Name = "المخزون", EnglishName = "Inventory", Description = "قيمة المخزون", AccountType = AccountType.Asset, NormalBalanceType = NormalBalanceType.Debit, Level = 3, IsPosting = true, AllowManualEntry = true },
+                new { Code = "1106", ParentCode = (string?)"11", Name = "ضريبة المدخلات", EnglishName = "Input Tax", Description = "ضريبة مدخلات المشتريات", AccountType = AccountType.Asset, NormalBalanceType = NormalBalanceType.Debit, Level = 3, IsPosting = true, AllowManualEntry = true },
+                new { Code = "1107", ParentCode = (string?)"11", Name = "ذمم مدينة أخرى", EnglishName = "Other Receivables", Description = "ذمم مدينة أخرى", AccountType = AccountType.Asset, NormalBalanceType = NormalBalanceType.Debit, Level = 3, IsPosting = true, AllowManualEntry = true },
+
+                new { Code = "2", ParentCode = (string?)null, Name = "الالتزامات", EnglishName = "Liabilities", Description = "الحساب الرئيسي للالتزامات", AccountType = AccountType.Liability, NormalBalanceType = NormalBalanceType.Credit, Level = 1, IsPosting = false, AllowManualEntry = false },
+                new { Code = "21", ParentCode = (string?)"2", Name = "الالتزامات المتداولة", EnglishName = "Current Liabilities", Description = "الالتزامات المتداولة", AccountType = AccountType.Liability, NormalBalanceType = NormalBalanceType.Credit, Level = 2, IsPosting = false, AllowManualEntry = false },
+                new { Code = "2101", ParentCode = (string?)"21", Name = "الذمم الدائنة - الموردين", EnglishName = "Accounts Payable - Suppliers", Description = "ذمم الموردين", AccountType = AccountType.Liability, NormalBalanceType = NormalBalanceType.Credit, Level = 3, IsPosting = true, AllowManualEntry = true },
+                new { Code = "2102", ParentCode = (string?)"21", Name = "ضريبة مستحقة", EnglishName = "Output Tax", Description = "ضريبة مستحقة على المبيعات", AccountType = AccountType.Liability, NormalBalanceType = NormalBalanceType.Credit, Level = 3, IsPosting = true, AllowManualEntry = true },
+                new { Code = "2103", ParentCode = (string?)"21", Name = "ذمم دائنة أخرى", EnglishName = "Other Payables", Description = "ذمم دائنة أخرى", AccountType = AccountType.Liability, NormalBalanceType = NormalBalanceType.Credit, Level = 3, IsPosting = true, AllowManualEntry = true },
+
+                new { Code = "3", ParentCode = (string?)null, Name = "حقوق الملكية", EnglishName = "Equity", Description = "الحساب الرئيسي لحقوق الملكية", AccountType = AccountType.Equity, NormalBalanceType = NormalBalanceType.Credit, Level = 1, IsPosting = false, AllowManualEntry = false },
+                new { Code = "31", ParentCode = (string?)"3", Name = "حقوق الملكية", EnglishName = "Owner Equity", Description = "مجموعة حقوق الملكية", AccountType = AccountType.Equity, NormalBalanceType = NormalBalanceType.Credit, Level = 2, IsPosting = false, AllowManualEntry = false },
+                new { Code = "3101", ParentCode = (string?)"31", Name = "رأس المال", EnglishName = "Capital", Description = "رأس مال المنشأة", AccountType = AccountType.Equity, NormalBalanceType = NormalBalanceType.Credit, Level = 3, IsPosting = true, AllowManualEntry = true },
+                new { Code = "3102", ParentCode = (string?)"31", Name = "الأرباح المحتجزة", EnglishName = "Retained Earnings", Description = "الأرباح المرحلة", AccountType = AccountType.Equity, NormalBalanceType = NormalBalanceType.Credit, Level = 3, IsPosting = true, AllowManualEntry = true },
+
+                new { Code = "4", ParentCode = (string?)null, Name = "الإيرادات", EnglishName = "Revenue", Description = "الحساب الرئيسي للإيرادات", AccountType = AccountType.Revenue, NormalBalanceType = NormalBalanceType.Credit, Level = 1, IsPosting = false, AllowManualEntry = false },
+                new { Code = "41", ParentCode = (string?)"4", Name = "إيرادات التشغيل", EnglishName = "Operating Revenue", Description = "إيرادات النشاط", AccountType = AccountType.Revenue, NormalBalanceType = NormalBalanceType.Credit, Level = 2, IsPosting = false, AllowManualEntry = false },
+                new { Code = "4101", ParentCode = (string?)"41", Name = "المبيعات", EnglishName = "Sales", Description = "إيراد المبيعات", AccountType = AccountType.Revenue, NormalBalanceType = NormalBalanceType.Credit, Level = 3, IsPosting = true, AllowManualEntry = true },
+                new { Code = "4102", ParentCode = (string?)"41", Name = "مردودات المبيعات", EnglishName = "Sales Returns", Description = "مردودات المبيعات", AccountType = AccountType.Revenue, NormalBalanceType = NormalBalanceType.Debit, Level = 3, IsPosting = true, AllowManualEntry = true },
+                new { Code = "4103", ParentCode = (string?)"41", Name = "خصومات المبيعات", EnglishName = "Sales Discounts", Description = "خصومات المبيعات", AccountType = AccountType.Revenue, NormalBalanceType = NormalBalanceType.Debit, Level = 3, IsPosting = true, AllowManualEntry = true },
+                new { Code = "4104", ParentCode = (string?)"41", Name = "أرباح تسويات المخزون", EnglishName = "Inventory Adjustment Gains", Description = "أرباح تسويات المخزون", AccountType = AccountType.Revenue, NormalBalanceType = NormalBalanceType.Credit, Level = 3, IsPosting = true, AllowManualEntry = true },
+
+                new { Code = "5", ParentCode = (string?)null, Name = "تكلفة المبيعات", EnglishName = "Cost of Goods Sold", Description = "الحساب الرئيسي لتكلفة المبيعات", AccountType = AccountType.Expense, NormalBalanceType = NormalBalanceType.Debit, Level = 1, IsPosting = false, AllowManualEntry = false },
+                new { Code = "51", ParentCode = (string?)"5", Name = "تكلفة المبيعات", EnglishName = "Cost of Sales", Description = "مجموعة تكلفة المبيعات", AccountType = AccountType.Expense, NormalBalanceType = NormalBalanceType.Debit, Level = 2, IsPosting = false, AllowManualEntry = false },
+                new { Code = "5101", ParentCode = (string?)"51", Name = "تكلفة البضاعة المباعة", EnglishName = "Cost of Goods Sold", Description = "تكلفة البضاعة المباعة", AccountType = AccountType.Expense, NormalBalanceType = NormalBalanceType.Debit, Level = 3, IsPosting = true, AllowManualEntry = true },
+                new { Code = "5102", ParentCode = (string?)"51", Name = "خسائر التالف", EnglishName = "Damaged Stock Loss", Description = "خسائر التالف والمخزون الهالك", AccountType = AccountType.Expense, NormalBalanceType = NormalBalanceType.Debit, Level = 3, IsPosting = true, AllowManualEntry = true },
+
+                new { Code = "6", ParentCode = (string?)null, Name = "المصروفات", EnglishName = "Expenses", Description = "الحساب الرئيسي للمصروفات", AccountType = AccountType.Expense, NormalBalanceType = NormalBalanceType.Debit, Level = 1, IsPosting = false, AllowManualEntry = false },
+                new { Code = "61", ParentCode = (string?)"6", Name = "المصروفات التشغيلية", EnglishName = "Operating Expenses", Description = "مجموعة المصروفات التشغيلية", AccountType = AccountType.Expense, NormalBalanceType = NormalBalanceType.Debit, Level = 2, IsPosting = false, AllowManualEntry = false },
+                new { Code = "6101", ParentCode = (string?)"61", Name = "المصروفات العامة", EnglishName = "General Expenses", Description = "المصروفات العامة", AccountType = AccountType.Expense, NormalBalanceType = NormalBalanceType.Debit, Level = 3, IsPosting = true, AllowManualEntry = true },
+                new { Code = "6102", ParentCode = (string?)"61", Name = "استهلاك داخلي", EnglishName = "Internal Consumption", Description = "استهلاك داخلي للمخزون", AccountType = AccountType.Expense, NormalBalanceType = NormalBalanceType.Debit, Level = 3, IsPosting = true, AllowManualEntry = true }
             };
 
-            var existingCodes = await _uow.Accounts.GetAllAsQueryable()
-                .Select(x => x.Code)
-                .ToListAsync();
+            var accountsByCode = await _uow.Accounts.GetAllAsQueryable()
+                .ToDictionaryAsync(x => x.Code);
 
-            foreach (var account in defaults)
+            foreach (var item in defaults)
             {
-                if (existingCodes.Contains(account.Code))
+                if (!accountsByCode.TryGetValue(item.Code, out var account))
                 {
-                    continue;
+                    account = new Account
+                    {
+                        Code = item.Code,
+                        CreatedDate = now
+                    };
+
+                    await _uow.Accounts.AddAsync(account);
+                    accountsByCode[item.Code] = account;
                 }
 
-                await _uow.Accounts.AddAsync(account);
+                account.Name = item.Name;
+                account.ArabicName = item.Name;
+                account.EnglishName = item.EnglishName;
+                account.Description = item.Description;
+                account.AccountType = item.AccountType;
+                account.NormalBalanceType = item.NormalBalanceType;
+                account.IsPosting = item.IsPosting;
+                account.IsActive = true;
+                account.IsSystemGenerated = true;
+                account.AllowManualEntry = item.AllowManualEntry;
+                account.Level = item.Level;
+                account.ParentAccount = item.ParentCode is null ? null : accountsByCode[item.ParentCode];
+                account.UpdatedDate = now;
             }
 
             await _uow.CommitAsync();
+            await EnsureDefaultAccountSettingsAsync(now);
         }
 
         public async Task<Result<JournalEntryReadDto>> PostInvoiceEntryAsync(InvoiceWriteDto invoice)
@@ -262,13 +321,13 @@ namespace RaccoonWarehouse.Application.Service.Accounting
             var lines = new List<JournalEntryLineWriteDto>();
             var entryDate = invoice.CreatedDate == default ? GetJordanNow() : invoice.CreatedDate;
             var settlementAccountId = await ResolveSettlementAccountIdAsync(invoice.PaymentType, invoice.InvoiceType is InvoiceType.Purchase or InvoiceType.PurchaseReturn);
-            var salesRevenueId = await GetAccountIdByCodeAsync("4000");
-            var salesReturnsId = await GetAccountIdByCodeAsync("4100");
-            var salesDiscountId = await GetAccountIdByCodeAsync("4200");
-            var inventoryId = await GetAccountIdByCodeAsync("1300");
-            var cogsId = await GetAccountIdByCodeAsync("5000");
-            var outputTaxId = await GetAccountIdByCodeAsync("2100");
-            var inputTaxId = await GetAccountIdByCodeAsync("1210");
+            var salesRevenueId = await ResolveSystemAccountIdAsync(SalesRevenueAccountCodeKey, "4101");
+            var salesReturnsId = await ResolveSystemAccountIdAsync(SalesReturnsAccountCodeKey, "4102");
+            var salesDiscountId = await ResolveSystemAccountIdAsync(SalesDiscountAccountCodeKey, "4103");
+            var inventoryId = await ResolveSystemAccountIdAsync(InventoryAccountCodeKey, "1105");
+            var cogsId = await ResolveSystemAccountIdAsync(CostOfGoodsSoldAccountCodeKey, "5101");
+            var outputTaxId = await ResolveSystemAccountIdAsync(OutputTaxAccountCodeKey, "2102");
+            var inputTaxId = await ResolveSystemAccountIdAsync(InputTaxAccountCodeKey, "1106");
 
             switch (invoice.InvoiceType)
             {
@@ -287,14 +346,55 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                     break;
 
                 case InvoiceType.Return:
-                    AddDebit(lines, salesReturnsId, invoice.NetSales, $"Sales return #{invoice.InvoiceNumber}");
-                    if (invoice.TotalTax > 0)
-                        AddDebit(lines, outputTaxId, invoice.TotalTax, $"Sales return #{invoice.InvoiceNumber} tax reversal");
-                    AddCredit(lines, settlementAccountId, invoice.TotalAmount, $"Sales return #{invoice.InvoiceNumber} settlement");
-                    if (invoice.TotalCOGS > 0)
+                    var returnNetSales = Math.Abs(invoice.NetSales);
+                    var returnTax = Math.Abs(invoice.TotalTax);
+                    var returnTotal = Math.Abs(invoice.TotalAmount);
+                    var returnCogs = Math.Abs(invoice.TotalCOGS);
+
+                    AddDebit(lines, salesReturnsId, returnNetSales, $"Sales return #{invoice.InvoiceNumber}");
+                    if (returnTax > 0)
+                        AddDebit(lines, outputTaxId, returnTax, $"Sales return #{invoice.InvoiceNumber} tax reversal");
+                    AddCredit(lines, settlementAccountId, returnTotal, $"Sales return #{invoice.InvoiceNumber} settlement");
+                    if (returnCogs > 0)
                     {
-                        AddDebit(lines, inventoryId, invoice.TotalCOGS, $"Sales return #{invoice.InvoiceNumber} inventory recovery");
-                        AddCredit(lines, cogsId, invoice.TotalCOGS, $"Sales return #{invoice.InvoiceNumber} cost reversal");
+                        AddDebit(lines, inventoryId, returnCogs, $"Sales return #{invoice.InvoiceNumber} inventory recovery");
+                        AddCredit(lines, cogsId, returnCogs, $"Sales return #{invoice.InvoiceNumber} cost reversal");
+                    }
+                    break;
+
+                case InvoiceType.Exchange:
+                    var exchangeLines = invoice.InvoiceLines?.ToList() ?? new List<InvoiceLineWriteDto>();
+                    var exchangeSaleLines = exchangeLines.Where(line => line.Quantity > 0).ToList();
+                    var exchangeReturnLines = exchangeLines.Where(line => line.Quantity < 0).ToList();
+
+                    var exchangeSalesSubTotal = exchangeSaleLines.Sum(line => line.LineSubTotal);
+                    var exchangeSalesTax = exchangeSaleLines.Sum(line => line.TaxAmount);
+                    var exchangeSalesTotal = exchangeSaleLines.Sum(line => line.Quantity * line.UnitPrice);
+                    var exchangeSalesCogs = exchangeSaleLines.Sum(line => line.Quantity * line.UnitCost);
+
+                    var exchangeReturnsSubTotal = Math.Abs(exchangeReturnLines.Sum(line => line.LineSubTotal));
+                    var exchangeReturnsTax = Math.Abs(exchangeReturnLines.Sum(line => line.TaxAmount));
+                    var exchangeReturnsTotal = Math.Abs(exchangeReturnLines.Sum(line => line.Quantity * line.UnitPrice));
+                    var exchangeReturnsCogs = Math.Abs(exchangeReturnLines.Sum(line => line.Quantity * line.UnitCost));
+
+                    AddDebit(lines, settlementAccountId, exchangeSalesTotal, $"Exchange #{invoice.InvoiceNumber} sale settlement");
+                    AddCredit(lines, salesRevenueId, exchangeSalesSubTotal, $"Exchange #{invoice.InvoiceNumber} sales");
+                    if (exchangeSalesTax > 0)
+                        AddCredit(lines, outputTaxId, exchangeSalesTax, $"Exchange #{invoice.InvoiceNumber} sales tax");
+                    if (exchangeSalesCogs > 0)
+                    {
+                        AddDebit(lines, cogsId, exchangeSalesCogs, $"Exchange #{invoice.InvoiceNumber} cost of goods sold");
+                        AddCredit(lines, inventoryId, exchangeSalesCogs, $"Exchange #{invoice.InvoiceNumber} inventory release");
+                    }
+
+                    AddDebit(lines, salesReturnsId, exchangeReturnsSubTotal, $"Exchange #{invoice.InvoiceNumber} return");
+                    if (exchangeReturnsTax > 0)
+                        AddDebit(lines, outputTaxId, exchangeReturnsTax, $"Exchange #{invoice.InvoiceNumber} return tax reversal");
+                    AddCredit(lines, settlementAccountId, exchangeReturnsTotal, $"Exchange #{invoice.InvoiceNumber} return settlement");
+                    if (exchangeReturnsCogs > 0)
+                    {
+                        AddDebit(lines, inventoryId, exchangeReturnsCogs, $"Exchange #{invoice.InvoiceNumber} inventory recovery");
+                        AddCredit(lines, cogsId, exchangeReturnsCogs, $"Exchange #{invoice.InvoiceNumber} cost reversal");
                     }
                     break;
 
@@ -322,6 +422,94 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                 Description = BuildInvoiceDescription(invoice),
                 ReferenceType = "Invoice",
                 ReferenceId = invoice.Id,
+                Lines = lines
+            });
+        }
+
+        public async Task<Result<JournalEntryReadDto>> PostVoucherEntryAsync(VoucherWriteDto voucher)
+        {
+            if (voucher.Id <= 0)
+                return Result<JournalEntryReadDto>.Fail("Voucher id is required.");
+
+            if (await TryGetExistingEntryAsync("Voucher", voucher.Id) is { } existing)
+                return Result<JournalEntryReadDto>.Ok(existing, "Journal entry already exists for this voucher.");
+
+            if (voucher.Amount <= 0)
+                return Result<JournalEntryReadDto>.Ok(new JournalEntryReadDto(), "Voucher amount is zero.");
+
+            if (voucher.VoucherType is not VoucherType.Receipt and not VoucherType.Payment)
+                return Result<JournalEntryReadDto>.Ok(new JournalEntryReadDto(), "Voucher type does not create an accounting entry.");
+
+            var settlementAccountId = await ResolveVoucherSettlementAccountIdAsync(voucher);
+            var counterpartAccountId = await ResolveVoucherCounterpartAccountIdAsync(voucher);
+            var description = BuildVoucherDescription(voucher);
+            var lines = new List<JournalEntryLineWriteDto>();
+
+            if (voucher.VoucherType == VoucherType.Receipt)
+            {
+                AddDebit(lines, settlementAccountId, voucher.Amount, description);
+                AddCredit(lines, counterpartAccountId, voucher.Amount, description);
+            }
+            else
+            {
+                AddDebit(lines, counterpartAccountId, voucher.Amount, description);
+                AddCredit(lines, settlementAccountId, voucher.Amount, description);
+            }
+
+            return await PostJournalEntryAsync(new JournalEntryWriteDto
+            {
+                EntryDate = voucher.CreatedDate == default ? GetJordanNow() : voucher.CreatedDate,
+                Description = description,
+                ReferenceType = "Voucher",
+                ReferenceId = voucher.Id,
+                Lines = lines
+            });
+        }
+
+        public async Task<Result<JournalEntryReadDto>> PostStockDocumentEntryAsync(StockDocumentWriteDto document)
+        {
+            if (document.Id <= 0)
+                return Result<JournalEntryReadDto>.Fail("Stock document id is required.");
+
+            if (await TryGetExistingEntryAsync("StockDocument", document.Id) is { } existing)
+                return Result<JournalEntryReadDto>.Ok(existing, "Journal entry already exists for this stock document.");
+
+            if (document.Items == null || document.Items.Count == 0)
+                return Result<JournalEntryReadDto>.Ok(new JournalEntryReadDto(), "Stock document has no items to post.");
+
+            var totalAmount = document.Items.Sum(x => x.Quantity * x.PurchasePrice);
+            if (totalAmount <= 0)
+                return Result<JournalEntryReadDto>.Ok(new JournalEntryReadDto(), "Stock document amount is zero.");
+
+            var inventoryId = await ResolveSystemAccountIdAsync(InventoryAccountCodeKey, "1105");
+            var stockGainId = await ResolveSystemAccountIdAsync(StockGainAccountCodeKey, "4104");
+            var stockLossId = await ResolveSystemAccountIdAsync(StockLossAccountCodeKey, "5102");
+            var internalConsumptionId = await ResolveSystemAccountIdAsync(InternalConsumptionAccountCodeKey, "6102");
+            var accountsPayableId = await ResolveSystemAccountIdAsync(AccountsPayableAccountCodeKey, "2101");
+            var description = BuildStockDocumentDescription(document);
+            var lines = new List<JournalEntryLineWriteDto>();
+
+            if (document.Type == StockVoucherType.In)
+            {
+                AddDebit(lines, inventoryId, totalAmount, description);
+                AddCredit(lines, document.SupplierId.HasValue ? accountsPayableId : stockGainId, totalAmount, description);
+            }
+            else if (document.Type == StockVoucherType.Out)
+            {
+                AddDebit(lines, document.SupplierId.HasValue ? stockLossId : internalConsumptionId, totalAmount, description);
+                AddCredit(lines, inventoryId, totalAmount, description);
+            }
+            else
+            {
+                return Result<JournalEntryReadDto>.Ok(new JournalEntryReadDto(), "Stock document type does not create an accounting entry.");
+            }
+
+            return await PostJournalEntryAsync(new JournalEntryWriteDto
+            {
+                EntryDate = document.CreatedDate == default ? GetJordanNow() : document.CreatedDate,
+                Description = description,
+                ReferenceType = "StockDocument",
+                ReferenceId = document.Id,
                 Lines = lines
             });
         }
@@ -378,9 +566,9 @@ namespace RaccoonWarehouse.Application.Service.Accounting
             if (amount <= 0)
                 return Result<JournalEntryReadDto>.Ok(new JournalEntryReadDto(), "Adjustment amount is zero.");
 
-            var inventoryId = await GetAccountIdByCodeAsync("1300");
-            var stockGainId = await GetAccountIdByCodeAsync("4300");
-            var stockLossId = await GetAccountIdByCodeAsync("6100");
+            var inventoryId = await ResolveSystemAccountIdAsync(InventoryAccountCodeKey, "1105");
+            var stockGainId = await ResolveSystemAccountIdAsync(StockGainAccountCodeKey, "4104");
+            var stockLossId = await ResolveSystemAccountIdAsync(StockLossAccountCodeKey, "5102");
             var description = $"Stock adjustment #{adjustment.Id} - {adjustment.AdjustmentType}";
             var lines = new List<JournalEntryLineWriteDto>();
 
@@ -582,7 +770,11 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                 Balance = lines
                     .Where(x => x.AccountId == account.Id)
                     .Sum(x => x.Debit - x.Credit)
-            });
+            }).ToList();
+
+            var netIncome = balances
+                .Where(x => x.Account.AccountType == AccountType.Revenue || x.Account.AccountType == AccountType.Expense)
+                .Sum(x => -x.Balance);
 
             var dto = new BalanceSheetDto
             {
@@ -591,6 +783,18 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                 Liabilities = BuildBalanceSheetSection("الالتزامات", balances, AccountType.Liability, filter.IncludeZeroBalances, true),
                 Equity = BuildBalanceSheetSection("حقوق الملكية", balances, AccountType.Equity, filter.IncludeZeroBalances, true)
             };
+
+            if (filter.IncludeZeroBalances || netIncome != 0m)
+            {
+                dto.Equity.Rows.Add(new BalanceSheetRowDto
+                {
+                    AccountId = 0,
+                    AccountCode = "CURRENT-EARNINGS",
+                    AccountName = "Current Period Earnings",
+                    Balance = netIncome
+                });
+                dto.Equity.Total += netIncome;
+            }
 
             return Result<BalanceSheetDto>.Ok(dto);
         }
@@ -839,7 +1043,9 @@ namespace RaccoonWarehouse.Application.Service.Accounting
         private async Task<int> ResolveSettlementAccountIdAsync(PaymentType? paymentType, bool isPurchaseSide)
         {
             if (paymentType == PaymentType.Credit)
-                return await GetAccountIdByCodeAsync(isPurchaseSide ? "2000" : "1200");
+                return await ResolveSystemAccountIdAsync(
+                    isPurchaseSide ? AccountsPayableAccountCodeKey : AccountsReceivableAccountCodeKey,
+                    isPurchaseSide ? "2101" : "1104");
 
             return await ResolveCashLikeAccountIdAsync(MapPaymentTypeToMethod(paymentType));
         }
@@ -848,9 +1054,10 @@ namespace RaccoonWarehouse.Application.Service.Accounting
         {
             return method switch
             {
-                PaymentMethod.Cash => await GetAccountIdByCodeAsync("1000"),
-                PaymentMethod.Credit => await GetAccountIdByCodeAsync("1200"),
-                _ => await GetAccountIdByCodeAsync("1100")
+                PaymentMethod.Cash => await ResolveSystemAccountIdAsync(CashMainAccountCodeKey, "1101"),
+                PaymentMethod.Credit => await ResolveSystemAccountIdAsync(AccountsReceivableAccountCodeKey, "1104"),
+                PaymentMethod.Check => await ResolveSystemAccountIdAsync(OtherReceivablesAccountCodeKey, "1107"),
+                _ => await ResolveSystemAccountIdAsync(BankAccountCodeKey, "1103")
             };
         }
 
@@ -858,13 +1065,15 @@ namespace RaccoonWarehouse.Application.Service.Accounting
         {
             return transaction.SourceType switch
             {
-                FinancialSourceType.ReceiptVoucher => await GetAccountIdByCodeAsync("1200"),
-                FinancialSourceType.PaymentVoucher => await GetAccountIdByCodeAsync("2000"),
-                FinancialSourceType.Expense => await GetAccountIdByCodeAsync("6000"),
-                FinancialSourceType.SessionOpening => await GetAccountIdByCodeAsync("2200"),
-                FinancialSourceType.SessionClosing => await GetAccountIdByCodeAsync("2200"),
-                _ when transaction.Direction == TransactionDirection.In => await GetAccountIdByCodeAsync("1400"),
-                _ => await GetAccountIdByCodeAsync("6000")
+                FinancialSourceType.ReceiptVoucher => await ResolveSystemAccountIdAsync(AccountsReceivableAccountCodeKey, "1104"),
+                FinancialSourceType.PaymentVoucher => await ResolveSystemAccountIdAsync(AccountsPayableAccountCodeKey, "2101"),
+                FinancialSourceType.Expense => await ResolveSystemAccountIdAsync(GeneralExpenseAccountCodeKey, "6101"),
+                FinancialSourceType.SessionOpening => await ResolveSystemAccountIdAsync(OtherPayablesAccountCodeKey, "2103"),
+                FinancialSourceType.SessionClosing => await ResolveSystemAccountIdAsync(OtherPayablesAccountCodeKey, "2103"),
+                FinancialSourceType.Manual when transaction.Direction == TransactionDirection.In => await ResolveSystemAccountIdAsync(OtherReceivablesAccountCodeKey, "1107"),
+                FinancialSourceType.Manual => await ResolveSystemAccountIdAsync(OtherPayablesAccountCodeKey, "2103"),
+                _ when transaction.Direction == TransactionDirection.In => await ResolveSystemAccountIdAsync(OtherReceivablesAccountCodeKey, "1107"),
+                _ => await ResolveSystemAccountIdAsync(GeneralExpenseAccountCodeKey, "6101")
             };
         }
 
@@ -874,7 +1083,9 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                 or FinancialSourceType.PosSaleInvoice
                 or FinancialSourceType.PurchaseInvoice
                 or FinancialSourceType.SaleReturn
-                or FinancialSourceType.PurchaseReturn;
+                or FinancialSourceType.PurchaseReturn
+                or FinancialSourceType.ReceiptVoucher
+                or FinancialSourceType.PaymentVoucher;
         }
 
         private static string BuildInvoiceDescription(InvoiceWriteDto invoice)
@@ -886,6 +1097,16 @@ namespace RaccoonWarehouse.Application.Service.Accounting
         private static string BuildFinancialDescription(FinancialPostDto transaction, int transactionId)
         {
             return $"{transaction.SourceType} #{transactionId}";
+        }
+
+        private static string BuildVoucherDescription(VoucherWriteDto voucher)
+        {
+            return $"Voucher {voucher.VoucherType} #{voucher.VoucherNumber ?? voucher.Id.ToString()}";
+        }
+
+        private static string BuildStockDocumentDescription(StockDocumentWriteDto document)
+        {
+            return $"Stock document {document.Type} #{document.DocumentNumber}";
         }
 
         private static PaymentMethod? MapPaymentTypeToMethod(PaymentType? paymentType)
@@ -914,6 +1135,101 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                 throw new InvalidOperationException($"Accounting setup is incomplete. Account code '{code}' is missing.");
 
             return accountId;
+        }
+
+        private async Task<int> ResolveSystemAccountIdAsync(string key, string fallbackCode)
+        {
+            var configuredCode = await _context.AppSettings
+                .AsNoTracking()
+                .Where(x => x.Key == key)
+                .Select(x => x.Value)
+                .FirstOrDefaultAsync();
+
+            var codeToUse = string.IsNullOrWhiteSpace(configuredCode) ? fallbackCode : configuredCode.Trim();
+            return await GetAccountIdByCodeAsync(codeToUse);
+        }
+
+        private async Task EnsureDefaultAccountSettingsAsync(DateTime now)
+        {
+            var defaults = new Dictionary<string, (string Value, string Description)>
+            {
+                [CashMainAccountCodeKey] = ("1101", "Default cash account code for accounting posting."),
+                [BankAccountCodeKey] = ("1103", "Default bank account code for accounting posting."),
+                [AccountsReceivableAccountCodeKey] = ("1104", "Default accounts receivable account code for accounting posting."),
+                [InputTaxAccountCodeKey] = ("1106", "Default input tax account code for accounting posting."),
+                [InventoryAccountCodeKey] = ("1105", "Default inventory account code for accounting posting."),
+                [OtherReceivablesAccountCodeKey] = ("1107", "Default other receivables account code for accounting posting."),
+                [AccountsPayableAccountCodeKey] = ("2101", "Default accounts payable account code for accounting posting."),
+                [OutputTaxAccountCodeKey] = ("2102", "Default output tax account code for accounting posting."),
+                [OtherPayablesAccountCodeKey] = ("2103", "Default other payables account code for accounting posting."),
+                [SalesRevenueAccountCodeKey] = ("4101", "Default sales revenue account code for accounting posting."),
+                [SalesReturnsAccountCodeKey] = ("4102", "Default sales returns account code for accounting posting."),
+                [SalesDiscountAccountCodeKey] = ("4103", "Default sales discount account code for accounting posting."),
+                [StockGainAccountCodeKey] = ("4104", "Default stock gain account code for accounting posting."),
+                [CostOfGoodsSoldAccountCodeKey] = ("5101", "Default cost of goods sold account code for accounting posting."),
+                [GeneralExpenseAccountCodeKey] = ("6101", "Default general expense account code for accounting posting."),
+                [StockLossAccountCodeKey] = ("5102", "Default stock loss account code for accounting posting."),
+                [PosCashAccountCodeKey] = ("1102", "Default POS cash account code for accounting posting."),
+                [InternalConsumptionAccountCodeKey] = ("6102", "Default internal consumption account code for stock out posting.")
+            };
+
+            var legacyDefaultCodes = new HashSet<string>
+            {
+                "1000", "1100", "1200", "1210", "1300", "1400", "2000", "2100", "2200",
+                "4000", "4100", "4200", "4300", "5000", "6000", "6100"
+            };
+
+            var existing = await _context.AppSettings
+                .Where(x => defaults.Keys.Contains(x.Key))
+                .ToDictionaryAsync(x => x.Key, x => x);
+
+            foreach (var pair in defaults)
+            {
+                if (existing.ContainsKey(pair.Key))
+                {
+                    var setting = existing[pair.Key];
+                    if (string.IsNullOrWhiteSpace(setting.Value) || legacyDefaultCodes.Contains(setting.Value))
+                    {
+                        setting.Value = pair.Value.Value;
+                        setting.Description = pair.Value.Description;
+                        setting.UpdatedDate = now;
+                    }
+
+                    continue;
+                }
+
+                _context.AppSettings.Add(new AppSetting
+                {
+                    Key = pair.Key,
+                    Value = pair.Value.Value,
+                    Description = pair.Value.Description,
+                    CreatedDate = now,
+                    UpdatedDate = now
+                });
+            }
+
+            await _context.SaveChangesAsync();
+        }
+
+        private async Task<int> ResolveVoucherSettlementAccountIdAsync(VoucherWriteDto voucher)
+        {
+            var method = MapPaymentTypeToMethod(voucher.PaymentType);
+            if (voucher.CashierSessionId.HasValue && method == PaymentMethod.Cash)
+                return await ResolveSystemAccountIdAsync(PosCashAccountCodeKey, "1102");
+
+            return await ResolveCashLikeAccountIdAsync(method);
+        }
+
+        private async Task<int> ResolveVoucherCounterpartAccountIdAsync(VoucherWriteDto voucher)
+        {
+            return voucher.VoucherType switch
+            {
+                VoucherType.Receipt when voucher.CustomerId.HasValue => await ResolveSystemAccountIdAsync(AccountsReceivableAccountCodeKey, "1104"),
+                VoucherType.Receipt => await ResolveSystemAccountIdAsync(OtherReceivablesAccountCodeKey, "1107"),
+                VoucherType.Payment when voucher.SupplierId.HasValue => await ResolveSystemAccountIdAsync(AccountsPayableAccountCodeKey, "2101"),
+                VoucherType.Payment => await ResolveSystemAccountIdAsync(GeneralExpenseAccountCodeKey, "6101"),
+                _ => await ResolveSystemAccountIdAsync(GeneralExpenseAccountCodeKey, "6101")
+            };
         }
 
         private static void AddDebit(List<JournalEntryLineWriteDto> lines, int accountId, decimal amount, string description)
@@ -960,6 +1276,8 @@ namespace RaccoonWarehouse.Application.Service.Accounting
         Task<Result<DateTime?>> SetPostingLockDateAsync(DateTime? lockDate);
         Task EnsureDefaultAccountsAsync();
         Task<Result<JournalEntryReadDto>> PostInvoiceEntryAsync(InvoiceWriteDto invoice);
+        Task<Result<JournalEntryReadDto>> PostVoucherEntryAsync(VoucherWriteDto voucher);
+        Task<Result<JournalEntryReadDto>> PostStockDocumentEntryAsync(StockDocumentWriteDto document);
         Task<Result<JournalEntryReadDto>> PostFinancialTransactionEntryAsync(FinancialPostDto transaction, int persistedTransactionId);
         Task<Result<JournalEntryReadDto>> PostStockAdjustmentEntryAsync(StockAdjustmentWriteDto adjustment);
         Task<Result<(TrialBalanceSummaryDto summary, List<TrialBalanceRowDto> rows)>> GetTrialBalanceAsync(TrialBalanceFilterDto filter);

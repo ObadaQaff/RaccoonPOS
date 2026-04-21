@@ -17,6 +17,7 @@ using RaccoonWarehouse.Domain.FinancialTransactions.DTOs;
 using RaccoonWarehouse.Domain.InvoiceLines.DTOs;
 using RaccoonWarehouse.Domain.Invoices.DTOs;
 using RaccoonWarehouse.Domain.Reports.Accounting.Filters;
+using RaccoonWarehouse.Domain.Reports.Financial.Filters;
 using RaccoonWarehouse.Domain.Settings;
 using RaccoonWarehouse.Domain.StockAdjustments.DTOs;
 using Xunit;
@@ -140,6 +141,44 @@ public class AccountingServiceReportTests
         Assert.Equal(60m, result.Data.Liabilities.Total);
         Assert.Equal(90m, result.Data.Equity.Total);
         Assert.Equal(result.Data.Assets.Total, result.Data.TotalLiabilitiesAndEquity);
+    }
+
+    [Fact]
+    public async Task GetBalanceSheetAsync_ShouldIncludeCurrentPeriodEarningsInEquity()
+    {
+        var service = CreateService(nameof(GetBalanceSheetAsync_ShouldIncludeCurrentPeriodEarningsInEquity), out var context);
+        await service.EnsureDefaultAccountsAsync();
+        var cashAccountId = await context.Set<Account>()
+            .Where(x => x.Code == "1000")
+            .Select(x => x.Id)
+            .FirstAsync();
+        var salesAccountId = await context.Set<Account>()
+            .Where(x => x.Code == "4000")
+            .Select(x => x.Id)
+            .FirstAsync();
+
+        await service.PostJournalEntryAsync(new JournalEntryWriteDto
+        {
+            EntryDate = new DateTime(2026, 3, 12),
+            Description = "Cash sale",
+            Lines =
+            [
+                new JournalEntryLineWriteDto { AccountId = cashAccountId, Debit = 100m },
+                new JournalEntryLineWriteDto { AccountId = salesAccountId, Credit = 100m }
+            ]
+        });
+
+        var result = await service.GetBalanceSheetAsync(new BalanceSheetFilterDto
+        {
+            AsOfDate = new DateTime(2026, 3, 31),
+            IncludeZeroBalances = false
+        });
+
+        Assert.True(result.Success);
+        Assert.Equal(100m, result.Data.Assets.Total);
+        Assert.Equal(100m, result.Data.Equity.Total);
+        Assert.Equal(result.Data.Assets.Total, result.Data.TotalLiabilitiesAndEquity);
+        Assert.Contains(result.Data.Equity.Rows, x => x.AccountCode == "CURRENT-EARNINGS" && x.Balance == 100m);
     }
 
     [Fact]
@@ -361,6 +400,72 @@ public class AccountingServiceReportTests
         Assert.Equal(FinancialTransactionStatus.Voided, transaction.Status);
         Assert.Equal(JournalEntryStatus.Reversed, original.Status);
         Assert.NotNull(reversal);
+    }
+
+    [Fact]
+    public async Task GetProfitLossAsync_ShouldOnlyTreatExpenseSourceTransactionsAsExpenses()
+    {
+        var service = CreateService(nameof(GetProfitLossAsync_ShouldOnlyTreatExpenseSourceTransactionsAsExpenses), out var context);
+        await service.EnsureDefaultAccountsAsync();
+        var mapper = new MapperConfiguration(cfg => cfg.AddProfile<MappingProfile>()).CreateMapper();
+        var uow = new UOW(context, mapper);
+        var financialService = new FinancialTransactionService(context, uow, mapper, new UserSession(), service);
+
+        context.Set<RaccoonWarehouse.Domain.Invoices.Invoice>().Add(new RaccoonWarehouse.Domain.Invoices.Invoice
+        {
+            Id = 1,
+            InvoiceNumber = "S-PL-1",
+            InvoiceType = InvoiceType.Sale,
+            PaymentType = PaymentType.Cash,
+            Status = InvoiceStatus.Posted,
+            SubTotal = 100m,
+            TotalAmount = 100m,
+            TotalCOGS = 40m,
+            CreatedDate = new DateTime(2026, 3, 27),
+            UpdatedDate = new DateTime(2026, 3, 27)
+        });
+        await context.SaveChangesAsync();
+
+        var supplierPayment = await financialService.PostAsync(new FinancialPostDto
+        {
+            Direction = TransactionDirection.Out,
+            Method = PaymentMethod.Cash,
+            Amount = 30m,
+            TransactionDate = new DateTime(2026, 3, 27),
+            SourceType = FinancialSourceType.PaymentVoucher,
+            CashierSessionId = 1,
+            CashierId = 1,
+            Notes = "Supplier settlement"
+        });
+
+        var operatingExpense = await financialService.PostAsync(new FinancialPostDto
+        {
+            Direction = TransactionDirection.Out,
+            Method = PaymentMethod.Cash,
+            Amount = 10m,
+            TransactionDate = new DateTime(2026, 3, 27),
+            SourceType = FinancialSourceType.Expense,
+            CashierSessionId = 1,
+            CashierId = 1,
+            Notes = "Utility expense"
+        });
+
+        Assert.True(supplierPayment.Success);
+        Assert.True(operatingExpense.Success);
+
+        var result = await financialService.GetProfitLossAsync(new ProfitLossFilterDto
+        {
+            From = new DateTime(2026, 3, 1),
+            To = new DateTime(2026, 3, 31),
+            IncludeReturns = false,
+            IncludeVoidedTransactions = false
+        });
+
+        Assert.Equal(60m, result.summary.GrossProfit);
+        Assert.Equal(10m, result.summary.TotalExpenses);
+        Assert.Equal(50m, result.summary.NetProfit);
+        Assert.DoesNotContain(result.rows, x => x.Section == "Expenses" && x.Item == FinancialSourceType.PaymentVoucher.ToString());
+        Assert.Contains(result.rows, x => x.Section == "Expenses" && x.Item == FinancialSourceType.Expense.ToString());
     }
 
     [Fact]

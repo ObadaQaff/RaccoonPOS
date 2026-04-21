@@ -75,7 +75,10 @@ namespace RaccoonWarehouse.Application.Service.FinancialTransactions
             {
                 var journalResult = await _accountingService.PostFinancialTransactionEntryAsync(dto, entity.Id);
                 if (!journalResult.Success)
-                    return Result<FinancialTransactionReadDto>.Fail($"Transaction posted but accounting journal failed: {journalResult.Message}");
+                {
+                    await repo.DeleteAsync(entity.Id);
+                    return Result<FinancialTransactionReadDto>.Fail($"Transaction posting was rolled back because accounting journal failed: {journalResult.Message}");
+                }
             }
 
             var readDto = _mapper.Map<FinancialTransactionReadDto>(entity);
@@ -112,7 +115,13 @@ namespace RaccoonWarehouse.Application.Service.FinancialTransactions
                     $"Void financial transaction #{transactionId}: {reason}");
 
                 if (!reverseResult.Success)
-                    return Result.Fail($"Transaction voided but accounting reversal failed: {reverseResult.Message}");
+                {
+                    entity.Status = FinancialTransactionStatus.Posted;
+                    entity.UpdatedDate = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, jordanTimeZone);
+                    await repo.UpdateAsync(entity);
+                    await _uow.CommitAsync();
+                    return Result.Fail($"Transaction void was rolled back because accounting reversal failed: {reverseResult.Message}");
+                }
             }
 
             return Result.Ok("Transaction voided successfully.");
@@ -138,6 +147,8 @@ namespace RaccoonWarehouse.Application.Service.FinancialTransactions
             if (!transactions.Any())
                 return Result.Ok("No transactions found to void.");
 
+            var jordanTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Jordan Standard Time");
+
             foreach (var entity in transactions)
             {
                 entity.Status = FinancialTransactionStatus.Voided;
@@ -146,7 +157,6 @@ namespace RaccoonWarehouse.Application.Service.FinancialTransactions
                     ? $"VOID: {reason}"
                     : $"{entity.Notes}\nVOID: {reason}";
 
-                var jordanTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Jordan Standard Time");
                 entity.UpdatedDate =
                     TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, jordanTimeZone);
 
@@ -165,7 +175,17 @@ namespace RaccoonWarehouse.Application.Service.FinancialTransactions
                         $"Void {sourceType} source #{sourceId}: {reason}");
 
                     if (!reverseResult.Success)
-                        return Result.Fail($"Transactions voided but accounting reversal failed: {reverseResult.Message}");
+                    {
+                        foreach (var rollbackEntity in transactions)
+                        {
+                            rollbackEntity.Status = FinancialTransactionStatus.Posted;
+                            rollbackEntity.UpdatedDate = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, jordanTimeZone);
+                            await repo.UpdateAsync(rollbackEntity);
+                        }
+
+                        await _uow.CommitAsync();
+                        return Result.Fail($"Transaction voids were rolled back because accounting reversal failed: {reverseResult.Message}");
+                    }
                 }
             }
 
@@ -447,7 +467,8 @@ namespace RaccoonWarehouse.Application.Service.FinancialTransactions
 
             var ftQ = ftRepo.GetAllAsQueryable()
                 .Where(x => x.TransactionDate >= from && x.TransactionDate <= to)
-                .Where(x => x.Direction == TransactionDirection.Out);
+                .Where(x => x.Direction == TransactionDirection.Out)
+                .Where(x => x.SourceType == FinancialSourceType.Expense);
 
             if (!filter.IncludeVoidedTransactions)
                 ftQ = ftQ.Where(x => x.Status != FinancialTransactionStatus.Voided); // عدّل اسم الحقل إذا مختلف

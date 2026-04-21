@@ -4,16 +4,22 @@ using RaccoonWarehouse.Domain.Stock.DTOs;
 using RaccoonWarehouse.Helpers.Localization;
 using System;
 using System.Collections.ObjectModel;
-using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
 
 namespace RaccoonWarehouse.Stocks
 {
     public partial class CurrentStock : Window
     {
+        private const int SearchDelayMs = 2000;
+
         private readonly IStockReportService _stockReportService;
         private readonly IServiceProvider _serviceProvider;
+        private readonly SemaphoreSlim _stockLoadLock = new(1, 1);
+
+        private int _searchVersion;
 
         public ObservableCollection<CurrentStockDto> CurrentStockItems { get; set; }
             = new ObservableCollection<CurrentStockDto>();
@@ -31,33 +37,51 @@ namespace RaccoonWarehouse.Stocks
 
         private async void CurrentStock_Loaded(object sender, RoutedEventArgs e)
         {
-            await LoadStock();
+            await LoadStockAsync(GetSearchText(), _searchVersion);
         }
 
-        private async Task LoadStock()
+        private async Task LoadStockAsync(string? searchText, int requestVersion)
         {
+            var normalizedSearch = string.IsNullOrWhiteSpace(searchText)
+                ? null
+                : searchText.Trim();
+
+            await _stockLoadLock.WaitAsync();
             try
             {
-                CurrentStockItems.Clear();
+                if (requestVersion != _searchVersion)
+                    return;
 
-                var data = await _stockReportService.GetCurrentStockAsync();
+                var data = await _stockReportService.GetCurrentStockAsync(normalizedSearch);
+                if (requestVersion != _searchVersion)
+                    return;
+
+                CurrentStockItems.Clear();
 
                 foreach (var item in data)
                     CurrentStockItems.Add(item);
             }
             catch (Exception ex)
             {
+                if (requestVersion != _searchVersion)
+                    return;
+
                 MessageBox.Show(
-                    $"{UiText.T("خطأ أثناء تحميل المخزون", "Error loading stock")}: {ex.Message}",
-                    UiText.T("خطأ", "Error"),
+                    $"{UiText.T("Ø®Ø·Ø£ Ø£Ø«Ù†Ø§Ø¡ ØªØ­Ù…ÙŠÙ„ Ø§Ù„Ù…Ø®Ø²ÙˆÙ†", "Error loading stock")}: {ex.Message}",
+                    UiText.T("Ø®Ø·Ø£", "Error"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
+            }
+            finally
+            {
+                _stockLoadLock.Release();
             }
         }
 
         private async void RefreshBtn_Click(object sender, RoutedEventArgs e)
         {
-            await LoadStock();
+            var searchVersion = Interlocked.Increment(ref _searchVersion);
+            await LoadStockAsync(GetSearchText(), searchVersion);
         }
 
         private void BackBtn_Click(object sender, RoutedEventArgs e)
@@ -65,7 +89,7 @@ namespace RaccoonWarehouse.Stocks
             Close();
         }
 
-        private void AdjustBtn_Click(object sender, RoutedEventArgs e)
+        private async void AdjustBtn_Click(object sender, RoutedEventArgs e)
         {
             var window = _serviceProvider.GetRequiredService<StockAdjustmentWindow>();
             if (StockGrid.SelectedItem is CurrentStockDto selected)
@@ -74,26 +98,45 @@ namespace RaccoonWarehouse.Stocks
             window.Owner = this;
             window.ShowDialog();
             if (window.SavedSuccessfully)
-                _ = LoadStock();
+            {
+                var searchVersion = Interlocked.Increment(ref _searchVersion);
+                await LoadStockAsync(GetSearchText(), searchVersion);
+            }
         }
 
-        private void SearchBtn_Click(object sender, RoutedEventArgs e)
+        private async void SearchBtn_Click(object sender, RoutedEventArgs e)
         {
-            string term = SearchText.Text?.Trim() ?? "";
+            var searchVersion = Interlocked.Increment(ref _searchVersion);
+            await LoadStockAsync(GetSearchText(), searchVersion);
+        }
 
-            if (string.IsNullOrWhiteSpace(term))
+        private void SearchText_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            var searchVersion = Interlocked.Increment(ref _searchVersion);
+            _ = DebouncedLoadStockAsync(GetSearchText(), searchVersion);
+        }
+
+        private async Task DebouncedLoadStockAsync(string? searchText, int searchVersion)
+        {
+            try
             {
-                StockGrid.ItemsSource = CurrentStockItems;
-                return;
+                await Task.Delay(SearchDelayMs);
+                if (searchVersion != _searchVersion)
+                    return;
+
+                await LoadStockAsync(searchText, searchVersion);
             }
+            catch (Exception ex)
+            {
+                if (searchVersion != _searchVersion)
+                    return;
 
-            var filtered = CurrentStockItems
-                .Where(x =>
-                    (x.ProductName?.Contains(term, StringComparison.OrdinalIgnoreCase) ?? false) ||
-                    (x.ITEMCODE?.Contains(term) ?? false))
-                .ToList();
-
-            StockGrid.ItemsSource = filtered;
+                MessageBox.Show(
+                    $"{UiText.T("Ø®Ø·Ø£ Ø£Ø«Ù†Ø§Ø¡ ØªØ­Ù…ÙŠÙ„ Ø§Ù„Ù…Ø®Ø²ÙˆÙ†", "Error loading stock")}: {ex.Message}",
+                    UiText.T("Ø®Ø·Ø£", "Error"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
         }
 
         private void CopyBarcode_Click(object sender, RoutedEventArgs e)
@@ -104,8 +147,8 @@ namespace RaccoonWarehouse.Stocks
             if (string.IsNullOrWhiteSpace(item.ITEMCODE))
             {
                 MessageBox.Show(
-                    UiText.T("لا يوجد باركود لنسخه.", "There is no barcode to copy."),
-                    UiText.T("تنبيه", "Notice"),
+                    UiText.T("Ù„Ø§ ÙŠÙˆØ¬Ø¯ Ø¨Ø§Ø±ÙƒÙˆØ¯ Ù„Ù†Ø³Ø®Ù‡.", "There is no barcode to copy."),
+                    UiText.T("ØªÙ†Ø¨ÙŠÙ‡", "Notice"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
                 return;
@@ -128,17 +171,17 @@ namespace RaccoonWarehouse.Stocks
                     return;
 
                 using var workbook = new ClosedXML.Excel.XLWorkbook();
-                var ws = workbook.Worksheets.Add(UiText.T("المخزون الحالي", "Current Stock"));
+                var ws = workbook.Worksheets.Add(UiText.T("Ø§Ù„Ù…Ø®Ø²ÙˆÙ† Ø§Ù„Ø­Ø§Ù„ÙŠ", "Current Stock"));
 
-                ws.Cell(1, 1).Value = UiText.T("الباركود", "Barcode");
-                ws.Cell(1, 2).Value = UiText.T("المنتج", "Product");
-                ws.Cell(1, 3).Value = UiText.T("الوحدة", "Unit");
-                ws.Cell(1, 4).Value = UiText.T("الكمية", "Quantity");
-                ws.Cell(1, 5).Value = UiText.T("تكلفة المخزون", "Inventory Cost");
-                ws.Cell(1, 6).Value = UiText.T("سعر البيع الحالي", "Current Sale Price");
-                ws.Cell(1, 7).Value = UiText.T("أقرب انتهاء", "Nearest Expiry");
-                ws.Cell(1, 8).Value = UiText.T("الحد الأدنى", "Minimum Quantity");
-                ws.Cell(1, 9).Value = UiText.T("تنبيه", "Alert");
+                ws.Cell(1, 1).Value = UiText.T("Ø§Ù„Ø¨Ø§Ø±ÙƒÙˆØ¯", "Barcode");
+                ws.Cell(1, 2).Value = UiText.T("Ø§Ù„Ù…Ù†ØªØ¬", "Product");
+                ws.Cell(1, 3).Value = UiText.T("Ø§Ù„ÙˆØ­Ø¯Ø©", "Unit");
+                ws.Cell(1, 4).Value = UiText.T("Ø§Ù„ÙƒÙ…ÙŠØ©", "Quantity");
+                ws.Cell(1, 5).Value = UiText.T("ØªÙƒÙ„ÙØ© Ø§Ù„Ù…Ø®Ø²ÙˆÙ†", "Inventory Cost");
+                ws.Cell(1, 6).Value = UiText.T("Ø³Ø¹Ø± Ø§Ù„Ø¨ÙŠØ¹ Ø§Ù„Ø­Ø§Ù„ÙŠ", "Current Sale Price");
+                ws.Cell(1, 7).Value = UiText.T("Ø£Ù‚Ø±Ø¨ Ø§Ù†ØªÙ‡Ø§Ø¡", "Nearest Expiry");
+                ws.Cell(1, 8).Value = UiText.T("Ø§Ù„Ø­Ø¯ Ø§Ù„Ø£Ø¯Ù†Ù‰", "Minimum Quantity");
+                ws.Cell(1, 9).Value = UiText.T("ØªÙ†Ø¨ÙŠÙ‡", "Alert");
 
                 ws.Row(1).Style.Font.Bold = true;
                 ws.Row(1).Style.Fill.BackgroundColor = ClosedXML.Excel.XLColor.LightGray;
@@ -154,7 +197,7 @@ namespace RaccoonWarehouse.Stocks
                     ws.Cell(row, 6).Value = item.SalePrice;
                     ws.Cell(row, 7).Value = item.NearestExpiryDate?.ToString("yyyy-MM-dd") ?? "-";
                     ws.Cell(row, 8).Value = item.MinimumQuantity;
-                    ws.Cell(row, 9).Value = item.IsLowStock ? UiText.T("⚠ قليل", "⚠ Low") : "";
+                    ws.Cell(row, 9).Value = item.IsLowStock ? UiText.T("âš  Ù‚Ù„ÙŠÙ„", "âš  Low") : "";
                     row++;
                 }
 
@@ -162,19 +205,25 @@ namespace RaccoonWarehouse.Stocks
                 workbook.SaveAs(dlg.FileName);
 
                 MessageBox.Show(
-                    UiText.T("تم استخراج ملف Excel بنجاح!", "Excel file exported successfully!"),
-                    UiText.T("نجاح", "Success"),
+                    UiText.T("ØªÙ… Ø§Ø³ØªØ®Ø±Ø§Ø¬ Ù…Ù„Ù Excel Ø¨Ù†Ø¬Ø§Ø­!", "Excel file exported successfully!"),
+                    UiText.T("Ù†Ø¬Ø§Ø­", "Success"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
                 MessageBox.Show(
-                    $"{UiText.T("حدث خطأ أثناء التصدير", "An error occurred during export")}: {ex.Message}",
-                    UiText.T("خطأ", "Error"),
+                    $"{UiText.T("Ø­Ø¯Ø« Ø®Ø·Ø£ Ø£Ø«Ù†Ø§Ø¡ Ø§Ù„ØªØµØ¯ÙŠØ±", "An error occurred during export")}: {ex.Message}",
+                    UiText.T("Ø®Ø·Ø£", "Error"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
             }
+        }
+
+        private string? GetSearchText()
+        {
+            var searchText = SearchText.Text?.Trim();
+            return string.IsNullOrWhiteSpace(searchText) ? null : searchText;
         }
     }
 }

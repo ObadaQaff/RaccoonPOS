@@ -7,6 +7,7 @@ using RaccoonWarehouse.Application.Service.Stocks;
 using RaccoonWarehouse.Application.Service.StockTransactions;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Common;
+using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Domain.Cashiers.DTOs;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.FinancialTransactions.DTOs;
@@ -52,6 +53,7 @@ namespace RaccoonWarehouse.Invoices
         private readonly IStockTransactionService _stockTransactionService;
         private readonly IFinancialTransactionService _financialService;
         private readonly IUserSession _userSession;
+        private readonly ILoadingService _loadingService;
         private bool _isLoadingUnits = false;
         private int? _currentInvoiceId = null;   // لتحديث الفاتورة بعد الحفظ الأول
 
@@ -63,7 +65,8 @@ namespace RaccoonWarehouse.Invoices
             IProductUnitService productUnitService,
             IUserSession userSession,
             IStockTransactionService stockTransactionService,
-            IFinancialTransactionService financialService)
+            IFinancialTransactionService financialService,
+            ILoadingService loadingService)
         {
             _stockService = stockService;
             _productService = productService;
@@ -73,6 +76,7 @@ namespace RaccoonWarehouse.Invoices
             _userService = userService;
             _userSession = userSession;
             _financialService = financialService;
+            _loadingService = loadingService;
             _isLoadingUnits = false;
 
             InitializeComponent();
@@ -101,8 +105,22 @@ namespace RaccoonWarehouse.Invoices
         // ===================== LOAD DATA =====================
         private async void PayInvoice_Loaded(object sender, RoutedEventArgs e)
         {
+            var loadingShown = false;
+
+            void HideLoadingIfShown()
+            {
+                if (!loadingShown)
+                    return;
+
+                _loadingService.Hide();
+                loadingShown = false;
+            }
+
             try
             {
+                _loadingService.Show();
+                loadingShown = true;
+
                 UiText.ApplyTranslations(this);
                 // المورّدين (نفس users لكن أنت تختار اللي يمثل الموردين)
                 var result = await _userService.GetAllAsync();
@@ -120,8 +138,13 @@ namespace RaccoonWarehouse.Invoices
             }
             catch (Exception ex)
             {
+                HideLoadingIfShown();
                 MessageBox.Show($"{UiText.T("حدث خطأ أثناء تحميل البيانات", "An error occurred while loading data")}: {ex.Message}", UiText.T("خطأ", "Error"),
                     MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                HideLoadingIfShown();
             }
         }
 
@@ -452,6 +475,17 @@ namespace RaccoonWarehouse.Invoices
         }*/
         private async void SaveReceiptBtn_Click(object sender, RoutedEventArgs e)
         {
+            var loadingShown = false;
+
+            void HideLoadingIfShown()
+            {
+                if (!loadingShown)
+                    return;
+
+                _loadingService.Hide();
+                loadingShown = false;
+            }
+
             try
             {
                 if (!InvoiceLines.Any())
@@ -473,6 +507,8 @@ namespace RaccoonWarehouse.Invoices
                     return;
 
                 bool isUpdate = _currentInvoiceId != null;
+                _loadingService.Show();
+                loadingShown = true;
 
                 var invoiceDto = new InvoiceWriteDto
                 {
@@ -497,6 +533,7 @@ namespace RaccoonWarehouse.Invoices
 
                     if (!result.Success)
                     {
+                        HideLoadingIfShown();
                         MessageBox.Show(result.Message ?? "فشل إنشاء فاتورة المشتريات", "خطأ");
                         return;
                     }
@@ -515,6 +552,7 @@ namespace RaccoonWarehouse.Invoices
                             1m));
                     if (!movementResult.Success)
                     {
+                        HideLoadingIfShown();
                         MessageBox.Show(movementResult.Message ?? "فشل تحديث المخزون.", "خطأ");
                         return;
                     }
@@ -541,11 +579,13 @@ namespace RaccoonWarehouse.Invoices
                         var postResult = await _financialService.PostAsync(postDto);
                         if (!postResult.Success)
                         {
+                            HideLoadingIfShown();
                             MessageBox.Show(postResult.Message ?? "تم حفظ الفاتورة لكن فشل تسجيل الحركة المالية", "تحذير");
                             return;
                         }
                     }
 
+                    HideLoadingIfShown();
                     MessageBox.Show(
                         selectedPaymentType == PaymentType.Credit
                             ? "تم إنشاء فاتورة مشتريات آجلة بنجاح ✅"
@@ -565,6 +605,7 @@ namespace RaccoonWarehouse.Invoices
 
                     if (!voidResult.Success)
                     {
+                        HideLoadingIfShown();
                         MessageBox.Show(voidResult.Message ?? "فشل إلغاء الحركة المالية السابقة", "خطأ");
                         return;
                     }
@@ -589,6 +630,7 @@ namespace RaccoonWarehouse.Invoices
                             -1m));
                     if (!reverseResult.Success)
                     {
+                        HideLoadingIfShown();
                         MessageBox.Show(reverseResult.Message ?? "فشل عكس حركة المخزون.", "خطأ");
                         return;
                     }
@@ -606,6 +648,7 @@ namespace RaccoonWarehouse.Invoices
                             1m));
                     if (!applyResult.Success)
                     {
+                        HideLoadingIfShown();
                         MessageBox.Show(applyResult.Message ?? "فشل تحديث حركة المخزون.", "خطأ");
                         return;
                     }
@@ -614,6 +657,7 @@ namespace RaccoonWarehouse.Invoices
                     var result = await _invoicesService.UpdateAsync(invoiceDto);
                     if (!result.Success)
                     {
+                        HideLoadingIfShown();
                         MessageBox.Show(result.Message ?? "فشل تحديث فاتورة المشتريات", "خطأ");
                         return;
                     }
@@ -640,11 +684,13 @@ namespace RaccoonWarehouse.Invoices
                         var postResult = await _financialService.PostAsync(postDto);
                         if (!postResult.Success)
                         {
+                            HideLoadingIfShown();
                             MessageBox.Show(postResult.Message ?? "تم تحديث الفاتورة لكن فشل تسجيل الحركة المالية الجديدة", "تحذير");
                             return;
                         }
                     }
 
+                    HideLoadingIfShown();
                     MessageBox.Show(
                         selectedPaymentType == PaymentType.Credit
                             ? "تم تحديث فاتورة المشتريات الآجلة بنجاح ✅"
@@ -664,7 +710,12 @@ namespace RaccoonWarehouse.Invoices
                     inner = inner.InnerException;
                 }
 
+                HideLoadingIfShown();
                 MessageBox.Show($"خطأ أثناء حفظ الفاتورة:\n{details}");
+            }
+            finally
+            {
+                HideLoadingIfShown();
             }
         }
 

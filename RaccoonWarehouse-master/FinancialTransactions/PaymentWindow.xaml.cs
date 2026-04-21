@@ -25,8 +25,6 @@ namespace RaccoonWarehouse.FinancialTransactions
 
         public PaymentWindow(IFinancialTransactionService service, int cashierSessionId, int cashierId)
         {
-            InitializeComponent();
-
             _service = service;
             _cashierSessionId = cashierSessionId;
             _cashierId = cashierId;
@@ -43,6 +41,8 @@ namespace RaccoonWarehouse.FinancialTransactions
                 CreatedDate = DateTime.Now,
                 UpdatedDate = DateTime.Now,
             };
+
+            InitializeComponent();
 
             DataContext = this;
             LoadPaymentMethods();

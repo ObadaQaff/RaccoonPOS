@@ -5,6 +5,7 @@ using RaccoonWarehouse.Application.Service.Stocks;
 using RaccoonWarehouse.Application.Service.StockTransactions;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Common;
+using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Products;
 using RaccoonWarehouse.Domain.Products.DTOs;
@@ -39,6 +40,7 @@ namespace RaccoonWarehouse.Stocks
         private readonly IProductUnitService _productUnitService;
         private readonly IStockDocumentService _stockDocumentService;
         private readonly IUserService _userService;
+        private readonly ILoadingService _loadingService;
         private bool _isLoadingUnits = false;
         private int? _currentDocumentId = null;
         private List<StockItemReadDto> _originalItems = new(); // Used for stock adjustment
@@ -65,7 +67,8 @@ namespace RaccoonWarehouse.Stocks
             IProductUnitService productUnitService,
             IStockDocumentService stockDocumentService,
             IStockService stockService,
-            IStockTransactionService stockTransactionService)
+            IStockTransactionService stockTransactionService,
+            ILoadingService loadingService)
         {
             _userService = userService;
             _stockService = stockService;
@@ -73,6 +76,7 @@ namespace RaccoonWarehouse.Stocks
             _productService = productService;
             _productUnitService = productUnitService;
             _stockDocumentService = stockDocumentService;
+            _loadingService = loadingService;
 
             InitializeComponent();
             UiText.ApplyWindow(this);
@@ -92,8 +96,22 @@ namespace RaccoonWarehouse.Stocks
 
         private async Task LoadDataAsync()
         {
+            var loadingShown = false;
+
+            void HideLoadingIfShown()
+            {
+                if (!loadingShown)
+                    return;
+
+                _loadingService.Hide();
+                loadingShown = false;
+            }
+
             try
             {
+                _loadingService.Show();
+                loadingShown = true;
+
                 VoucherNumberTxt.Text = GenerateDocumentNumber();
                 DatePickerInvoice.SelectedDate = DateTime.Now;
 
@@ -119,8 +137,13 @@ namespace RaccoonWarehouse.Stocks
             }
             catch (Exception ex)
             {
+                HideLoadingIfShown();
                 MessageBox.Show($"{UiText.T("حدث خطأ أثناء تحميل البيانات", "An error occurred while loading data")}: {ex.Message}",
                     UiText.T("خطأ", "Error"), MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                HideLoadingIfShown();
             }
         }
 
@@ -169,6 +192,17 @@ namespace RaccoonWarehouse.Stocks
 
         private async void SaveStockInBtn_Click(object sender, RoutedEventArgs e)
         {
+            var loadingShown = false;
+
+            void HideLoadingIfShown()
+            {
+                if (!loadingShown)
+                    return;
+
+                _loadingService.Hide();
+                loadingShown = false;
+            }
+
             try
             {   
                 if (Items.Count == 0)
@@ -178,11 +212,15 @@ namespace RaccoonWarehouse.Stocks
                     return;
                 }
 
+                _loadingService.Show();
+                loadingShown = true;
+
                 // Validate Units
                 foreach (var item in Items)
                 {
                     if (!_itemUnits.TryGetValue(item, out var unitId) || unitId <= 0)
                     {
+                        HideLoadingIfShown();
                         MessageBox.Show(UiText.T($"الوحدة غير صحيحة للمنتج {item.ProductName ?? "غير معروف"}.", $"The unit is invalid for product {item.ProductName ?? "Unknown"}."), UiText.T("تنبيه", "Notice"));
                         return;
                     }
@@ -192,18 +230,21 @@ namespace RaccoonWarehouse.Stocks
 
                     if (item.Quantity <= 0)
                     {
+                        HideLoadingIfShown();
                         MessageBox.Show(UiText.T($"الكمية غير صحيحة للمنتج {item.ProductName ?? "غير معروف"}.", $"The quantity is invalid for product {item.ProductName ?? "Unknown"}."), UiText.T("تنبيه", "Notice"));
                         return;
                     }
 
                     if (item.PurchasePrice <= 0)
                     {
+                        HideLoadingIfShown();
                         MessageBox.Show(UiText.T($"سعر الشراء يجب أن يكون أكبر من صفر للمنتج {item.ProductName ?? "غير معروف"}.", $"The purchase price must be greater than zero for product {item.ProductName ?? "Unknown"}."), UiText.T("تنبيه", "Notice"));
                         return;
                     }
 
                     if (item.SalePrice <= 0)
                     {
+                        HideLoadingIfShown();
                         MessageBox.Show(UiText.T($"سعر البيع يجب أن يكون أكبر من صفر للمنتج {item.ProductName ?? "غير معروف"}.", $"The sale price must be greater than zero for product {item.ProductName ?? "Unknown"}."), UiText.T("تنبيه", "Notice"));
                         return;
                     }
@@ -213,6 +254,7 @@ namespace RaccoonWarehouse.Stocks
 
                 if (isUpdate)
                 {
+                    HideLoadingIfShown();
                     MessageBox.Show(
                         UiText.T("لا يمكن تعديل سند إدخال مخزون بعد حفظه مباشرة لأن ذلك قد يغيّر التاريخ المحاسبي وحركات الدُفعات المستخدمة. استخدم شاشة تسوية/تصحيح المخزون الجديدة لإجراء أي تعديل آمن.", "A stock-in document cannot be edited after saving because that may change the accounting date and used batch movements. Use the stock adjustment window for safe changes."),
                         UiText.T("تعديل محظور", "Edit blocked"),
@@ -245,6 +287,7 @@ namespace RaccoonWarehouse.Stocks
 
                         if (!movementResult.Success)
                         {
+                            HideLoadingIfShown();
                             MessageBox.Show(movementResult.Message ?? UiText.T("فشل تحديث المخزون.", "Failed to update stock."), UiText.T("خطأ", "Error"));
                             return;
                         }
@@ -253,6 +296,7 @@ namespace RaccoonWarehouse.Stocks
                     }
                    
 
+                    HideLoadingIfShown();
                     MessageBox.Show(UiText.T("تم إنشاء السند بنجاح.", "The document was created successfully."), UiText.T("نجاح", "Success"),
                         MessageBoxButton.OK, MessageBoxImage.Information);
                 }
@@ -261,8 +305,13 @@ namespace RaccoonWarehouse.Stocks
             }
             catch (Exception ex)
             {
+                HideLoadingIfShown();
                 MessageBox.Show($"{UiText.T("حدث خطأ أثناء الحفظ", "An error occurred while saving")}: {ex.Message}",
                     UiText.T("خطأ", "Error"), MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                HideLoadingIfShown();
             }
         }
 

@@ -7,6 +7,7 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
 
 namespace RaccoonWarehouse.POS
 {
@@ -96,6 +97,38 @@ namespace RaccoonWarehouse.POS
             finally
             {
                 _isLoading = false;
+            }
+        }
+
+        private void CopyInvoiceNumber_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (sender is not Button { DataContext: RaccoonWarehouse.Domain.Invoices.DTOs.InvoiceReadDto invoice } ||
+                    string.IsNullOrWhiteSpace(invoice.InvoiceNumber))
+                {
+                    MessageBox.Show(
+                        UiText.T("رقم الفاتورة غير متوفر للنسخ.", "The invoice number is not available to copy."),
+                        UiText.T("تنبيه", "Notice"),
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    return;
+                }
+
+                Clipboard.SetText(invoice.InvoiceNumber);
+                MessageBox.Show(
+                    UiText.T("تم نسخ رقم الفاتورة.", "The invoice number was copied."),
+                    UiText.T("تم", "Done"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"{UiText.T("تعذر نسخ رقم الفاتورة", "Could not copy the invoice number")}: {ex.Message}",
+                    UiText.T("خطأ", "Error"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
             }
         }
     }

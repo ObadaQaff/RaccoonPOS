@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <UseWPF>true</UseWPF>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\RaccoonWarehouse.Application\RaccoonWarehouse.Application.csproj" />
+    <ProjectReference Include="..\RaccoonWarehouse.Core\RaccoonWarehouse.Core.csproj" />
+  </ItemGroup>
+
+</Project>

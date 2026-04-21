@@ -15,6 +15,7 @@ using RaccoonWarehouse.Domain.ProductUnits.DTOs;
 using RaccoonWarehouse.Domain.Reports.Financial.Dtos;
 using RaccoonWarehouse.Domain.Reports.Financial.Filters;
 using RaccoonWarehouse.Domain.Reports.Sales.Dtos;
+using RaccoonWarehouse.Domain.Users;
 using RaccoonWarehouse.Domain.Vouchers.DTOs;
 using System;
 using System.Collections.Generic;
@@ -122,7 +123,12 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 {
                     var journalResult = await _accountingService.PostInvoiceEntryAsync(dto);
                     if (!journalResult.Success)
-                        return Result<InvoiceWriteDto>.Fail($"Invoice saved but accounting posting failed: {journalResult.Message}");
+                    {
+                        _context.Set<InvoiceLine>().RemoveRange(_context.Set<InvoiceLine>().Where(x => x.InvoiceId == invoice.Id));
+                        _context.Set<Invoice>().Remove(invoice);
+                        await _uow.CommitAsync();
+                        return Result<InvoiceWriteDto>.Fail($"Invoice creation was rolled back because accounting posting failed: {journalResult.Message}");
+                    }
                 }
 
                 return Result<InvoiceWriteDto>.Ok(dto, "Invoice created successfully.");
@@ -192,12 +198,14 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                             $"Repost invoice #{existingInvoice.InvoiceNumber} after update");
 
                         if (!reverseResult.Success)
-                            return Result<InvoiceWriteDto>.Fail($"Invoice updated but accounting reversal failed: {reverseResult.Message}");
+                            return Result<InvoiceWriteDto>.Fail($"Invoice update was blocked because accounting reversal failed: {reverseResult.Message}");
                     }
 
                     var repostResult = await _accountingService.PostInvoiceEntryAsync(dto);
                     if (!repostResult.Success)
-                        return Result<InvoiceWriteDto>.Fail($"Invoice updated but accounting repost failed: {repostResult.Message}");
+                    {
+                        return Result<InvoiceWriteDto>.Fail($"Invoice data was updated but accounting repost failed: {repostResult.Message}");
+                    }
                 }
 
                 return Result<InvoiceWriteDto>.Ok(dto, "Invoice updated successfully.");
@@ -450,6 +458,9 @@ namespace RaccoonWarehouse.Application.Service.Invoices
             if (filter.CustomerId.HasValue)
                 invoicesQ = invoicesQ.Where(x => x.CustomerId == filter.CustomerId.Value);
 
+            if (filter.CashierId.HasValue)
+                invoicesQ = invoicesQ.Where(x => x.CasherId == filter.CashierId.Value);
+
             if (type.HasValue)
                 invoicesQ = invoicesQ.Where(x => x.InvoiceType == type.Value);
             else if (filter.IncludeReturns)
@@ -479,6 +490,18 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 .Include(x => x.User) // customer
                 .ToListAsync();
 
+            var cashierIds = invoices
+                .Where(x => x.CasherId.HasValue)
+                .Select(x => x.CasherId!.Value)
+                .Distinct()
+                .ToList();
+
+            var cashierNames = cashierIds.Count == 0
+                ? new Dictionary<int, string>()
+                : await _uow.GetRepository<User>().GetAllAsQueryable()
+                    .Where(x => cashierIds.Contains(x.Id))
+                    .ToDictionaryAsync(x => x.Id, x => x.Name);
+
             var rows = invoices.Select(inv =>
             {
                 var discount = inv.DiscountAmount ?? 0m;
@@ -497,6 +520,9 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                     InvoiceNumber = inv.InvoiceNumber,
                     Date = inv.CreatedDate,
                     CustomerName = inv.User?.Name ?? "—",
+                    CashierName = inv.CasherId.HasValue && cashierNames.TryGetValue(inv.CasherId.Value, out var cashierName)
+                        ? cashierName
+                        : "—",
 
                     SubTotal = subTotal,
                     TotalTax = tax,

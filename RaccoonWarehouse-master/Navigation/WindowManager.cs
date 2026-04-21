@@ -131,7 +131,7 @@ namespace RaccoonWarehouse.Navigation
 
         private static void ApplySize(Window window, WindowSizeType size)
         {
-            window.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+            window.WindowStartupLocation = WindowStartupLocation.Manual;
             window.SizeToContent = SizeToContent.Manual;
 
             switch (size)
@@ -165,6 +165,44 @@ namespace RaccoonWarehouse.Navigation
                     window.WindowStyle = WindowStyle.SingleBorderWindow;
                     window.WindowState = WindowState.Normal;
                     break;
+            }
+
+            EnsureWindowStartsVisible(window);
+        }
+
+        private static void EnsureWindowStartsVisible(Window window)
+        {
+            void Reposition()
+            {
+                if (window.WindowState != WindowState.Normal)
+                    return;
+
+                var workArea = SystemParameters.WorkArea;
+                var width = window.Width > 0 ? window.Width : window.ActualWidth;
+                var height = window.Height > 0 ? window.Height : window.ActualHeight;
+
+                if (width <= 0 || height <= 0)
+                    return;
+
+                if (width > workArea.Width)
+                    width = workArea.Width;
+
+                if (height > workArea.Height)
+                    height = workArea.Height;
+
+                window.Width = width;
+                window.Height = height;
+                window.Left = workArea.Left + Math.Max(0, (workArea.Width - width) / 2);
+                window.Top = workArea.Top + Math.Max(0, (workArea.Height - height) / 2);
+            }
+
+            window.SourceInitialized -= Window_SourceInitialized;
+            window.SourceInitialized += Window_SourceInitialized;
+
+            void Window_SourceInitialized(object? sender, EventArgs e)
+            {
+                window.SourceInitialized -= Window_SourceInitialized;
+                window.Dispatcher.BeginInvoke(Reposition);
             }
         }
     }

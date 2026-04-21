@@ -15,6 +15,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RaccoonWarehouse.Core", "..
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RaccoonWarehouse.Tests", "..\RaccoonWarehouse.Tests\RaccoonWarehouse.Tests.csproj", "{A1E2DFA6-D1EC-4F81-BFF5-BDEBEBD9F111}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RaccoonWarehouse.Modules.Reports", "..\RaccoonWarehouse.Modules.Reports\RaccoonWarehouse.Modules.Reports.csproj", "{3A959B75-CEDB-4AA3-9FBA-72D2747BE5A5}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -45,6 +47,10 @@ Global
 		{A1E2DFA6-D1EC-4F81-BFF5-BDEBEBD9F111}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A1E2DFA6-D1EC-4F81-BFF5-BDEBEBD9F111}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A1E2DFA6-D1EC-4F81-BFF5-BDEBEBD9F111}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3A959B75-CEDB-4AA3-9FBA-72D2747BE5A5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3A959B75-CEDB-4AA3-9FBA-72D2747BE5A5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3A959B75-CEDB-4AA3-9FBA-72D2747BE5A5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3A959B75-CEDB-4AA3-9FBA-72D2747BE5A5}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
