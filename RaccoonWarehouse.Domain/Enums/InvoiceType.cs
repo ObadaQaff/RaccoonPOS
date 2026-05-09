@@ -13,6 +13,7 @@ namespace RaccoonWarehouse.Domain.Enums
         Purchase,
         PurchaseReturn,
         Letter,
-        Exchange
+        Exchange,
+        EndpointOrder = 6
     }
 }
