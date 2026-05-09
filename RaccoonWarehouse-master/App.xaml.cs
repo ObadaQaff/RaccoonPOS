@@ -868,6 +868,8 @@ END;";
             services.AddTransient<CurrentStock>();
             services.AddTransient<StockAdjustmentWindow>();
             services.AddTransient<ImportOrder>();
+            services.AddTransient<OrdersTable>();
+            services.AddTransient<OrderInvoiceDetails>();
             services.AddTransient<MaterialMovementsReport>();
             services.AddTransient<RaccoonWarehouse.Stocks.Reports.StockMovementsReport>();
             services.AddTransient<SalesReport>();

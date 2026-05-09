@@ -8,6 +8,7 @@ using RaccoonWarehouse.Domain.Categories.DTOs;
 using RaccoonWarehouse.Domain.Users.DTOs;
 using RaccoonWarehouse.Helpers.Localization;
 using RaccoonWarehouse.Navigation;
+using RaccoonWarehouse.SubCategories;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -58,11 +59,15 @@ namespace RaccoonWarehouse.Categories
                 }
                 else
                 {
+                    _loadingService.Hide();
+                    _loadingService.Hide();
                     MessageBox.Show(result.Message ?? UiText.T("فشل تحميل الفئات.", "Failed to load categories."));
                 }
             }
             catch (Exception ex)
             {
+                _loadingService.Hide();
+                _loadingService.Hide();
                 MessageBox.Show($"{UiText.T("حدث خطأ غير متوقع أثناء تحميل الفئات", "Unexpected error while loading categories")}: {ex.Message}");
             }
             finally
@@ -71,11 +76,19 @@ namespace RaccoonWarehouse.Categories
             }
         }
 
+        private CategoryReadDto? GetSelectedCategory()
+        {
+            if (CategoriesTable1.SelectedItem is CategoryReadDto selectedCategory)
+                return selectedCategory;
+
+            MessageBox.Show(UiText.T("لم يتم اختيار فئة.", "No category selected."));
+            return null;
+        }
+
         private void Update_Category(object sender, RoutedEventArgs e)
         {
-            if (CategoriesTable1.SelectedItem is not CategoryReadDto selectedCategory)
+            if (GetSelectedCategory() is not CategoryReadDto selectedCategory)
             {
-                MessageBox.Show(UiText.T("لم يتم اختيار فئة.", "No category selected."));
                 return;
             }
 
@@ -88,10 +101,8 @@ namespace RaccoonWarehouse.Categories
 
         private async void Delete_Category(object sender, RoutedEventArgs e)
         {
-            var selectedCategory = CategoriesTable1.SelectedItem as CategoryReadDto;
-            if (selectedCategory == null)
+            if (GetSelectedCategory() is not CategoryReadDto selectedCategory)
             {
-                MessageBox.Show(UiText.T("لم يتم اختيار فئة.", "No category selected."));
                 return;
             }
 
@@ -114,11 +125,13 @@ namespace RaccoonWarehouse.Categories
                 var result = await _categoryService.DeleteAsync(selectedCategory.Id);
                 if (result.Success)
                 {
+                    _loadingService.Hide();
                     MessageBox.Show(UiText.T("تم الحذف بنجاح !!", "Delete was successful."));
                     await Load_CategoriesAsync();
                 }
                 else
                 {
+                    _loadingService.Hide();
                     MessageBox.Show(result.Message ?? UiText.T("فشل الحذف.", "Delete failed."));
                 }
             }
@@ -140,6 +153,29 @@ namespace RaccoonWarehouse.Categories
             createCategory.Show();
             this.Hide();
 
+        }
+
+        private void CreateSubCategoryBtn_Click(object sender, RoutedEventArgs e)
+        {
+            if (GetSelectedCategory() is not CategoryReadDto selectedCategory)
+                return;
+
+            WindowManager.ShowDialog<CreateSubCategory>(WindowSizeType.MediumRectangle, window =>
+            {
+                window.InitializeForParentCategory(selectedCategory.Id, selectedCategory.Name);
+            });
+        }
+
+        private void OpenSubCategoriesBtn_Click(object sender, RoutedEventArgs e)
+        {
+            if (GetSelectedCategory() is not CategoryReadDto selectedCategory)
+                return;
+
+            var subCategoryTable = ((App)System.Windows.Application.Current)
+                .ServiceProvider.GetRequiredService<SubCategoryTable>();
+            subCategoryTable.Owner = this;
+            subCategoryTable.ApplyParentCategoryFilter(selectedCategory.Id, selectedCategory.Name);
+            subCategoryTable.Show();
         }
 
         private void BackBtn_Click(object sender, RoutedEventArgs e)

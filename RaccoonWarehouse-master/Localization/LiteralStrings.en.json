@@ -79,6 +79,19 @@
   "\u0628\u062d\u062b \u0628\u0627\u0644\u0628\u0627\u0631\u0643\u0648\u062f": "Barcode Search",
   "\u0641\u062a\u062d \u062c\u0644\u0633\u0629": "Open Session",
   "\u0625\u063a\u0644\u0627\u0642 \u062c\u0644\u0633\u0629": "Close Session",
+  "\u0641\u0627\u062a\u0648\u0631\u0629 \u062c\u062f\u064a\u062f\u0629 (F1)": "New Invoice (F1)",
+  "\u0628\u062d\u062b \u0639\u0646 \u0645\u0627\u062f\u0629 (F2)": "Search Item (F2)",
+  "\u062d\u0630\u0641 \u0645\u0627\u062f\u0629 (F3 / Del)": "Delete Item (F3 / Del)",
+  "\u0625\u0646\u0647\u0627\u0621 \u0643\u0627\u0634 (F4)": "Cash Checkout (F4)",
+  "\u0627\u0646\u062a\u0638\u0627\u0631 (F5)": "Hold (F5)",
+  "\u0627\u0633\u062a\u0626\u0646\u0627\u0641 (F6)": "Resume (F6)",
+  "\u0645\u0642\u0628\u0648\u0636\u0627\u062a (F7)": "Receipts (F7)",
+  "\u0645\u062f\u0641\u0648\u0639\u0627\u062a (F8)": "Payments (F8)",
+  "\u0637\u0628\u0627\u0639\u0629 (F9)": "Print (F9)",
+  "\u062a\u0642\u0631\u064a\u0631 \u064a\u0648\u0645\u064a (F10)": "Daily Report (F10)",
+  "\u062e\u0635\u0645 (F11)": "Discount (F11)",
+  "\u0627\u0633\u062a\u0628\u062f\u0627\u0644 (Shift+F2)": "Exchange (Shift+F2)",
+  "\u0625\u0644\u063a\u0627\u0621 (Esc)": "Cancel (Esc)",
   "\u0625\u0646\u0647\u0627\u0621 \u062c\u0644\u0633\u0629 \u0627\u0644\u0643\u0627\u0634\u064a\u0631": "Close Cashier Session",
   "\u0627\u0644\u0643\u0627\u0634\u064a\u0631:": "Cashier:",
   "\u0631\u0642\u0645 \u0627\u0644\u062c\u0644\u0633\u0629:": "Session ID:",
@@ -242,7 +255,6 @@
   ,"\u0627\u0644\u0628\u062d\u062b \u0628\u0627\u0633\u0645 \u0627\u0644\u0635\u0646\u0641": "Search by Product Name"
   ,"\u0627\u0628\u062d\u062b \u0628\u0627\u0633\u0645 \u0627\u0644\u0635\u0646\u0641": "Search by product name"
   ,"\u0627\u0628\u062d\u062b \u0628\u0627\u0644\u0628\u0627\u0631\u0643\u0648\u062f": "Search by barcode"
-  ,"\u0625\u0636\u0627\u0641\u0629 \u0635\u0646\u0641": "Add Product"
   ,"\u0627\u0644\u0633\u0627\u0628\u0642": "Previous"
   ,"\u0627\u0644\u062a\u0627\u0644\u064a": "Next"
   ,"\u0627\u0633\u0645 \u0627\u0644\u0645\u0646\u062a\u062c": "Product Name"
@@ -913,5 +925,42 @@
   ,"\u0625\u062c\u0645\u0627\u0644\u064a \u0627\u0644\u0645\u0628\u064a\u0639\u0627\u062a: {0:N2}": "Total Sales: {0:N2}"
   ,"\u0627\u0644\u062e\u0635\u0645: {0:N2}": "Discount: {0:N2}"
   ,"\u0627\u0644\u0635\u0627\u0641\u064a: {0:N2}": "Net Sales: {0:N2}"
+  ,"\u0625\u0636\u0627\u0641\u0629 \u0635\u0646\u0641": "Add Product"
   ,"\u0646\u0648\u0639 \u0627\u0644\u0641\u0627\u062a\u0648\u0631\u0629": "Invoice Type"
+  ,"بدء جلسة الكاشير": "Open Cashier Session"
+  ,"معلومات الكاشير": "Cashier Information"
+  ,"الاسم:": "Name:"
+  ,"رصيد افتتاح الجلسة (Opening Balance)": "Opening Session Balance"
+  ,"ملاحظة: سيتم تسجيل حركة مالية (Manual Cash IN) بقيمة رصيد الافتتاح.": "Note: A financial transaction (Manual Cash IN) will be recorded for the opening balance."
+  ,"بدء الجلسة": "Start Session"
+  ,"لا يوجد مستخدم مسجل دخول.": "There is no logged-in user."
+  ,"يرجى إدخال مبلغ صحيح.": "Please enter a valid amount."
+  ,"لا يمكن أن يكون الرصيد الافتتاحي سالب.": "The opening balance cannot be negative."
+  ,"تم فتح الجلسة لكن فشل تسجيل حركة الافتتاح.": "The session was opened, but recording the opening transaction failed."
+  ,"رصيد الافتتاح": "Opening Balance"
+  ,"النقد المتوقع (حسب الحركات)": "Expected Cash (Based on Transactions)"
+  ,"المبلغ الفعلي في الصندوق": "Actual Cash in Drawer"
+  ,"د.أ": "JOD"
+  ,"الفرق": "Difference"
+  ,"ملاحظة": "Note"
+  ,"رجوع": "Back"
+  ,"إنهاء الجلسة": "Close Session"
+  ,"لا يمكن أن يكون المبلغ سالب.": "The amount cannot be negative."
+  ,"\u0639\u0631\u0636 \u0627\u0644\u0641\u0648\u0627\u062a\u064a\u0631 \u0627\u0644\u0645\u0646\u0634\u0623\u0629 \u0645\u0646 \u0627\u0644\u0640 API": "Shows invoices created from the API"
+  ,"\u062a\u062d\u062f\u064a\u062b": "Refresh"
+  ,"\u062c\u0627\u0631\u064a \u062a\u062d\u0645\u064a\u0644 \u0627\u0644\u0637\u0644\u0628\u064a\u0627\u062a...": "Loading orders..."
+  ,"\u0644\u0627 \u062a\u0648\u062c\u062f \u0637\u0644\u0628\u064a\u0627\u062a \u0644\u0639\u0631\u0636\u0647\u0627.": "There are no orders to display."
+  ,"\u0639\u062f\u062f \u0627\u0644\u0637\u0644\u0628\u064a\u0627\u062a: {0}": "Orders count: {0}"
+  ,"\u062a\u0639\u0630\u0631 \u062a\u062d\u0645\u064a\u0644 \u0627\u0644\u0637\u0644\u0628\u064a\u0627\u062a.": "Failed to load orders."
+  ,"\u062a\u0639\u0630\u0631 \u062a\u062d\u0645\u064a\u0644 \u0627\u0644\u0637\u0644\u0628\u064a\u0627\u062a": "Failed to load orders"
+  ,"\u0639\u062f\u062f \u0627\u0644\u0623\u0635\u0646\u0627\u0641": "Items Count"
+  ,"\u0627\u0644\u0641\u0627\u062a\u0648\u0631\u0629 \u0631\u0642\u0645 {0}": "Invoice #{0}"
+  ,"\u0644\u0645 \u064a\u062a\u0645 \u062a\u062d\u062f\u064a\u062f \u0627\u0644\u0641\u0627\u062a\u0648\u0631\u0629.": "No invoice was selected."
+  ,"\u0644\u0645 \u064a\u062a\u0645 \u0627\u0644\u0639\u062b\u0648\u0631 \u0639\u0644\u0649 \u0627\u0644\u0641\u0627\u062a\u0648\u0631\u0629.": "Invoice was not found."
+  ,"\u0631\u0642\u0645 \u0627\u0644\u0635\u0646\u0641": "Product ID"
+  ,"\u062d\u0641\u0638 \u0627\u0644\u062d\u0627\u0644\u0629": "Save Status"
+  ,"\u064a\u0631\u062c\u0649 \u0627\u062e\u062a\u064a\u0627\u0631 \u062d\u0627\u0644\u0629 \u0635\u062d\u064a\u062d\u0629.": "Please select a valid status."
+  ,"\u062a\u0645 \u062d\u0641\u0638 \u062d\u0627\u0644\u0629 \u0627\u0644\u0641\u0627\u062a\u0648\u0631\u0629.": "Invoice status was saved."
+  ,"\u062a\u0639\u0630\u0631 \u062d\u0641\u0638 \u062d\u0627\u0644\u0629 \u0627\u0644\u0641\u0627\u062a\u0648\u0631\u0629": "Failed to save invoice status"
+  ,"\u062a\u0645": "Done"
 }

@@ -89,6 +89,12 @@
                                FontWeight="SemiBold"
                                Foreground="{StaticResource AppMutedTextBrush}"
                                HorizontalAlignment="Center"/>
+                    <TextBlock x:Name="FilterInfoTextBlock"
+                               Margin="0,8,0,0"
+                               FontSize="14"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource AppMutedTextBrush}"
+                               HorizontalAlignment="Center"/>
                 </StackPanel>
             </Border>
 

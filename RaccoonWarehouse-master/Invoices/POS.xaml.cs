@@ -23,6 +23,7 @@ using RaccoonWarehouse.Domain.ProductUnits;
 using RaccoonWarehouse.Domain.Stock;
 using RaccoonWarehouse.Domain.Stock.DTOs;
 using RaccoonWarehouse.Domain.StockTransactions.DTOs;
+using RaccoonWarehouse.Domain.SubCategories.DTOs;
 using RaccoonWarehouse.Domain.Users.DTOs;
 using RaccoonWarehouse.FinancialTransactions;
 using RaccoonWarehouse.Helpers.Localization;
@@ -131,6 +132,8 @@ namespace RaccoonWarehouse.Invoices
         private readonly ILoadingService _loading;
         private ObservableCollection<ProductReadDto> Products { get; set; }
             = new ObservableCollection<ProductReadDto>();
+        public ObservableCollection<SubCategoryReadDto> SubCategories { get; } = new();
+        public ObservableCollection<ProductReadDto> FilteredProducts { get; } = new();
         private const decimal MinimumSellableQuantity = 10m;
         private const int ProductDropdownPageSize = 10;
         private const int ProductStockFetchSize = 40;
@@ -145,6 +148,8 @@ namespace RaccoonWarehouse.Invoices
         private ScrollViewer? _productDropdownScrollViewer;
         private readonly DispatcherTimer _productSearchResetTimer = new() { Interval = TimeSpan.FromSeconds(1.2) };
         private string _productSearchText = string.Empty;
+        private string _browseSearchText = string.Empty;
+        private int? _selectedBrowseSubCategoryId;
         private int _comboSearchVersion;
         private int _popupSearchVersion;
         private ObservableCollection<InvoiceLineWriteDto> _invoiceLines
@@ -540,11 +545,96 @@ namespace RaccoonWarehouse.Invoices
             {
                 ResetProductDropdownState();
                 await LoadSellableProductsAsync();
+                RefreshProductBrowseState();
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"{UiText.T("خطأ عند تحميل المنتجات", "Error loading products")}: {ex.Message}", UiText.T("خطأ", "Error"));
             }
+        }
+
+        private void RefreshProductBrowseState()
+        {
+            var availableSubCategories = Products
+                .Where(product => product.SubCategory != null)
+                .GroupBy(product => product.SubCategoryId)
+                .Select(group => group.First().SubCategory!)
+                .OrderBy(subCategory => subCategory.Name)
+                .ToList();
+
+            SubCategories.Clear();
+            foreach (var subCategory in availableSubCategories)
+                SubCategories.Add(subCategory);
+
+            if (_selectedBrowseSubCategoryId.HasValue &&
+                !SubCategories.Any(subCategory => subCategory.Id == _selectedBrowseSubCategoryId.Value))
+            {
+                _selectedBrowseSubCategoryId = null;
+            }
+
+            ApplyBrowseFilters();
+            SyncCategoryTabSelection();
+        }
+
+        private void ApplyBrowseFilters()
+        {
+            IEnumerable<ProductReadDto> filteredProducts = Products;
+
+            if (_selectedBrowseSubCategoryId.HasValue)
+            {
+                filteredProducts = filteredProducts.Where(product => product.SubCategoryId == _selectedBrowseSubCategoryId.Value);
+            }
+
+            if (!string.IsNullOrWhiteSpace(_browseSearchText))
+            {
+                filteredProducts = filteredProducts.Where(product =>
+                    (product.Name?.Contains(_browseSearchText, StringComparison.CurrentCultureIgnoreCase) ?? false) ||
+                    (product.ITEMCODE?.ToString()?.Contains(_browseSearchText, StringComparison.OrdinalIgnoreCase) ?? false));
+            }
+
+            FilteredProducts.Clear();
+            foreach (var product in filteredProducts.OrderBy(product => product.Name))
+                FilteredProducts.Add(product);
+        }
+
+        private void SyncCategoryTabSelection()
+        {
+            foreach (var toggleButton in FindVisualChildren<ToggleButton>(CategoryTabsControl))
+            {
+                if (toggleButton.Tag is SubCategoryReadDto subCategory)
+                {
+                    toggleButton.IsChecked = _selectedBrowseSubCategoryId.HasValue &&
+                                             subCategory.Id == _selectedBrowseSubCategoryId.Value;
+                }
+                else
+                {
+                    toggleButton.IsChecked = false;
+                }
+            }
+        }
+
+        private void CategoryTabButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not ToggleButton toggleButton || toggleButton.Tag is not SubCategoryReadDto subCategory)
+                return;
+
+            _selectedBrowseSubCategoryId = toggleButton.IsChecked == true ? subCategory.Id : null;
+            SyncCategoryTabSelection();
+            ApplyBrowseFilters();
+        }
+
+        private void ProductSearchBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            _browseSearchText = ProductSearchBox.Text.Trim();
+            ApplyBrowseFilters();
+        }
+
+        private async void ProductCard_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button button || button.Tag is not ProductReadDto product)
+                return;
+
+            await AddProductToInvoiceAsync(product, moveFocusToQuantity: false);
         }
 
         private void ResetProductDropdownState()
@@ -729,6 +819,20 @@ namespace RaccoonWarehouse.Invoices
             return unit?.SalePrice ?? line.UnitPrice;
         }
 
+        private void ResetPriceBelowCost(InvoiceLineWriteDto line, decimal enteredPrice, TextBox? editor = null)
+        {
+            var defaultPrice = GetDefaultSalePrice(line);
+            MessageBox.Show(
+                UiText.T(
+                    $"لا يمكن بيع الصنف {line.ProductName} بسعر أقل من التكلفة. السعر المدخل: {enteredPrice:0.###}، التكلفة: {line.UnitCost:0.###}. سيتم إعادة السعر الافتراضي: {defaultPrice:0.###}.",
+                    $"Cannot sell {line.ProductName} below cost. Entered price: {enteredPrice:0.###}, cost: {line.UnitCost:0.###}. The default price will be restored: {defaultPrice:0.###}."),
+                UiText.T("تنبيه", "Notice"));
+
+            line.UnitPrice = defaultPrice;
+            if (editor != null)
+                editor.Text = defaultPrice.ToString("0.000");
+        }
+
         private void RecalculateLineFromCurrentValues(InvoiceLineWriteDto line)
         {
             if (line.Quantity == 0)
@@ -833,6 +937,33 @@ namespace RaccoonWarehouse.Invoices
                 else
                 {
                     line.Quantity = quantity;
+
+                    var availableQuantity = await GetAvailableQuantityForProductUnitAsync(line.ProductId, line.ProductUnitId);
+                    if (availableQuantity <= 0)
+                    {
+                        MessageBox.Show(
+                            UiText.T(
+                                $"الصنف {line.ProductName} غير متوفر حالياً في المخزون، وتمت إزالته من الفاتورة.",
+                                $"The item {line.ProductName} is currently unavailable in stock and was removed from the invoice."),
+                            UiText.T("تنبيه", "Notice"));
+
+                        _invoiceLines.Remove(line);
+                        InvoiceGrid.Items.Refresh();
+                        RecalculateTotals();
+                        return;
+                    }
+
+                    if (quantity > availableQuantity)
+                    {
+                        MessageBox.Show(
+                            UiText.T(
+                                $"الكمية المطلوبة للصنف {line.ProductName} أكبر من الكمية المتوفرة. الكمية المطلوبة: {quantity:0.###}، الكمية المتوفرة: {availableQuantity:0.###}. سيتم تعديل الكمية إلى الكمية المتوفرة.",
+                                $"The requested quantity for {line.ProductName} is greater than available stock. Requested: {quantity:0.###}, available: {availableQuantity:0.###}. The quantity will be adjusted to the available quantity."),
+                            UiText.T("تنبيه", "Notice"));
+
+                        line.Quantity = availableQuantity;
+                        textBox.Text = availableQuantity.ToString("0.###");
+                    }
                 }
             }
             else if (header.Contains("السعر") || header.Contains(UiText.Translate("السعر")))
@@ -850,10 +981,7 @@ namespace RaccoonWarehouse.Invoices
 
                 if (line.UnitPrice != originalUnitPrice && line.UnitPrice < line.UnitCost)
                 {
-                    var defaultPrice = GetDefaultSalePrice(line);
-                    MessageBox.Show(UiText.T("سعر البيع لا يمكن أن يكون أقل من التكلفة. سيتم إعادة السعر الافتراضي.", "Sale price cannot be lower than cost. The default price will be restored."), UiText.T("تنبيه", "Notice"));
-                    line.UnitPrice = defaultPrice;
-                    textBox.Text = defaultPrice.ToString("0.000");
+                    ResetPriceBelowCost(line, line.UnitPrice, textBox);
                 }
             }
             else
@@ -1067,7 +1195,7 @@ namespace RaccoonWarehouse.Invoices
                     Quantity = allocation.Quantity,
                     QuantityPerUnitSnapshot = allocation.QuantityPerUnitSnapshot,
                     BaseQuantity = allocation.BaseQuantity,
-                    UnitPrice = allocation.SalePrice,
+                    UnitPrice = templateLine.UnitPrice,
                     UnitCost = allocation.PurchasePrice,
                     TaxExempt = templateLine.TaxExempt,
                     TaxRate = templateLine.TaxRate,
@@ -1187,7 +1315,7 @@ namespace RaccoonWarehouse.Invoices
                     Quantity = allocation.Quantity,
                     QuantityPerUnitSnapshot = allocation.QuantityPerUnitSnapshot,
                     BaseQuantity = allocation.BaseQuantity,
-                    UnitPrice = allocation.SalePrice,
+                    UnitPrice = templateLine.UnitPrice,
                     UnitCost = allocation.PurchasePrice,
                     TaxExempt = templateLine.TaxExempt,
                     TaxRate = templateLine.TaxRate,
@@ -1283,8 +1411,16 @@ namespace RaccoonWarehouse.Invoices
                     SalePrice = stock.SalePrice
                 };
 
-                line.UnitPrice = stock.SalePrice;
                 line.UnitCost = stock.PurchasePrice;
+                if (line.UnitPrice < line.UnitCost)
+                {
+                    ResetPriceBelowCost(line, line.UnitPrice);
+                    RecalculateLineFromCurrentValues(line);
+                    RecalculateTotals();
+                    InvoiceGrid.Items.Refresh();
+                    return false;
+                }
+
                 if (stock.Quantity >= line.Quantity)
                 {
                     RecalculateLineFromCurrentValues(line);
@@ -1357,7 +1493,7 @@ namespace RaccoonWarehouse.Invoices
                         Quantity = allocation.Quantity,
                         QuantityPerUnitSnapshot = allocation.QuantityPerUnitSnapshot,
                         BaseQuantity = allocation.BaseQuantity,
-                        UnitPrice = allocation.SalePrice,
+                        UnitPrice = sourceLine.UnitPrice,
                         UnitCost = allocation.PurchasePrice,
                         TaxExempt = sourceLine.TaxExempt,
                         TaxRate = sourceLine.TaxRate,
@@ -2676,6 +2812,22 @@ namespace RaccoonWarehouse.Invoices
                 child = VisualTreeHelper.GetParent(child);
             }
             return null;
+        }
+
+        private static IEnumerable<T> FindVisualChildren<T>(DependencyObject parent) where T : DependencyObject
+        {
+            if (parent == null)
+                yield break;
+
+            for (var i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+            {
+                var child = VisualTreeHelper.GetChild(parent, i);
+                if (child is T typedChild)
+                    yield return typedChild;
+
+                foreach (var descendant in FindVisualChildren<T>(child))
+                    yield return descendant;
+            }
         }
 
 

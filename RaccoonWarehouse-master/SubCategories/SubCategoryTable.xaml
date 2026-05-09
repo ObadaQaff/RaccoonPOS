@@ -40,22 +40,41 @@
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
             <Border Grid.Row="0" Style="{StaticResource AppCardBorderStyle}" Padding="24">
-                <DockPanel LastChildFill="False">
-                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                <StackPanel>
+                    <DockPanel LastChildFill="False">
+                        <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
                         <Button x:Name="SubCreateCategoryBtn" Width="190" Style="{StaticResource AppHeroButtonStyle}" Click="CreateSubCategoryBtn_Click">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                 <fa:ImageAwesome Icon="Plus" Width="16" Height="16" Margin="0,0,8,0" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
                                 <TextBlock Text="فئة فرعية جديدة"/>
                             </StackPanel>
                         </Button>
-                        <Button x:Name="BackBtn" Width="120" Style="{StaticResource AppSecondaryButtonStyle}" Click="BackBtn_Click">
+                        <Button x:Name="CreateProductBtn" Width="170" Margin="12,0,0,0" Style="{StaticResource AppSecondaryButtonStyle}" Click="CreateProductBtn_Click">
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <fa:ImageAwesome Icon="Tag" Width="16" Height="16" Margin="0,0,8,0" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                                <TextBlock Text="إضافة صنف"/>
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="OpenProductsBtn" Width="160" Margin="12,0,0,0" Style="{StaticResource AppSecondaryButtonStyle}" Click="OpenProductsBtn_Click">
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <fa:ImageAwesome Icon="Archive" Width="16" Height="16" Margin="0,0,8,0" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                                <TextBlock Text="الأصناف"/>
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="BackBtn" Width="120" Margin="12,0,0,0" Style="{StaticResource AppSecondaryButtonStyle}" Click="BackBtn_Click">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                 <fa:ImageAwesome Icon="ArrowRight" Width="16" Height="16" Margin="0,0,8,0" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
                                 <TextBlock Text="عودة"/>
                             </StackPanel>
                         </Button>
-                    </StackPanel>
-                </DockPanel>
+                        </StackPanel>
+                    </DockPanel>
+                    <TextBlock x:Name="FilterInfoTextBlock"
+                               Margin="0,14,0,0"
+                               FontSize="14"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource AppMutedTextBrush}"/>
+                </StackPanel>
             </Border>
             <Border Grid.Row="1" Margin="0,18,0,0" Style="{StaticResource AppCardBorderStyle}" Padding="16">
                 <DataGrid x:Name="SubCategoriesTable1" Style="{StaticResource AppModernDataGridStyle}" AutoGenerateColumns="True">

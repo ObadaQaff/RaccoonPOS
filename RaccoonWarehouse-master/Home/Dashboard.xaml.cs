@@ -392,6 +392,11 @@ namespace RaccoonWarehouse
             await ShowDashboardModuleAsync(SalesDashboardModule.Key, DashboardActionButton_Click);
         }
 
+        private void Orders_Click(object sender, RoutedEventArgs e)
+        {
+            WindowManager.Show<OrdersTable>(WindowSizeType.LargeRectangle);
+        }
+
         private async void Reports_Click(object sender, RoutedEventArgs e)
         {
             if (_isLoadingReports)

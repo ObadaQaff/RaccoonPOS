@@ -6,6 +6,7 @@ using RaccoonWarehouse.Application.Service.ProductUnits;
 using RaccoonWarehouse.Application.Service.SubCategories;
 using RaccoonWarehouse.Application.Service.Units;
 using RaccoonWarehouse.Domain.Products;
+using RaccoonWarehouse.Domain.Products.DTOs;
 using RaccoonWarehouse.Helpers.Localization;
 using RaccoonWarehouse.Navigation;
 using System;
@@ -31,6 +32,8 @@ namespace RaccoonWarehouse.Products
 
         private string _currentNameSearch = string.Empty;
         private string _currentBarcodeSearch = string.Empty;
+        private int? _selectedSubCategoryId;
+        private string? _selectedSubCategoryName;
 
         private CancellationTokenSource _searchCts;
         private readonly SemaphoreSlim _loadSemaphore = new(1, 1);
@@ -48,12 +51,18 @@ namespace RaccoonWarehouse.Products
 
             InitializeComponent();
             UiText.ApplyWindow(this);
+            UpdateFilterInfoText();
             Loaded += async (_, _) => await LoadPageAsync(1);
         }
 
-        private async void Window_Loaded(object sender, RoutedEventArgs e)
+        public void ApplySubCategoryFilter(int subCategoryId, string? subCategoryName = null)
         {
-            await LoadPageAsync(1);
+            _selectedSubCategoryId = subCategoryId;
+            _selectedSubCategoryName = subCategoryName;
+            UpdateFilterInfoText();
+
+            if (IsLoaded)
+                _ = LoadPageAsync(1);
         }
 
         private async void PrevPageBtn_Click(object sender, RoutedEventArgs e)
@@ -114,20 +123,18 @@ namespace RaccoonWarehouse.Products
                 using var scope = ((App)System.Windows.Application.Current).ServiceProvider.CreateScope();
                 var productService = scope.ServiceProvider.GetRequiredService<IProductService>();
 
-                System.Linq.Expressions.Expression<Func<Product, bool>> filter = null;
+                var subCategoryId = _selectedSubCategoryId;
+                var nameSearch = _currentNameSearch;
+                long? barcode = null;
+                if (!string.IsNullOrWhiteSpace(_currentBarcodeSearch) && long.TryParse(_currentBarcodeSearch, out var parsedBarcode))
+                    barcode = parsedBarcode;
 
-                if (!string.IsNullOrEmpty(_currentNameSearch))
-                {
-                    filter = product => product.Name.Contains(_currentNameSearch);
-                }
+                Expression<Func<Product, bool>> filter = product =>
+                    (!subCategoryId.HasValue || product.SubCategoryId == subCategoryId.Value) &&
+                    (string.IsNullOrEmpty(nameSearch) || (product.Name != null && product.Name.Contains(nameSearch))) &&
+                    (!barcode.HasValue || product.ITEMCODE == barcode.Value);
 
-                if (!string.IsNullOrEmpty(_currentBarcodeSearch) && long.TryParse(_currentBarcodeSearch, out var barcode))
-                {
-                    System.Linq.Expressions.Expression<Func<Product, bool>> barcodeFilter = product => product.ITEMCODE == barcode;
-                    filter = filter == null ? barcodeFilter : CombineExpressions(filter, barcodeFilter);
-                }
-
-                var result = await productService.GetPagedListAsync(
+                var result = await productService.GetReadDtoPagedListAsync(
                     pageNumber: pageNumber,
                     pageSize: PageSize,
                     filter: filter,
@@ -142,7 +149,7 @@ namespace RaccoonWarehouse.Products
                 ProductsTable1.ItemsSource = result.Items;
 
                 _currentPage = pageNumber;
-                _totalPages = (int)Math.Ceiling((double)result.TotalCount / PageSize);
+                _totalPages = Math.Max(1, (int)Math.Ceiling((double)result.TotalCount / PageSize));
 
                 PageInfoTextBlock.Text = UiText.IsEnglish
                     ? $"Page {_currentPage} of {_totalPages}"
@@ -150,6 +157,7 @@ namespace RaccoonWarehouse.Products
 
                 PrevPageBtn.IsEnabled = _currentPage > 1;
                 NextPageBtn.IsEnabled = _currentPage < _totalPages;
+                UpdateFilterInfoText();
                 UiText.ApplyTranslations(this);
             }
             finally
@@ -158,34 +166,25 @@ namespace RaccoonWarehouse.Products
             }
         }
 
-        private static System.Linq.Expressions.Expression<Func<Product, bool>> CombineExpressions(
-            System.Linq.Expressions.Expression<Func<Product, bool>> expr1,
-            System.Linq.Expressions.Expression<Func<Product, bool>> expr2)
-        {
-            var param = System.Linq.Expressions.Expression.Parameter(typeof(Product));
-            var body = System.Linq.Expressions.Expression.AndAlso(
-                System.Linq.Expressions.Expression.Invoke(expr1, param),
-                System.Linq.Expressions.Expression.Invoke(expr2, param));
-
-            return System.Linq.Expressions.Expression.Lambda<Func<Product, bool>>(body, param);
-        }
-
         private void BackBtn_Click(object sender, RoutedEventArgs e)
         {
             Close();
         }
 
-        private void CreateProductBtn_Click(object sender, RoutedEventArgs e)
+        private async void CreateProductBtn_Click(object sender, RoutedEventArgs e)
         {
-            var dashboard = new Dashboard();
-            dashboard.StocksBtn_Click(null, null);
-            dashboard.Show();
-            Close();
+            WindowManager.ShowDialog<CreateProduct>(WindowSizeType.MediumRectangle, window =>
+            {
+                if (_selectedSubCategoryId.HasValue)
+                    window.InitializeForSubCategory(_selectedSubCategoryId.Value, _selectedSubCategoryName);
+            });
+
+            await LoadPageAsync(_currentPage);
         }
 
         private async void Delete_Product(object sender, RoutedEventArgs e)
         {
-            if (ProductsTable1.SelectedItem is not Product selectedProduct)
+            if (ProductsTable1.SelectedItem is not ProductReadDto selectedProduct)
             {
                 MessageBox.Show(UiText.T("يجب تحديد الصنف قبل التحديث أو الحذف.", "No product selected."));
                 return;
@@ -216,7 +215,7 @@ namespace RaccoonWarehouse.Products
 
         private void Update_Product(object sender, RoutedEventArgs e)
         {
-            if (ProductsTable1.SelectedItem is not Product selectedProduct)
+            if (ProductsTable1.SelectedItem is not ProductReadDto selectedProduct)
             {
                 MessageBox.Show(UiText.T("يجب تحديد الصنف قبل التحديث أو الحذف.", "No product selected."));
                 return;
@@ -226,6 +225,17 @@ namespace RaccoonWarehouse.Products
             {
                 window.Initialize(selectedProduct.Id);
             });
+        }
+        private void UpdateFilterInfoText()
+        {
+            if (FilterInfoTextBlock == null)
+                return;
+
+            FilterInfoTextBlock.Text = _selectedSubCategoryId.HasValue && !string.IsNullOrWhiteSpace(_selectedSubCategoryName)
+                ? UiText.T(
+                    $"عرض الأصناف التابعة للفئة الفرعية: {_selectedSubCategoryName}",
+                    $"Showing products for subcategory: {_selectedSubCategoryName}")
+                : UiText.T("جميع الأصناف", "Showing all products");
         }
     }
 }

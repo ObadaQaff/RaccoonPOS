@@ -35,6 +35,17 @@ namespace RaccoonWarehouse.Categories
 
         private async void Button_Click_1(object sender, RoutedEventArgs e)
         {
+            var loadingShown = false;
+
+            void HideLoadingIfShown()
+            {
+                if (!loadingShown)
+                    return;
+
+                _loadingService.Hide();
+                loadingShown = false;
+            }
+
             try
             {
                 if (string.IsNullOrWhiteSpace(Name.Text))
@@ -43,7 +54,9 @@ namespace RaccoonWarehouse.Categories
                     return;
                 }
 
+                CreateCategoryBtn.IsEnabled = false;
                 _loadingService.Show();
+                loadingShown = true;
 
                 var categoryWriteDto = new CategoryWriteDto
                 {
@@ -54,22 +67,26 @@ namespace RaccoonWarehouse.Categories
                 var result = await _categoryService.CreateAsync(categoryWriteDto);
                 if (result.Success)
                 {
+                    HideLoadingIfShown();
                     MessageBox.Show(UiText.T("تمت إضافة الفئة بنجاح.", "The category was added successfully."));
                     Name.Clear();
                     Description.Clear();
                 }
                 else
                 {
+                    HideLoadingIfShown();
                     MessageBox.Show(result.Message ?? UiText.T("فشل إنشاء الفئة.", "Failed to create the category."));
                 }
             }
             catch (Exception ex)
             {
+                HideLoadingIfShown();
                 MessageBox.Show($"{UiText.T("حدث خطأ أثناء إنشاء الفئة", "An error occurred while creating the category")}: {ex.Message}");
             }
             finally
             {
-                _loadingService.Hide();
+                HideLoadingIfShown();
+                CreateCategoryBtn.IsEnabled = true;
             }
         }
     }

@@ -30,6 +30,7 @@ namespace RaccoonWarehouse.Products
         private readonly List<ProductUnitWriteDto> _productUnits = new();
         private readonly IUnitService _unitService;
         private bool _isLoaded;
+        private int? _preferredSubCategoryId;
         private List<UnitLookupItem> _unitLookupItems = new();
 
         public CreateProduct(
@@ -56,12 +57,19 @@ namespace RaccoonWarehouse.Products
             };
         }
 
+        public void InitializeForSubCategory(int subCategoryId, string? subCategoryName = null)
+        {
+            _preferredSubCategoryId = subCategoryId;
+            TryApplyPreferredSubCategory();
+        }
+
         private async Task LoadDataAsync()
         {
             var categories = await _subCategoryService.GetAllAsync();
             SubCategoryComboBox.ItemsSource = categories.Data;
             SubCategoryComboBox.DisplayMemberPath = "Name";
             SubCategoryComboBox.SelectedValuePath = "Id";
+            TryApplyPreferredSubCategory();
 
             var brands = await _brandService.GetAllAsync();
             BrandComboBox.ItemsSource = brands.Data;
@@ -78,6 +86,14 @@ namespace RaccoonWarehouse.Products
 
             StatusComboBox.ItemsSource = Enum.GetValues(typeof(ProductStatus)).Cast<ProductStatus>();
             UiText.ApplyWindow(this);
+        }
+
+        private void TryApplyPreferredSubCategory()
+        {
+            if (!_preferredSubCategoryId.HasValue || SubCategoryComboBox == null)
+                return;
+
+            SubCategoryComboBox.SelectedValue = _preferredSubCategoryId.Value;
         }
 
         private void AddUnit_Click(object sender, RoutedEventArgs e)

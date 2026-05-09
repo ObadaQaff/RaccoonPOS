@@ -20,6 +20,8 @@ namespace RaccoonWarehouse.SubCategories
         private readonly ICategoryService _categoryService;
         private readonly ISubCategoryService _subCategoryService;
         private readonly ILoadingService _loadingService;
+        private bool _isLoaded;
+        private int? _preferredParentCategoryId;
 
         public CreateSubCategory(
             ICategoryService categoryService,
@@ -31,27 +33,64 @@ namespace RaccoonWarehouse.SubCategories
             _loadingService = loadingService;
             InitializeComponent();
             UiText.ApplyWindow(this);
-            _ = LoadDataAsync();
+            Loaded += CreateSubCategory_Loaded;
+        }
+
+        public void InitializeForParentCategory(int parentCategoryId, string? parentCategoryName = null)
+        {
+            _preferredParentCategoryId = parentCategoryId;
+            TryApplyPreferredParentCategory();
+        }
+
+        private async void CreateSubCategory_Loaded(object sender, RoutedEventArgs e)
+        {
+            if (_isLoaded)
+                return;
+
+            _isLoaded = true;
+            await LoadDataAsync();
         }
 
         private async Task LoadDataAsync()
         {
+            var loadingShown = false;
+
+            void HideLoadingIfShown()
+            {
+                if (!loadingShown)
+                    return;
+
+                _loadingService.Hide();
+                loadingShown = false;
+            }
+
             try
             {
                 _loadingService.Show();
+                loadingShown = true;
                 var categories = await _categoryService.GetAllAsync();
                 ParentCategoryCombo.ItemsSource = categories.Data;
                 ParentCategoryCombo.DisplayMemberPath = "Name";
                 ParentCategoryCombo.SelectedValuePath = "Id";
+                TryApplyPreferredParentCategory();
             }
             catch (Exception ex)
             {
+                HideLoadingIfShown();
                 MessageBox.Show($"{UiText.T("حدث خطأ أثناء تحميل الفئات", "An error occurred while loading categories")}: {ex.Message}");
             }
             finally
             {
-                _loadingService.Hide();
+                HideLoadingIfShown();
             }
+        }
+
+        private void TryApplyPreferredParentCategory()
+        {
+            if (!_preferredParentCategoryId.HasValue || ParentCategoryCombo == null)
+                return;
+
+            ParentCategoryCombo.SelectedValue = _preferredParentCategoryId.Value;
         }
 
         private bool ValidateRequiredFields()
@@ -73,9 +112,21 @@ namespace RaccoonWarehouse.SubCategories
                 return;
             }
 
+            var loadingShown = false;
+
+            void HideLoadingIfShown()
+            {
+                if (!loadingShown)
+                    return;
+
+                _loadingService.Hide();
+                loadingShown = false;
+            }
+
             try
             {
                 _loadingService.Show();
+                loadingShown = true;
 
                 var newSubCategory = new Domain.SubCategories.DTOs.SubCategoryWriteDto
                 {
@@ -89,6 +140,7 @@ namespace RaccoonWarehouse.SubCategories
                 var result = await _subCategoryService.CreateAsync(newSubCategory);
                 if (result.Success)
                 {
+                    HideLoadingIfShown();
                     MessageBox.Show(UiText.T("تم إنشاء الفئة الفرعية بنجاح.", "The subcategory was created successfully."), UiText.T("نجاح", "Success"), MessageBoxButton.OK, MessageBoxImage.Information);
                     if (closeAfterSuccess)
                     {
@@ -97,6 +149,7 @@ namespace RaccoonWarehouse.SubCategories
                 }
                 else
                 {
+                    HideLoadingIfShown();
                     var errors = string.Join("\n", result.Errors ?? new System.Collections.Generic.List<string>());
                     var message = string.IsNullOrWhiteSpace(errors) ? (result.Message ?? UiText.T("فشل إنشاء الفئة الفرعية.", "Failed to create the subcategory.")) : errors;
                     MessageBox.Show($"{UiText.T("فشل إنشاء الفئة الفرعية", "Failed to create the subcategory")}:\n{message}", UiText.T("خطأ", "Error"), MessageBoxButton.OK, MessageBoxImage.Error);
@@ -108,7 +161,7 @@ namespace RaccoonWarehouse.SubCategories
             }
             finally
             {
-                _loadingService.Hide();
+                HideLoadingIfShown();
             }
         }
 

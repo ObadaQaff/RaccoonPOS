@@ -49,6 +49,20 @@
                                 <TextBlock Text="فئة جديدة"/>
                             </StackPanel>
                         </Button>
+                        <Button x:Name="CreateSubCategoryBtn" Width="190" Margin="12,0,0,0" Style="{StaticResource AppSecondaryButtonStyle}" Click="CreateSubCategoryBtn_Click">
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <fa:ImageAwesome Icon="Sitemap" Width="16" Height="16" Margin="0,0,8,0"
+                                                 Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                                <TextBlock Text="إضافة فئة فرعية"/>
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="OpenSubCategoriesBtn" Width="180" Margin="12,0,0,0" Style="{StaticResource AppSecondaryButtonStyle}" Click="OpenSubCategoriesBtn_Click">
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <fa:ImageAwesome Icon="ListAlt" Width="16" Height="16" Margin="0,0,8,0"
+                                                 Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                                <TextBlock Text="الفئات الفرعية"/>
+                            </StackPanel>
+                        </Button>
                         <Button x:Name="BackBtn" Width="120" Style="{StaticResource AppSecondaryButtonStyle}" Click="BackBtn_Click">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                 <fa:ImageAwesome Icon="ArrowRight" Width="16" Height="16" Margin="0,0,8,0"

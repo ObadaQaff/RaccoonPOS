@@ -77,6 +77,13 @@
                             </StackPanel>
                         </Button>
 
+                        <Button Style="{StaticResource DashboardNavButtonStyle}" Margin="0,0,0,8" Click="Orders_Click">
+                            <StackPanel Orientation="Horizontal" FlowDirection="{DynamicResource CurrentFlowDirection}">
+                                <fa:ImageAwesome Icon="ListAlt" Width="22" Height="22" Foreground="#A9E5BB" Margin="0,0,12,0"/>
+                                <TextBlock Text="&#x627;&#x644;&#x637;&#x644;&#x628;&#x64A;&#x627;&#x62A;" Foreground="{StaticResource AppSidebarTextBrush}" FontSize="18" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Button>
+
                         <Button Style="{StaticResource DashboardNavButtonStyle}" Margin="0,0,0,8" Click="Button_Click_2">
                             <StackPanel Orientation="Horizontal" FlowDirection="{DynamicResource CurrentFlowDirection}">
                                 <fa:ImageAwesome Icon="Tags" Width="22" Height="22" Foreground="#FF8D7A" Margin="0,0,12,0"/>

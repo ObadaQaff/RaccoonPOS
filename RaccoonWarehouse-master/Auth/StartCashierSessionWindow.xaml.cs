@@ -3,6 +3,7 @@ using RaccoonWarehouse.Application.Service.FinancialTransactions;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.FinancialTransactions.DTOs;
+using RaccoonWarehouse.Helpers.Localization;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -35,6 +36,8 @@ namespace RaccoonWarehouse.Auth
             IUserSession userSession)
         {
             InitializeComponent();
+            UiText.ApplyWindow(this);
+            UiText.ApplyTranslations(this);
 
             _cashierSessionService = cashierSessionService;
             _financialService = financialService;
@@ -49,19 +52,19 @@ namespace RaccoonWarehouse.Auth
 
             if (_userSession.CurrentUser == null)
             {
-                ShowError("لا يوجد مستخدم مسجل دخول.");
+                ShowError(UiText.T("لا يوجد مستخدم مسجل دخول.", "There is no logged-in user."));
                 return;
             }
 
             if (!TryParseDecimal(StartBalanceTextBox.Text, out var opening))
             {
-                ShowError("يرجى إدخال مبلغ صحيح.");
+                ShowError(UiText.T("يرجى إدخال مبلغ صحيح.", "Please enter a valid amount."));
                 return;
             }
 
             if (opening < 0)
             {
-                ShowError("لا يمكن أن يكون الرصيد الافتتاحي سالب.");
+                ShowError(UiText.T("لا يمكن أن يكون الرصيد الافتتاحي سالب.", "The opening balance cannot be negative."));
                 return;
             }
 
@@ -96,7 +99,9 @@ namespace RaccoonWarehouse.Auth
                     if (!fin.Success)
                     {
                         // هنا قرارك: تترك الجلسة مفتوحة بس تنبه، أو تعمل rollback (أصعب)
-                        MessageBox.Show(fin.Message ?? "تم فتح الجلسة لكن فشل تسجيل حركة الافتتاح.", "تحذير");
+                        MessageBox.Show(
+                            fin.Message ?? UiText.T("تم فتح الجلسة لكن فشل تسجيل حركة الافتتاح.", "The session was opened, but recording the opening transaction failed."),
+                            UiText.T("تحذير", "Warning"));
                     }
                 }
 
