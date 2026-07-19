@@ -15,6 +15,8 @@ using RaccoonWarehouse.Domain.StockAdjustments.DTOs;
 using RaccoonWarehouse.Domain.StockLots;
 using RaccoonWarehouse.Domain.StockTransactions;
 using RaccoonWarehouse.Domain.Units;
+using RaccoonWarehouse.Domain.POS.DTOs;
+using RaccoonWarehouse.Domain.SubCategories.DTOs;
 
 namespace RaccoonWarehouse.Application.Service.Stocks
 {
@@ -443,6 +445,129 @@ namespace RaccoonWarehouse.Application.Service.Stocks
             return Result<List<StockLotAllocationDto>>.Ok(allocations);
         }
 
+        public async Task<Result<PagedResult<PosBrowseItemDto>>> GetPosBrowsePageAsync(
+            int pageNumber,
+            int pageSize,
+            string? searchText,
+            int? subCategoryId)
+        {
+            if (pageNumber <= 0)
+                pageNumber = 1;
+
+            if (pageSize <= 0)
+                pageSize = 60;
+
+            var stockRepo = _uow.GetRepository<Stock>();
+            var baseQuery = stockRepo.GetAllAsQueryable()
+                .AsNoTracking()
+                .Where(s => s.Quantity > 0 && s.Product != null);
+
+            if (subCategoryId.HasValue)
+                baseQuery = baseQuery.Where(s => s.Product!.SubCategoryId == subCategoryId.Value);
+
+            var trimmed = searchText?.Trim();
+            if (!string.IsNullOrWhiteSpace(trimmed))
+            {
+                baseQuery = baseQuery.Where(s =>
+                    (s.Product!.Name != null && EF.Functions.Like(s.Product.Name, $"%{trimmed}%")) ||
+                    s.Product.ITEMCODE.ToString().Contains(trimmed));
+            }
+
+            // Count distinct products for paging.
+            var totalCount = await baseQuery
+                .Select(s => s.ProductId)
+                .Distinct()
+                .CountAsync();
+
+            // Get the page of product ids (stable order by product name + id).
+            var productIdPage = await baseQuery
+                .Select(s => new { s.ProductId, ProductName = s.Product!.Name })
+                .Distinct()
+                .OrderBy(x => x.ProductName)
+                .ThenBy(x => x.ProductId)
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .Select(x => x.ProductId)
+                .ToListAsync();
+
+            if (productIdPage.Count == 0)
+            {
+                return Result<PagedResult<PosBrowseItemDto>>.Ok(
+                    new PagedResult<PosBrowseItemDto>(new List<PosBrowseItemDto>(), totalCount, pageNumber, pageSize));
+            }
+
+            // Fetch one "preferred stock" per product for display price, keeping the query lightweight.
+            var preferredRows = await baseQuery
+                .Where(s => productIdPage.Contains(s.ProductId))
+                .Select(s => new
+                {
+                    s.ProductId,
+                    ProductName = s.Product!.Name,
+                    s.Product.ITEMCODE,
+                    s.Product.SubCategoryId,
+                    s.Product.TaxExempt,
+                    s.Product.TaxRate,
+                    s.SalePrice,
+                    IsDefaultSaleUnit = s.ProductUnit != null && s.ProductUnit.IsDefaultSaleUnit,
+                    s.Quantity,
+                    s.ProductUnitId
+                })
+                .ToListAsync();
+
+            var itemsByProduct = preferredRows
+                .GroupBy(x => x.ProductId)
+                .ToDictionary(
+                    g => g.Key,
+                    g =>
+                    {
+                        var preferred = g
+                            .OrderByDescending(x => x.IsDefaultSaleUnit)
+                            .ThenByDescending(x => x.Quantity)
+                            .ThenBy(x => x.ProductUnitId)
+                            .First();
+
+                        return new PosBrowseItemDto
+                        {
+                            ProductId = preferred.ProductId,
+                            Name = preferred.ProductName,
+                            ItemCode = preferred.ITEMCODE,
+                            SubCategoryId = preferred.SubCategoryId,
+                            TaxExempt = preferred.TaxExempt,
+                            TaxRate = preferred.TaxRate,
+                            CurrentSalePrice = preferred.SalePrice
+                        };
+                    });
+
+            // Preserve page order.
+            var items = productIdPage
+                .Where(itemsByProduct.ContainsKey)
+                .Select(id => itemsByProduct[id])
+                .ToList();
+
+            return Result<PagedResult<PosBrowseItemDto>>.Ok(new PagedResult<PosBrowseItemDto>(items, totalCount, pageNumber, pageSize));
+        }
+
+        public async Task<Result<List<SubCategoryReadDto>>> GetPosBrowseSubCategoriesAsync()
+        {
+            var stockRepo = _uow.GetRepository<Stock>();
+            var query = stockRepo.GetAllAsQueryable()
+                .AsNoTracking()
+                .Where(s => s.Quantity > 0 && s.Product != null && s.Product.SubCategory != null)
+                .Select(s => new
+                {
+                    s.Product!.SubCategory!.Id,
+                    s.Product.SubCategory.Name
+                })
+                .Distinct()
+                .OrderBy(s => s.Name);
+
+            var subCategories = await query
+                .Select(s => new SubCategoryReadDto { Id = s.Id, Name = s.Name })
+                .ToListAsync();
+
+            return Result<List<SubCategoryReadDto>>.Ok(subCategories);
+        }
+
         public async Task<Result> PostMovementsAsync(IEnumerable<StockMovementPostDto> dtos)
         {
             var items = dtos?.ToList() ?? new List<StockMovementPostDto>();
@@ -846,6 +971,8 @@ namespace RaccoonWarehouse.Application.Service.Stocks
         Task<Result> PostMovementAsync(StockMovementPostDto dto);
         Task<Result> PostMovementsAsync(IEnumerable<StockMovementPostDto> dtos);
         Task<Result<List<StockLotAllocationDto>>> AllocateOutgoingAsync(IEnumerable<StockAllocationRequestDto> requests);
+        Task<Result<PagedResult<PosBrowseItemDto>>> GetPosBrowsePageAsync(int pageNumber, int pageSize, string? searchText, int? subCategoryId);
+        Task<Result<List<SubCategoryReadDto>>> GetPosBrowseSubCategoriesAsync();
         Task<Result<List<StockBatchLookupDto>>> GetBatchLookupAsync(int? productId = null);
         Task<Result<StockLotUpdateDto>> UpdateBatchMetadataAsync(StockLotUpdateDto dto);
         Task<Result<StockAdjustmentWriteDto>> CreateAdjustmentAsync(StockAdjustmentWriteDto dto);

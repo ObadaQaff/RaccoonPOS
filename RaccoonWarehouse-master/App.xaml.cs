@@ -297,6 +297,7 @@ namespace RaccoonWarehouse
                 await scope.ServiceProvider.GetRequiredService<IEmployeeFeatureService>().EnsureDefaultsAsync();
                 await scope.ServiceProvider.GetRequiredService<IAccountingFeatureService>().EnsureDefaultsAsync();
                 await scope.ServiceProvider.GetRequiredService<IAccountingService>().EnsureDefaultAccountsAsync();
+                await AccountTreeSeeder.SeedAsync(scope.ServiceProvider);
 
                 // Force EF model & query compilation
                 await db.Database.ExecuteSqlRawAsync("SELECT 1");
@@ -769,6 +770,7 @@ END;";
             services.AddScoped<IFinancialTransactionService, FinancialTransactionService>();
             services.AddScoped<IAccountingService, AccountingService>();
             services.AddScoped<IAccountingFeatureService, AccountingFeatureService>();
+            services.AddScoped<IAccountTreeService, AccountTreeService>();
             services.AddScoped<ILanguageSettingsService, LanguageSettingsService>();
             services.AddScoped<IPermissionService, PermissionService>();
             services.AddScoped<IReportPermissionService, ReportPermissionService>();

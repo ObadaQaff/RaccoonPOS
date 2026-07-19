@@ -709,9 +709,11 @@
                     </Grid>
 
                     <!-- Product cards  (ItemsSource = FilteredProducts, set in code-behind) -->
-                    <ScrollViewer Grid.Row="1"
+                    <ScrollViewer x:Name="ProductCardsScrollViewer"
+                                  Grid.Row="1"
                                   VerticalScrollBarVisibility="Auto"
-                                  HorizontalScrollBarVisibility="Disabled">
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  ScrollChanged="ProductCardsScrollViewer_ScrollChanged">
                         <ItemsControl x:Name="ProductCardsControl"
                                       ItemsSource="{Binding FilteredProducts}">
                             <ItemsControl.ItemsPanel>

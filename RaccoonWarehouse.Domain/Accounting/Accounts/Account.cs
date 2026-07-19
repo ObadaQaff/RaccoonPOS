@@ -8,6 +8,11 @@ namespace RaccoonWarehouse.Domain.Accounting.Accounts
     public class Account : BaseEntity
     {
         public string Code { get; set; } = string.Empty;
+        public string? AccountCode { get; set; }
+        public int? AccountLevel { get; set; }
+        public string? AccountNature { get; set; }
+        public string? AccountCategory { get; set; }
+        public string? AccountTypeCode { get; set; }
         public string Name { get; set; } = string.Empty;
         public string? ArabicName { get; set; }
         public string? EnglishName { get; set; }

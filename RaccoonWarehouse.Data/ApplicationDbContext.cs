@@ -101,6 +101,22 @@ namespace RaccoonWarehouse.Data
                 .HasForeignKey(x => x.ParentAccountId)
                 .OnDelete(DeleteBehavior.NoAction);
 
+            modelBuilder.Entity<Account>()
+                .Property(x => x.AccountCode)
+                .HasMaxLength(32);
+
+            modelBuilder.Entity<Account>()
+                .Property(x => x.AccountNature)
+                .HasMaxLength(10);
+
+            modelBuilder.Entity<Account>()
+                .Property(x => x.AccountCategory)
+                .HasMaxLength(20);
+
+            modelBuilder.Entity<Account>()
+                .Property(x => x.AccountTypeCode)
+                .HasMaxLength(2);
+
             modelBuilder.Entity<JournalEntry>()
                 .HasIndex(x => x.EntryNumber)
                 .IsUnique();

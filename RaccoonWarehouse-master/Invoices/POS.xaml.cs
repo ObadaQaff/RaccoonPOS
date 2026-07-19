@@ -20,6 +20,7 @@ using RaccoonWarehouse.Domain.Invoices;
 using RaccoonWarehouse.Domain.Invoices.DTOs;
 using RaccoonWarehouse.Domain.Products.DTOs;
 using RaccoonWarehouse.Domain.ProductUnits;
+using RaccoonWarehouse.Domain.POS.DTOs;
 using RaccoonWarehouse.Domain.Stock;
 using RaccoonWarehouse.Domain.Stock.DTOs;
 using RaccoonWarehouse.Domain.StockTransactions.DTOs;
@@ -137,9 +138,13 @@ namespace RaccoonWarehouse.Invoices
         private const decimal MinimumSellableQuantity = 10m;
         private const int ProductDropdownPageSize = 10;
         private const int ProductStockFetchSize = 40;
-        private int _nextProductStockPage = 1;
-        private bool _hasMoreProductPages = true;
-        private bool _isLoadingProductPage;
+        private const int BrowsePageSize = 72;
+        private int _browsePageNumber = 1;
+        private bool _browseHasMore = true;
+        private bool _browseIsLoading;
+        private bool _pendingBrowseReload;
+        private CancellationTokenSource? _browseLoadCts;
+        private readonly DispatcherTimer _browseSearchDebounceTimer = new() { Interval = TimeSpan.FromMilliseconds(280) };
         private InvoiceLineWriteDto? _pendingFefoEditedLine;
         private bool _hasPendingFefoSplit;
         private bool _isProcessingPendingFefoSplit;
@@ -184,6 +189,7 @@ namespace RaccoonWarehouse.Invoices
             this.DataContext = this;
             UiText.ApplyWindow(this);
             _productSearchResetTimer.Tick += ProductSearchResetTimer_Tick;
+            _browseSearchDebounceTimer.Tick += BrowseSearchDebounceTimer_Tick;
             Loaded += POS_Loaded;
             Closed += POS_Closed;
             CatalogRefreshNotifier.CatalogChanged += CatalogRefreshNotifier_CatalogChanged;
@@ -216,7 +222,8 @@ namespace RaccoonWarehouse.Invoices
                 CashierName.Text = CurrentCasherName.ToString();
 
                 //InvoiceDatePicker.SelectedDate = DateTime.Now;
-                await LoadProductsAsync();
+                await LoadBrowseSubCategoriesAsync();
+                await ReloadBrowseAsync();
             }
             catch (Exception ex)
             {
@@ -234,13 +241,18 @@ namespace RaccoonWarehouse.Invoices
             if (!IsLoaded)
                 return;
 
-            await LoadProductsAsync();
+            _ = LoadBrowseSubCategoriesAsync();
+            RequestBrowseReload();
+            await Task.CompletedTask;
         }
 
         private void POS_Closed(object? sender, EventArgs e)
         {
             _productSearchResetTimer.Tick -= ProductSearchResetTimer_Tick;
+            _browseSearchDebounceTimer.Tick -= BrowseSearchDebounceTimer_Tick;
             CatalogRefreshNotifier.CatalogChanged -= CatalogRefreshNotifier_CatalogChanged;
+            _browseLoadCts?.Cancel();
+            _browseLoadCts?.Dispose();
         }
         private string GenerateInvoiceNumber()
         {
@@ -539,62 +551,140 @@ namespace RaccoonWarehouse.Invoices
         }
 
         #endregion
-        private async Task LoadProductsAsync()
+        private void RequestBrowseReload()
+        {
+            _pendingBrowseReload = true;
+            if (!_browseIsLoading)
+            {
+                _ = ReloadBrowseAsync();
+            }
+        }
+
+        private async Task LoadBrowseSubCategoriesAsync()
         {
             try
             {
-                ResetProductDropdownState();
-                await LoadSellableProductsAsync();
-                RefreshProductBrowseState();
+                var result = await _stockService.GetPosBrowseSubCategoriesAsync();
+                if (result == null || !result.Success || result.Data == null)
+                    return;
+
+                SubCategories.Clear();
+                foreach (var subCategory in result.Data)
+                    SubCategories.Add(subCategory);
+
+                SyncCategoryTabSelection();
+            }
+            catch
+            {
+                // Keep POS usable even if subcategory loading fails.
+            }
+        }
+
+        private void BrowseSearchDebounceTimer_Tick(object? sender, EventArgs e)
+        {
+            _browseSearchDebounceTimer.Stop();
+            RequestBrowseReload();
+        }
+
+        private async Task ReloadBrowseAsync()
+        {
+            _pendingBrowseReload = false;
+            _browsePageNumber = 1;
+            _browseHasMore = true;
+
+            Products.Clear();
+            ProductSuggestions.Clear();
+            FilteredProducts.Clear();
+            _loadedProductIds.Clear();
+
+            await LoadNextBrowsePageAsync(reset: true);
+        }
+
+        private async Task LoadNextBrowsePageAsync(bool reset = false)
+        {
+            if (_browseIsLoading || !_browseHasMore)
+                return;
+
+            _browseIsLoading = true;
+            var loadingShown = false;
+
+            _browseLoadCts?.Cancel();
+            _browseLoadCts?.Dispose();
+            _browseLoadCts = new CancellationTokenSource();
+            var token = _browseLoadCts.Token;
+
+            try
+            {
+                if (reset)
+                {
+                    _loading.Show();
+                    loadingShown = true;
+                }
+
+                var result = await _stockService.GetPosBrowsePageAsync(
+                    _browsePageNumber,
+                    BrowsePageSize,
+                    _browseSearchText,
+                    _selectedBrowseSubCategoryId);
+
+                if (token.IsCancellationRequested)
+                    return;
+
+                if (result == null || !result.Success || result.Data == null)
+                {
+                    MessageBox.Show(result?.Message ?? UiText.T("خطأ عند تحميل المنتجات", "Error loading products"), UiText.T("خطأ", "Error"));
+                    _browseHasMore = false;
+                    return;
+                }
+
+                var items = result.Data.Items?.ToList() ?? new List<PosBrowseItemDto>();
+                foreach (var item in items)
+                {
+                    if (item.ProductId <= 0 || !_loadedProductIds.Add(item.ProductId))
+                        continue;
+
+                    var product = new ProductReadDto
+                    {
+                        Id = item.ProductId,
+                        Name = item.Name,
+                        ITEMCODE = item.ItemCode,
+                        SubCategoryId = item.SubCategoryId,
+                        TaxExempt = item.TaxExempt,
+                        TaxRate = item.TaxRate,
+                        CurrentSalePrice = item.CurrentSalePrice
+                    };
+
+                    Products.Add(product);
+                    FilteredProducts.Add(product);
+                    ProductSuggestions.Add(product);
+                }
+
+                _browseHasMore = (_browsePageNumber * BrowsePageSize) < result.Data.TotalCount &&
+                                items.Count == BrowsePageSize;
+
+                if (items.Count > 0)
+                    _browsePageNumber++;
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"{UiText.T("خطأ عند تحميل المنتجات", "Error loading products")}: {ex.Message}", UiText.T("خطأ", "Error"));
+                if (!token.IsCancellationRequested)
+                    MessageBox.Show($"{UiText.T("خطأ عند تحميل المنتجات", "Error loading products")}: {ex.Message}", UiText.T("خطأ", "Error"));
+            }
+            finally
+            {
+                _browseIsLoading = false;
+                if (loadingShown)
+                    _loading.Hide();
+
+                if (_pendingBrowseReload && !_browseIsLoading)
+                    _ = ReloadBrowseAsync();
             }
         }
 
         private void RefreshProductBrowseState()
         {
-            var availableSubCategories = Products
-                .Where(product => product.SubCategory != null)
-                .GroupBy(product => product.SubCategoryId)
-                .Select(group => group.First().SubCategory!)
-                .OrderBy(subCategory => subCategory.Name)
-                .ToList();
-
-            SubCategories.Clear();
-            foreach (var subCategory in availableSubCategories)
-                SubCategories.Add(subCategory);
-
-            if (_selectedBrowseSubCategoryId.HasValue &&
-                !SubCategories.Any(subCategory => subCategory.Id == _selectedBrowseSubCategoryId.Value))
-            {
-                _selectedBrowseSubCategoryId = null;
-            }
-
-            ApplyBrowseFilters();
+            // Browse is server-driven in phase 1. Keep subcategory tabs as-is (already bound from stock load elsewhere if needed).
             SyncCategoryTabSelection();
-        }
-
-        private void ApplyBrowseFilters()
-        {
-            IEnumerable<ProductReadDto> filteredProducts = Products;
-
-            if (_selectedBrowseSubCategoryId.HasValue)
-            {
-                filteredProducts = filteredProducts.Where(product => product.SubCategoryId == _selectedBrowseSubCategoryId.Value);
-            }
-
-            if (!string.IsNullOrWhiteSpace(_browseSearchText))
-            {
-                filteredProducts = filteredProducts.Where(product =>
-                    (product.Name?.Contains(_browseSearchText, StringComparison.CurrentCultureIgnoreCase) ?? false) ||
-                    (product.ITEMCODE?.ToString()?.Contains(_browseSearchText, StringComparison.OrdinalIgnoreCase) ?? false));
-            }
-
-            FilteredProducts.Clear();
-            foreach (var product in filteredProducts.OrderBy(product => product.Name))
-                FilteredProducts.Add(product);
         }
 
         private void SyncCategoryTabSelection()
@@ -620,13 +710,26 @@ namespace RaccoonWarehouse.Invoices
 
             _selectedBrowseSubCategoryId = toggleButton.IsChecked == true ? subCategory.Id : null;
             SyncCategoryTabSelection();
-            ApplyBrowseFilters();
+            RequestBrowseReload();
         }
 
         private void ProductSearchBox_TextChanged(object sender, TextChangedEventArgs e)
         {
             _browseSearchText = ProductSearchBox.Text.Trim();
-            ApplyBrowseFilters();
+            _browseSearchDebounceTimer.Stop();
+            _browseSearchDebounceTimer.Start();
+        }
+
+        private async void ProductCardsScrollViewer_ScrollChanged(object sender, ScrollChangedEventArgs e)
+        {
+            // Infinite scroll: load the next page when the user is near the bottom.
+            if (e.ExtentHeight <= 0 || e.ViewportHeight <= 0)
+                return;
+
+            if (e.VerticalOffset + e.ViewportHeight < e.ExtentHeight - 240)
+                return;
+
+            await LoadNextBrowsePageAsync();
         }
 
         private async void ProductCard_Click(object sender, RoutedEventArgs e)
@@ -639,8 +742,6 @@ namespace RaccoonWarehouse.Invoices
 
         private void ResetProductDropdownState()
         {
-            _nextProductStockPage = 1;
-            _hasMoreProductPages = true;
             _loadedProductIds.Clear();
             Products.Clear();
             ProductSuggestions.Clear();
@@ -648,51 +749,33 @@ namespace RaccoonWarehouse.Invoices
 
         private async Task LoadSellableProductsAsync()
         {
-            if (_isLoadingProductPage)
+            // Phase 1: use the lightweight POS browse API instead of loading full stock graphs.
+            var result = await _stockService.GetPosBrowsePageAsync(1, BrowsePageSize, null, null);
+            if (result == null || !result.Success || result.Data == null)
                 return;
 
-            _isLoadingProductPage = true;
+            Products.Clear();
+            ProductSuggestions.Clear();
+            _loadedProductIds.Clear();
 
-            try
+            foreach (var item in result.Data.Items ?? Array.Empty<PosBrowseItemDto>())
             {
-                var result = await _stockService.GetAllWithFilteringAndIncludeAsync(
-                    s => s.Quantity > 0,
-                    new Expression<Func<Stock, object>>[]
-                    {
-                        s => s.Product,
-                        s => s.Product.SubCategory,
-                        s => s.Product.Brand,
-                        s => s.Product.ProductUnits,
-                        s => s.ProductUnit,
-                        s => s.ProductUnit.Unit
-                    });
+                if (item.ProductId <= 0 || !_loadedProductIds.Add(item.ProductId))
+                    continue;
 
-                var stocks = result?.Data?
-                    .Where(stock => stock.Product != null && stock.ProductUnit != null && stock.Quantity > 0)
-                    .ToList() ?? new List<StockReadDto>();
-
-                CacheStocks(stocks);
-
-                var products = stocks
-                    .GroupBy(stock => stock.ProductId)
-                    .Where(group => group.Sum(stock => stock.Quantity) > MinimumSellableQuantity)
-                    .Select(group => group.First().Product!)
-                    .OrderBy(product => product.Name)
-                    .ToList();
-
-                foreach (var product in products)
+                var product = new ProductReadDto
                 {
-                    if (_loadedProductIds.Add(product.Id))
-                    {
-                        Products.Add(product);
-                        ProductSuggestions.Add(product);
-                    }
-                }
-            }
-            finally
-            {
-                _isLoadingProductPage = false;
-                _hasMoreProductPages = false;
+                    Id = item.ProductId,
+                    Name = item.Name,
+                    ITEMCODE = item.ItemCode,
+                    SubCategoryId = item.SubCategoryId,
+                    TaxExempt = item.TaxExempt,
+                    TaxRate = item.TaxRate,
+                    CurrentSalePrice = item.CurrentSalePrice
+                };
+
+                Products.Add(product);
+                ProductSuggestions.Add(product);
             }
         }
 
@@ -2555,17 +2638,6 @@ namespace RaccoonWarehouse.Invoices
 
         private async Task LoadNextProductPageAsync()
         {
-            if (_isLoadingProductPage)
-                return;
-
-            if (!_hasMoreProductPages && Products.Any())
-            {
-                ProductSuggestions.Clear();
-                foreach (var product in Products.Take(ProductDropdownPageSize))
-                    ProductSuggestions.Add(product);
-                return;
-            }
-
             await LoadSellableProductsAsync();
 
             ProductSuggestions.Clear();
