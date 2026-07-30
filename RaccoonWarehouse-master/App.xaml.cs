@@ -708,6 +708,8 @@ END;";
 
         private void ConfigureServices(IServiceCollection services)
         {
+            services.AddLogging();
+
             var windowMap = new Dictionary<string, Type>(StringComparer.Ordinal)
             {
                 ["current-stock"] = typeof(CurrentStock),
