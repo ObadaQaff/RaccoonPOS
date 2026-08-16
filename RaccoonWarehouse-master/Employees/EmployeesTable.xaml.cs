@@ -1,9 +1,12 @@
-using RaccoonWarehouse.Application.Service.Employees;
+using RaccoonWarehouse.Application.Service.Permissions;
+using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Application.Service.Settings;
-using RaccoonWarehouse.Domain.Employees.DTOs;
+using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Domain.Enums;
+using RaccoonWarehouse.Domain.Users.DTOs;
 using RaccoonWarehouse.Helpers.Localization;
 using RaccoonWarehouse.Navigation;
+using RaccoonWarehouse.POS;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -18,77 +21,129 @@ namespace RaccoonWarehouse.Employees
 {
     public partial class EmployeesTable : Window
     {
-        private readonly IEmployeeService _employeeService;
+        private sealed record RoleFilterOption(UserRole? Role, string DisplayName);
+
+        private readonly IUserService _userService;
         private readonly IEmployeeFeatureService _featureService;
-        private readonly List<EmployeeReadDto> _items = new();
+        private readonly IUserSession _userSession;
+        private readonly IPermissionService _permissionService;
+        private readonly ILoadingService _loadingService;
+        private readonly List<UserReadDto> _items = new();
         private ICollectionView? _view;
 
-        public EmployeesTable(IEmployeeService employeeService, IEmployeeFeatureService featureService)
+        public EmployeesTable(
+            IUserService userService,
+            IEmployeeFeatureService featureService,
+            IUserSession userSession,
+            IPermissionService permissionService,
+            ILoadingService loadingService)
         {
-            _employeeService = employeeService;
+            _userService = userService;
             _featureService = featureService;
+            _userSession = userSession;
+            _permissionService = permissionService;
+            _loadingService = loadingService;
             InitializeComponent();
             UiText.ApplyWindow(this);
+            InitializeRoleFilter();
             Loaded += EmployeesTable_Loaded;
+        }
+
+        private void InitializeRoleFilter()
+        {
+            if (RoleFilterBox.Items.Count > 0)
+                return;
+
+            RoleFilterLabel.Text = UiText.T("الدور", "Role");
+            RoleFilterBox.DisplayMemberPath = nameof(RoleFilterOption.DisplayName);
+            RoleFilterBox.SelectedValuePath = nameof(RoleFilterOption.Role);
+            RoleFilterBox.ItemsSource = new List<RoleFilterOption>
+            {
+                new(null, UiText.T("الكل", "All")),
+                new(UserRole.Admin, UiText.T("مدير النظام", "Admin")),
+                new(UserRole.Casher, UiText.T("كاشير", "Cashier")),
+                new(UserRole.Manager, UiText.T("مدير", "Manager")),
+                new(UserRole.HR, UiText.T("الموارد البشرية", "HR"))
+            };
+            RoleFilterBox.SelectedIndex = 0;
         }
 
         private async void EmployeesTable_Loaded(object sender, RoutedEventArgs e)
         {
-            StatusFilter.ItemsSource = new object[] { UiText.T("الكل", "All") }.Concat(Enum.GetValues(typeof(EmployeeStatus)).Cast<object>());
-            StatusFilter.SelectedIndex = 0;
-            await LoadEmployeesAsync();
+            await LoadUsersAsync();
         }
 
-        private async Task LoadEmployeesAsync()
+        private async Task LoadUsersAsync()
         {
-            var enabled = await _featureService.IsEnabledAsync();
-            if (!enabled)
+            _loadingService.Show();
+            try
             {
-                MessageBox.Show(UiText.T("نظام الموظفين غير مفعل حالياً.", "The employees system is currently disabled."));
-                Close();
-                return;
+                var enabled = await _featureService.IsEnabledAsync();
+                if (!enabled)
+                {
+                    MessageBox.Show(UiText.T("نظام الموظفين غير مفعل حالياً.", "The employees system is currently disabled."));
+                    Close();
+                    return;
+                }
+
+                var role = _userSession.CurrentUser?.Role;
+                if (!role.HasValue || !await _permissionService.HasPermissionAsync(role.Value, "Users.View"))
+                {
+                    MessageBox.Show(UiText.T("ليس لديك صلاحية عرض الموظفين.", "You do not have permission to view employees."));
+                    Close();
+                    return;
+                }
+
+                FeatureStateText.Text = UiText.T(
+                    "النظام مفعل حالياً ويعرض الموظفين والكاشيرات والمدراء وموظفي الموارد البشرية.",
+                    "The system is enabled and shows staff users, managers, and HR users.");
+                AdminHintText.Text = UiText.T(
+                    "يمكن البحث بالاسم أو الهاتف أو الدور المختار.",
+                    "You can search by name, phone, or the selected role.");
+
+                CreateUserBtn.IsEnabled = true;
+
+                var result = await _userService.GetAllAsync();
+                _items.Clear();
+                if (result.Data != null)
+                {
+                    _items.AddRange(result.Data.Where(IsStaffUser));
+                }
+
+                TotalUsersText.Text = _items.Count.ToString();
+                _view = CollectionViewSource.GetDefaultView(_items);
+                _view.Filter = ApplyFilters;
+                UsersTable1.ItemsSource = _view;
+                UpdateCounters();
             }
-
-            FeatureStateText.Text = UiText.T("النظام مفعل حالياً ويمكن إدارة بيانات الموظفين.", "The system is currently enabled and employee records can be managed.");
-            HintText.Text = UiText.T("يمكن البحث بالاسم أو الكود أو الهاتف أو البريد.", "You can search by name, code, phone, or email.");
-            CreateEmployeeBtn.IsEnabled = true;
-
-            var result = await _employeeService.GetListAsync();
-            _items.Clear();
-            if (result.Data != null)
-                _items.AddRange(result.Data);
-
-            TotalEmployeesText.Text = _items.Count.ToString();
-            _view = CollectionViewSource.GetDefaultView(_items);
-            _view.Filter = ApplyFilters;
-            EmployeesGrid.ItemsSource = _view;
+            finally
+            {
+                _loadingService.Hide();
+            }
         }
 
         private bool ApplyFilters(object item)
         {
-            if (item is not EmployeeReadDto dto)
+            if (item is not UserReadDto user)
                 return false;
+
+            if (RoleFilterBox.SelectedItem is RoleFilterOption selectedRole
+                && selectedRole.Role.HasValue
+                && user.Role != selectedRole.Role.Value)
+            {
+                return false;
+            }
 
             var search = SearchBox.Text?.Trim();
             if (!string.IsNullOrWhiteSpace(search))
             {
-                var matched = dto.FullName.Contains(search, StringComparison.OrdinalIgnoreCase)
-                    || dto.Code.Contains(search, StringComparison.OrdinalIgnoreCase)
-                    || (dto.PhoneNumber?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false)
-                    || (dto.Email?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false);
+                var matched = user.Name.Contains(search, StringComparison.OrdinalIgnoreCase)
+                    || (user.PhoneNumber?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false)
+                    || user.Role.ToString().Contains(search, StringComparison.OrdinalIgnoreCase);
 
                 if (!matched)
                     return false;
             }
-
-            if (StatusFilter.SelectedItem is EmployeeStatus status && dto.Status != status)
-                return false;
-
-            if (int.TryParse(BranchFilterTextBox.Text, out var branchId) && dto.BranchId != branchId)
-                return false;
-
-            if (int.TryParse(DepartmentFilterTextBox.Text, out var departmentId) && dto.DepartmentId != departmentId)
-                return false;
 
             return true;
         }
@@ -96,93 +151,133 @@ namespace RaccoonWarehouse.Employees
         private void FilterChanged(object sender, EventArgs e)
         {
             _view?.Refresh();
+            UpdateCounters();
         }
 
-        private async void CreateEmployeeBtn_Click(object sender, RoutedEventArgs e)
+        private void RoleFilterBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (!await _featureService.IsEnabledAsync())
+            FilterChanged(sender, EventArgs.Empty);
+        }
+
+        private async void CreateUserBtn_Click(object sender, RoutedEventArgs e)
+        {
+            var role = _userSession.CurrentUser?.Role;
+            if (!role.HasValue || !await _permissionService.HasPermissionAsync(role.Value, "Users.Create"))
             {
-                MessageBox.Show(UiText.T("نظام الموظفين غير مفعل.", "The employees system is disabled."));
+                MessageBox.Show(UiText.T("ليس لديك صلاحية إنشاء مستخدم جديد.", "You do not have permission to create a new user."));
                 return;
             }
 
-            WindowManager.ShowDialog<CreateEmployee>(WindowSizeType.MediumRectangle);
-            await LoadEmployeesAsync();
+            WindowManager.ShowDialog<CreateUser>(WindowSizeType.MediumRectangle, window => window.InitializeForEmployeeCreate());
+            await LoadUsersAsync();
         }
 
-        private EmployeeReadDto? GetSelectedEmployee()
+        private void ViewShiftsBtn_Click(object sender, RoutedEventArgs e)
         {
-            if (EmployeesGrid.SelectedItem is EmployeeReadDto dto)
+            var selected = GetSelectedUser();
+            if (selected == null)
+                return;
+
+            if (selected.Role != UserRole.Casher && selected.Role != UserRole.Admin)
+            {
+                MessageBox.Show(
+                    UiText.T("The selected user is not an admin or cashier.", "The selected user is not an admin or cashier."),
+                    UiText.T("Notice", "Notice"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+
+            WindowManager.Show<DailySalesReport>(WindowSizeType.LargeRectangle, window => window.InitializeForCashier(selected.Id));
+        }
+
+        private UserReadDto? GetSelectedUser()
+        {
+            if (UsersTable1.SelectedItem is UserReadDto dto)
                 return dto;
 
             MessageBox.Show(UiText.T("يرجى اختيار موظف أولاً.", "Please select an employee first."));
             return null;
         }
 
-        private async void Edit_Click(object sender, RoutedEventArgs e)
+        private async void Update_User(object sender, RoutedEventArgs e)
         {
-            var selected = GetSelectedEmployee();
+            var role = _userSession.CurrentUser?.Role;
+            if (!role.HasValue || !await _permissionService.HasPermissionAsync(role.Value, "Users.Edit"))
+            {
+                MessageBox.Show(UiText.T("ليس لديك صلاحية تعديل المستخدمين.", "You do not have permission to edit users."));
+                return;
+            }
+
+            var selected = GetSelectedUser();
             if (selected == null)
                 return;
 
-            WindowManager.ShowDialog<UpdateEmployee>(WindowSizeType.MediumRectangle, window => window.Initialize(selected.Id));
-            await LoadEmployeesAsync();
+            _loadingService.Show();
+            WindowManager.ShowDialog<UpdateUser>(WindowSizeType.SmallSquare, window => window.Initialize(selected.Id));
+            _loadingService.Hide();
+            await LoadUsersAsync();
         }
 
-        private async void Details_Click(object sender, RoutedEventArgs e)
+        private async void Delete_User(object sender, RoutedEventArgs e)
         {
-            var selected = GetSelectedEmployee();
+            var role = _userSession.CurrentUser?.Role;
+            if (!role.HasValue || !await _permissionService.HasPermissionAsync(role.Value, "Users.Delete"))
+            {
+                MessageBox.Show(UiText.T("ليس لديك صلاحية حذف المستخدمين.", "You do not have permission to delete users."));
+                return;
+            }
+
+            var selected = GetSelectedUser();
             if (selected == null)
                 return;
 
-            WindowManager.ShowDialog<EmployeeDetails>(WindowSizeType.MediumRectangle, window => window.Initialize(selected.Id));
-            await LoadEmployeesAsync();
-        }
+            var messageResult = MessageBox.Show(
+                UiText.IsEnglish
+                    ? $"Are you sure you want to delete employee {selected.Name}?"
+                    : $"هل أنت متأكد من حذف الموظف {selected.Name}؟",
+                UiText.T("تأكيد الحذف", "Confirm Deletion"),
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
 
-        private async void Activate_Click(object sender, RoutedEventArgs e)
-        {
-            var selected = GetSelectedEmployee();
-            if (selected == null)
+            if (messageResult != MessageBoxResult.Yes)
                 return;
 
-            await _employeeService.SetStatusAsync(selected.Id, EmployeeStatus.Active);
-            await LoadEmployeesAsync();
+            await _userService.DeleteAsync(selected.Id);
+            await LoadUsersAsync();
         }
 
-        private async void Deactivate_Click(object sender, RoutedEventArgs e)
+        private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
         {
-            var selected = GetSelectedEmployee();
-            if (selected == null)
-                return;
-
-            await _employeeService.SetStatusAsync(selected.Id, EmployeeStatus.Inactive);
-            await LoadEmployeesAsync();
+            _view?.Refresh();
+            UpdateCounters();
         }
 
-        private async void Suspend_Click(object sender, RoutedEventArgs e)
+        private void UpdateCounters()
         {
-            var selected = GetSelectedEmployee();
-            if (selected == null)
-                return;
-
-            await _employeeService.SetStatusAsync(selected.Id, EmployeeStatus.Suspended);
-            await LoadEmployeesAsync();
+            TotalUsersText.Text = _items.Count.ToString();
+            VisibleUsersText.Text = _view?.Cast<object>().Count().ToString() ?? "0";
         }
 
-        private async void FeatureSettingsBtn_Click(object sender, RoutedEventArgs e)
+        private void FeatureSettingsBtn_Click(object sender, RoutedEventArgs e)
         {
             WindowManager.ShowDialog<EmployeeFeatureSettingsWindow>(WindowSizeType.SmallSquare);
-            await LoadEmployeesAsync();
         }
 
-        private void EmployeesGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+        private void UsersTable1_MouseDoubleClick(object sender, MouseButtonEventArgs e)
         {
-            Details_Click(sender, e);
+            if (UsersTable1.SelectedItem is UserReadDto)
+                Update_User(sender, e);
         }
 
         private void BackBtn_Click(object sender, RoutedEventArgs e)
         {
             Close();
+        }
+
+        private static bool IsStaffUser(UserReadDto user)
+        {
+            return user.Role is not UserRole.Customer and not UserRole.Supplier;
         }
     }
 }

@@ -62,7 +62,19 @@ namespace RaccoonWarehouse.Domain.InvoiceLines.DTOs
             }
         }
         public string? ProductName { get; set; }
-        public string? UnitName { get; set; }
+        private string? _unitName;
+        public string? UnitName
+        {
+            get => _unitName;
+            set
+            {
+                if (_unitName != value)
+                {
+                    _unitName = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
         public decimal LineTotal => Quantity * UnitPrice;
         public DateTime ExpiryDate { get; set; }   // ✅ تمت إضافته
 
@@ -78,7 +90,33 @@ namespace RaccoonWarehouse.Domain.InvoiceLines.DTOs
         public decimal LineSubTotal { get; set; }      // Quantity * UnitPrice قبل الضريبة
         public decimal Profit { get; set; }        // (LineSubTotal - Tax? عادة لا) - CostTotal
         public decimal ProfitBeforeTax { get; set; } // (LineSubTotal) - CostTotal
+        private decimal _availableQuantitySnapshot;
+        public decimal AvailableQuantitySnapshot
+        {
+            get => _availableQuantitySnapshot;
+            set
+            {
+                if (_availableQuantitySnapshot != value)
+                {
+                    _availableQuantitySnapshot = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
 
+        private string? _unitNameSnapshot;
+        public string? UnitNameSnapshot
+        {
+            get => _unitNameSnapshot;
+            set
+            {
+                if (_unitNameSnapshot != value)
+                {
+                    _unitNameSnapshot = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
 
     }
 }

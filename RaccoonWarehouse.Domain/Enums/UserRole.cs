@@ -6,12 +6,14 @@ using System.Threading.Tasks;
 
 namespace RaccoonWarehouse.Domain.Enums
 {
-     public enum UserRole   
+    public enum UserRole   
     {
         Admin = 0,
         Casher = 1,
         Customer = 2,
         Supplier = 3,
+        Manager = 4,
+        HR = 5,
 
     }
 }

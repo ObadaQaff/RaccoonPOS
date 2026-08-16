@@ -25,7 +25,7 @@ namespace RaccoonWarehouse.Application.Service.Settings
 
         public async Task EnsureDefaultsAsync()
         {
-            var setting = await _dbContext.AppSettings.FirstOrDefaultAsync(x => x.Key == EnableEmployeeSystemKey);
+             var setting = await _dbContext.AppSettings.FirstOrDefaultAsync(x => x.Key == EnableEmployeeSystemKey);
             if (setting != null)
                 return;
 

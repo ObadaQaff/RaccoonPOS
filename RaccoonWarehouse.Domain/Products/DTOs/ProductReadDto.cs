@@ -36,6 +36,7 @@ namespace RaccoonWarehouse.Domain.Products.DTOs
         public ProductUnitReadDto? DefaultPurchaseUnit => ProductUnitSelector.GetDefaultPurchaseUnit(ProductUnits);
         public decimal DefaultSalePrice => DefaultSaleUnit?.SalePrice ?? 0m;
         public decimal DefaultPurchasePrice => DefaultPurchaseUnit?.PurchasePrice ?? 0m;
+        public decimal CurrentStockQuantity { get; set; }
         public decimal CurrentSalePrice { get; set; }
         public decimal CurrentPurchasePrice { get; set; }
         public DateTime? CurrentExpiryDate { get; set; }

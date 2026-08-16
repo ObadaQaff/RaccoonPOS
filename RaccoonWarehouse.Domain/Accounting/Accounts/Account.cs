@@ -2,6 +2,7 @@ using RaccoonWarehouse.Domain.Accounting.AccountOpeningBalances;
 using RaccoonWarehouse.Domain.Accounting.Enums;
 using RaccoonWarehouse.Domain.Accounting.JournalEntries;
 using RaccoonWarehouse.Domain.Base;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace RaccoonWarehouse.Domain.Accounting.Accounts
 {
@@ -13,6 +14,7 @@ namespace RaccoonWarehouse.Domain.Accounting.Accounts
         public string? AccountNature { get; set; }
         public string? AccountCategory { get; set; }
         public string? AccountTypeCode { get; set; }
+        public CashFlowCategory? CashFlowCategory { get; set; }
         public string Name { get; set; } = string.Empty;
         public string? ArabicName { get; set; }
         public string? EnglishName { get; set; }
@@ -32,5 +34,65 @@ namespace RaccoonWarehouse.Domain.Accounting.Accounts
         public ICollection<Account> Children { get; set; } = new List<Account>();
         public ICollection<JournalEntryLine> JournalEntryLines { get; set; } = new List<JournalEntryLine>();
         public ICollection<AccountOpeningBalance> OpeningBalances { get; set; } = new List<AccountOpeningBalance>();
+
+        [NotMapped]
+        public int? ParentId
+        {
+            get => ParentAccountId;
+            set => ParentAccountId = value;
+        }
+
+        [NotMapped]
+        public Account? Parent
+        {
+            get => ParentAccount;
+            set => ParentAccount = value;
+        }
+
+        [NotMapped]
+        public string NameAr
+        {
+            get => ArabicName ?? Name;
+            set
+            {
+                Name = value ?? string.Empty;
+                ArabicName = value;
+            }
+        }
+
+        [NotMapped]
+        public string NameEn
+        {
+            get => EnglishName ?? string.Empty;
+            set => EnglishName = value;
+        }
+
+        [NotMapped]
+        public bool IsGroup
+        {
+            get => !IsPosting;
+            set => IsPosting = !value;
+        }
+
+        [NotMapped]
+        public NormalBalanceType NormalBalance
+        {
+            get => NormalBalanceType;
+            set => NormalBalanceType = value;
+        }
+
+        [NotMapped]
+        public DateTime CreatedAt
+        {
+            get => CreatedDate;
+            set => CreatedDate = value;
+        }
+
+        [NotMapped]
+        public DateTime UpdatedAt
+        {
+            get => UpdatedDate;
+            set => UpdatedDate = value;
+        }
     }
 }

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using RaccoonWarehouse.Application.Service.Stocks;
+using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Domain.Stock.DTOs;
 using RaccoonWarehouse.Helpers.Localization;
 using System;
@@ -16,6 +17,7 @@ namespace RaccoonWarehouse.Stocks
         private const int SearchDelayMs = 2000;
 
         private readonly IStockReportService _stockReportService;
+        private readonly ILoadingService _loadingService;
         private readonly IServiceProvider _serviceProvider;
         private readonly SemaphoreSlim _stockLoadLock = new(1, 1);
 
@@ -24,9 +26,13 @@ namespace RaccoonWarehouse.Stocks
         public ObservableCollection<CurrentStockDto> CurrentStockItems { get; set; }
             = new ObservableCollection<CurrentStockDto>();
 
-        public CurrentStock(IStockReportService stockReportService, IServiceProvider serviceProvider)
+        public CurrentStock(
+            IStockReportService stockReportService,
+            ILoadingService loadingService,
+            IServiceProvider serviceProvider)
         {
             _stockReportService = stockReportService;
+            _loadingService = loadingService;
             _serviceProvider = serviceProvider;
             InitializeComponent();
             DataContext = this;
@@ -67,7 +73,7 @@ namespace RaccoonWarehouse.Stocks
                     return;
 
                 MessageBox.Show(
-                    $"{UiText.T("Ø®Ø·Ø£ Ø£Ø«Ù†Ø§Ø¡ ØªØ­Ù…ÙŠÙ„ Ø§Ù„Ù…Ø®Ø²ÙˆÙ†", "Error loading stock")}: {ex.Message}",
+                    $"{UiText.T("Ø®Ø·Ø£ Ø£Ø«Ù†Ø§Ø¡ ØªØ­Ù… „ Ø§Ù„Ù…Ø®Ø²ÙˆÙ†", "Error loading stock")}: {ex.Message}",
                     UiText.T("Ø®Ø·Ø£", "Error"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);

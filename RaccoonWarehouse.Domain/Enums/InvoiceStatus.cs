@@ -7,10 +7,12 @@ using System.Threading.Tasks;
 
 public enum InvoiceStatus
 {
-    Draft,        // POS open
-    Completed,    // Payment selected
-    Posted,       // Finalized
-    Cancelled,
-    Returned,
-    OnHold
+    Draft = 0,        // POS open
+    Completed = 1,    // Payment selected
+    Posted = 2,       // Finalized
+    Cancelled = 3,
+    Returned = 4,
+    OnHold = 5,
+    Unknown = 6,      // Endpoint order received
+    InProcess = 7     // Endpoint order preparation started
 }

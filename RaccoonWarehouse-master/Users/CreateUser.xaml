@@ -69,6 +69,8 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -85,23 +87,99 @@
                         <TextBox x:Name="PhoneNumber" Style="{StaticResource AppTextInputStyle}"/>
                     </StackPanel>
 
-                    <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,18,18">
+                    <StackPanel x:Name="PasswordPanel" Grid.Row="1" Grid.Column="0" Margin="0,0,18,18">
                         <TextBlock Text="كلمة المرور" Style="{StaticResource AppFieldLabelStyle}"/>
                         <TextBox x:Name="Password" Style="{StaticResource AppTextInputStyle}"/>
                     </StackPanel>
 
-                    <StackPanel Grid.Row="1" Grid.Column="1" Margin="18,0,0,18">
+                    <StackPanel x:Name="ConfirmPasswordPanel" Grid.Row="1" Grid.Column="1" Margin="18,0,0,18">
                         <TextBlock Text="تأكيد كلمة المرور" Style="{StaticResource AppFieldLabelStyle}"/>
                         <TextBox x:Name="ConfirmPassword" Style="{StaticResource AppTextInputStyle}"/>
                     </StackPanel>
 
-                    <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,0,18,18">
+                    <StackPanel x:Name="RolePanel" Grid.Row="2" Grid.Column="0" Margin="0,0,18,18">
                         <TextBlock Text="نوع الحساب" Style="{StaticResource AppFieldLabelStyle}"/>
                         <ComboBox x:Name="Role" Style="{StaticResource AppComboBoxStyle}"/>
                     </StackPanel>
 
+                    <Border Grid.Row="3"
+                            Grid.ColumnSpan="2"
+                            Padding="18"
+                            Margin="0,0,0,18"
+                            Background="{StaticResource AppPanelSoftBrush}"
+                            CornerRadius="18">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,18,18">
+                                <TextBlock Text="اسم البنك" Style="{StaticResource AppFieldLabelStyle}"/>
+                                <TextBox x:Name="BankName" Style="{StaticResource AppTextInputStyle}"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="0" Grid.Column="1" Margin="18,0,0,18">
+                                <TextBlock Text="رقم الحساب البنكي" Style="{StaticResource AppFieldLabelStyle}"/>
+                                <TextBox x:Name="BankAccountNumber" Style="{StaticResource AppTextInputStyle}"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,18,0">
+                                <TextBlock Text="IBAN" Style="{StaticResource AppFieldLabelStyle}"/>
+                                <TextBox x:Name="BankIban" Style="{StaticResource AppTextInputStyle}"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="1" Grid.Column="1" Margin="18,0,0,0">
+                                <TextBlock Text="SWIFT" Style="{StaticResource AppFieldLabelStyle}"/>
+                                <TextBox x:Name="BankSwiftCode" Style="{StaticResource AppTextInputStyle}"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <Border Grid.Row="4"
+                            Grid.ColumnSpan="2"
+                            Padding="18"
+                            Margin="0,0,0,18"
+                            Background="{StaticResource AppPanelSoftBrush}"
+                            CornerRadius="18">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,18,18">
+                                <TextBlock Text="الحد الائتماني" Style="{StaticResource AppFieldLabelStyle}"/>
+                                <TextBox x:Name="CreditLimit" Style="{StaticResource AppTextInputStyle}"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="0" Grid.Column="1" Margin="18,0,0,18">
+                                <TextBlock Text="أيام الائتمان" Style="{StaticResource AppFieldLabelStyle}"/>
+                                <TextBox x:Name="CreditDays" Style="{StaticResource AppTextInputStyle}"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,18,0">
+                                <TextBlock Text="الرصيد الحالي" Style="{StaticResource AppFieldLabelStyle}"/>
+                                <TextBox x:Name="CurrentBalance" Style="{StaticResource AppTextInputStyle}" IsReadOnly="True"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="1" Grid.Column="1" Margin="18,0,0,0">
+                                <TextBlock Text="حالة الائتمان" Style="{StaticResource AppFieldLabelStyle}"/>
+                                <ComboBox x:Name="CreditStatus" Style="{StaticResource AppComboBoxStyle}"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
                     <TextBlock x:Name="FormHintText"
-                               Grid.Row="3"
+                               Grid.Row="5"
                                Grid.ColumnSpan="2"
                                FontSize="13"
                                Foreground="{StaticResource AppMutedTextBrush}"

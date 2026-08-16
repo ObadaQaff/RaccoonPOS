@@ -1,9 +1,11 @@
 using AutoMapper;
 using RaccoonWarehouse.Application.Service.Permissions;
 using RaccoonWarehouse.Application.Service.Users;
+using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Users.DTOs;
 using RaccoonWarehouse.Helpers.Localization;
+using System.Globalization;
 using System.Threading.Tasks;
 using System.Windows;
 
@@ -15,16 +17,26 @@ namespace RaccoonWarehouse
         private readonly IUserService _userService;
         private readonly IUserSession _userSession;
         private readonly IPermissionService _permissionService;
+        private readonly ILoadingService _loadingService;
+
         public int UserId { get; private set; }
 
-        public UpdateUser(IUserService userService, IMapper mapper, IUserSession userSession, IPermissionService permissionService)
+        public UpdateUser(
+            IUserService userService,
+            IMapper mapper,
+            IUserSession userSession,
+            IPermissionService permissionService,
+            ILoadingService loadingService)
         {
             _userService = userService;
             _userSession = userSession;
             _permissionService = permissionService;
+            _loadingService = loadingService;
+
             InitializeComponent();
             UiText.ApplyWindow(this);
             _user = new UserWriteDto();
+            CreditStatus.ItemsSource = Enum.GetValues(typeof(RaccoonWarehouse.Domain.Enums.CreditStatus));
         }
 
         private async void Window_Loaded(object sender, RoutedEventArgs e)
@@ -41,70 +53,114 @@ namespace RaccoonWarehouse
 
         private async Task LoadUserAsync(int userId)
         {
-            var result = await _userService.GetWriteDtoByIdAsync(userId);
-
-            if (!result.Success || result.Data == null)
+            _loadingService.Show();
+            try
             {
-                MessageBox.Show(UiText.T("المستخدم غير موجود.", "The user was not found."));
-                Close();
-                return;
-            }
+                var result = await _userService.GetWriteDtoByIdAsync(userId);
+                if (!result.Success || result.Data == null)
+                {
+                    MessageBox.Show(UiText.T("The user was not found.", "The user was not found."));
+                    Close();
+                    return;
+                }
 
-            _user = result.Data;
-            FullName.Text = _user.Name;
-            PhoneNumber.Text = _user.PhoneNumber;
-            Password.Text = _user.Password;
-            ConfirmPassword.Text = _user.Password;
-            Role.ItemsSource = Enum.GetValues(typeof(UserRole));
-            Role.SelectedItem = _user.Role;
+                _user = result.Data;
+                FullName.Text = _user.Name;
+                PhoneNumber.Text = _user.PhoneNumber;
+                Password.Text = _user.Password;
+                ConfirmPassword.Text = _user.Password;
+                BankName.Text = _user.BankName;
+                BankAccountNumber.Text = _user.BankAccountNumber;
+                BankIban.Text = _user.BankIban;
+                BankSwiftCode.Text = _user.BankSwiftCode;
+                CreditLimit.Text = _user.CreditLimit.ToString("0.00");
+                CreditDays.Text = _user.CreditDays.ToString();
+                CurrentBalance.Text = _user.CurrentBalance.ToString("0.00");
+                CreditStatus.SelectedItem = _user.CreditStatus;
+                Role.ItemsSource = Enum.GetValues(typeof(UserRole));
+                Role.SelectedItem = _user.Role;
+            }
+            finally
+            {
+                _loadingService.Hide();
+            }
         }
 
         private async void Update_User(object sender, RoutedEventArgs e)
         {
-            var currentRole = _userSession.CurrentUser?.Role;
-            if (!currentRole.HasValue || !await _permissionService.HasPermissionAsync(currentRole.Value, "Users.Edit"))
+            _loadingService.Show();
+            try
             {
-                MessageBox.Show(UiText.T("ليس لديك صلاحية تعديل المستخدمين.", "You do not have permission to edit users."));
-                return;
-            }
+                var currentRole = _userSession.CurrentUser?.Role;
+                if (!currentRole.HasValue || !await _permissionService.HasPermissionAsync(currentRole.Value, "Users.Edit"))
+                {
+                    MessageBox.Show(UiText.T("You do not have permission to edit users.", "You do not have permission to edit users."));
+                    return;
+                }
 
-            if (string.IsNullOrWhiteSpace(FullName.Text) || string.IsNullOrWhiteSpace(Password.Text))
+                if (string.IsNullOrWhiteSpace(FullName.Text) || string.IsNullOrWhiteSpace(Password.Text))
+                {
+                    MessageBox.Show(UiText.T("Please fill in at least the name and password.", "Please fill in at least the name and password."));
+                    return;
+                }
+
+                if (Password.Text != ConfirmPassword.Text)
+                {
+                    MessageBox.Show(UiText.T("Password confirmation does not match.", "Password confirmation does not match."));
+                    ConfirmPassword.Focus();
+                    return;
+                }
+
+                if (Role.SelectedItem is not UserRole selectedRole)
+                {
+                    MessageBox.Show(UiText.T("Please choose an account type.", "Please choose an account type."));
+                    return;
+                }
+
+                _user.Name = FullName.Text.Trim();
+                _user.PhoneNumber = string.IsNullOrWhiteSpace(PhoneNumber.Text) ? null : PhoneNumber.Text.Trim();
+                _user.Password = Password.Text;
+                _user.Role = selectedRole;
+                _user.BankName = string.IsNullOrWhiteSpace(BankName.Text) ? null : BankName.Text.Trim();
+                _user.BankAccountNumber = string.IsNullOrWhiteSpace(BankAccountNumber.Text) ? null : BankAccountNumber.Text.Trim();
+                _user.BankIban = string.IsNullOrWhiteSpace(BankIban.Text) ? null : BankIban.Text.Trim();
+                _user.BankSwiftCode = string.IsNullOrWhiteSpace(BankSwiftCode.Text) ? null : BankSwiftCode.Text.Trim();
+                _user.CreditLimit = decimal.TryParse(CreditLimit.Text, NumberStyles.Any, CultureInfo.CurrentCulture, out var creditLimit)
+                    ? creditLimit
+                    : 0m;
+                _user.CreditDays = int.TryParse(CreditDays.Text, out var creditDays) ? creditDays : 0;
+                if (CreditStatus.SelectedItem is RaccoonWarehouse.Domain.Enums.CreditStatus selectedCreditStatus)
+                {
+                    _user.CreditStatus = selectedCreditStatus;
+                }
+
+                var result = await _userService.UpdateAsync(_user);
+                if (!result.Success)
+                {
+                    _loadingService.Hide();
+                    MessageBox.Show(result.Message);
+                    return;
+                }
+
+                _loadingService.Hide();
+                MessageBox.Show(UiText.T("The user was updated successfully.", "The user was updated successfully."));
+                Close();
+            }
+            catch (System.Exception ex)
             {
-                MessageBox.Show(UiText.T("الرجاء تعبئة الاسم وكلمة المرور على الأقل.", "Please fill in at least the name and password."));
-                return;
+                _loadingService.Hide();
+                MessageBox.Show(ex.Message);
             }
-
-            if (Password.Text != ConfirmPassword.Text)
+            finally
             {
-                MessageBox.Show(UiText.T("تأكيد كلمة المرور غير مطابق.", "Password confirmation does not match."));
-                ConfirmPassword.Focus();
-                return;
+                _loadingService.Hide();
             }
-
-            if (Role.SelectedItem is not UserRole selectedRole)
-            {
-                MessageBox.Show(UiText.T("الرجاء اختيار نوع الحساب.", "Please choose an account type."));
-                return;
-            }
-
-            _user.Name = FullName.Text.Trim();
-            _user.PhoneNumber = PhoneNumber.Text.Trim();
-            _user.Password = Password.Text;
-            _user.Role = selectedRole;
-
-            var result = await _userService.UpdateAsync(_user);
-            if (!result.Success)
-            {
-                MessageBox.Show(result.Message);
-                return;
-            }
-
-            MessageBox.Show(UiText.T("تم تحديث البيانات بنجاح", "The user was updated successfully."));
-            Close();
         }
 
         private void BackBtn_Click(object sender, RoutedEventArgs e)
         {
+            _loadingService.Show();
+            _loadingService.Hide();
             Close();
         }
     }

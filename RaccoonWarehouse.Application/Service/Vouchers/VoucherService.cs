@@ -147,7 +147,6 @@ namespace RaccoonWarehouse.Application.Service.Vouchers
         {
             var query = _uow.Vouchers.GetAllAsQueryable()
                 .Include(v => v.Checks)
-                .Include(v => v.User)
                 .AsNoTracking();
 
             if (type.HasValue)
@@ -160,7 +159,10 @@ namespace RaccoonWarehouse.Application.Service.Vouchers
                 query = query.Where(d => d.VoucherNumber == voucherNumber);
 
             if (!string.IsNullOrWhiteSpace(customerName))
-                query = query.Where(d => d.User != null && d.User.Name.Contains(customerName));
+                query = query.Where(d =>
+                    (d.VoucherNumber != null && d.VoucherNumber.Contains(customerName)) ||
+                    (d.ReferenceNumber != null && d.ReferenceNumber.Contains(customerName)) ||
+                    (d.Notes != null && d.Notes.Contains(customerName)));
 
             if (dateFrom.HasValue)
                 query = query.Where(d => d.CreatedDate >= dateFrom.Value);

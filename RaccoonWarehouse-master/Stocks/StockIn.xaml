@@ -260,6 +260,15 @@
                     <StackPanel Margin="6" Grid.Column="2"/>
                 </Grid>
 
+                <StackPanel Margin="6,0,0,10" HorizontalAlignment="Left">
+                    <TextBlock Text="المستودع" Style="{StaticResource HeaderText}" FontSize="14"/>
+                    <ComboBox x:Name="WarehouseComboBox"
+                              Width="230"
+                              Height="32"
+                              DisplayMemberPath="Name"
+                              SelectedValuePath="Id"/>
+                </StackPanel>
+
                 <!-- ====== PRODUCT INPUT SECTION ====== -->
                 <StackPanel Margin="10" Orientation="Vertical" Background="#E8F0F7" >
 
@@ -485,6 +494,17 @@
                             <fa:ImageAwesome Icon="Search" Width="18" Height="18"
                                  Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
                             <TextBlock Text="استعلام" Margin="8,0,0,0"/>
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="ImportFalconStockBtn"
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            Width="210"
+                            Click="ImportFalconStockBtn_Click"
+                            Margin="0,0,15,0">
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                            <fa:ImageAwesome Icon="Download" Width="18" Height="18"
+                                Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                            <TextBlock Text="استيراد مخزون فالكون" Margin="8,0,0,0"/>
                         </StackPanel>
                     </Button>
                     <Button x:Name="PrintBtn"

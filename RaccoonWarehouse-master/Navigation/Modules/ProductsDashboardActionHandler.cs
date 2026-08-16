@@ -14,6 +14,7 @@ namespace RaccoonWarehouse.Navigation.Modules
                 "Products.Create" or
                 "Products.List" or
                 "Products.PriceList" or
+                "Products.ItemCostDetails" or
                 "Products.ProfitReport" or
                 "Products.InactiveReport" or
                 "Stocks.BalancesReport" or
@@ -33,6 +34,9 @@ namespace RaccoonWarehouse.Navigation.Modules
                     break;
                 case "Products.PriceList":
                     context.OpenReportWindow(() => WindowManager.Show<PriceListReport>(WindowSizeType.LargeRectangle));
+                    break;
+                case "Products.ItemCostDetails":
+                    context.OpenReportWindow(() => WindowManager.Show<ItemCostDetailReport>(WindowSizeType.LargeRectangle));
                     break;
                 case "Products.ProfitReport":
                     context.OpenReportWindow(() => WindowManager.Show<ProductProfitReport>(WindowSizeType.LargeRectangle));

@@ -21,12 +21,20 @@ namespace RaccoonWarehouse.Navigation.Modules
                             UiText.T("المحاسبة", "Accounting"),
                             new[]
                             {
+                                new ModuleActionDefinition("Accounting.Checks", UiText.T("الشيكات", "Checks")),
                                 new ModuleActionDefinition("Accounting.Accounts", "دليل الحسابات"),
                                 new ModuleActionDefinition("Accounting.JournalEntry.Create", "قيد يومية يدوي"),
                                 new ModuleActionDefinition("Accounting.JournalEntries", "سجل القيود"),
                                 new ModuleActionDefinition("Accounting.TrialBalance", "ميزان المراجعة"),
                                 new ModuleActionDefinition("Accounting.GeneralLedger", "دفتر الأستاذ"),
                                 new ModuleActionDefinition("Accounting.BalanceSheet", "الميزانية العمومية")
+                            }),
+                        new ModuleGroupDefinition(
+                            UiText.T("التقارير", "Reports"),
+                            new[]
+                            {
+                                new ModuleActionDefinition("Accounting.CustomerDebts", UiText.T("ذمم العملاء", "Customer Debts")),
+                                new ModuleActionDefinition("Accounting.SupplierPayables", UiText.T("ذمم الموردين", "Supplier Payables"))
                             })
                     }));
         }

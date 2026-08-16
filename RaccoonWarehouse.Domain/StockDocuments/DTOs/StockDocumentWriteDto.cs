@@ -20,6 +20,7 @@ using System;
             public string DocumentNumber { get; set; } = string.Empty;
             public StockVoucherType Type { get; set; }
             public int? SupplierId { get; set; }
+            public int? WarehouseId { get; set; }
             public UserWriteDto? Supplier { get; set; }
             public string? Notes { get; set; }
 

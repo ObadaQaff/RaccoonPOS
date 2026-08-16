@@ -27,8 +27,13 @@ using RaccoonWarehouse.Application.Service.Units;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Application.Service.Vouchers;
 using RaccoonWarehouse.Application.Service.Warehouses;
+using RaccoonWarehouse.Application.Service.Notifications;
+using RaccoonWarehouse.Application.Service.Orders;
 using RaccoonWarehouse.Auth;
+using RaccoonWarehouse.Integration;
 using RaccoonWarehouse.Accounting;
+using RaccoonWarehouse.Accounting.Services;
+using RaccoonWarehouse.Accounting.ViewModels;
 using RaccoonWarehouse.Brands;
 using RaccoonWarehouse.Categories;
 using RaccoonWarehouse.Common.Loading;
@@ -49,6 +54,7 @@ using RaccoonWarehouse.Navigation.Modules;
 using RaccoonWarehouse.Orders;
 using RaccoonWarehouse.Products;
 using RaccoonWarehouse.Products.Reports;
+using RaccoonWarehouse.POS;
 using RaccoonWarehouse.Reports;
 using RaccoonWarehouse.Stocks;
 using RaccoonWarehouse.Stocks.Reports;
@@ -57,6 +63,7 @@ using RaccoonWarehouse.Settings;
 using RaccoonWarehouse.Units;
 using RaccoonWarehouse.Vouchers;
 using RaccoonWarehouse.Warehouses;
+using RaccoonWarehouse.Notifications;
 using RaccoonWarehouse.Core.Modules;
 using System.Diagnostics;
 using System.Globalization;
@@ -102,6 +109,8 @@ namespace RaccoonWarehouse
             var services = new ServiceCollection();
             ConfigureServices(services);
             ServiceProvider = services.BuildServiceProvider();
+            var notificationService = ServiceProvider.GetRequiredService<INotificationService>();
+            notificationService.NotificationRaised += NotificationService_NotificationRaised;
             await InitializeLocalizationAsync();
             WriteRuntimeInfo();
 
@@ -131,6 +140,21 @@ namespace RaccoonWarehouse
 
             if (loginResult == true)
             {
+                try
+                {
+                    await ServiceProvider.GetRequiredService<IPandaOrderSyncService>().StartAsync();
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(
+                        UiText.T(
+                            $"تعذر بدء مزامنة طلبات Panda: {ex.Message}",
+                            $"Panda order synchronization could not start: {ex.Message}"),
+                        UiText.T("خطأ مزامنة Panda", "Panda Synchronization Error"),
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                }
+
                 var dashboard = ServiceProvider.GetRequiredService<Dashboard>();
                 ApplyRuntimeTitle(dashboard);
 
@@ -202,6 +226,37 @@ namespace RaccoonWarehouse
         private void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
         {
             LogUnhandledException("AppDomainUnhandledException", e.ExceptionObject as Exception);
+        }
+
+        private void NotificationService_NotificationRaised(object? sender, RaccoonWarehouse.Domain.Notifications.AppNotificationDto notification)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                var toast = ServiceProvider.GetRequiredService<NotificationToastWindow>();
+                toast.ShowNotification(LocalizeNotification(notification));
+            });
+        }
+
+        private static RaccoonWarehouse.Domain.Notifications.AppNotificationDto LocalizeNotification(
+            RaccoonWarehouse.Domain.Notifications.AppNotificationDto notification)
+        {
+            if (!string.Equals(notification.Category, "OrderReceived", StringComparison.OrdinalIgnoreCase))
+                return notification;
+
+            return new RaccoonWarehouse.Domain.Notifications.AppNotificationDto
+            {
+                Title = UiText.T("استلام طلب جديد", "New order received"),
+                Message = string.IsNullOrWhiteSpace(notification.Message)
+                    ? UiText.T("تم استلام طلب جديد.", "A new order was received.")
+                    : string.Format(
+                        UiText.T("تم استلام الطلب رقم {0}.", "Order {0} was received."),
+                        notification.Message),
+                Category = notification.Category,
+                Severity = notification.Severity,
+                RecipientUserId = notification.RecipientUserId,
+                RecipientRole = notification.RecipientRole,
+                CreatedAt = notification.CreatedAt
+            };
         }
 
         private void TaskScheduler_UnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
@@ -291,13 +346,18 @@ namespace RaccoonWarehouse
                 await EnsureAppSettingsTableAsync(db);
                 await EnsureDelegateSchemaAsync(db);
                 await EnsureEmployeeSchemaAsync(db);
+                await EnsureCheckSchemaAsync(db);
+                await CurrencySeeder.SeedBaseCurrencyAsync(db);
+                await scope.ServiceProvider.GetRequiredService<IWarehouseService>().EnsureDefaultWarehousesAsync();
                 await scope.ServiceProvider.GetRequiredService<IPermissionService>().EnsureSeedDataAsync();
                 await scope.ServiceProvider.GetRequiredService<ILanguageSettingsService>().EnsureDefaultsAsync();
                 await scope.ServiceProvider.GetRequiredService<IDelegateFeatureService>().EnsureDefaultsAsync();
                 await scope.ServiceProvider.GetRequiredService<IEmployeeFeatureService>().EnsureDefaultsAsync();
                 await scope.ServiceProvider.GetRequiredService<IAccountingFeatureService>().EnsureDefaultsAsync();
                 await scope.ServiceProvider.GetRequiredService<IAccountingService>().EnsureDefaultAccountsAsync();
-                await AccountTreeSeeder.SeedAsync(scope.ServiceProvider);
+                await FiscalYearSeeder.SeedLegacyAsync(db);
+                await AccountTreeSeeder.SeedAsync(db);
+                await scope.ServiceProvider.GetRequiredService<RecurringJournalService>().ExecuteDueAsync(DateTime.Today);
 
                 // Force EF model & query compilation
                 await db.Database.ExecuteSqlRawAsync("SELECT 1");
@@ -483,6 +543,36 @@ BEGIN
     ALTER TABLE [dbo].[Invoice] ADD [DelegateId] INT NULL;
 END;
 
+IF COL_LENGTH('User', 'CreditLimit') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[User] ADD [CreditLimit] DECIMAL(18,2) NOT NULL CONSTRAINT [DF_User_CreditLimit] DEFAULT (0);
+END;
+
+IF COL_LENGTH('User', 'CreditDays') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[User] ADD [CreditDays] INT NOT NULL CONSTRAINT [DF_User_CreditDays] DEFAULT (0);
+END;
+
+IF COL_LENGTH('User', 'OpeningBalance') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[User] ADD [OpeningBalance] DECIMAL(18,2) NOT NULL CONSTRAINT [DF_User_OpeningBalance] DEFAULT (0);
+END;
+
+IF COL_LENGTH('User', 'CurrentBalance') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[User] ADD [CurrentBalance] DECIMAL(18,2) NOT NULL CONSTRAINT [DF_User_CurrentBalance] DEFAULT (0);
+END;
+
+IF COL_LENGTH('User', 'LastPaymentDate') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[User] ADD [LastPaymentDate] DATETIME2 NULL;
+END;
+
+IF COL_LENGTH('User', 'CreditStatus') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[User] ADD [CreditStatus] INT NOT NULL CONSTRAINT [DF_User_CreditStatus] DEFAULT (1);
+END;
+
 IF NOT EXISTS
 (
     SELECT 1 FROM sys.indexes
@@ -648,6 +738,22 @@ END;";
             await db.Database.ExecuteSqlRawAsync(sql);
         }
 
+        private static async Task EnsureCheckSchemaAsync(ApplicationDbContext db)
+        {
+            const string sql = @"
+IF OBJECT_ID(N'dbo.[Check]', N'U') IS NOT NULL AND COL_LENGTH(N'dbo.[Check]', N'Status') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[Check] ADD [Status] INT NOT NULL CONSTRAINT [DF_Check_Status] DEFAULT (1);
+END;
+
+IF OBJECT_ID(N'dbo.[Checks]', N'U') IS NOT NULL AND COL_LENGTH(N'dbo.[Checks]', N'Status') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[Checks] ADD [Status] INT NOT NULL CONSTRAINT [DF_Checks_Status] DEFAULT (1);
+END;";
+
+            await db.Database.ExecuteSqlRawAsync(sql);
+        }
+
         private async Task InitializeLocalizationAsync()
         {
             try
@@ -762,17 +868,43 @@ END;";
             services.AddScoped<IWarehouseService, WarehouseService>();
             services.AddScoped<IInvoiceLineService, InvoiceLineService>();
             services.AddScoped<IInvoiceService, InvoiceService>();
+            // Temporary Box API integration. Remove this registration with the isolated service when retired.
+            services.AddSingleton<IBoxCartApiService, BoxCartApiService>();
+            services.AddScoped<IEndpointOrderStatusService, EndpointOrderStatusService>();
+            services.AddScoped<IBoxOrderImportService, BoxOrderImportService>();
+            services.AddScoped<IPandaOrderProcessor, PandaOrderProcessor>();
+            services.AddSingleton<IPandaOrderSyncService, PandaOrderSyncService>();
             services.AddScoped<IUnitService, UnitService>();
             services.AddScoped<IVoucherService, VoucherService>();
             services.AddScoped<IStockService, StockService>();
             services.AddScoped<IStockTransactionService, StockTransactionService>();
             services.AddScoped<IStockDocumentService, StockDocumentService>();
+            services.AddScoped<IFalconStockImportService, FalconStockImportService>();
             services.AddScoped<IStockReportService, StockReportService>();
             services.AddScoped<ICheckService, CheckService>();
             services.AddScoped<IFinancialTransactionService, FinancialTransactionService>();
             services.AddScoped<IAccountingService, AccountingService>();
             services.AddScoped<IAccountingFeatureService, AccountingFeatureService>();
             services.AddScoped<IAccountTreeService, AccountTreeService>();
+            services.AddScoped<CurrencyService>();
+            services.AddScoped<TaxService>();
+            services.AddScoped<AgingReportService>();
+            services.AddScoped<UserStatementService>();
+            services.AddScoped<BankReconciliationService>();
+            services.AddScoped<RecurringJournalService>();
+            services.AddScoped<ProfitAndLossService>();
+            services.AddScoped<CashFlowService>();
+            services.AddScoped<TrialBalanceService>();
+            services.AddScoped<GeneralLedgerService>();
+            services.AddScoped<RaccoonWarehouse.Application.Service.Dashboard.DashboardService>();
+            services.AddScoped<SourceDocumentNavigationService>();
+            services.AddTransient<AccountTreeViewModel>();
+            services.AddTransient<AddAccountViewModel>();
+            services.AddSingleton<IDialogService, DialogService>();
+            services.AddScoped<FiscalYearService>();
+            services.AddScoped<OpeningBalanceService>();
+            services.AddScoped<CostCenterService>();
+            services.AddSingleton<AccountService>();
             services.AddScoped<ILanguageSettingsService, LanguageSettingsService>();
             services.AddScoped<IPermissionService, PermissionService>();
             services.AddScoped<IReportPermissionService, ReportPermissionService>();
@@ -783,7 +915,11 @@ END;";
             services.AddSingleton<ILoadingService, LoadingService>();
             services.AddScoped<ICashierSessionService, CashierSessionService>();
             services.AddScoped<IAuthService, AuthService>();
+            services.AddSingleton<INotificationService, NotificationService>();
             services.AddAppModule(new ReportsAppModule());
+            services.AddSingleton<RaccoonWarehouse.Core.ChatAssistant.IChatAssistantSettingsService, RaccoonWarehouse.Application.Service.ChatAssistant.ChatAssistantSettingsService>();
+            services.AddSingleton<RaccoonWarehouse.Core.ChatAssistant.IChatAssistantKnowledgeService, RaccoonWarehouse.Application.Service.ChatAssistant.ChatAssistantKnowledgeService>();
+            services.AddSingleton<RaccoonWarehouse.Core.ChatAssistant.IChatAssistantService, RaccoonWarehouse.Application.Service.ChatAssistant.GeminiChatAssistantService>();
             services.AddTransient<IModuleDefinitionProvider, ProductsDashboardModule>();
             services.AddTransient<IModuleDefinitionProvider, CategoriesDashboardModule>();
             services.AddTransient<IModuleDefinitionProvider, SalesDashboardModule>();
@@ -791,6 +927,7 @@ END;";
             services.AddTransient<IModuleDefinitionProvider, BrandsDashboardModule>();
             services.AddTransient<IModuleDefinitionProvider, SettingsDashboardModule>();
             services.AddTransient<IModuleDefinitionProvider, UsersDashboardModule>();
+            services.AddTransient<IModuleDefinitionProvider, CustomersDashboardModule>();
             services.AddTransient<IModuleDefinitionProvider, AccountingDashboardModule>();
             services.AddTransient<DashboardModuleRegistry>();
             services.AddTransient<IDashboardActionHandler, ProductsDashboardActionHandler>();
@@ -800,6 +937,7 @@ END;";
             services.AddTransient<IDashboardActionHandler, BrandsDashboardActionHandler>();
             services.AddTransient<IDashboardActionHandler, SettingsDashboardActionHandler>();
             services.AddTransient<IDashboardActionHandler, UsersDashboardActionHandler>();
+            services.AddTransient<IDashboardActionHandler, CustomersDashboardActionHandler>();
             services.AddTransient<IDashboardActionHandler, AccountingDashboardActionHandler>();
             services.AddTransient<DashboardActionRegistry>();
 
@@ -809,15 +947,21 @@ END;";
             // Views (Windows)
             services.AddTransient<Dashboard>();
             services.AddTransient<AccountsTable>();
+            services.AddTransient<AddAccountDialog>();
             services.AddTransient<CreateJournalEntry>();
             services.AddTransient<JournalEntriesBrowser>();
             services.AddTransient<TrialBalanceReport>();
             services.AddTransient<GeneralLedgerReport>();
             services.AddTransient<BalanceSheetReport>();
+            services.AddTransient<UserStatementWindow>();
+            services.AddTransient<PartyBalanceReportService>();
+            services.AddTransient<PartyBalanceReport>();
+            services.AddTransient<ChecksDashboard>();
             services.AddTransient<AccountingFeatureSettingsWindow>();
 
 
             services.AddTransient<UsersTable>();
+            services.AddTransient<CustomersTable>();
             services.AddTransient<UpdateUser>();
             services.AddTransient<CreateUser>();
             services.AddTransient<DelegatesTable>();
@@ -892,10 +1036,14 @@ END;";
             services.AddTransient<SearchStockInWindow>();
             services.AddTransient<SearchVoucherWindow>();
             services.AddTransient<InvoicesProfitBrowser>();
+            services.AddTransient<DailySalesReport>();
             services.AddTransient<Invoices.POS>();
 
             //Loading Window
             services.AddTransient<LoadingWindow>();
+            services.AddTransient<NotificationToastWindow>();
+            services.AddTransient<RaccoonWarehouse.ChatAssistant.ChatAssistantWindow>();
+            services.AddTransient<RaccoonWarehouse.ChatAssistant.ChatAssistantSettingsWindow>();
 
             services.AddTransient<ReceiptWindow>();
             services.AddTransient<PaymentWindow>();

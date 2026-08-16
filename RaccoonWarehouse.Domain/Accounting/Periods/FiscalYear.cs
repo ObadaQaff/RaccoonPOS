@@ -11,6 +11,7 @@ namespace RaccoonWarehouse.Domain.Accounting.Periods
         public DateTime EndDate { get; set; }
         public FiscalYearStatus Status { get; set; } = FiscalYearStatus.Draft;
         public bool IsClosed { get; set; }
+        public bool IsLegacy { get; set; }
         public int? CreatedBy { get; set; }
         public int? UpdatedBy { get; set; }
         public ICollection<AccountingPeriod> AccountingPeriods { get; set; } = new List<AccountingPeriod>();

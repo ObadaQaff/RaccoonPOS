@@ -4,19 +4,21 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:fa="http://schemas.fontawesome.io/icons/"
+        xmlns:vm="clr-namespace:RaccoonWarehouse.Accounting.ViewModels"
         mc:Ignorable="d"
-        Title="دليل الحسابات"
+        Title="شجرة الحسابات"
         Height="900"
         Width="1400"
         WindowStartupLocation="CenterScreen"
         WindowState="Maximized"
-        FlowDirection="RightToLeft"
+        FlowDirection="LeftToRight"
         Background="{StaticResource AppPageBackgroundBrush}">
     <Grid Background="{StaticResource AppPageBackgroundBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="220"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
+
         <Border Grid.Row="0" CornerRadius="0,0,34,34" Background="{StaticResource AppDashboardHeroBrush}">
             <Grid Margin="34,24,34,34">
                 <Grid.ColumnDefinitions>
@@ -24,26 +26,28 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <StackPanel VerticalAlignment="Center">
-                    <TextBlock Text="دليل الحسابات" FontSize="34" FontWeight="Bold" Foreground="White"/>
-                    <TextBlock Text="استعراض الحسابات المحاسبية المضافة في النظام." Margin="0,8,0,0" FontSize="16" Foreground="#D6E7E2"/>
+                    <TextBlock Text="شجرة الحسابات" FontSize="34" FontWeight="Bold" Foreground="White"/>
+                    <TextBlock Text="عرض هرمي للحسابات مع تفاصيل الحساب المحدد" Margin="0,8,0,0" FontSize="16" Foreground="#D6E7E2"/>
                 </StackPanel>
                 <Border Grid.Column="1" Padding="18,12" CornerRadius="20" Background="#1FFFFFFF" VerticalAlignment="Center">
                     <StackPanel>
-                        <TextBlock Text="القسم" FontSize="12" Foreground="#CFE8E3" HorizontalAlignment="Center"/>
+                        <TextBlock Text="الوحدة" FontSize="12" Foreground="#CFE8E3" HorizontalAlignment="Center"/>
                         <TextBlock Text="المحاسبة" Margin="0,4,0,0" FontSize="18" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center"/>
                     </StackPanel>
                 </Border>
             </Grid>
         </Border>
+
         <Grid Grid.Row="1" Margin="24,-52,24,24">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
+
             <Border Grid.Row="0" Style="{StaticResource AppCardBorderStyle}" Padding="24">
                 <DockPanel LastChildFill="False">
                     <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
-                        <Button Width="170" Style="{StaticResource AppHeroButtonStyle}" Click="RefreshBtn_Click">
+                        <Button Width="170" Style="{StaticResource AppHeroButtonStyle}" Command="{Binding RefreshCommand}">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                 <fa:ImageAwesome Icon="Refresh" Width="16" Height="16" Margin="0,0,8,0"
                                                  Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
@@ -52,7 +56,7 @@
                         </Button>
                         <Button Width="120" Style="{StaticResource AppSecondaryButtonStyle}" Click="BackBtn_Click">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                <fa:ImageAwesome Icon="ArrowRight" Width="16" Height="16" Margin="0,0,8,0"
+                                <fa:ImageAwesome Icon="ArrowLeft" Width="16" Height="16" Margin="0,0,8,0"
                                                  Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
                                 <TextBlock Text="رجوع"/>
                             </StackPanel>
@@ -60,18 +64,105 @@
                     </StackPanel>
                 </DockPanel>
             </Border>
+
             <Border Grid.Row="1" Margin="0,18,0,0" Style="{StaticResource AppCardBorderStyle}" Padding="16">
-                <DataGrid x:Name="AccountsGrid" Style="{StaticResource AppModernDataGridStyle}" AutoGenerateColumns="False" IsReadOnly="True">
-                    <DataGrid.Columns>
-                        <DataGridTextColumn Header="الرمز" Binding="{Binding Code}" Width="120"/>
-                        <DataGridTextColumn Header="اسم الحساب" Binding="{Binding Name}" Width="220"/>
-                        <DataGridTextColumn Header="النوع" Binding="{Binding AccountType}" Width="140"/>
-                        <DataGridCheckBoxColumn Header="ترحيل" Binding="{Binding IsPosting}" Width="90"/>
-                        <DataGridCheckBoxColumn Header="نشط" Binding="{Binding IsActive}" Width="90"/>
-                        <DataGridTextColumn Header="الحساب الأب" Binding="{Binding ParentAccountName}" Width="160"/>
-                        <DataGridTextColumn Header="الوصف" Binding="{Binding Description}" Width="*"/>
-                    </DataGrid.Columns>
-                </DataGrid>
+                <Grid FlowDirection="LeftToRight">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="1.35*"/>
+                        <ColumnDefinition Width="16"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0" Background="White" CornerRadius="10" Padding="8" BorderBrush="#D9E0E6" BorderThickness="1">
+                        <TreeView x:Name="AccountsTree"
+                                  Background="Transparent"
+                                  BorderThickness="0"
+                                  ItemsSource="{Binding RootAccounts}"
+                                  SelectedItemChanged="AccountsTree_OnSelectedItemChanged">
+                        <TreeView.Resources>
+                            <HierarchicalDataTemplate DataType="{x:Type vm:AccountTreeNode}" ItemsSource="{Binding Children}">
+                                <Grid Margin="0,2,0,2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock Grid.Column="0" Text="{Binding PostingIcon}" Margin="0,0,6,0" Foreground="{Binding StatusBrush}" VerticalAlignment="Center"/>
+
+                                    <Grid Grid.Column="1">
+                                        <TextBlock Text="{Binding DisplayText}" Foreground="{Binding CategoryBrush}" TextDecorations="{Binding TextDecoration}">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+
+                                        <TextBox Text="{Binding EditName, UpdateSourceTrigger=PropertyChanged}" MinWidth="220" VerticalContentAlignment="Center">
+                                            <TextBox.Style>
+                                                <Style TargetType="TextBox">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBox.Style>
+                                        </TextBox>
+                                    </Grid>
+
+                                    <Grid.InputBindings>
+                                        <MouseBinding MouseAction="LeftDoubleClick" Command="{Binding DataContext.RenameCommand, RelativeSource={RelativeSource AncestorType=TreeView}}" CommandParameter="{Binding}"/>
+                                        <KeyBinding Key="Enter" Command="{Binding DataContext.SaveCommand, RelativeSource={RelativeSource AncestorType=TreeView}}" CommandParameter="{Binding}"/>
+                                    </Grid.InputBindings>
+
+                                    <Grid.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="إضافة حساب فرعي" Command="{Binding DataContext.AddChildCommand, RelativeSource={RelativeSource AncestorType=TreeView}}" CommandParameter="{Binding}"/>
+                                            <MenuItem Header="تعطيل الحساب" Command="{Binding DataContext.DeactivateCommand, RelativeSource={RelativeSource AncestorType=TreeView}}" CommandParameter="{Binding}"/>
+                                            <MenuItem Header="عرض الرصيد" Command="{Binding DataContext.ViewBalanceCommand, RelativeSource={RelativeSource AncestorType=TreeView}}" CommandParameter="{Binding}"/>
+                                            <MenuItem Header="عرض الحركات" Command="{Binding DataContext.OpenTransactionsCommand, RelativeSource={RelativeSource AncestorType=TreeView}}" CommandParameter="{Binding}"/>
+                                        </ContextMenu>
+                                    </Grid.ContextMenu>
+                                </Grid>
+                            </HierarchicalDataTemplate>
+                        </TreeView.Resources>
+
+                        <TreeView.ItemContainerStyle>
+                            <Style TargetType="TreeViewItem">
+                                <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
+                                <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}"/>
+                            </Style>
+                        </TreeView.ItemContainerStyle>
+                        </TreeView>
+                    </Border>
+
+                    <Border Grid.Column="2" Padding="16" CornerRadius="12" Background="#F7FAFC" BorderBrush="#D9E0E6" BorderThickness="1">
+                        <StackPanel>
+                            <TextBlock Text="تفاصيل الحساب" FontWeight="Bold" FontSize="18"/>
+                            <TextBlock Text="{Binding SelectedAccount.DisplayText, FallbackValue=لم يتم تحديد حساب}" Margin="0,8,0,8" FontSize="16"/>
+                            <TextBlock Text="{Binding SelectedAccount.AccountCategory, StringFormat=التصنيف: {0}}" Margin="0,2,0,0"/>
+                            <TextBlock Text="{Binding SelectedAccount.AccountNature, StringFormat=الطبيعة: {0}}" Margin="0,2,0,0"/>
+                            <TextBlock Text="{Binding SelectedAccount.AccountLevel, StringFormat=المستوى: {0}}" Margin="0,2,0,0"/>
+                            <TextBlock Text="{Binding SelectedAccount.IsPosting, StringFormat=ترحيل: {0}}" Margin="0,2,0,0"/>
+                            <TextBlock Text="{Binding SelectedAccount.IsActive, StringFormat=نشط: {0}}" Margin="0,2,0,0"/>
+                            <TextBlock Text="{Binding SelectedBalanceText, FallbackValue=الرصيد: -}" Margin="0,14,0,0" FontWeight="SemiBold"/>
+
+                            <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+                                <Button Width="130" Margin="0,0,8,0" Style="{StaticResource AppHeroButtonStyle}" Command="{Binding AddChildCommand}" CommandParameter="{Binding SelectedAccount}" Content="إضافة فرعي"/>
+                                <Button Width="110" Margin="0,0,8,0" Style="{StaticResource AppSecondaryButtonStyle}" Command="{Binding SaveCommand}" CommandParameter="{Binding SelectedAccount}" Content="حفظ"/>
+                                <Button Width="120" Style="{StaticResource AppSecondaryButtonStyle}" Command="{Binding DeactivateCommand}" CommandParameter="{Binding SelectedAccount}" Content="تعطيل"/>
+                            </StackPanel>
+                            <Button Width="170" Margin="0,12,0,0" Style="{StaticResource AppHeroButtonStyle}" Command="{Binding OpenTransactionsCommand}" CommandParameter="{Binding SelectedAccount}" Content="عرض الحركات"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
             </Border>
         </Grid>
     </Grid>

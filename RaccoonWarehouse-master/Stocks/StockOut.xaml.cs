@@ -4,6 +4,7 @@ using RaccoonWarehouse.Application.Service.StockDocuments;
 using RaccoonWarehouse.Application.Service.Stocks;
 using RaccoonWarehouse.Application.Service.StockTransactions;
 using RaccoonWarehouse.Application.Service.Users;
+using RaccoonWarehouse.Application.Service.Warehouses;
 using RaccoonWarehouse.Common;
 using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Domain.Enums;
@@ -42,6 +43,7 @@ namespace RaccoonWarehouse.Stocks
         private readonly IProductUnitService _productUnitService;
         private readonly IStockDocumentService _stockDocumentService;
         private readonly IUserService _userService;
+        private readonly IWarehouseService _warehouseService;
         private readonly ILoadingService _loadingService;
         private bool _isLoadingUnits = false;
         public ObservableCollection<ProductUnitWriteDto> GetUnitsForProduct(int productId)
@@ -69,6 +71,7 @@ namespace RaccoonWarehouse.Stocks
             IStockDocumentService stockDocumentService,
             IStockService stockService,
             IStockTransactionService stockTransactionService,
+            IWarehouseService warehouseService,
             ILoadingService loadingService)
         {
             _userService = userService;
@@ -77,6 +80,7 @@ namespace RaccoonWarehouse.Stocks
             _productService = productService;
             _productUnitService = productUnitService;
             _stockDocumentService = stockDocumentService;
+            _warehouseService = warehouseService;
             _loadingService = loadingService;
 
             InitializeComponent();
@@ -114,6 +118,10 @@ namespace RaccoonWarehouse.Stocks
 
                 VoucherNumberTxt.Text = GenerateDocumentNumber();
                 DatePickerInvoice.SelectedDate = DateTime.Now;
+                var warehouses = await _warehouseService.GetAllAsync();
+                WarehouseComboBox.ItemsSource = warehouses.Data;
+                WarehouseComboBox.DisplayMemberPath = "Name";
+                WarehouseComboBox.SelectedValuePath = "Id";
 
                 var stockedProducts = await _stockService.GetAllWithFilteringAndIncludeAsync(
                             s => s.Quantity > 0,
@@ -239,7 +247,7 @@ namespace RaccoonWarehouse.Stocks
                     Id = _currentDocumentId ?? 0,
                     DocumentNumber = VoucherNumberTxt.Text,
                     Type = StockVoucherType.Out,
-                    SupplierId = 1,
+                    WarehouseId = WarehouseComboBox.SelectedValue != null ? (int)WarehouseComboBox.SelectedValue : null,
                     Notes = NotesTxt.Text,
                     Items = expandedItems,
                     CreatedDate = isUpdate ? _originalItems.FirstOrDefault()?.CreatedDate ?? DateTime.Now : DateTime.Now,
@@ -318,6 +326,7 @@ namespace RaccoonWarehouse.Stocks
         {
             VoucherNumberTxt.Text = GenerateDocumentNumber();
             DatePickerInvoice.SelectedDate = DateTime.Now;
+            WarehouseComboBox.SelectedIndex = -1;
 
             NotesTxt.Text = "";
             Items.Clear();
@@ -1007,6 +1016,7 @@ namespace RaccoonWarehouse.Stocks
 
             _currentDocumentId = doc.Id;                 // <-- critical
             _originalItems = doc.Items.ToList();         // <-- for adjusting stock differences
+            WarehouseComboBox.SelectedValue = doc.WarehouseId;
 
             VoucherNumberTxt.Text = doc.DocumentNumber;
             DatePickerInvoice.SelectedDate = doc.CreatedDate;

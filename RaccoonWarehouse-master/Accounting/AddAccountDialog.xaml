@@ -1,0 +1,89 @@
+<Window x:Class="RaccoonWarehouse.Accounting.AddAccountDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="إضافة حساب فرعي"
+        Height="620"
+        Width="760"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="{StaticResource AppPageBackgroundBrush}">
+    <Grid Margin="22">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="20"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,10,0" VerticalAlignment="Center" Text="اسم الحساب"/>
+            <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding AccountName, UpdateSourceTrigger=PropertyChanged}" MaxLength="100"/>
+            <TextBlock Grid.Row="1" Grid.Column="1" Foreground="#F04E4E" FontSize="11" Text="{Binding NameError}" Visibility="{Binding HasNameError, Converter={StaticResource BoolToVisibilityConverter}}"/>
+
+            <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,8,10,0" VerticalAlignment="Center" Text="رمز الحساب"/>
+            <TextBox Grid.Row="2" Grid.Column="1" Margin="0,8,0,0" Text="{Binding AccountCode, UpdateSourceTrigger=PropertyChanged}"/>
+            <TextBlock Grid.Row="3" Grid.Column="1" Foreground="#F04E4E" FontSize="11" Text="{Binding CodeError}" Visibility="{Binding HasCodeError, Converter={StaticResource BoolToVisibilityConverter}}"/>
+
+            <TextBlock Grid.Row="4" Grid.Column="0" Margin="0,8,10,0" VerticalAlignment="Center" Text="الحساب الأب"/>
+            <TextBox Grid.Row="4" Grid.Column="1" Margin="0,8,0,0" Text="{Binding ParentAccountName}" IsReadOnly="True"/>
+
+            <TextBlock Grid.Row="5" Grid.Column="0" Margin="0,8,10,0" VerticalAlignment="Center" Text="مستوى الحساب"/>
+            <TextBox Grid.Row="5" Grid.Column="1" Margin="0,8,0,0" Text="{Binding AccountLevel}" IsReadOnly="True"/>
+
+            <TextBlock Grid.Row="6" Grid.Column="0" Margin="0,8,10,0" VerticalAlignment="Center" Text="الوصف"/>
+            <TextBox Grid.Row="6" Grid.Column="1" Margin="0,8,0,0" Text="{Binding Description, UpdateSourceTrigger=PropertyChanged}" Height="90" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"/>
+
+            <TextBlock Grid.Row="0" Grid.Column="3" Margin="0,0,10,0" VerticalAlignment="Center" Text="طبيعة الحساب"/>
+            <ComboBox Grid.Row="0" Grid.Column="4" ItemsSource="{Binding NatureOptions}" SelectedItem="{Binding AccountNature, UpdateSourceTrigger=PropertyChanged}"/>
+            <TextBlock Grid.Row="1" Grid.Column="4" Foreground="#F04E4E" FontSize="11" Text="{Binding NatureError}" Visibility="{Binding HasNatureError, Converter={StaticResource BoolToVisibilityConverter}}"/>
+
+            <TextBlock Grid.Row="2" Grid.Column="3" Margin="0,8,10,0" VerticalAlignment="Center" Text="تصنيف الحساب"/>
+            <ComboBox Grid.Row="2" Grid.Column="4" Margin="0,8,0,0" ItemsSource="{Binding CategoryOptions}" SelectedItem="{Binding AccountCategory, UpdateSourceTrigger=PropertyChanged}"/>
+            <TextBlock Grid.Row="3" Grid.Column="4" Foreground="#F04E4E" FontSize="11" Text="{Binding CategoryError}" Visibility="{Binding HasCategoryError, Converter={StaticResource BoolToVisibilityConverter}}"/>
+
+            <TextBlock Grid.Row="4" Grid.Column="3" Margin="0,8,10,0" VerticalAlignment="Center" Text="نوع القوائم"/>
+            <ComboBox Grid.Row="4" Grid.Column="4" Margin="0,8,0,0" ItemsSource="{Binding TypeOptions}" SelectedItem="{Binding AccountType, UpdateSourceTrigger=PropertyChanged}"/>
+
+            <TextBlock Grid.Row="5" Grid.Column="3" Margin="0,8,10,0" VerticalAlignment="Center" Text="حساب ترحيل"/>
+            <CheckBox Grid.Row="5" Grid.Column="4" Margin="0,8,0,0" IsChecked="{Binding IsPosting}" IsEnabled="{Binding IsPostingEnabled}" VerticalAlignment="Center"/>
+        </Grid>
+
+        <StackPanel Grid.Row="1" Margin="0,18,0,0" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Width="120" Height="36" Margin="0,0,10,0" Style="{StaticResource AppHeroButtonStyle}" IsDefault="True" Command="{Binding SaveCommand}">
+                <Grid>
+                    <TextBlock Text="جاري الحفظ..." Visibility="{Binding IsSaving, Converter={StaticResource BoolToVisibilityConverter}}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    <TextBlock Text="حفظ" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Visible"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsSaving}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Grid>
+            </Button>
+            <Button Width="120" Height="36" Style="{StaticResource AppSecondaryButtonStyle}" IsCancel="True" Command="{Binding CancelCommand}" Content="إلغاء"/>
+        </StackPanel>
+    </Grid>
+</Window>

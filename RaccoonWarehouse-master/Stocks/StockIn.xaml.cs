@@ -4,6 +4,7 @@ using RaccoonWarehouse.Application.Service.StockDocuments;
 using RaccoonWarehouse.Application.Service.Stocks;
 using RaccoonWarehouse.Application.Service.StockTransactions;
 using RaccoonWarehouse.Application.Service.Users;
+using RaccoonWarehouse.Application.Service.Warehouses;
 using RaccoonWarehouse.Common;
 using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Domain.Enums;
@@ -40,6 +41,9 @@ namespace RaccoonWarehouse.Stocks
         private readonly IProductUnitService _productUnitService;
         private readonly IStockDocumentService _stockDocumentService;
         private readonly IUserService _userService;
+        private readonly IUserSession _userSession;
+        private readonly IWarehouseService _warehouseService;
+        private readonly IFalconStockImportService _falconStockImportService;
         private readonly ILoadingService _loadingService;
         private bool _isLoadingUnits = false;
         private int? _currentDocumentId = null;
@@ -63,19 +67,25 @@ namespace RaccoonWarehouse.Stocks
         private readonly IStockTransactionService _stockTransactionService;
         public StockIn(
             IUserService userService,
+            IUserSession userSession,
             IProductService productService,
             IProductUnitService productUnitService,
             IStockDocumentService stockDocumentService,
             IStockService stockService,
             IStockTransactionService stockTransactionService,
+            IWarehouseService warehouseService,
+            IFalconStockImportService falconStockImportService,
             ILoadingService loadingService)
         {
             _userService = userService;
+            _userSession = userSession;
             _stockService = stockService;
             _stockTransactionService = stockTransactionService;
             _productService = productService;
             _productUnitService = productUnitService;
             _stockDocumentService = stockDocumentService;
+            _warehouseService = warehouseService;
+            _falconStockImportService = falconStockImportService;
             _loadingService = loadingService;
 
             InitializeComponent();
@@ -114,6 +124,10 @@ namespace RaccoonWarehouse.Stocks
 
                 VoucherNumberTxt.Text = GenerateDocumentNumber();
                 DatePickerInvoice.SelectedDate = DateTime.Now;
+                var warehouses = await _warehouseService.GetAllAsync();
+                WarehouseComboBox.ItemsSource = warehouses.Data;
+                WarehouseComboBox.DisplayMemberPath = "Name";
+                WarehouseComboBox.SelectedValuePath = "Id";
 
                 var result = await _productService.GetReadDtoPagedListAsync(
                     pageNumber: 1,
@@ -248,6 +262,13 @@ namespace RaccoonWarehouse.Stocks
                         MessageBox.Show(UiText.T($"سعر البيع يجب أن يكون أكبر من صفر للمنتج {item.ProductName ?? "غير معروف"}.", $"The sale price must be greater than zero for product {item.ProductName ?? "Unknown"}."), UiText.T("تنبيه", "Notice"));
                         return;
                     }
+
+                    if (!item.ExpiryDate.HasValue)
+                    {
+                        HideLoadingIfShown();
+                        MessageBox.Show(UiText.T($"تاريخ الانتهاء مطلوب للمنتج {item.ProductName ?? "غير معروف"}.", $"The expiry date is required for product {item.ProductName ?? "Unknown"}."), UiText.T("تنبيه", "Notice"));
+                        return;
+                    }
                 }
 
                 bool isUpdate = _currentDocumentId != null;
@@ -269,7 +290,7 @@ namespace RaccoonWarehouse.Stocks
                     Id = _currentDocumentId ?? 0,
                     DocumentNumber = VoucherNumberTxt.Text,
                     Type = StockVoucherType.In,
-                    SupplierId = 1,
+                    WarehouseId = WarehouseComboBox.SelectedValue != null ? (int)WarehouseComboBox.SelectedValue : null,
                     Notes = NotesTxt.Text,
                     Items = Items.ToList(),
                     CreatedDate = isUpdate ? _originalItems.FirstOrDefault()?.CreatedDate ?? DateTime.Now : DateTime.Now,
@@ -319,6 +340,7 @@ namespace RaccoonWarehouse.Stocks
         {
             VoucherNumberTxt.Text = GenerateDocumentNumber();
             DatePickerInvoice.SelectedDate = DateTime.Now;
+            WarehouseComboBox.SelectedIndex = -1;
 
             NotesTxt.Text = "";
             Items.Clear();
@@ -378,6 +400,7 @@ namespace RaccoonWarehouse.Stocks
                     SalePrice = item.SalePrice,
                     ExpiryDate = item.ExpiryDate,
                     TransactionType = transactionType,
+                    UpdateCatalogAverageCost = _userSession.CurrentUser?.Role == UserRole.Admin,
                     TransactionDate = DateTime.Now,
                     Notes = notes
                 };
@@ -674,6 +697,12 @@ namespace RaccoonWarehouse.Stocks
                 return;
             }
 
+            if (!ExpiryBox.SelectedDate.HasValue)
+            {
+                MessageBox.Show(UiText.T("تاريخ الانتهاء مطلوب.", "The expiry date is required."), UiText.T("تنبيه", "Notice"));
+                return;
+            }
+
             var item = new StockItemWriteDto
             {
                 ProductId = product.Id,
@@ -683,7 +712,7 @@ namespace RaccoonWarehouse.Stocks
                 BaseQuantity = qty * (unit.QuantityPerUnit > 0 ? unit.QuantityPerUnit : 1m),
                 PurchasePrice = purchasePrice,
                 SalePrice = salePrice,
-                ExpiryDate = ExpiryBox.SelectedDate ?? DateTime.Now.AddMonths(6),
+                ExpiryDate = ExpiryBox.SelectedDate.Value,
                 CreatedDate = DateTime.Now,
                 UpdatedDate = DateTime.Now,
 
@@ -913,6 +942,94 @@ namespace RaccoonWarehouse.Stocks
 
 
         }
+
+        private async void ImportFalconStockBtn_Click(object sender, RoutedEventArgs e)
+        {
+            if (WarehouseComboBox.SelectedValue is not int warehouseId || warehouseId <= 0)
+            {
+                MessageBox.Show(
+                    UiText.T("يرجى اختيار مستودع قبل الاستيراد.", "Please choose a warehouse before importing."),
+                    UiText.T("تنبيه", "Notice"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
+            var confirm = MessageBox.Show(
+                UiText.T("سيتم استيراد مخزون فالكون ومقارنته مع المخزون الحالي. هل تريد المتابعة؟",
+                    "Falcon stock will be imported and compared with current stock. Do you want to continue?"),
+                UiText.T("تأكيد", "Confirm"),
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (confirm != MessageBoxResult.Yes)
+                return;
+
+            var loadingShown = false;
+
+            void HideLoadingIfShown()
+            {
+                if (!loadingShown)
+                    return;
+
+                _loadingService.Hide();
+                loadingShown = false;
+            }
+
+            try
+            {
+                ImportFalconStockBtn.IsEnabled = false;
+                _loadingService.Show();
+                loadingShown = true;
+
+                var result = await _falconStockImportService.ImportAsync(new FalconStockImportRequestDto
+                {
+                    WarehouseId = warehouseId,
+                    UserId = _userSession.CurrentUser?.Id
+                });
+
+                HideLoadingIfShown();
+
+                if (!result.Success)
+                {
+                    MessageBox.Show(
+                        result.Message ?? UiText.T("فشل استيراد مخزون فالكون.", "Failed to import Falcon stock."),
+                        UiText.T("خطأ", "Error"),
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Error);
+                    return;
+                }
+
+                var data = result.Data;
+                var summary = data == null
+                    ? result.Message
+                    : UiText.T(
+                        $"تم استيراد مخزون فالكون.\nعدد عناصر API: {data.ApiItemCount}\nالعناصر ذات الكمية: {data.PositiveApiItemCount}\nالمنتجات المطابقة: {data.MatchedProductCount}\nزيادة المخزون: {data.IncreasedProductCount}\nنقص المخزون: {data.DecreasedProductCount}\nبدون تغيير: {data.UnchangedProductCount}\nغير مطابقة: {data.UnmatchedProductCount}\nالمتجاهلة: {data.IgnoredItemCount}\nرقم السند: {data.StockDocumentNumber ?? "-"}",
+                        $"Falcon stock imported.\nAPI items: {data.ApiItemCount}\nItems with quantity: {data.PositiveApiItemCount}\nMatched products: {data.MatchedProductCount}\nStock increases: {data.IncreasedProductCount}\nStock decreases: {data.DecreasedProductCount}\nUnchanged: {data.UnchangedProductCount}\nUnmatched: {data.UnmatchedProductCount}\nIgnored: {data.IgnoredItemCount}\nDocument number: {data.StockDocumentNumber ?? "-"}");
+
+                MessageBox.Show(
+                    summary,
+                    UiText.T("نجاح", "Success"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+
+                await LoadDataAsync();
+            }
+            catch (Exception ex)
+            {
+                HideLoadingIfShown();
+                MessageBox.Show(
+                    $"{UiText.T("حدث خطأ أثناء استيراد مخزون فالكون", "An error occurred while importing Falcon stock")}: {ex.Message}",
+                    UiText.T("خطأ", "Error"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+            finally
+            {
+                HideLoadingIfShown();
+                ImportFalconStockBtn.IsEnabled = true;
+            }
+        }
         #endregion
 
         #region Search Daialog about stock  
@@ -938,6 +1055,7 @@ namespace RaccoonWarehouse.Stocks
 
             _currentDocumentId = doc.Id;                 // <-- critical
             _originalItems = doc.Items.ToList();         // <-- for adjusting stock differences
+            WarehouseComboBox.SelectedValue = doc.WarehouseId;
 
             VoucherNumberTxt.Text = doc.DocumentNumber;
             DatePickerInvoice.SelectedDate = doc.CreatedDate;

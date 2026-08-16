@@ -492,9 +492,12 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                 {
                     var sample = group.First();
                     var baseUnit = GetBaseUnit(sample.Product, sample.ProductUnit);
-                    var nearestLot = nearestLots.TryGetValue(group.Key, out var lot) ? lot : null;
-                    var unitCost = nearestLot?.PurchasePrice ?? GetBaseUnitCost(sample.Product, sample.ProductUnit);
                     var quantity = group.Sum(GetNormalizedStockQuantity);
+                    var totalValue = group.Sum(stock => stock.Quantity * stock.PurchasePrice);
+                    var unitCost = quantity > 0
+                        ? Math.Round(totalValue / quantity, 3)
+                        : GetBaseUnitCost(sample.Product, sample.ProductUnit);
+                    var nearestLot = nearestLots.TryGetValue(group.Key, out var lot) ? lot : null;
 
                     return new StockValuationRowDto
                     {
@@ -504,7 +507,7 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                         UnitName = baseUnit?.Unit?.Name ?? sample.ProductUnit?.Unit?.Name,
                         Quantity = quantity,
                         UnitCost = unitCost,
-                        TotalValue = quantity * unitCost,
+                        TotalValue = totalValue,
                         MinimumQuantity = sample.Product?.MiniQuantity ?? 0m,
                         NearestExpiryDate = nearestLot?.ExpiryDate
                     };
@@ -599,6 +602,9 @@ namespace RaccoonWarehouse.Application.Service.Stocks
         {
             var productRepo = _uow.GetRepository<Product>();
             var lotLookup = await GetNearestLotsByProductUnitAsync();
+            var stockLookup = await _uow.GetRepository<Stock>().GetAllAsQueryable()
+                .AsNoTracking()
+                .ToDictionaryAsync(stock => (stock.ProductId, stock.ProductUnitId));
             var products = await productRepo.GetAllAsQueryable()
                 .Include(p => p.ProductUnits)
                     .ThenInclude(pu => pu.Unit)
@@ -609,6 +615,7 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                     .Select(unit =>
                     {
                         lotLookup.TryGetValue((product.Id, unit.Id), out var lot);
+                        stockLookup.TryGetValue((product.Id, unit.Id), out var stock);
                         return new PriceListRowDto
                         {
                             ProductId = product.Id,
@@ -616,7 +623,7 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                             ItemName = product.Name,
                             Barcode = product.ITEMCODE.ToString(),
                             UnitName = unit.Unit?.Name ?? string.Empty,
-                            PurchasePrice = lot?.PurchasePrice ?? unit.PurchasePrice,
+                            PurchasePrice = stock?.PurchasePrice ?? unit.PurchasePrice,
                             SalePrice = lot?.SalePrice ?? unit.SalePrice,
                             ExpiryDate = lot?.ExpiryDate,
                             IsDefaultSaleUnit = unit.IsDefaultSaleUnit,

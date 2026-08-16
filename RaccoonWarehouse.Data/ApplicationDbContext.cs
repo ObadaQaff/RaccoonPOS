@@ -3,8 +3,11 @@ using RaccoonWarehouse.Core.Interface;
 using RaccoonWarehouse.Data.Configurations;
 using RaccoonWarehouse.Domain.Accounting.AccountOpeningBalances;
 using RaccoonWarehouse.Domain.Accounting.Accounts;
+using RaccoonWarehouse.Domain.Accounting.Banks;
 using RaccoonWarehouse.Domain.Accounting.JournalEntries;
 using RaccoonWarehouse.Domain.Accounting.Periods;
+using RaccoonWarehouse.Domain.Accounting.RecurringJournals;
+using RaccoonWarehouse.Domain.Accounting.TaxRates;
 using RaccoonWarehouse.Domain.Base;
 using RaccoonWarehouse.Domain.Branches;
 using RaccoonWarehouse.Domain.Categories;
@@ -15,6 +18,7 @@ using RaccoonWarehouse.Domain.EntityAndDtoStructure;
 using RaccoonWarehouse.Domain.FinancialTransactions;
 using RaccoonWarehouse.Domain.InvoiceLines;
 using RaccoonWarehouse.Domain.Invoices;
+using RaccoonWarehouse.Domain.Integration;
 using RaccoonWarehouse.Domain.Permissions;
 using RaccoonWarehouse.Domain.Products;
 using RaccoonWarehouse.Domain.ProductUnits;
@@ -46,12 +50,20 @@ namespace RaccoonWarehouse.Data
         public DbSet<Account> Accounts => Set<Account>();
         public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
         public DbSet<JournalEntryLine> JournalEntryLines => Set<JournalEntryLine>();
+        public DbSet<RecurringJournal> RecurringJournals => Set<RecurringJournal>();
+        public DbSet<RecurringJournalLine> RecurringJournalLines => Set<RecurringJournalLine>();
         public DbSet<FiscalYear> FiscalYears => Set<FiscalYear>();
         public DbSet<AccountingPeriod> AccountingPeriods => Set<AccountingPeriod>();
         public DbSet<AccountOpeningBalance> AccountOpeningBalances => Set<AccountOpeningBalance>();
+        public DbSet<BankAccount> BankAccounts => Set<BankAccount>();
+        public DbSet<BankStatement> BankStatements => Set<BankStatement>();
+        public DbSet<BankStatementLine> BankStatementLines => Set<BankStatementLine>();
+        public DbSet<TaxRate> TaxRates => Set<TaxRate>();
         public DbSet<Branch> Branches => Set<Branch>();
         public DbSet<CostCenter> CostCenters => Set<CostCenter>();
         public DbSet<Currency> Currencies => Set<Currency>();
+        public DbSet<ExchangeRate> ExchangeRates => Set<ExchangeRate>();
+        public DbSet<IntegrationInbox> IntegrationInbox => Set<IntegrationInbox>();
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
@@ -65,6 +77,8 @@ namespace RaccoonWarehouse.Data
         {
             base.OnModelCreating(modelBuilder);
             modelBuilder.ApplyConfiguration(new CategoryConfiguration());
+            modelBuilder.ApplyConfiguration(new AccountConfiguration());
+            modelBuilder.ApplyConfiguration(new IntegrationInboxConfiguration());
 
             var assembly = typeof(BaseEntity).Assembly;
             var entityTypes = assembly.GetTypes()
@@ -91,32 +105,6 @@ namespace RaccoonWarehouse.Data
                 .HasIndex(x => x.Key)
                 .IsUnique();
 
-            modelBuilder.Entity<Account>()
-                .HasIndex(x => x.Code)
-                .IsUnique();
-
-            modelBuilder.Entity<Account>()
-                .HasOne(x => x.ParentAccount)
-                .WithMany(x => x.Children)
-                .HasForeignKey(x => x.ParentAccountId)
-                .OnDelete(DeleteBehavior.NoAction);
-
-            modelBuilder.Entity<Account>()
-                .Property(x => x.AccountCode)
-                .HasMaxLength(32);
-
-            modelBuilder.Entity<Account>()
-                .Property(x => x.AccountNature)
-                .HasMaxLength(10);
-
-            modelBuilder.Entity<Account>()
-                .Property(x => x.AccountCategory)
-                .HasMaxLength(20);
-
-            modelBuilder.Entity<Account>()
-                .Property(x => x.AccountTypeCode)
-                .HasMaxLength(2);
-
             modelBuilder.Entity<JournalEntry>()
                 .HasIndex(x => x.EntryNumber)
                 .IsUnique();
@@ -135,6 +123,27 @@ namespace RaccoonWarehouse.Data
                 .HasOne(x => x.Account)
                 .WithMany(x => x.JournalEntryLines)
                 .HasForeignKey(x => x.AccountId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<RecurringJournal>()
+                .HasIndex(x => x.NextRunDate);
+
+            modelBuilder.Entity<RecurringJournalLine>()
+                .HasOne(x => x.RecurringJournal)
+                .WithMany(x => x.Lines)
+                .HasForeignKey(x => x.RecurringJournalId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<RecurringJournalLine>()
+                .HasOne(x => x.Account)
+                .WithMany()
+                .HasForeignKey(x => x.AccountId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<RecurringJournalLine>()
+                .HasOne(x => x.CostCenter)
+                .WithMany()
+                .HasForeignKey(x => x.CostCenterId)
                 .OnDelete(DeleteBehavior.NoAction);
 
             modelBuilder.Entity<FiscalYear>()
@@ -166,6 +175,58 @@ namespace RaccoonWarehouse.Data
                 .HasForeignKey(x => x.AccountId)
                 .OnDelete(DeleteBehavior.NoAction);
 
+            modelBuilder.Entity<BankAccount>()
+                .HasIndex(x => x.AccountNumber)
+                .IsUnique();
+
+            modelBuilder.Entity<BankAccount>()
+                .HasOne(x => x.GlAccount)
+                .WithMany()
+                .HasForeignKey(x => x.GlAccountId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<BankAccount>()
+                .HasOne(x => x.Currency)
+                .WithMany()
+                .HasForeignKey(x => x.CurrencyId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<BankStatement>()
+                .HasIndex(x => new { x.BankAccountId, x.StatementDate });
+
+            modelBuilder.Entity<BankStatement>()
+                .HasOne(x => x.BankAccount)
+                .WithMany(x => x.Statements)
+                .HasForeignKey(x => x.BankAccountId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<BankStatementLine>()
+                .HasIndex(x => new { x.BankStatementId, x.TransactionDate });
+
+            modelBuilder.Entity<BankStatementLine>()
+                .HasOne(x => x.BankStatement)
+                .WithMany(x => x.Lines)
+                .HasForeignKey(x => x.BankStatementId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<BankStatementLine>()
+                .HasOne(x => x.MatchedJournalEntryLine)
+                .WithMany()
+                .HasForeignKey(x => x.MatchedJournalEntryLineId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<TaxRate>()
+                .HasOne(x => x.TaxAccount)
+                .WithMany()
+                .HasForeignKey(x => x.TaxAccountId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<TaxRate>()
+                .HasIndex(x => new { x.Name, x.TaxType });
+
+            modelBuilder.Entity<JournalEntryLine>()
+                .HasIndex(x => x.TaxRateId);
+
             modelBuilder.Entity<Branch>()
                 .HasIndex(x => x.Code)
                 .IsUnique();
@@ -183,6 +244,21 @@ namespace RaccoonWarehouse.Data
             modelBuilder.Entity<Currency>()
                 .HasIndex(x => x.Code)
                 .IsUnique();
+
+            modelBuilder.Entity<ExchangeRate>()
+                .HasIndex(x => new { x.FromCurrencyId, x.ToCurrencyId, x.EffectiveDate });
+
+            modelBuilder.Entity<ExchangeRate>()
+                .HasOne(x => x.FromCurrency)
+                .WithMany()
+                .HasForeignKey(x => x.FromCurrencyId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<ExchangeRate>()
+                .HasOne(x => x.ToCurrency)
+                .WithMany()
+                .HasForeignKey(x => x.ToCurrencyId)
+                .OnDelete(DeleteBehavior.NoAction);
 
             modelBuilder.Entity<DelegateEntity>()
                 .HasIndex(x => x.Code)
@@ -216,6 +292,9 @@ namespace RaccoonWarehouse.Data
 
             modelBuilder.Entity<Invoice>()
                 .HasIndex(x => x.ReferenceNumber);
+
+            modelBuilder.Entity<Invoice>()
+                .HasIndex(x => x.DueDate);
 
             modelBuilder.Entity<Voucher>()
                 .HasIndex(x => x.ReferenceNumber);

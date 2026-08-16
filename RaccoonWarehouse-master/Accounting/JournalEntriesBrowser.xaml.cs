@@ -5,6 +5,7 @@ using RaccoonWarehouse.Domain.Accounting.Enums;
 using RaccoonWarehouse.Domain.Accounting.JournalEntries.DTOs;
 using RaccoonWarehouse.Domain.Reports.Accounting.Filters;
 using RaccoonWarehouse.Helpers.Localization;
+using RaccoonWarehouse.Navigation;
 using System;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
@@ -18,14 +19,20 @@ namespace RaccoonWarehouse.Accounting
         private readonly IAccountingService _accountingService;
         private readonly IAccountingFeatureService _featureService;
         private readonly ILoadingService _loadingService;
+        private readonly SourceDocumentNavigationService _sourceDocumentNavigationService;
 
         public ObservableCollection<JournalEntryListItem> Entries { get; } = new();
 
-        public JournalEntriesBrowser(IAccountingService accountingService, IAccountingFeatureService featureService, ILoadingService loadingService)
+        public JournalEntriesBrowser(
+            IAccountingService accountingService,
+            IAccountingFeatureService featureService,
+            ILoadingService loadingService,
+            SourceDocumentNavigationService sourceDocumentNavigationService)
         {
             _accountingService = accountingService;
             _featureService = featureService;
             _loadingService = loadingService;
+            _sourceDocumentNavigationService = sourceDocumentNavigationService;
             InitializeComponent();
             UiText.ApplyWindow(this);
             JournalEntriesGrid.ItemsSource = Entries;
@@ -165,6 +172,29 @@ namespace RaccoonWarehouse.Accounting
         private void BackBtn_Click(object sender, RoutedEventArgs e)
         {
             Close();
+        }
+
+        private async void JournalEntriesGrid_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (JournalEntriesGrid.SelectedItem is not JournalEntryListItem entry ||
+                !string.Equals(entry.ReferenceType, "Invoice", StringComparison.OrdinalIgnoreCase) ||
+                !entry.ReferenceId.HasValue || entry.ReferenceId.Value <= 0)
+            {
+                return;
+            }
+
+            try
+            {
+                await _sourceDocumentNavigationService.OpenSourceDocument(entry.ReferenceType, entry.ReferenceId);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    ex.Message,
+                    UiText.T("تعذر فتح الفاتورة", "Could not open invoice"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
         }
 
         private static JournalEntryStatus? ParseStatus(ComboBoxItem? item)

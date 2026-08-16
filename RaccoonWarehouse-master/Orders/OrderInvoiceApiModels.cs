@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using RaccoonWarehouse.Domain.Enums;
 
 namespace RaccoonWarehouse.Orders
 {
@@ -10,6 +11,7 @@ namespace RaccoonWarehouse.Orders
         public DateTime? CreatedDate { get; set; }
         public DateTime? DocumentDate { get; set; }
         public string? Status { get; set; }
+        public InvoiceStatus? StatusValue { get; set; }
         public decimal TotalAmount { get; set; }
         public int ItemsCount { get; set; }
         public int DisplayItemsCount => ItemsCount;

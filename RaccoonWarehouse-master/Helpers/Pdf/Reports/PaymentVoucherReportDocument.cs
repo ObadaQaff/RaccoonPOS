@@ -24,7 +24,7 @@ namespace RaccoonWarehouse.Helpers.Pdf.Reports
             {
                 { "رقم السند", _voucher.VoucherNumber },
                 { "التاريخ", _voucher.CreatedDate.ToString("yyyy/MM/dd") },
-                { "المستفيد / الجهة", _voucher.CustomerId?.ToString() ?? "-" },
+                { "الجهة", "-" },
                 { "المبلغ", _voucher.Amount.ToString("N2") },
                 { "طريقة الدفع", _voucher.PaymentType.ToString() },
                 { "ملاحظات", _voucher.Notes ?? "-" }

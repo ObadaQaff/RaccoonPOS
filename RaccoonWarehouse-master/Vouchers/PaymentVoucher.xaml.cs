@@ -1,10 +1,12 @@
 ﻿using RaccoonWarehouse.Application.Service.FinancialTransactions;
 using RaccoonWarehouse.Application.Service.Users;
+using RaccoonWarehouse.Application.Service.Warehouses;
 using RaccoonWarehouse.Application.Service.Vouchers;
 using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Core.Common;
 using RaccoonWarehouse.Domain.Cashiers.DTOs;
 using RaccoonWarehouse.Domain.Checks.DTOs;
+using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.FinancialTransactions.DTOs;
 using RaccoonWarehouse.Domain.Users.DTOs;
@@ -41,24 +43,51 @@ namespace RaccoonWarehouse.Vouchers
         private readonly IFinancialTransactionService _financialService;
         private readonly IUserSession _userSession;
         private readonly ILoadingService _loadingService;
+        private readonly IWarehouseService _warehouseService;
+        private int? _initialSupplierId;
+        private decimal? _maximumSupplierPaymentAmount;
+        private bool _supplierPaymentMode;
 
         public PaymentVoucher(
             IVoucherService voucherService,
             IUserService userService,
             IFinancialTransactionService financialService,
             IUserSession userSession,
+            IWarehouseService warehouseService,
             ILoadingService loadingService)
         {
             _voucherService = voucherService;
             _userService = userService;
             _financialService = financialService;
             _userSession = userSession;
+            _warehouseService = warehouseService;
             _loadingService = loadingService;
 
             InitializeComponent();
             UiText.ApplyWindow(this);
             Loaded += async (s, e) => await CreateVoucher_Loaded();
             ReceiptNumber.Text = GenerateDocumentNumber();
+        }
+
+        public void InitializeSupplierPayment(int supplierId, decimal outstandingBalance)
+        {
+            if (supplierId <= 0)
+                throw new ArgumentOutOfRangeException(nameof(supplierId));
+            if (outstandingBalance <= 0)
+                throw new ArgumentOutOfRangeException(nameof(outstandingBalance));
+
+            _supplierPaymentMode = true;
+            _initialSupplierId = supplierId;
+            _maximumSupplierPaymentAmount = outstandingBalance;
+            Amount.Text = outstandingBalance.ToString("0.00");
+            ReceiptDescription.Text = UiText.T("سداد ذمم مورد", "Supplier credit payment");
+            Title = UiText.T("دفع مستحقات مورد", "Pay Supplier Balance");
+
+            var creditItem = PaymentTypeCombo.Items.OfType<ComboBoxItem>()
+                .FirstOrDefault(item => string.Equals(item.Tag?.ToString(), ((int)PaymentType.Credit).ToString(), StringComparison.Ordinal));
+            if (creditItem != null)
+                PaymentTypeCombo.Items.Remove(creditItem);
+            PaymentTypeCombo.SelectedIndex = 0;
         }
         private string GenerateDocumentNumber()
         {
@@ -75,9 +104,19 @@ namespace RaccoonWarehouse.Vouchers
                 _loadingService.Show();
                 ReceiptDate.SelectedDate = DateTime.Now;
                 var users = await _userService.GetAllAsync();
-                AccountComboBox.ItemsSource = users.Data;
+                AccountComboBox.ItemsSource = users.Data?.Where(x => x.Role == UserRole.Supplier).ToList();
                 AccountComboBox.DisplayMemberPath = "Name";
                 AccountComboBox.SelectedValuePath = "Id";
+                if (_initialSupplierId.HasValue)
+                {
+                    AccountComboBox.SelectedValue = _initialSupplierId.Value;
+                    AccountComboBox.IsEnabled = false;
+                }
+
+                var warehouses = await _warehouseService.GetAllAsync();
+                WarehouseComboBox.ItemsSource = warehouses.Data;
+                WarehouseComboBox.DisplayMemberPath = "Name";
+                WarehouseComboBox.SelectedValuePath = "Id";
                 UiText.ApplyTranslations(this);
             }
             catch (Exception ex)
@@ -133,6 +172,29 @@ namespace RaccoonWarehouse.Vouchers
 
                 var paymentType = (PaymentType)int.Parse(paymentItem.Tag.ToString());
 
+                if (_supplierPaymentMode && paymentType == PaymentType.Credit)
+                {
+                    HideLoadingIfShown();
+                    MessageBox.Show(UiText.T("لا يمكن استخدام طريقة الذمم لسداد رصيد المورد.", "Credit cannot be used to settle a supplier balance."), UiText.T("تنبيه", "Notice"));
+                    return;
+                }
+
+                if (_supplierPaymentMode && _maximumSupplierPaymentAmount.HasValue && amount > _maximumSupplierPaymentAmount.Value)
+                {
+                    HideLoadingIfShown();
+                    MessageBox.Show(
+                        string.Format(UiText.T("لا يمكن أن يتجاوز مبلغ الدفع الرصيد المستحق ({0:N2}).", "The payment cannot exceed the outstanding balance ({0:N2})."), _maximumSupplierPaymentAmount.Value),
+                        UiText.T("تنبيه", "Notice"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                if (_supplierPaymentMode && AccountComboBox.SelectedValue == null)
+                {
+                    HideLoadingIfShown();
+                    MessageBox.Show(UiText.T("يرجى اختيار المورد.", "Please select a supplier."), UiText.T("تنبيه", "Notice"));
+                    return;
+                }
+
                 // Commit DataGrid edits
                 ChecksGrid.CommitEdit(DataGridEditingUnit.Cell, true);
                 ChecksGrid.CommitEdit(DataGridEditingUnit.Row, true);
@@ -147,8 +209,9 @@ namespace RaccoonWarehouse.Vouchers
                     VoucherType = VoucherType.Payment,
                     Amount = amount,
                     CasherId = session.CashierId,
+                    SupplierId = AccountComboBox.SelectedValue != null ? (int)AccountComboBox.SelectedValue : null,
+                    WarehouseId = WarehouseComboBox.SelectedValue != null ? (int)WarehouseComboBox.SelectedValue : null,
                     Notes = ReceiptDescription.Text,
-                    CustomerId = AccountComboBox.SelectedValue != null ? (int)AccountComboBox.SelectedValue : null,
                     CreatedDate = ReceiptDate.SelectedDate ?? DateTime.Now,
                     UpdatedDate = DateTime.Now,
                     PaymentType = paymentType,
@@ -252,6 +315,22 @@ namespace RaccoonWarehouse.Vouchers
                 _currentVoucherId = savedVoucherId;
                 PrintBtn.Visibility = Visibility.Visible;
                 NewVoucherBtn.Visibility = Visibility.Visible;
+                if (_supplierPaymentMode)
+                {
+                    try
+                    {
+                        SavePaymentVoucherPdf(dto);
+                    }
+                    catch (Exception pdfEx)
+                    {
+                        MessageBox.Show(
+                            $"{UiText.T("تم حفظ الدفعة، ولكن تعذر تصدير ملف PDF", "The payment was saved, but the PDF could not be exported")}:\n{pdfEx.Message}",
+                            UiText.T("تحذير", "Warning"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                    }
+
+                    DialogResult = true;
+                    Close();
+                }
             }
             catch (Exception ex)
             {
@@ -279,6 +358,7 @@ namespace RaccoonWarehouse.Vouchers
             ReceiptNumber.Text = GenerateDocumentNumber();
             Amount.Text = string.Empty;
             AccountComboBox.SelectedIndex = -1;
+            WarehouseComboBox.SelectedIndex = -1;
             ReceiptDescription.Text = string.Empty;
             ReceiptDate.SelectedDate = DateTime.Now;
             // Reset payment method
@@ -341,12 +421,12 @@ namespace RaccoonWarehouse.Vouchers
 
             if (string.IsNullOrWhiteSpace(searchText))
             {
-                AccountComboBox.ItemsSource = (await _userService.GetAllAsync()).Data;
+                AccountComboBox.ItemsSource = (await _userService.GetAllAsync()).Data?.Where(u => u.Role == UserRole.Supplier).ToList();
                 return;
             }
 
             var users = (await _userService.GetAllAsync()).Data;
-            AccountComboBox.ItemsSource = users.Where(u => u.Name.ToLower().Contains(searchText)).ToList();
+            AccountComboBox.ItemsSource = users?.Where(u => u.Role == UserRole.Supplier && u.Name.ToLower().Contains(searchText)).ToList();
             AccountComboBox.IsDropDownOpen = true;  // keep list open
         }
         #region Check Handle 
@@ -379,6 +459,7 @@ namespace RaccoonWarehouse.Vouchers
                     BankName = string.IsNullOrWhiteSpace(BankNameBox.Text) ? "-" : BankNameBox.Text.Trim(),
                     DueDate = CheckDueDatePicker.SelectedDate ?? DateTime.Now,
                     Amount = checkAmount,
+                    Status = CheckStatus.Pending,
                     Notes = string.IsNullOrWhiteSpace(CheckNotesBox.Text) ? null : CheckNotesBox.Text.Trim(),
                     CreatedDate = DateTime.Now,
                     UpdatedDate = DateTime.Now
@@ -974,10 +1055,9 @@ namespace RaccoonWarehouse.Vouchers
                     VoucherType = VoucherType.Payment,
                     Amount = amount,
                     CasherId = 0,
+                    SupplierId = AccountComboBox.SelectedValue != null ? (int)AccountComboBox.SelectedValue : null,
+                    WarehouseId = WarehouseComboBox.SelectedValue != null ? (int)WarehouseComboBox.SelectedValue : null,
                     Notes = string.IsNullOrWhiteSpace(ReceiptDescription.Text) ? null : ReceiptDescription.Text.Trim(),
-                    CustomerId = AccountComboBox.SelectedValue != null
-                                    ? (int?)AccountComboBox.SelectedValue
-                                    : null,
                     CreatedDate = ReceiptDate.SelectedDate ?? DateTime.Now,
                     UpdatedDate = DateTime.Now,
                     PaymentType = paymentType,
@@ -1026,7 +1106,8 @@ namespace RaccoonWarehouse.Vouchers
             Amount.Text = dto.Amount.ToString();
             ReceiptDescription.Text = dto.Notes;
 
-            AccountComboBox.SelectedValue = dto.CustomerId;
+            AccountComboBox.SelectedValue = dto.SupplierId;
+            WarehouseComboBox.SelectedValue = dto.WarehouseId;
 
             PaymentTypeCombo.SelectedIndex = (int)dto.PaymentType - 1;
 
@@ -1036,6 +1117,7 @@ namespace RaccoonWarehouse.Vouchers
                 BankName = c.BankName,
                 CheckNumber = c.CheckNumber,
                 Amount = c.Amount,
+                Status = c.Status,
                 Notes = c.Notes,
                 DueDate = c.DueDate
             }).ToList() ?? new();

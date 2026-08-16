@@ -1,14 +1,22 @@
 using RaccoonWarehouse.Application.Service.Brands;
 using RaccoonWarehouse.Application.Service.Products;
 using RaccoonWarehouse.Application.Service.ProductUnits;
+using RaccoonWarehouse.Application.Service.Stocks;
+using RaccoonWarehouse.Application.Service.StockTransactions;
 using RaccoonWarehouse.Application.Service.SubCategories;
 using RaccoonWarehouse.Application.Service.Units;
 using RaccoonWarehouse.Common;
 using RaccoonWarehouse.Helpers.Localization;
+using RaccoonWarehouse.Navigation;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Products.DTOs;
 using RaccoonWarehouse.Domain.ProductUnits.DTOs;
+using RaccoonWarehouse.Domain.Stock;
+using RaccoonWarehouse.Domain.Stock.DTOs;
+using RaccoonWarehouse.Domain.StockTransactions;
+using RaccoonWarehouse.Domain.StockTransactions.DTOs;
 using System;
+using System.Collections.ObjectModel;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -24,17 +32,30 @@ namespace RaccoonWarehouse.Products
         private readonly IBrandService _brandService;
         private readonly IProductUnitService _productUnitService;
         private readonly IUnitService _unitService;
+        private readonly IStockTransactionService _stockTransactionService;
+        private readonly SourceDocumentNavigationService _sourceDocumentNavigationService;
+        private readonly IStockService _stockService;
 
         private int _productId;
         private List<ProductUnitWriteDto> _productUnits = new();
         private List<UnitLookupItem> _unitLookupItems = new();
+        public ObservableCollection<ProductMovementRow> ProductMovements { get; } = new();
+        public ObservableCollection<ProductStockUnitRow> ProductStockByUnit { get; } = new();
+        public decimal CurrentStockTotalBaseQuantity { get; set; }
+        public decimal CurrentStockTotalQuantity { get; set; }
+        public decimal CurrentStockAverageCost { get; set; }
+        public decimal CurrentStockAverageSalePrice { get; set; }
+        public string CurrentStockNearestExpiry { get; set; } = "-";
 
         public UpdateProduct(
             IProductService productService,
             ISubCategoryService subCategoryService,
             IBrandService brandService,
             IProductUnitService productUnitService,
-            IUnitService unitService)
+            IUnitService unitService,
+            IStockTransactionService stockTransactionService,
+            SourceDocumentNavigationService sourceDocumentNavigationService,
+            IStockService stockService)
         {
             InitializeComponent();
 
@@ -43,6 +64,10 @@ namespace RaccoonWarehouse.Products
             _brandService = brandService;
             _productUnitService = productUnitService;
             _unitService = unitService;
+            _stockTransactionService = stockTransactionService;
+            _sourceDocumentNavigationService = sourceDocumentNavigationService;
+            _stockService = stockService;
+            DataContext = this;
         }
 
         public async Task Initialize(int id)
@@ -93,12 +118,147 @@ namespace RaccoonWarehouse.Products
                 _productUnits = units.Data?.ToList() ?? new List<ProductUnitWriteDto>();
                 NormalizeUnitFlags(_productUnits);
                 RebuildUnitsPanel();
+                await LoadCurrentStockSummaryAsync();
+                await LoadProductMovementsAsync();
                 UiText.ApplyWindow(this);
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"{UiText.T("حدث خطأ أثناء تحميل بيانات الصنف", "An error occurred while loading the product data")}: {ex.Message}");
             }
+        }
+
+        private async Task LoadCurrentStockSummaryAsync()
+        {
+            var result = await _stockService.GetAllWithFilteringAndIncludeAsync(
+                stock => stock.ProductId == _productId,
+                stock => stock.ProductUnit,
+                stock => stock.ProductUnit.Unit);
+
+            var rows = result.Data?.ToList() ?? new List<StockReadDto>();
+            ProductStockByUnit.Clear();
+
+            CurrentStockTotalQuantity = rows.Sum(stock => stock.Quantity);
+            CurrentStockTotalBaseQuantity = rows.Sum(stock =>
+            {
+                var qtyPerUnit = stock.ProductUnit?.QuantityPerUnit ?? 1m;
+                return stock.Quantity * (qtyPerUnit <= 0 ? 1m : qtyPerUnit);
+            });
+
+            if (CurrentStockTotalQuantity > 0)
+            {
+                CurrentStockAverageCost = rows.Sum(stock => stock.Quantity * stock.PurchasePrice) / CurrentStockTotalQuantity;
+                CurrentStockAverageSalePrice = rows.Sum(stock => stock.Quantity * stock.SalePrice) / CurrentStockTotalQuantity;
+            }
+            else
+            {
+                CurrentStockAverageCost = 0m;
+                CurrentStockAverageSalePrice = 0m;
+            }
+
+            var nearestExpiry = rows
+                .Where(stock => stock.ExpiryDate.HasValue)
+                .Select(stock => stock.ExpiryDate!.Value)
+                .OrderBy(date => date)
+                .FirstOrDefault();
+            CurrentStockNearestExpiry = nearestExpiry == default ? "-" : nearestExpiry.ToString("yyyy-MM-dd");
+
+            foreach (var group in rows.GroupBy(stock => stock.ProductUnitId))
+            {
+                var first = group.First();
+                var unitName = first.ProductUnit?.Unit?.Name ?? UiText.T("غير محدد", "Unspecified");
+                var unitQuantity = group.Sum(stock => stock.Quantity);
+                var qtyPerUnit = first.ProductUnit?.QuantityPerUnit ?? 1m;
+                var baseQty = unitQuantity * (qtyPerUnit <= 0 ? 1m : qtyPerUnit);
+                ProductStockByUnit.Add(new ProductStockUnitRow
+                {
+                    UnitName = unitName,
+                    Quantity = unitQuantity,
+                    BaseQuantity = baseQty,
+                    PurchasePrice = first.PurchasePrice,
+                    SalePrice = first.SalePrice
+                });
+            }
+
+            DataContext = null;
+            DataContext = this;
+        }
+
+        private async Task LoadProductMovementsAsync()
+        {
+            var result = await _stockTransactionService.GetAllWithFilteringAndIncludeAsync(
+                transaction => transaction.ProductId == _productId,
+                transaction => transaction.Invoice,
+                transaction => transaction.Voucher,
+                transaction => transaction.Casher,
+                transaction => transaction.Customer,
+                transaction => transaction.ProductUnit);
+
+            ProductMovements.Clear();
+
+            foreach (var movement in (result.Data ?? new List<StockTransactionReadDto>())
+                .OrderByDescending(m => m.TransactionDate)
+                .Take(200))
+            {
+                ProductMovements.Add(new ProductMovementRow
+                {
+                    TransactionDate = movement.TransactionDate,
+                    TransactionTypeLabel = GetTransactionTypeLabel(movement.TransactionType),
+                    Quantity = movement.Quantity,
+                    BaseQuantity = movement.BaseQuantity,
+                    UnitPrice = movement.UnitPrice,
+                    InvoiceId = movement.InvoiceId,
+                    InvoiceRef = movement.Invoice?.InvoiceNumber ?? (movement.InvoiceId?.ToString() ?? "-"),
+                    VoucherId = movement.VoucherId,
+                    VoucherRef = movement.VoucherId?.ToString() ?? "-",
+                    CashierName = movement.Casher?.Name ?? "-",
+                    CustomerName = movement.Customer?.Name ?? "-",
+                    Notes = movement.Notes ?? "-"
+                });
+            }
+        }
+
+        private async void InvoiceRef_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button button || button.DataContext is not ProductMovementRow row || !row.InvoiceId.HasValue || row.InvoiceId <= 0)
+                return;
+
+            try
+            {
+                await _sourceDocumentNavigationService.OpenSourceDocument("Invoice", row.InvoiceId);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"{UiText.T("تعذر فتح الفاتورة", "Could not open the invoice")}: {ex.Message}", UiText.T("خطأ", "Error"));
+            }
+        }
+
+        private async void VoucherRef_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button button || button.DataContext is not ProductMovementRow row || !row.VoucherId.HasValue || row.VoucherId <= 0)
+                return;
+
+            try
+            {
+                await _sourceDocumentNavigationService.OpenSourceDocument("Voucher", row.VoucherId);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"{UiText.T("تعذر فتح السند", "Could not open the voucher")}: {ex.Message}", UiText.T("خطأ", "Error"));
+            }
+        }
+
+        private static string GetTransactionTypeLabel(TransactionType transactionType)
+        {
+            return transactionType switch
+            {
+                TransactionType.Sale => UiText.T("بيع", "Sale"),
+                TransactionType.Return => UiText.T("مردود", "Return"),
+                TransactionType.Purchase => UiText.T("شراء", "Purchase"),
+                TransactionType.Adjustment => UiText.T("تسوية", "Adjustment"),
+                TransactionType.Damage => UiText.T("تالف", "Damage"),
+                _ => transactionType.ToString()
+            };
         }
 
         private void RebuildUnitsPanel()
@@ -303,6 +463,7 @@ namespace RaccoonWarehouse.Products
                 {
                     _productUnits = unitsDto;
                     RebuildUnitsPanel();
+                    await LoadCurrentStockSummaryAsync();
                     CatalogRefreshNotifier.NotifyCatalogChanged();
                 }
             }
@@ -318,7 +479,7 @@ namespace RaccoonWarehouse.Products
 
             foreach (var rowObj in UnitsStackPanel.Children)
             {
-                if (rowObj is not StackPanel row || row.Tag is not ProductUnitWriteDto unit)
+                if (rowObj is not WrapPanel row || row.Tag is not ProductUnitWriteDto unit)
                     continue;
 
                 var saleBox = ((row.Children[1] as StackPanel)?.Children[1] as TextBox);
@@ -408,5 +569,32 @@ namespace RaccoonWarehouse.Products
         }
 
         private sealed record UnitLookupItem(int Id, string Name, string DisplayName);
+
+        public sealed class ProductMovementRow
+        {
+            public DateTime TransactionDate { get; set; }
+            public string TransactionTypeLabel { get; set; } = "-";
+            public decimal Quantity { get; set; }
+            public decimal BaseQuantity { get; set; }
+            public decimal UnitPrice { get; set; }
+            public int? InvoiceId { get; set; }
+            public string InvoiceRef { get; set; } = "-";
+            public int? VoucherId { get; set; }
+            public string VoucherRef { get; set; } = "-";
+            public string CashierName { get; set; } = "-";
+            public string CustomerName { get; set; } = "-";
+            public string Notes { get; set; } = "-";
+            public bool HasInvoiceRef => InvoiceId.HasValue && InvoiceId.Value > 0;
+            public bool HasVoucherRef => VoucherId.HasValue && VoucherId.Value > 0;
+        }
+
+        public sealed class ProductStockUnitRow
+        {
+            public string UnitName { get; set; } = "-";
+            public decimal Quantity { get; set; }
+            public decimal BaseQuantity { get; set; }
+            public decimal PurchasePrice { get; set; }
+            public decimal SalePrice { get; set; }
+        }
     }
 }

@@ -36,6 +36,8 @@ namespace RaccoonWarehouse.Application.Service.StockDocuments
             {
                 if (dto.Items == null || dto.Items.Count == 0)
                     return Result<StockDocumentWriteDto>.Fail("Stock document must contain at least one item.");
+                if (dto.Type == StockVoucherType.In && dto.Items.Any(item => !item.ExpiryDate.HasValue))
+                    return Result<StockDocumentWriteDto>.Fail("Expiry date is required for every stock-in item.");
 
                 var now = GetJordanNow();
                 dto.CreatedDate = dto.CreatedDate == default ? now : dto.CreatedDate;
@@ -100,6 +102,8 @@ namespace RaccoonWarehouse.Application.Service.StockDocuments
 
                 if (dto.Items == null || dto.Items.Count == 0)
                     return Result<StockDocumentWriteDto>.Fail("Stock document must contain at least one item.");
+                if (dto.Type == StockVoucherType.In && dto.Items.Any(item => !item.ExpiryDate.HasValue))
+                    return Result<StockDocumentWriteDto>.Fail("Expiry date is required for every stock-in item.");
 
                 var document = await _uow.StockDocuments.GetAllAsQueryable()
                     .Include(x => x.Items)

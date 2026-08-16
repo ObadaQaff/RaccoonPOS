@@ -21,6 +21,7 @@ namespace RaccoonWarehouse.Products
 {
     public partial class ProductsTable : Window
     {
+        private const int SearchDelayMs = 300;
         private readonly ISubCategoryService _subCategoryService;
         private readonly IBrandService _brandService;
         private readonly IUnitService _unitService;
@@ -35,7 +36,7 @@ namespace RaccoonWarehouse.Products
         private int? _selectedSubCategoryId;
         private string? _selectedSubCategoryName;
 
-        private CancellationTokenSource _searchCts;
+        private int _searchVersion;
         private readonly SemaphoreSlim _loadSemaphore = new(1, 1);
 
         public ProductsTable(
@@ -84,42 +85,52 @@ namespace RaccoonWarehouse.Products
         private void SearchByNameTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
             _currentNameSearch = SearchByNameTextBox.Text.Trim();
-            DebounceSearch();
+            QueueSearch();
         }
 
         private void SearchByBarcodeTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
             _currentBarcodeSearch = SearchByBarcodeTextBox.Text.Trim();
-            DebounceSearch();
+            QueueSearch();
         }
 
-        private void DebounceSearch()
+        private void QueueSearch()
         {
-            _searchCts?.Cancel();
-            _searchCts = new CancellationTokenSource();
-            var token = _searchCts.Token;
-
-            Task.Run(async () =>
-            {
-                try
-                {
-                    await Task.Delay(300, token);
-                    if (!token.IsCancellationRequested)
-                    {
-                        await Dispatcher.InvokeAsync(async () => await LoadPageAsync(1));
-                    }
-                }
-                catch (TaskCanceledException)
-                {
-                }
-            });
+            var searchVersion = Interlocked.Increment(ref _searchVersion);
+            _ = DebouncedLoadPageAsync(searchVersion);
         }
 
-        private async Task LoadPageAsync(int pageNumber)
+        private async Task DebouncedLoadPageAsync(int searchVersion)
+        {
+            try
+            {
+                await Task.Delay(SearchDelayMs);
+                if (searchVersion != _searchVersion)
+                    return;
+
+                await LoadPageAsync(1, searchVersion);
+            }
+            catch (Exception ex)
+            {
+                if (searchVersion != _searchVersion)
+                    return;
+
+                MessageBox.Show(
+                    $"{UiText.T("تعذر البحث في الأصناف.", "Failed to search products.")} {ex.Message}",
+                    UiText.T("خطأ", "Error"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+        }
+
+        private async Task LoadPageAsync(int pageNumber, int? searchVersion = null)
         {
             await _loadSemaphore.WaitAsync();
             try
             {
+                if (searchVersion.HasValue && searchVersion.Value != _searchVersion)
+                    return;
+
                 using var scope = ((App)System.Windows.Application.Current).ServiceProvider.CreateScope();
                 var productService = scope.ServiceProvider.GetRequiredService<IProductService>();
 
@@ -145,6 +156,9 @@ namespace RaccoonWarehouse.Products
                         product => product.ProductUnits,
                         product => product.Brand
                     });
+
+                if (searchVersion.HasValue && searchVersion.Value != _searchVersion)
+                    return;
 
                 ProductsTable1.ItemsSource = result.Items;
 

@@ -19,6 +19,11 @@ namespace RaccoonWarehouse.Domain.Accounting.JournalEntries
         public int? CashierId { get; set; }
         public int? WarehouseId { get; set; }
         public int? CostCenterId { get; set; }
+        public int? TaxRateId { get; set; }
+        public decimal? TaxAmount { get; set; }
+        public int? CurrencyId { get; set; }
+        public decimal? ForeignAmount { get; set; }
+        public decimal? ExchangeRate { get; set; }
         public int? BranchId { get; set; }
         public int? InvoiceId { get; set; }
         public int? VoucherId { get; set; }

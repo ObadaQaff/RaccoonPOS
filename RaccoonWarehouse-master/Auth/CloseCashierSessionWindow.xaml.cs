@@ -32,6 +32,7 @@ namespace RaccoonWarehouse.Auth
 
         private decimal _opening;
         private decimal _expected;
+        private decimal _expectedClosingCash;
 
         public CloseCashierSessionWindow(
             ICashierSessionService cashierSessionService,
@@ -68,9 +69,10 @@ namespace RaccoonWarehouse.Auth
 
             _expected = await _financialService
                 .GetExpectedCashForSessionAsync(currentSession.Id);
-            ExpectedText.Text = _expected.ToString("N2");
+            _expectedClosingCash = _opening + _expected;
+            ExpectedText.Text = _expectedClosingCash.ToString("N2");
 
-            CountedTextBox.Text = _expected.ToString("N2"); // default
+            CountedTextBox.Text = Math.Max(_expectedClosingCash, 0m).ToString("N2"); // default
             UpdateDiff();
         }
 
@@ -98,7 +100,7 @@ namespace RaccoonWarehouse.Auth
             }
 
             var sessionId = currentSession.Id;
-            var diff = counted - _expected; // + over, - short
+            var diff = counted - _expectedClosingCash; // + over, - short
 
             try
             {
@@ -164,7 +166,7 @@ namespace RaccoonWarehouse.Auth
                 return;
             }
 
-            var diff = counted - _expected;
+            var diff = counted - _expectedClosingCash;
             DiffText.Text = diff.ToString("N2");
         }
 

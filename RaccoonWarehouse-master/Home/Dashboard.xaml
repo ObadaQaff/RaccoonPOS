@@ -14,16 +14,20 @@
         Background="{StaticResource AppPageBackgroundBrush}">
 
     <Grid Background="{StaticResource AppPageBackgroundBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="0*"/>
+            <RowDefinition/>
+        </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="320"/>
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
         <Border Grid.Column="0"
-                Margin="18"
+                Margin="18,18,18,18"
                 Background="{StaticResource AppSidebarBrush}"
                 CornerRadius="28"
-                Padding="18">
+                Padding="18" Grid.RowSpan="2">
             <DockPanel LastChildFill="True" FlowDirection="{DynamicResource CurrentFlowDirection}">
                 <Border DockPanel.Dock="Top"
                         Padding="18"
@@ -49,7 +53,7 @@
                             </StackPanel>
                         </Button>
 
-                        <Button Style="{StaticResource DashboardNavButtonStyle}" Margin="0,0,0,8" Click="Button_Click_3">
+                        <Button Style="{StaticResource DashboardNavButtonStyle}" Margin="0,0,0,8" Click="Button_Click_3" Visibility="Collapsed">
                             <StackPanel Orientation="Horizontal" FlowDirection="{DynamicResource CurrentFlowDirection}">
                                 <fa:ImageAwesome Icon="FolderOpen" Width="22" Height="22" Foreground="#F0A34A" Margin="0,0,12,0"/>
                                 <TextBlock Text="التصنيف والفئات" Foreground="{StaticResource AppSidebarTextBrush}" FontSize="18" TextWrapping="Wrap"/>
@@ -59,7 +63,7 @@
                         <Button Style="{StaticResource DashboardNavButtonStyle}" Margin="0,0,0,8" Click="StocksBtn_Click">
                             <StackPanel Orientation="Horizontal" FlowDirection="{DynamicResource CurrentFlowDirection}">
                                 <fa:ImageAwesome Icon="Dropbox" Width="22" Height="22" Foreground="#E7D7A5" Margin="0,0,12,0"/>
-                                <TextBlock Text="الأصناف" Foreground="{StaticResource AppSidebarTextBrush}" FontSize="18" TextWrapping="Wrap"/>
+                                <TextBlock Text="الأصنافة والفئات" Foreground="{StaticResource AppSidebarTextBrush}" FontSize="18" TextWrapping="Wrap"/>
                             </StackPanel>
                         </Button>
 
@@ -78,13 +82,37 @@
                         </Button>
 
                         <Button Style="{StaticResource DashboardNavButtonStyle}" Margin="0,0,0,8" Click="Orders_Click">
-                            <StackPanel Orientation="Horizontal" FlowDirection="{DynamicResource CurrentFlowDirection}">
-                                <fa:ImageAwesome Icon="ListAlt" Width="22" Height="22" Foreground="#A9E5BB" Margin="0,0,12,0"/>
-                                <TextBlock Text="&#x627;&#x644;&#x637;&#x644;&#x628;&#x64A;&#x627;&#x62A;" Foreground="{StaticResource AppSidebarTextBrush}" FontSize="18" TextWrapping="Wrap"/>
-                            </StackPanel>
+                            <Grid>
+                                <StackPanel Orientation="Horizontal"
+                                            FlowDirection="{DynamicResource CurrentFlowDirection}"
+                                            HorizontalAlignment="Stretch"
+                                            Margin="0,0,18,0">
+                                    <fa:ImageAwesome Icon="ListAlt" Width="22" Height="22" Foreground="#A9E5BB" Margin="0,0,12,0"/>
+                                    <TextBlock Text="&#x627;&#x644;&#x637;&#x644;&#x628;&#x64A;&#x627;&#x62A;" Foreground="{StaticResource AppSidebarTextBrush}" FontSize="18" TextWrapping="Wrap"/>
+                                </StackPanel>
+
+                                <Border x:Name="OrdersBadgeBorder"
+                                        Width="20"
+                                        Height="20"
+                                        Background="#E53935"
+                                        CornerRadius="10"
+                                        HorizontalAlignment="Left"
+                                        VerticalAlignment="Top"
+                                        Margin="4,4,0,0"
+                                        Visibility="Collapsed">
+                                    <TextBlock x:Name="OrdersBadgeText"
+                                               Text="0"
+                                               Foreground="White"
+                                               FontSize="11"
+                                               FontWeight="Bold"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               TextAlignment="Center"/>
+                                </Border>
+                            </Grid>
                         </Button>
 
-                        <Button Style="{StaticResource DashboardNavButtonStyle}" Margin="0,0,0,8" Click="Button_Click_2">
+                        <Button Style="{StaticResource DashboardNavButtonStyle}" Margin="0,0,0,8" Click="Button_Click_2" Visibility="Collapsed">
                             <StackPanel Orientation="Horizontal" FlowDirection="{DynamicResource CurrentFlowDirection}">
                                 <fa:ImageAwesome Icon="Tags" Width="22" Height="22" Foreground="#FF8D7A" Margin="0,0,12,0"/>
                                 <TextBlock Text="العلامات التجارية" Foreground="{StaticResource AppSidebarTextBrush}" FontSize="18" TextWrapping="Wrap"/>
@@ -108,7 +136,21 @@
                         <Button Style="{StaticResource DashboardNavButtonStyle}" Margin="0,0,0,8" Click="Customers_Click">
                             <StackPanel Orientation="Horizontal" FlowDirection="{DynamicResource CurrentFlowDirection}">
                                 <fa:ImageAwesome Icon="Users" Width="22" Height="22" Foreground="#F0A34A" Margin="0,0,12,0"/>
-                                <TextBlock Text="المستخدمين" Foreground="{StaticResource AppSidebarTextBrush}" FontSize="18" TextWrapping="Wrap"/>
+                                <TextBlock Text="الزبائن" Foreground="{StaticResource AppSidebarTextBrush}" FontSize="18" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Button>
+
+                        <Button x:Name="EmployeeNavButton" Style="{StaticResource DashboardNavButtonStyle}" Margin="0,0,0,8" Click="Employees_Click">
+                            <StackPanel Orientation="Horizontal" FlowDirection="{DynamicResource CurrentFlowDirection}">
+                                <fa:ImageAwesome Icon="User" Width="22" Height="22" Foreground="#9ED3FF" Margin="0,0,12,0"/>
+                                <TextBlock Text="الموظفين" Foreground="{StaticResource AppSidebarTextBrush}" FontSize="18" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Button>
+
+                        <Button x:Name="ChatAssistantButton" Style="{StaticResource DashboardNavButtonStyle}" Margin="0,0,0,8" Click="ChatAssistant_Click">
+                            <StackPanel Orientation="Horizontal" FlowDirection="{DynamicResource CurrentFlowDirection}">
+                                <fa:ImageAwesome Icon="Comments" Width="22" Height="22" Foreground="{StaticResource AppAccentBrush}" Margin="0,0,12,0"/>
+                                <TextBlock Text="&#x645;&#x633;&#x627;&#x639;&#x62F; ROCCOPOS" Foreground="{StaticResource AppSidebarTextBrush}" FontSize="18" TextWrapping="Wrap"/>
                             </StackPanel>
                         </Button>
 
@@ -129,7 +171,7 @@
             </DockPanel>
         </Border>
 
-        <Grid Grid.Column="1" Margin="0,18,18,18">
+        <Grid Grid.Column="1" Margin="0,18,18,18" Grid.RowSpan="2">
             <Grid.RowDefinitions>
                 <RowDefinition Height="148"/>
                 <RowDefinition Height="*"/>

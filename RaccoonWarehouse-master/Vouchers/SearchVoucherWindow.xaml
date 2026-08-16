@@ -145,7 +145,7 @@
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="رقم السند" Binding="{Binding Id}" Width="120"/>
                             <DataGridTextColumn Header="التاريخ" Binding="{Binding CreatedDate, StringFormat=yyyy-MM-dd}" Width="130"/>
-                            <DataGridTextColumn Header="العميل" Binding="{Binding User.Name}" Width="180"/>
+                            <DataGridTextColumn Header="الملاحظات" Binding="{Binding Notes}" Width="180"/>
                             <DataGridTextColumn Header="طريقة الدفع" Binding="{Binding PaymentType}" Width="120"/>
                             <DataGridTextColumn Header="المبلغ" Binding="{Binding Amount}" Width="100"/>
                             <DataGridTextColumn Header="عدد الشيكات" Binding="{Binding Checks.Count}" Width="100"/>

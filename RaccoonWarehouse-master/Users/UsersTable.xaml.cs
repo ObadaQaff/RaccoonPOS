@@ -90,6 +90,24 @@ namespace RaccoonWarehouse
             WindowManager.Show<CreateUser>();
         }
 
+        private async void ViewStatement_Click(object sender, RoutedEventArgs e)
+        {
+            var role = _userSession.CurrentUser?.Role;
+            if (!role.HasValue || !await _permissionService.HasPermissionAsync(role.Value, "Users.View"))
+            {
+                MessageBox.Show(UiText.T("Ù„ÙŠØ³ Ù„Ø¯ÙŠÙƒ ØµÙ„Ø§Ø­ÙŠØ© Ø¹Ø±Ø¶ Ø§Ù„Ø­Ø³Ø§Ø¨Ø§Øª.", "You do not have permission to view accounts."));
+                return;
+            }
+
+            if (UsersTable1.SelectedItem is not UserReadDto selectedUser)
+            {
+                MessageBox.Show(UiText.T("ÙŠØ¬Ø¨ ØªØ­Ø¯ÙŠØ¯ Ù…Ø³ØªØ®Ø¯Ù… Ù‚Ø¨Ù„ Ø¹Ø±Ø¶ Ø§Ù„ÙƒØ´Ù.", "You must select a user before viewing the statement."));
+                return;
+            }
+
+            WindowManager.ShowDialog<UserStatementWindow>(WindowSizeType.LargeRectangle, window => window.Initialize(selectedUser.Id));
+        }
+
         private void BackBtn_Click(object sender, RoutedEventArgs e)
         {
             Close();

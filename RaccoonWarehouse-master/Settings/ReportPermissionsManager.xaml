@@ -199,6 +199,11 @@
                                Foreground="{StaticResource MutedTextBrush}"
                                TextWrapping="Wrap"/>
 
+                    <Button Margin="0,0,0,18"
+                            Style="{StaticResource ReportPrimaryButtonStyle}"
+                            Click="SaveBtn_Click"
+                            Content="حفظ الصلاحيات"/>
+
                     <TextBlock Text="الدور" Style="{StaticResource FilterLabelStyle}"/>
                     <ComboBox x:Name="RoleComboBox"
                               Margin="0,0,0,16"
@@ -236,10 +241,6 @@
                             Style="{StaticResource ReportSecondaryButtonStyle}"
                             Click="ClearModuleBtn_Click"
                             Content="إلغاء كل الإجراءات المعروضة"/>
-                    <Button Margin="0,8,0,10"
-                            Style="{StaticResource ReportPrimaryButtonStyle}"
-                            Click="SaveBtn_Click"
-                            Content="حفظ الصلاحيات"/>
                     <Button Style="{StaticResource ReportSecondaryButtonStyle}"
                             Click="CloseBtn_Click"
                             Content="إغلاق"/>

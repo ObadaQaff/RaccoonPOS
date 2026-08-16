@@ -279,6 +279,15 @@
                 </Grid>
 
                 <StackPanel Margin="6" HorizontalAlignment="Left">
+                    <TextBlock Text="المستودع" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,3" Width="192"/>
+                    <ComboBox x:Name="WarehouseComboBox"
+                              Style="{StaticResource ComboBoxStyleModern}"
+                              Width="230"
+                              DisplayMemberPath="Name"
+                              SelectedValuePath="Id"/>
+                </StackPanel>
+
+                <StackPanel Margin="6" HorizontalAlignment="Left">
                     <TextBlock Text="طريقة الدفع" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,3" Width="192"/>
                     <ComboBox x:Name="PaymentTypeCombo"
                           Style="{StaticResource ComboBoxStyleModern}"

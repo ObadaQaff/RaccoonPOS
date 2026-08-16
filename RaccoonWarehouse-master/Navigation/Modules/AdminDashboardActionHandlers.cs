@@ -150,18 +150,24 @@ namespace RaccoonWarehouse.Navigation.Modules
         public bool CanHandle(string actionKey)
         {
             return actionKey is
+                "Accounting.Checks" or
                 "Accounting.Accounts" or
                 "Accounting.JournalEntry.Create" or
                 "Accounting.JournalEntries" or
                 "Accounting.TrialBalance" or
                 "Accounting.GeneralLedger" or
-                "Accounting.BalanceSheet";
+                "Accounting.BalanceSheet" or
+                "Accounting.CustomerDebts" or
+                "Accounting.SupplierPayables";
         }
 
         public Task ExecuteAsync(string actionKey, DashboardActionContext context)
         {
             switch (actionKey)
             {
+                case "Accounting.Checks":
+                    WindowManager.Show<ChecksDashboard>(WindowSizeType.LargeRectangle);
+                    break;
                 case "Accounting.Accounts":
                     WindowManager.Show<AccountsTable>(WindowSizeType.LargeRectangle);
                     break;
@@ -179,6 +185,12 @@ namespace RaccoonWarehouse.Navigation.Modules
                     break;
                 case "Accounting.BalanceSheet":
                     context.OpenReportWindow(() => WindowManager.Show<BalanceSheetReport>(WindowSizeType.LargeRectangle));
+                    break;
+                case "Accounting.CustomerDebts":
+                    context.OpenReportWindow(() => WindowManager.Show<PartyBalanceReport>(WindowSizeType.LargeRectangle, window => window.Initialize(RaccoonWarehouse.Domain.Enums.UserRole.Customer)));
+                    break;
+                case "Accounting.SupplierPayables":
+                    context.OpenReportWindow(() => WindowManager.Show<PartyBalanceReport>(WindowSizeType.LargeRectangle, window => window.Initialize(RaccoonWarehouse.Domain.Enums.UserRole.Supplier)));
                     break;
             }
 

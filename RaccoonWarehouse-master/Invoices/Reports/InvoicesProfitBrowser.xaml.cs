@@ -1,5 +1,6 @@
 using RaccoonWarehouse.Application.Service.Invoices;
 using RaccoonWarehouse.Application.Service.Users;
+using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.InvoiceLines.DTOs;
 using RaccoonWarehouse.Domain.Invoices.DTOs;
@@ -29,15 +30,20 @@ namespace RaccoonWarehouse.Invoices.Reports
 
         private readonly IInvoiceService _invoiceService;
         private readonly IUserService _userService;
+        private readonly ILoadingService _loadingService;
 
         private readonly ObservableCollection<UserReadDto> _customers = new();
         private readonly ObservableCollection<InvoiceHeaderVm> _invoices = new();
         private readonly ObservableCollection<InvoiceLineVm> _lines = new();
 
-        public InvoicesProfitBrowser(IInvoiceService invoiceService, IUserService userService)
+        public InvoicesProfitBrowser(
+            IInvoiceService invoiceService,
+            IUserService userService,
+            ILoadingService loadingService)
         {
             _invoiceService = invoiceService;
             _userService = userService;
+            _loadingService = loadingService;
 
             InitializeComponent();
             UiText.ApplyWindow(this);
@@ -52,8 +58,15 @@ namespace RaccoonWarehouse.Invoices.Reports
         {
             try
             {
-                FromDatePicker.SelectedDate = DateTime.Now.Date;
-                ToDatePicker.SelectedDate = DateTime.Now.Date;
+                _loadingService.Show();
+
+                var rangeResult = await _invoiceService.GetSalesReportDateRangeAsync();
+                FromDatePicker.SelectedDate = rangeResult.Success
+                    ? rangeResult.Data.from?.Date ?? DateTime.Now.Date
+                    : DateTime.Now.Date;
+                ToDatePicker.SelectedDate = rangeResult.Success
+                    ? rangeResult.Data.to?.Date ?? DateTime.Now.Date
+                    : DateTime.Now.Date;
 
                 var users = await _userService.GetAllAsync();
                 _customers.Clear();
@@ -67,6 +80,7 @@ namespace RaccoonWarehouse.Invoices.Reports
                 InvoiceTypeComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("الكل", "All"), Tag = null });
                 InvoiceTypeComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("مبيعات", "Sales"), Tag = InvoiceType.Sale });
                 InvoiceTypeComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("مرتجعات", "Returns"), Tag = InvoiceType.Return });
+                InvoiceTypeComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("طلبات API", "Endpoint orders"), Tag = InvoiceType.EndpointOrder });
                 InvoiceTypeComboBox.SelectedIndex = 0;
 
                 await LoadInvoicesAsync();
@@ -75,6 +89,10 @@ namespace RaccoonWarehouse.Invoices.Reports
             catch (Exception ex)
             {
                 MessageBox.Show($"{UiText.T("خطأ أثناء التحميل", "Loading error")}: {ex.Message}", UiText.T("خطأ", "Error"));
+            }
+            finally
+            {
+                _loadingService.Hide();
             }
         }
 
@@ -104,6 +122,7 @@ namespace RaccoonWarehouse.Invoices.Reports
 
             try
             {
+                _loadingService.Show();
                 _invoices.Clear();
                 _lines.Clear();
                 ClearSelectedSummary();
@@ -111,7 +130,11 @@ namespace RaccoonWarehouse.Invoices.Reports
                 var result = await _invoiceService.GetAllWithFilteringAndIncludeAsync(
                     invoice => invoice.CreatedDate >= from && invoice.CreatedDate <= to
                         && (!customerId.HasValue || invoice.CustomerId == customerId.Value)
-                        && (!invoiceType.HasValue || invoice.InvoiceType == invoiceType.Value),
+                        && (
+                            !invoiceType.HasValue
+                            || invoice.InvoiceType == invoiceType.Value
+                            || (invoiceType.Value == InvoiceType.Sale && invoice.InvoiceType == InvoiceType.EndpointOrder)
+                        ),
                     invoice => invoice.User,
                     invoice => invoice.InvoiceLines);
 
@@ -149,6 +172,10 @@ namespace RaccoonWarehouse.Invoices.Reports
             catch (Exception ex)
             {
                 MessageBox.Show($"{UiText.T("خطأ أثناء تحميل الفواتير", "Error while loading invoices")}: {ex.Message}");
+            }
+            finally
+            {
+                _loadingService.Hide();
             }
         }
 
@@ -229,6 +256,7 @@ namespace RaccoonWarehouse.Invoices.Reports
         {
             var lines = invoice.InvoiceLines?.ToList() ?? new List<InvoiceLineReadDto>();
             var hasLines = lines.Count > 0;
+            var countForProfit = ShouldCountForProfit(invoice);
 
             var subTotal = hasLines
                 ? lines.Sum(line => line.LineSubTotal != 0m ? line.LineSubTotal : line.Quantity * line.UnitPrice)
@@ -244,17 +272,29 @@ namespace RaccoonWarehouse.Invoices.Reports
 
             var discount = invoice.DiscountAmount ?? 0m;
             var totalAmount = subTotal + tax - discount;
-            var profit = (subTotal - discount) - cogs;
+            var profit = countForProfit ? (subTotal - discount) - cogs : 0m;
+            var displayedCogs = countForProfit ? cogs : 0m;
 
             return new InvoiceMetrics
             {
                 SubTotal = subTotal,
                 TotalTax = tax,
                 Discount = discount,
-                TotalCOGS = cogs,
+                TotalCOGS = displayedCogs,
                 TotalAmount = totalAmount,
                 Profit = profit
             };
+        }
+
+        private static bool ShouldCountForProfit(InvoiceReadDto invoice)
+        {
+            if (invoice.InvoiceType == InvoiceType.Sale || invoice.InvoiceType == InvoiceType.Return)
+                return true;
+
+            if (invoice.InvoiceType != InvoiceType.EndpointOrder)
+                return false;
+
+            return invoice.Status is InvoiceStatus.Completed or InvoiceStatus.Posted;
         }
 
         public class InvoiceHeaderVm

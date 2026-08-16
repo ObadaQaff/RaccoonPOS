@@ -29,6 +29,7 @@ namespace RaccoonWarehouse.Domain.Invoices
         public int? CurrencyId { get; set; }
         public decimal ExchangeRate { get; set; } = 1m;
         public DateTime? DocumentDate { get; set; }
+        public DateTime? DueDate { get; set; }
         public string? ReferenceNumber { get; set; }
         public AccountingPostingStatus PostingStatus { get; set; } = AccountingPostingStatus.NotPosted;
         public int? CreatedBy { get; set; }

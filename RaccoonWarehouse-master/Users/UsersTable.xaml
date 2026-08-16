@@ -108,6 +108,19 @@
                         <StackPanel Grid.Column="2"
                                     Orientation="Horizontal"
                                     HorizontalAlignment="Left">
+                            <Button x:Name="ViewStatementBtn"
+                                    Width="170"
+                                    Margin="0,0,12,0"
+                                    Style="{StaticResource AppSecondaryButtonStyle}"
+                                    Click="ViewStatement_Click">
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                    <fa:ImageAwesome Icon="Book" Width="16" Height="16"
+                                                     Margin="0,0,8,0"
+                                                     Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                                    <TextBlock Text="كشف الحساب" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
+
                             <Button x:Name="CreateUserBtn"
                                     Width="170"
                                     Style="{StaticResource AppHeroButtonStyle}"
@@ -159,6 +172,7 @@
                     </DataGrid.Columns>
                     <DataGrid.ContextMenu>
                         <ContextMenu>
+                            <MenuItem Style="{StaticResource AppMenuItemStyle}" Header="كشف الحساب" Click="ViewStatement_Click"/>
                             <MenuItem Style="{StaticResource AppMenuItemStyle}" Header="تعديل" Click="Update_User"/>
                             <MenuItem Style="{StaticResource AppMenuItemStyle}" Header="حذف" Click="Delete_User"/>
                         </ContextMenu>

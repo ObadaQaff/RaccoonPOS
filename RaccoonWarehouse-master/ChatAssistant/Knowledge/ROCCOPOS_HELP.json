@@ -1,0 +1,549 @@
+[
+  {
+    "id": "customers.create",
+    "keywords": ["add customer", "new customer", "create customer", "customer", "اضافة زبون", "إضافة زبون", "زبون جديد", "عميل جديد"],
+    "titleEn": "Create a new customer",
+    "titleAr": "إنشاء زبون جديد",
+    "stepsEn": ["From the main sidebar, select Customers.", "Under Customer Management, select Add New Customer.", "Enter the customer details required by your business.", "Review the information and save the customer."],
+    "stepsAr": ["من القائمة الجانبية الرئيسية اختر الزبائن.", "من قسم إدارة الزبائن اختر إضافة زبون جديد.", "أدخل بيانات الزبون المطلوبة لعملك.", "راجع المعلومات ثم احفظ الزبون."],
+    "actionKey": "Customers.Create",
+    "actionLabelEn": "Open Create Customer",
+    "actionLabelAr": "فتح إنشاء زبون"
+  },
+  {
+    "id": "products.create",
+    "keywords": ["add product", "new product", "create product", "product", "اضافة منتج", "إضافة منتج", "منتج جديد", "صنف جديد"],
+    "titleEn": "Create a new product",
+    "titleAr": "إنشاء منتج جديد",
+    "stepsEn": ["From the main sidebar, select Products.", "Under Products, select Create Product Card.", "Enter the product name, category, unit, prices, and other required information.", "Review the values and save the product."],
+    "stepsAr": ["من القائمة الجانبية الرئيسية اختر الأصناف.", "من قسم الأصناف اختر بطاقة إدخال صنف.", "أدخل اسم المنتج والتصنيف والوحدة والأسعار وباقي المعلومات المطلوبة.", "راجع القيم ثم احفظ المنتج."],
+    "actionKey": "Products.Create",
+    "actionLabelEn": "Open Create Product",
+    "actionLabelAr": "فتح إنشاء منتج"
+  },
+  {
+    "id": "invoices.sales",
+    "keywords": ["sales invoice", "new invoice", "create invoice", "فاتورة مبيعات", "فاتورة بيع", "انشاء فاتورة", "إنشاء فاتورة"],
+    "titleEn": "Create a sales invoice",
+    "titleAr": "إنشاء فاتورة مبيعات",
+    "stepsEn": ["From the main sidebar, select Invoices and Vouchers.", "Under Invoices and Sales, select Sales Invoice.", "Select the customer when the sale is linked to a customer.", "Add the products and enter their quantities.", "Review prices, totals, and payment information, then save or complete the invoice."],
+    "stepsAr": ["من القائمة الجانبية الرئيسية اختر الفواتير والسندات.", "من قسم الفواتير والمبيعات اختر فاتورة مبيعات.", "اختر الزبون إذا كانت عملية البيع مرتبطة بزبون.", "أضف المنتجات وأدخل الكميات.", "راجع الأسعار والإجماليات ومعلومات الدفع ثم احفظ الفاتورة أو أكملها."],
+    "actionKey": "Invoices.Sales",
+    "actionLabelEn": "Open Sales Invoice",
+    "actionLabelAr": "فتح فاتورة المبيعات"
+  },
+  {
+    "id": "invoices.sales-return",
+    "keywords": ["returned invoice", "return invoice", "sales return", "refund invoice", "فاتورة مرتجع", "مرتجع مبيعات", "ارجاع فاتورة", "إرجاع فاتورة"],
+    "titleEn": "Create a sales return",
+    "titleAr": "إنشاء مرتجع مبيعات",
+    "stepsEn": ["From the main sidebar, select Invoices and Vouchers.", "Under Invoices and Sales, select Sales Returns.", "Locate or enter the original sales invoice information when requested.", "Select the returned products and enter the returned quantities.", "Review the totals and save the sales return."],
+    "stepsAr": ["من القائمة الجانبية الرئيسية اختر الفواتير والسندات.", "من قسم الفواتير والمبيعات اختر مردودات المبيعات.", "ابحث عن معلومات فاتورة البيع الأصلية أو أدخلها عند الطلب.", "حدد المنتجات المرتجعة وأدخل الكميات المرتجعة.", "راجع الإجماليات ثم احفظ مرتجع المبيعات."],
+    "actionKey": "Invoices.SalesReturn",
+    "actionLabelEn": "Open Sales Return",
+    "actionLabelAr": "فتح مرتجع المبيعات"
+  },
+  {
+    "id": "invoices.purchase",
+    "keywords": ["purchase invoice", "supplier invoice", "فاتورة مشتريات", "فاتورة شراء", "فاتورة مورد"],
+    "titleEn": "Create a purchase invoice",
+    "titleAr": "إنشاء فاتورة مشتريات",
+    "stepsEn": ["From the main sidebar, select Invoices and Vouchers.", "Under Invoices and Sales, select Purchase Invoice.", "Select the supplier or enter the required supplier information.", "Add the purchased products and quantities.", "Review costs, totals, and payment information, then save the invoice."],
+    "stepsAr": ["من القائمة الجانبية الرئيسية اختر الفواتير والسندات.", "من قسم الفواتير والمبيعات اختر فاتورة مشتريات.", "اختر المورد أو أدخل معلومات المورد المطلوبة.", "أضف المنتجات المشتراة والكميات.", "راجع التكاليف والإجماليات ومعلومات الدفع ثم احفظ الفاتورة."],
+    "actionKey": "Invoices.Purchase",
+    "actionLabelEn": "Open Purchase Invoice",
+    "actionLabelAr": "فتح فاتورة المشتريات"
+  },
+  {
+    "id": "stocks.in",
+    "keywords": ["stock in", "add stock", "receive stock", "ادخال مخزون", "إدخال مخزون", "زيادة مخزون"],
+    "titleEn": "Record stock in",
+    "titleAr": "تسجيل إدخال مخزون",
+    "stepsEn": ["From the main sidebar, select Invoices and Vouchers.", "Under Inventory, select Stock In.", "Select the warehouse and product.", "Enter the incoming quantity and required reference information.", "Review and save the stock movement."],
+    "stepsAr": ["من القائمة الجانبية الرئيسية اختر الفواتير والسندات.", "من قسم المخزون اختر سند إدخال بضاعة.", "اختر المستودع والمنتج.", "أدخل الكمية الواردة ومعلومات المرجع المطلوبة.", "راجع حركة المخزون ثم احفظها."],
+    "actionKey": "Stocks.In",
+    "actionLabelEn": "Open Stock In",
+    "actionLabelAr": "فتح إدخال المخزون"
+  },
+  {
+    "id": "stocks.out",
+    "keywords": ["stock out", "remove stock", "issue stock", "اخراج مخزون", "إخراج مخزون", "صرف مخزون"],
+    "titleEn": "Record stock out",
+    "titleAr": "تسجيل إخراج مخزون",
+    "stepsEn": ["From the main sidebar, select Invoices and Vouchers.", "Under Inventory, select Stock Out.", "Select the warehouse and product.", "Enter the outgoing quantity and required reference information.", "Review and save the stock movement."],
+    "stepsAr": ["من القائمة الجانبية الرئيسية اختر الفواتير والسندات.", "من قسم المخزون اختر سند إخراج بضاعة.", "اختر المستودع والمنتج.", "أدخل الكمية الصادرة ومعلومات المرجع المطلوبة.", "راجع حركة المخزون ثم احفظها."],
+    "actionKey": "Stocks.Out",
+    "actionLabelEn": "Open Stock Out",
+    "actionLabelAr": "فتح إخراج المخزون"
+  },
+  {
+    "id": "stocks.adjustment",
+    "keywords": ["stock adjustment", "adjust stock", "correct stock", "تسوية مخزون", "تعديل مخزون", "تصحيح مخزون"],
+    "titleEn": "Adjust stock",
+    "titleAr": "تسوية المخزون",
+    "stepsEn": ["From the main sidebar, select Invoices and Vouchers.", "Under Inventory, select Stock Adjustment.", "Select the warehouse and product.", "Enter the corrected quantity and the reason or reference when required.", "Review and save the adjustment."],
+    "stepsAr": ["من القائمة الجانبية الرئيسية اختر الفواتير والسندات.", "من قسم المخزون اختر تسوية المخزون.", "اختر المستودع والمنتج.", "أدخل الكمية المصححة والسبب أو المرجع عند الحاجة.", "راجع التسوية ثم احفظها."],
+    "actionKey": "Stocks.Adjustment",
+    "actionLabelEn": "Open Stock Adjustment",
+    "actionLabelAr": "فتح تسوية المخزون"
+  },
+  {
+    "id": "warehouses.create",
+    "keywords": ["add warehouse", "new warehouse", "create warehouse", "اضافة مستودع", "إضافة مستودع", "مستودع جديد"],
+    "titleEn": "Create a warehouse",
+    "titleAr": "إنشاء مستودع",
+    "stepsEn": ["From the main sidebar, select Warehouses.", "Select Create Warehouse from the displayed warehouse actions.", "Enter the warehouse information required by the window.", "Review and save the warehouse."],
+    "stepsAr": ["من القائمة الجانبية الرئيسية اختر المستودعات.", "اختر إنشاء مستودع من إجراءات المستودعات الظاهرة.", "أدخل معلومات المستودع المطلوبة في النافذة.", "راجع المعلومات ثم احفظ المستودع."],
+    "actionKey": "Warehouses.Create",
+    "actionLabelEn": "Open Create Warehouse",
+    "actionLabelAr": "فتح إنشاء مستودع"
+  },
+  {
+    "id": "vouchers.receipt",
+    "keywords": ["receipt voucher", "receive payment", "سند قبض", "قبض دفعة"],
+    "titleEn": "Create a receipt voucher",
+    "titleAr": "إنشاء سند قبض",
+    "stepsEn": ["From the main sidebar, select Invoices and Vouchers.", "Under Receipts and Payments, select Receipt Voucher.", "Select the related account or party.", "Enter the amount, date, payment method, and reference details.", "Review and save the voucher."],
+    "stepsAr": ["من القائمة الجانبية الرئيسية اختر الفواتير والسندات.", "من قسم التحصيل والدفع اختر سند قبض.", "اختر الحساب أو الجهة المرتبطة.", "أدخل المبلغ والتاريخ وطريقة الدفع وتفاصيل المرجع.", "راجع السند ثم احفظه."],
+    "actionKey": "Vouchers.Receipt",
+    "actionLabelEn": "Open Receipt Voucher",
+    "actionLabelAr": "فتح سند القبض"
+  },
+  {
+    "id": "vouchers.payment",
+    "keywords": ["payment voucher", "make payment", "سند صرف", "سند دفع", "صرف دفعة"],
+    "titleEn": "Create a payment voucher",
+    "titleAr": "إنشاء سند صرف",
+    "stepsEn": ["From the main sidebar, select Invoices and Vouchers.", "Under Receipts and Payments, select Payment Voucher.", "Select the related account or party.", "Enter the amount, date, payment method, and reference details.", "Review and save the voucher."],
+    "stepsAr": ["من القائمة الجانبية الرئيسية اختر الفواتير والسندات.", "من قسم التحصيل والدفع اختر سند دفع.", "اختر الحساب أو الجهة المرتبطة.", "أدخل المبلغ والتاريخ وطريقة الدفع وتفاصيل المرجع.", "راجع السند ثم احفظه."],
+    "actionKey": "Vouchers.Payment",
+    "actionLabelEn": "Open Payment Voucher",
+    "actionLabelAr": "فتح سند الصرف"
+  },
+  {
+    "id": "users.create",
+    "keywords": ["add user", "new user", "create user", "اضافة مستخدم", "إضافة مستخدم", "مستخدم جديد"],
+    "titleEn": "Create a system user",
+    "titleAr": "إنشاء مستخدم للنظام",
+    "stepsEn": ["From the main sidebar, select Warehouse Settings.", "Open user management and select Create User.", "Enter the user information and credentials.", "Assign the appropriate permissions for the user's role.", "Review and save the user."],
+    "stepsAr": ["من القائمة الجانبية الرئيسية اختر إعدادات المستودع.", "افتح إدارة المستخدمين ثم اختر إنشاء مستخدم.", "أدخل معلومات المستخدم وبيانات الدخول.", "حدد الصلاحيات المناسبة لدور المستخدم.", "راجع المعلومات ثم احفظ المستخدم."],
+    "actionKey": "Users.Create",
+    "actionLabelEn": "Open Create User",
+    "actionLabelAr": "فتح إنشاء مستخدم"
+  },
+  {
+    "id": "reports.sales",
+    "keywords": ["sales report", "view sales", "تقرير المبيعات", "عرض المبيعات"],
+    "titleEn": "View the sales report",
+    "titleAr": "عرض تقرير المبيعات",
+    "stepsEn": ["From the main sidebar, select Reports.", "Under sales analysis, select Sales Report.", "Choose the date range and any available filters.", "Run or refresh the report.", "Review or export the displayed results when an export option is available."],
+    "stepsAr": ["من القائمة الجانبية الرئيسية اختر التقارير.", "من تحليلات المبيعات اختر تقرير المبيعات.", "حدد الفترة الزمنية وأي عوامل تصفية متاحة.", "شغّل التقرير أو حدّثه.", "راجع النتائج أو صدّرها إذا كان خيار التصدير متاحاً."],
+    "actionKey": "sales-report",
+    "actionLabelEn": "Open Sales Report",
+    "actionLabelAr": "فتح تقرير المبيعات"
+  },
+  {
+    "id": "pos.open-session",
+    "keywords": ["open pos session", "start pos", "open cashier session", "فتح جلسة", "بدء نقطة البيع", "تشغيل نقطة البيع"],
+    "titleEn": "Open a POS cashier session",
+    "titleAr": "فتح جلسة كاشير في نقطة البيع",
+    "stepsEn": ["From the main sidebar, select Point of Sale.", "On the POS left sidebar, select Open Session.", "Enter the opening information requested by the session window.", "Confirm the session before creating sales."],
+    "stepsAr": ["من القائمة الجانبية الرئيسية اختر نقطة البيع.", "من الشريط الجانبي الأيسر في شاشة نقطة البيع اختر فتح جلسة.", "أدخل معلومات الافتتاح التي تطلبها نافذة الجلسة.", "أكد فتح الجلسة قبل إنشاء المبيعات."]
+  },
+  {
+    "id": "pos.new-sale",
+    "keywords": ["pos sale", "new pos invoice", "sell in pos", "cash sale", "بيع نقطة البيع", "فاتورة نقطة البيع", "فاتورة كاش", "بيع كاش"],
+    "titleEn": "Create a sale in POS",
+    "titleAr": "إنشاء عملية بيع في نقطة البيع",
+    "stepsEn": ["From the main sidebar, select Point of Sale.", "Make sure a cashier session is open.", "On the POS left sidebar, select New Invoice (F1).", "Scan a barcode or use Search Product (F2), then add the required products and quantities.", "Review the invoice total and select Finish Cash Sale (F4)."],
+    "stepsAr": ["من القائمة الجانبية الرئيسية اختر نقطة البيع.", "تأكد من وجود جلسة كاشير مفتوحة.", "من الشريط الجانبي في نقطة البيع اختر فاتورة جديدة (F1).", "امسح الباركود أو استخدم بحث عن مادة (F2)، ثم أضف المنتجات والكميات المطلوبة.", "راجع إجمالي الفاتورة ثم اختر إنهاء كاش (F4)."]
+  },
+  {
+    "id": "pos.search-product",
+    "keywords": ["pos search product", "find item in pos", "search item", "بحث مادة نقطة البيع", "البحث عن صنف", "بحث عن مادة"],
+    "titleEn": "Search for a product in POS",
+    "titleAr": "البحث عن مادة في نقطة البيع",
+    "stepsEn": ["From the main sidebar, select Point of Sale.", "Start or open the invoice you are working on.", "From the POS left sidebar, select Search Product (F2).", "Search for and select the required product, then enter its quantity."],
+    "stepsAr": ["من القائمة الجانبية الرئيسية اختر نقطة البيع.", "ابدأ الفاتورة التي تريد العمل عليها أو افتحها.", "من الشريط الجانبي في نقطة البيع اختر بحث عن مادة (F2).", "ابحث عن المنتج المطلوب وحدده ثم أدخل كميته."]
+  },
+  {
+    "id": "pos.hold-resume",
+    "keywords": ["hold sale", "resume sale", "park invoice", "held invoice", "انتظار فاتورة", "استئناف فاتورة", "تعليق فاتورة"],
+    "titleEn": "Hold or resume a POS sale",
+    "titleAr": "تعليق أو استئناف فاتورة نقطة البيع",
+    "stepsEn": ["While working on a POS invoice, select Hold (F5) from the POS left sidebar to place it on hold.", "To continue it later, select Resume (F6).", "Choose the held invoice you want to continue.", "Review its products before completing the sale."],
+    "stepsAr": ["أثناء العمل على فاتورة نقطة البيع اختر انتظار (F5) من الشريط الجانبي لتعليقها.", "للمتابعة لاحقاً اختر استئناف (F6).", "حدد الفاتورة المعلقة التي تريد متابعتها.", "راجع منتجاتها قبل إكمال البيع."]
+  },
+  {
+    "id": "pos.return",
+    "keywords": ["pos return", "return pos invoice", "refund pos", "مرتجع نقطة البيع", "إرجاع كاش", "مرتجع كاش"],
+    "titleEn": "Process a return from POS",
+    "titleAr": "تنفيذ مرتجع من نقطة البيع",
+    "stepsEn": ["From the main sidebar, select Point of Sale.", "On the POS left sidebar, select Return.", "Locate the original invoice requested by the return workflow.", "Select the products and quantities being returned.", "Review and confirm the return."],
+    "stepsAr": ["من القائمة الجانبية الرئيسية اختر نقطة البيع.", "من الشريط الجانبي في نقطة البيع اختر مرتجع.", "ابحث عن الفاتورة الأصلية التي يطلبها مسار المرتجع.", "حدد المنتجات والكميات المرتجعة.", "راجع المرتجع ثم أكده."]
+  },
+  {
+    "id": "pos.receipts-payments",
+    "keywords": ["pos receipt", "pos payment", "cash receipt pos", "cash payment pos", "مقبوضات نقطة البيع", "مدفوعات نقطة البيع"],
+    "titleEn": "Open receipts or payments from POS",
+    "titleAr": "فتح المقبوضات أو المدفوعات من نقطة البيع",
+    "stepsEn": ["From the main sidebar, select Point of Sale.", "From the POS left sidebar, select Receipts (F7) to record money received, or Payments (F8) to record money paid.", "Complete the information requested by the opened voucher window.", "Review and save the voucher."],
+    "stepsAr": ["من القائمة الجانبية الرئيسية اختر نقطة البيع.", "من الشريط الجانبي اختر مقبوضات (F7) لتسجيل مبلغ مقبوض، أو مدفوعات (F8) لتسجيل مبلغ مدفوع.", "أكمل المعلومات التي تطلبها نافذة السند المفتوحة.", "راجع السند ثم احفظه."]
+  },
+  {
+    "id": "pos.shift-summary",
+    "keywords": ["pos shift summary", "cashier summary", "shift report", "ملخص الشفت", "تقرير الكاشير"],
+    "titleEn": "View the POS shift summary",
+    "titleAr": "عرض ملخص شفت نقطة البيع",
+    "stepsEn": ["From the main sidebar, select Point of Sale.", "From the POS left sidebar, select Shift Summary (F10).", "Review the displayed cashier-session totals and details."],
+    "stepsAr": ["من القائمة الجانبية الرئيسية اختر نقطة البيع.", "من الشريط الجانبي في نقطة البيع اختر ملخص الشفت (F10).", "راجع إجماليات وتفاصيل جلسة الكاشير المعروضة."]
+  },
+  {
+    "id": "pos.close-session",
+    "keywords": ["close pos session", "end cashier session", "close shift", "إغلاق جلسة", "انهاء جلسة", "إنهاء الشفت"],
+    "titleEn": "Close a POS cashier session",
+    "titleAr": "إغلاق جلسة كاشير نقطة البيع",
+    "stepsEn": ["Finish or hold any invoice still being edited.", "Review Shift Summary (F10) when required.", "From the top of the POS left sidebar, select Close Session.", "Complete the closing information requested by the window and confirm."],
+    "stepsAr": ["أكمل أو علّق أي فاتورة ما زالت قيد التعديل.", "راجع ملخص الشفت (F10) عند الحاجة.", "من أعلى الشريط الجانبي في نقطة البيع اختر إغلاق جلسة.", "أكمل معلومات الإغلاق التي تطلبها النافذة ثم أكد العملية."]
+  },
+  {
+    "id": "products.search-edit",
+    "keywords": ["search product", "edit product", "product list", "find product", "بحث عن صنف", "تعديل صنف", "قائمة الأصناف"],
+    "titleEn": "Search for or edit a product",
+    "titleAr": "البحث عن صنف أو تعديله",
+    "stepsEn": ["From the main sidebar, select Products.", "Under Products, select Search Product.", "Search by the available name or barcode fields.", "Select the product and open its edit action, update the required values, then save."],
+    "stepsAr": ["من القائمة الجانبية الرئيسية اختر الأصناف.", "من قسم الأصناف اختر بحث عن صنف.", "ابحث باستخدام الاسم أو الباركود المتاح.", "حدد الصنف وافتح إجراء التعديل ثم حدّث القيم المطلوبة واحفظ."],
+    "actionKey": "Products.List", "actionLabelEn": "Open Product Search", "actionLabelAr": "فتح بحث الأصناف"
+  },
+  {
+    "id": "categories.manage",
+    "keywords": ["add category", "edit category", "category list", "create category", "إضافة فئة", "تعديل فئة", "إدارة الفئات"],
+    "titleEn": "Create, search for, or edit a category",
+    "titleAr": "إنشاء فئة أو البحث عنها وتعديلها",
+    "stepsEn": ["From the main sidebar, select Products.", "Under Categories and Subcategories, choose Add Category or Search or Edit Category.", "Enter or update the category information.", "Review and save the changes."],
+    "stepsAr": ["من القائمة الجانبية الرئيسية اختر الأصناف.", "من قسم الفئات والفئات الفرعية اختر إضافة فئة أو استعلام أو تعديل فئة.", "أدخل معلومات الفئة أو حدّثها.", "راجع التغييرات ثم احفظها."],
+    "actionKey": "Categories.List", "actionLabelEn": "Open Categories", "actionLabelAr": "فتح الفئات"
+  },
+  {
+    "id": "subcategories.manage",
+    "keywords": ["subcategory", "sub category", "add subcategory", "edit subcategory", "فئة فرعية", "إضافة فئة فرعية", "تعديل فئة فرعية"],
+    "titleEn": "Manage subcategories",
+    "titleAr": "إدارة الفئات الفرعية",
+    "stepsEn": ["From the main sidebar, select Products.", "Under Categories and Subcategories, choose Add Subcategory or Search or Edit Subcategory.", "Select the parent category and enter the subcategory information.", "Review and save."],
+    "stepsAr": ["من القائمة الجانبية الرئيسية اختر الأصناف.", "من قسم الفئات والفئات الفرعية اختر إضافة فئة فرعية أو استعلام أو تعديل فئة فرعية.", "حدد الفئة الرئيسية وأدخل معلومات الفئة الفرعية.", "راجع ثم احفظ."],
+    "actionKey": "SubCategories.List", "actionLabelEn": "Open Subcategories", "actionLabelAr": "فتح الفئات الفرعية"
+  },
+  {
+    "id": "brands.manage",
+    "keywords": ["brand", "add brand", "edit brand", "brand list", "علامة تجارية", "إضافة علامة", "تعديل علامة"],
+    "titleEn": "Manage brands",
+    "titleAr": "إدارة العلامات التجارية",
+    "stepsEn": ["From the main sidebar, select Products.", "Under Brands, choose Add Brand or Search or Edit Brand.", "Enter or update the brand name and required details.", "Save the changes."],
+    "stepsAr": ["من القائمة الجانبية الرئيسية اختر الأصناف.", "من قسم العلامات التجارية اختر إضافة علامة تجارية أو استعلام أو تعديل علامة تجارية.", "أدخل اسم العلامة والتفاصيل المطلوبة أو حدّثها.", "احفظ التغييرات."],
+    "actionKey": "Brands.List", "actionLabelEn": "Open Brands", "actionLabelAr": "فتح العلامات التجارية"
+  },
+  {
+    "id": "units.manage",
+    "keywords": ["unit", "add unit", "edit unit", "measurement unit", "إضافة وحدة", "تعديل وحدة", "وحدات القياس"],
+    "titleEn": "Manage product units",
+    "titleAr": "إدارة وحدات الأصناف",
+    "stepsEn": ["From the main sidebar, select Warehouse Settings.", "Under Units, choose Add Unit or Search/Edit Unit.", "Enter or update the unit information.", "Save the changes."],
+    "stepsAr": ["من القائمة الجانبية الرئيسية اختر إعدادات المستودع.", "من قسم الوحدات اختر إضافة وحدة أو البحث والتعديل.", "أدخل معلومات الوحدة أو حدّثها.", "احفظ التغييرات."],
+    "actionKey": "Units.List", "actionLabelEn": "Open Units", "actionLabelAr": "فتح الوحدات"
+  },
+  {
+    "id": "warehouses.search-edit",
+    "keywords": ["search warehouse", "edit warehouse", "warehouse list", "بحث مستودع", "تعديل مستودع", "قائمة المستودعات"],
+    "titleEn": "Search for or edit a warehouse",
+    "titleAr": "البحث عن مستودع أو تعديله",
+    "stepsEn": ["From the main sidebar, select Warehouses.", "Select Search or Edit Warehouse.", "Find and select the warehouse.", "Update the required information and save."],
+    "stepsAr": ["من القائمة الجانبية الرئيسية اختر المستودعات.", "اختر استعلام أو تعديل مستودع.", "ابحث عن المستودع وحدده.", "حدّث المعلومات المطلوبة ثم احفظ."],
+    "actionKey": "Warehouses.List", "actionLabelEn": "Open Warehouses", "actionLabelAr": "فتح المستودعات"
+  },
+  {
+    "id": "customers.search-edit-statement",
+    "keywords": ["search customer", "edit customer", "customer statement", "customer balance", "بحث زبون", "تعديل زبون", "كشف حساب زبون"],
+    "titleEn": "Search, edit, or view a customer statement",
+    "titleAr": "البحث عن زبون أو تعديله أو عرض كشف حسابه",
+    "stepsEn": ["From the main sidebar, select Customers.", "Select Search or Edit Customer.", "Find and select the customer.", "Use Edit to update details, or open the customer statement to review account movements."],
+    "stepsAr": ["من القائمة الجانبية الرئيسية اختر الزبائن.", "اختر استعلام أو تعديل زبون.", "ابحث عن الزبون وحدده.", "استخدم التعديل لتحديث البيانات أو افتح كشف الحساب لمراجعة الحركات."],
+    "actionKey": "Customers.List", "actionLabelEn": "Open Customers", "actionLabelAr": "فتح الزبائن"
+  },
+  {
+    "id": "users.search-edit",
+    "keywords": ["search user", "edit user", "user list", "بحث مستخدم", "تعديل مستخدم", "قائمة المستخدمين"],
+    "titleEn": "Search for or edit a system user",
+    "titleAr": "البحث عن مستخدم أو تعديله",
+    "stepsEn": ["From the main sidebar, select Warehouse Settings.", "Open User Management and select Search or Edit User.", "Find the user and open Edit.", "Update allowed details or permissions and save."],
+    "stepsAr": ["من القائمة الجانبية الرئيسية اختر إعدادات المستودع.", "افتح إدارة المستخدمين واختر استعلام أو تعديل مستخدم.", "ابحث عن المستخدم وافتح التعديل.", "حدّث البيانات أو الصلاحيات المسموحة ثم احفظ."],
+    "actionKey": "Users.List", "actionLabelEn": "Open Users", "actionLabelAr": "فتح المستخدمين"
+  },
+  {
+    "id": "employees.manage",
+    "keywords": ["employee", "add employee", "edit employee", "employee details", "موظف", "إضافة موظف", "تعديل موظف", "تفاصيل موظف"],
+    "titleEn": "Manage employees",
+    "titleAr": "إدارة الموظفين",
+    "stepsEn": ["Ensure the Employees module is enabled in Warehouse Settings.", "From the main sidebar, select Employees.", "Create a new employee or search the list and open an existing employee.", "Review details or edit the required information, then save."],
+    "stepsAr": ["تأكد من تفعيل نظام الموظفين من إعدادات المستودع.", "من القائمة الجانبية الرئيسية اختر الموظفين.", "أنشئ موظفاً جديداً أو ابحث في القائمة وافتح موظفاً موجوداً.", "راجع التفاصيل أو عدّل المعلومات المطلوبة ثم احفظ."],
+    "actionKey": "Employees.List", "actionLabelEn": "Open Employees", "actionLabelAr": "فتح الموظفين"
+  },
+  {
+    "id": "delegates.manage",
+    "keywords": ["delegate", "sales delegate", "add delegate", "edit delegate", "مندوب", "إضافة مندوب", "تعديل مندوب"],
+    "titleEn": "Manage delegates",
+    "titleAr": "إدارة المندوبين",
+    "stepsEn": ["Ensure the Delegates module is enabled in Warehouse Settings.", "Open User Management and select Manage Delegates.", "Create a delegate or select an existing delegate to view or edit.", "Review and save the information."],
+    "stepsAr": ["تأكد من تفعيل نظام المندوبين من إعدادات المستودع.", "افتح إدارة المستخدمين واختر إدارة المندوبين.", "أنشئ مندوباً أو حدد مندوباً موجوداً للعرض أو التعديل.", "راجع المعلومات ثم احفظها."],
+    "actionKey": "Delegates.List", "actionLabelEn": "Open Delegates", "actionLabelAr": "فتح المندوبين"
+  },
+  {
+    "id": "orders.manage",
+    "keywords": ["orders list", "search order", "order details", "filter orders", "قائمة الطلبيات", "بحث طلبية", "تفاصيل الطلبية", "فلترة الطلبيات"],
+    "titleEn": "Search and review orders",
+    "titleAr": "البحث عن الطلبيات ومراجعتها",
+    "stepsEn": ["From the main sidebar, select Orders.", "Use search, status, and date filters, then select Search.", "Double-click an order to open its details.", "Use Clear Filters to return to the complete list."],
+    "stepsAr": ["من القائمة الجانبية الرئيسية اختر الطلبيات.", "استخدم البحث والحالة وفلاتر التاريخ ثم اختر بحث.", "انقر نقراً مزدوجاً على الطلبية لفتح تفاصيلها.", "استخدم مسح الفلاتر للعودة إلى القائمة الكاملة."]
+  },
+  {
+    "id": "orders.import",
+    "keywords": ["import order", "order import", "box order", "استيراد طلبية", "طلبية استيراد"],
+    "titleEn": "Import an order",
+    "titleAr": "استيراد طلبية",
+    "stepsEn": ["From the main sidebar, select Invoices and Vouchers.", "Under Orders, select Import Order.", "Review the available external order and its products.", "Confirm the import and review the resulting local order."],
+    "stepsAr": ["من القائمة الجانبية الرئيسية اختر الفواتير والسندات.", "من قسم الطلبيات اختر طلبية استيراد.", "راجع الطلبية الخارجية المتاحة ومنتجاتها.", "أكد الاستيراد ثم راجع الطلبية المحلية الناتجة."],
+    "actionKey": "Orders.Import", "actionLabelEn": "Open Order Import", "actionLabelAr": "فتح استيراد الطلبية"
+  },
+  {
+    "id": "stock.current-export",
+    "keywords": ["current stock", "stock search", "export stock excel", "copy barcode", "المخزون الحالي", "بحث المخزون", "تصدير المخزون", "نسخ الباركود"],
+    "titleEn": "View, search, and export current stock",
+    "titleAr": "عرض المخزون الحالي والبحث والتصدير",
+    "stepsEn": ["From the main sidebar, select Reports, then Current Stock.", "Search by barcode or product name and select Search or Refresh.", "Use Copy Barcode on a row when needed.", "Select Export Excel to export the displayed results, or Batch Adjustment to adjust stock."],
+    "stepsAr": ["من القائمة الجانبية الرئيسية اختر التقارير ثم المخزون الحالي.", "ابحث بالباركود أو اسم الصنف ثم اختر بحث أو تحديث.", "استخدم نسخ الباركود من السطر عند الحاجة.", "اختر تصدير Excel لتصدير النتائج أو تسوية دفعة لتعديل المخزون."],
+    "actionKey": "current-stock", "actionLabelEn": "Open Current Stock", "actionLabelAr": "فتح المخزون الحالي"
+  },
+  {
+    "id": "invoices.search",
+    "keywords": ["search invoice", "find sales invoice", "invoice details", "بحث فاتورة", "البحث عن فاتورة", "تفاصيل الفاتورة"],
+    "titleEn": "Search for an existing invoice",
+    "titleAr": "البحث عن فاتورة موجودة",
+    "stepsEn": ["Open the invoice workflow that provides invoice search, such as Sales Return or POS Return.", "Open Search Invoice when requested.", "Use the available number, customer, or date criteria.", "Select the invoice to view or continue the related operation."],
+    "stepsAr": ["افتح مسار العمل الذي يوفر البحث عن الفواتير مثل مرتجع المبيعات أو مرتجع نقطة البيع.", "افتح بحث الفاتورة عند الطلب.", "استخدم رقم الفاتورة أو الزبون أو التاريخ المتاح.", "حدد الفاتورة لعرضها أو متابعة العملية المرتبطة."]
+  },
+  {
+    "id": "vouchers.search",
+    "keywords": ["search voucher", "find receipt voucher", "find payment voucher", "بحث سند", "البحث عن سند قبض", "البحث عن سند دفع"],
+    "titleEn": "Search for a voucher",
+    "titleAr": "البحث عن سند",
+    "stepsEn": ["Open the appropriate Receipt or Payment Voucher workflow.", "Select the voucher search action.", "Enter the available search criteria.", "Select the voucher to review its information."],
+    "stepsAr": ["افتح مسار سند القبض أو سند الدفع المناسب.", "اختر إجراء البحث عن سند.", "أدخل معايير البحث المتاحة.", "حدد السند لمراجعة معلوماته."]
+  },
+  {
+    "id": "settings.features",
+    "keywords": ["enable employees", "enable delegates", "enable accounting", "feature settings", "تفعيل الموظفين", "تفعيل المندوبين", "تفعيل المحاسبة", "إعدادات الأنظمة"],
+    "titleEn": "Enable or disable optional system modules",
+    "titleAr": "تفعيل أو إيقاف أنظمة البرنامج الاختيارية",
+    "stepsEn": ["From the main sidebar, select Warehouse Settings.", "Choose Delegates Settings, Employees Settings, or Accounting Settings.", "Change the enabled state as permitted.", "Save and return to the dashboard so navigation visibility can refresh."],
+    "stepsAr": ["من القائمة الجانبية الرئيسية اختر إعدادات المستودع.", "اختر إعدادات المندوبين أو الموظفين أو المحاسبة.", "غيّر حالة التفعيل حسب صلاحيتك.", "احفظ ثم عد إلى لوحة التحكم لتحديث ظهور عناصر التنقل."]
+  },
+  {
+    "id": "settings.language",
+    "keywords": ["change language", "arabic language", "english language", "language settings", "تغيير اللغة", "اللغة العربية", "اللغة الإنجليزية", "إعدادات اللغة"],
+    "titleEn": "Change the application language",
+    "titleAr": "تغيير لغة التطبيق",
+    "stepsEn": ["From the main sidebar, select Warehouse Settings.", "Under System Settings, select Language Settings.", "Choose Arabic or English.", "Save and follow any restart or refresh instruction displayed by the application."],
+    "stepsAr": ["من القائمة الجانبية الرئيسية اختر إعدادات المستودع.", "من إعدادات النظام اختر إعدادات اللغة.", "اختر العربية أو الإنجليزية.", "احفظ واتبع أي تعليمات لإعادة التشغيل أو التحديث يعرضها التطبيق."],
+    "actionKey": "Settings.Language", "actionLabelEn": "Open Language Settings", "actionLabelAr": "فتح إعدادات اللغة"
+  },
+  {
+    "id": "settings.permissions",
+    "keywords": ["permissions", "report permissions", "user access", "role permissions", "الصلاحيات", "صلاحيات التقارير", "صلاحيات المستخدم"],
+    "titleEn": "Manage system and report permissions",
+    "titleAr": "إدارة صلاحيات النظام والتقارير",
+    "stepsEn": ["From the main sidebar, select Warehouse Settings.", "Select System Permissions Manager.", "Choose the role or user scope provided by the window.", "Enable or deny the required permissions and save."],
+    "stepsAr": ["من القائمة الجانبية الرئيسية اختر إعدادات المستودع.", "اختر مدير صلاحيات النظام.", "حدد الدور أو نطاق المستخدم الذي تعرضه النافذة.", "فعّل أو امنع الصلاحيات المطلوبة ثم احفظ."],
+    "actionKey": "Settings.Permissions", "actionLabelEn": "Open Permissions", "actionLabelAr": "فتح الصلاحيات"
+  },
+  {
+    "id": "settings.chat-assistant",
+    "keywords": ["chatbot settings", "gemini api key", "assistant model", "test connection", "إعدادات المساعد", "مفتاح جيميني", "اختبار الاتصال"],
+    "titleEn": "Configure the ROCCOPOS assistant",
+    "titleAr": "إعداد مساعد ROCCOPOS",
+    "stepsEn": ["From the main sidebar, open ROCCOPOS Assistant.", "Select Settings in the assistant window.", "Enter the Gemini API key and select a supported Gemini model.", "Test the connection, then save the settings."],
+    "stepsAr": ["من القائمة الجانبية الرئيسية افتح مساعد ROCCOPOS.", "اختر الإعدادات من نافذة المساعد.", "أدخل مفتاح Gemini API واختر نموذج Gemini مدعوماً.", "اختبر الاتصال ثم احفظ الإعدادات."]
+  },
+  {
+    "id": "accounting.accounts", "keywords": ["chart of accounts", "account tree", "add account", "دليل الحسابات", "شجرة الحسابات", "إضافة حساب"],
+    "titleEn": "Manage the chart of accounts", "titleAr": "إدارة دليل الحسابات",
+    "stepsEn": ["Ensure Accounting is enabled.", "From the main sidebar, select Accounting, then Chart of Accounts.", "Browse the account tree and select the required parent account.", "Use the available add or edit action, enter the details, and save."],
+    "stepsAr": ["تأكد من تفعيل نظام المحاسبة.", "من القائمة الجانبية اختر المحاسبة ثم دليل الحسابات.", "تصفح شجرة الحسابات وحدد الحساب الأب المطلوب.", "استخدم إجراء الإضافة أو التعديل المتاح ثم أدخل التفاصيل واحفظ."],
+    "actionKey": "Accounting.Accounts", "actionLabelEn": "Open Chart of Accounts", "actionLabelAr": "فتح دليل الحسابات"
+  },
+  {
+    "id": "accounting.journal-create", "keywords": ["manual journal entry", "create journal", "debit credit entry", "قيد يومية", "قيد يدوي", "إنشاء قيد"],
+    "titleEn": "Create a manual journal entry", "titleAr": "إنشاء قيد يومية يدوي",
+    "stepsEn": ["From the main sidebar, select Accounting.", "Select Manual Journal Entry.", "Enter the date, description, debit accounts, credit accounts, and amounts.", "Confirm that debits equal credits, then save or post the entry."],
+    "stepsAr": ["من القائمة الجانبية اختر المحاسبة.", "اختر قيد يومية يدوي.", "أدخل التاريخ والبيان وحسابات المدين والدائن والمبالغ.", "تأكد من تساوي المدين والدائن ثم احفظ القيد أو رحّله."],
+    "actionKey": "Accounting.JournalEntry.Create", "actionLabelEn": "Open Journal Entry", "actionLabelAr": "فتح قيد اليومية"
+  },
+  {
+    "id": "accounting.journal-browser", "keywords": ["journal entries", "journal register", "search journal", "سجل القيود", "بحث القيود", "قيود اليومية"],
+    "titleEn": "Browse journal entries", "titleAr": "عرض سجل القيود",
+    "stepsEn": ["From the main sidebar, select Accounting, then Journal Entries.", "Use the available date or reference filters.", "Select an entry to review its debit and credit lines."],
+    "stepsAr": ["من القائمة الجانبية اختر المحاسبة ثم سجل القيود.", "استخدم فلاتر التاريخ أو المرجع المتاحة.", "حدد القيد لمراجعة أسطر المدين والدائن."],
+    "actionKey": "Accounting.JournalEntries", "actionLabelEn": "Open Journal Entries", "actionLabelAr": "فتح سجل القيود"
+  },
+  {
+    "id": "accounting.trial-balance", "keywords": ["trial balance", "account balances", "ميزان المراجعة", "أرصدة الحسابات"],
+    "titleEn": "View the trial balance", "titleAr": "عرض ميزان المراجعة",
+    "stepsEn": ["From the main sidebar, select Accounting, then Trial Balance.", "Choose the reporting period and available filters.", "Run the report and review debit, credit, and balance totals."],
+    "stepsAr": ["من القائمة الجانبية اختر المحاسبة ثم ميزان المراجعة.", "حدد الفترة وعوامل التصفية المتاحة.", "شغّل التقرير وراجع إجماليات المدين والدائن والأرصدة."],
+    "actionKey": "Accounting.TrialBalance", "actionLabelEn": "Open Trial Balance", "actionLabelAr": "فتح ميزان المراجعة"
+  },
+  {
+    "id": "accounting.general-ledger", "keywords": ["general ledger", "ledger report", "account movement", "دفتر الأستاذ", "حركة الحساب"],
+    "titleEn": "View the general ledger", "titleAr": "عرض دفتر الأستاذ",
+    "stepsEn": ["From the main sidebar, select Accounting, then General Ledger.", "Select the account and reporting period.", "Run the report and review the account movements and running balance."],
+    "stepsAr": ["من القائمة الجانبية اختر المحاسبة ثم دفتر الأستاذ.", "حدد الحساب والفترة المطلوبة.", "شغّل التقرير وراجع حركات الحساب والرصيد المتراكم."],
+    "actionKey": "Accounting.GeneralLedger", "actionLabelEn": "Open General Ledger", "actionLabelAr": "فتح دفتر الأستاذ"
+  },
+  {
+    "id": "accounting.balance-sheet", "keywords": ["balance sheet", "financial position", "assets liabilities equity", "الميزانية العمومية", "المركز المالي", "الأصول والخصوم"],
+    "titleEn": "View the balance sheet", "titleAr": "عرض الميزانية العمومية",
+    "stepsEn": ["From the main sidebar, select Accounting, then Balance Sheet.", "Choose the reporting date or period.", "Run the report and review assets, liabilities, and equity."],
+    "stepsAr": ["من القائمة الجانبية اختر المحاسبة ثم الميزانية العمومية.", "حدد تاريخ أو فترة التقرير.", "شغّل التقرير وراجع الأصول والخصوم وحقوق الملكية."],
+    "actionKey": "Accounting.BalanceSheet", "actionLabelEn": "Open Balance Sheet", "actionLabelAr": "فتح الميزانية العمومية"
+  },
+  {
+    "id": "accounting.checks", "keywords": ["checks", "cheque", "deposit check", "clear check", "bounced check", "cancel check", "الشيكات", "إيداع شيك", "تحصيل شيك", "شيك مرتجع", "إلغاء شيك"],
+    "titleEn": "Review and update checks", "titleAr": "متابعة الشيكات وتحديث حالتها",
+    "stepsEn": ["From the main sidebar, select Accounting, then Checks.", "Search or refresh the check list and select a check.", "Use the context menu to open its source, edit it, or mark it Deposited, Cleared, Bounced, or Cancelled.", "Confirm the status change when requested."],
+    "stepsAr": ["من القائمة الجانبية اختر المحاسبة ثم الشيكات.", "ابحث أو حدّث قائمة الشيكات وحدد شيكاً.", "استخدم القائمة المختصرة لفتح المصدر أو التعديل أو تحديد الحالة كمودع أو محصل أو مرتجع أو ملغى.", "أكد تغيير الحالة عند الطلب."],
+    "actionKey": "Accounting.Checks", "actionLabelEn": "Open Checks", "actionLabelAr": "فتح الشيكات"
+  },
+  {
+    "id": "reports.stock-movements", "keywords": ["stock movements report", "inventory movement detail", "تقرير حركة المخزون", "تفصيل حركة المخزون"],
+    "titleEn": "View the stock movements report", "titleAr": "عرض تقرير حركة المخزون",
+    "stepsEn": ["From the main sidebar, select Reports.", "Under Inventory, select Stock Movements.", "Choose the period and product or warehouse filters, then run the report."],
+    "stepsAr": ["من القائمة الجانبية اختر التقارير.", "من تقارير المخزون اختر حركة المخزون.", "حدد الفترة وفلاتر الصنف أو المستودع ثم شغّل التقرير."],
+    "actionKey": "stock-movements", "actionLabelEn": "Open Stock Movements", "actionLabelAr": "فتح حركة المخزون"
+  },
+  {
+    "id": "reports.stock-balance-date", "keywords": ["stock balance by date", "historical stock", "رصيد المخزون بتاريخ", "أرصدة المخزون"],
+    "titleEn": "View stock balance by date", "titleAr": "عرض رصيد المخزون بتاريخ معين",
+    "stepsEn": ["From the main sidebar, select Reports.", "Under Inventory, select Stock Balance by Date.", "Choose the date and available filters, then run the report."],
+    "stepsAr": ["من القائمة الجانبية اختر التقارير.", "من تقارير المخزون اختر أرصدة المخزون بتاريخ معين.", "حدد التاريخ والفلاتر المتاحة ثم شغّل التقرير."],
+    "actionKey": "stock-balance-by-date", "actionLabelEn": "Open Stock Balance by Date", "actionLabelAr": "فتح رصيد المخزون بتاريخ"
+  },
+  {
+    "id": "reports.below-minimum", "keywords": ["below minimum stock", "low stock report", "reorder products", "تحت الحد الأدنى", "تقرير المخزون المنخفض"],
+    "titleEn": "View products below minimum stock", "titleAr": "عرض البضائع تحت الحد الأدنى",
+    "stepsEn": ["From the main sidebar, select Reports.", "Under Inventory, select Below Minimum Stock.", "Run or refresh the report and review products requiring replenishment."],
+    "stepsAr": ["من القائمة الجانبية اختر التقارير.", "من تقارير المخزون اختر بضائع تحت الحد الأدنى.", "شغّل التقرير أو حدّثه وراجع الأصناف التي تحتاج إلى تزويد."],
+    "actionKey": "below-min-stock", "actionLabelEn": "Open Low Stock Report", "actionLabelAr": "فتح تقرير الحد الأدنى"
+  },
+  {
+    "id": "reports.inventory-summary", "keywords": ["inventory movement summary", "stock summary", "ملخص حركة الأصناف", "ملخص المخزون"],
+    "titleEn": "View the inventory movement summary", "titleAr": "عرض ملخص حركة الأصناف",
+    "stepsEn": ["From the main sidebar, select Reports.", "Under Inventory, select Inventory Movement Summary.", "Set the period and filters, then run the summary."],
+    "stepsAr": ["من القائمة الجانبية اختر التقارير.", "من تقارير المخزون اختر ملخص حركة الأصناف.", "حدد الفترة والفلاتر ثم شغّل الملخص."],
+    "actionKey": "inventory-movement-summary", "actionLabelEn": "Open Inventory Summary", "actionLabelAr": "فتح ملخص حركة الأصناف"
+  },
+  {
+    "id": "reports.stock-valuation", "keywords": ["stock valuation", "inventory value", "cost of stock", "تقييم المخزون", "قيمة المخزون"],
+    "titleEn": "View stock valuation", "titleAr": "عرض تقييم المخزون",
+    "stepsEn": ["From the main sidebar, select Reports.", "Under Inventory, select Stock Valuation.", "Choose the date and warehouse filters, then run the report and review quantities and values."],
+    "stepsAr": ["من القائمة الجانبية اختر التقارير.", "من تقارير المخزون اختر تقييم المخزون.", "حدد التاريخ والمستودع ثم شغّل التقرير وراجع الكميات والقيم."],
+    "actionKey": "stock-valuation", "actionLabelEn": "Open Stock Valuation", "actionLabelAr": "فتح تقييم المخزون"
+  },
+  {
+    "id": "reports.inactive-products", "keywords": ["inactive products report", "products not moving", "dead stock", "أصناف لم تتحرك", "الأصناف الراكدة"],
+    "titleEn": "View inactive products", "titleAr": "عرض الأصناف التي لم تتحرك",
+    "stepsEn": ["From the main sidebar, select Reports.", "Under Inventory, select Inactive Products.", "Choose the inactivity period and run the report."],
+    "stepsAr": ["من القائمة الجانبية اختر التقارير.", "من تقارير المخزون اختر أصناف لم تتحرك منذ مدة.", "حدد مدة عدم الحركة ثم شغّل التقرير."],
+    "actionKey": "inactive-products", "actionLabelEn": "Open Inactive Products", "actionLabelAr": "فتح الأصناف غير المتحركة"
+  },
+  {
+    "id": "reports.invoice-profit", "keywords": ["invoice profitability", "invoice profit report", "ربحية الفواتير", "أرباح الفواتير"],
+    "titleEn": "Analyze invoice profitability", "titleAr": "تحليل ربحية الفواتير",
+    "stepsEn": ["From the main sidebar, select Reports.", "Under Financial Reports, select Invoice Profitability.", "Set the date and available filters, then run the report."],
+    "stepsAr": ["من القائمة الجانبية اختر التقارير.", "من التقارير المالية اختر تحليل ربحية الفواتير.", "حدد التاريخ والفلاتر المتاحة ثم شغّل التقرير."],
+    "actionKey": "invoices-profit", "actionLabelEn": "Open Invoice Profitability", "actionLabelAr": "فتح ربحية الفواتير"
+  },
+  {
+    "id": "reports.product-profit", "keywords": ["product profit report", "item profitability", "أرباح الأصناف", "ربحية الصنف"],
+    "titleEn": "View product profitability", "titleAr": "عرض أرباح الأصناف",
+    "stepsEn": ["From the main sidebar, select Reports.", "Under Financial Reports, select Product Profit.", "Choose the period and product filters, then run the report."],
+    "stepsAr": ["من القائمة الجانبية اختر التقارير.", "من التقارير المالية اختر أرباح الأصناف.", "حدد الفترة وفلاتر الصنف ثم شغّل التقرير."],
+    "actionKey": "product-profit", "actionLabelEn": "Open Product Profit", "actionLabelAr": "فتح أرباح الأصناف"
+  },
+  {
+    "id": "reports.cash-flow", "keywords": ["cash flow report", "receipts payments report", "cash movement", "التدفق النقدي", "التحصيل والدفع"],
+    "titleEn": "View cash flow", "titleAr": "عرض التحصيل والدفع",
+    "stepsEn": ["From the main sidebar, select Reports.", "Under Financial Reports, select Cash Flow.", "Choose the period and run the report to review receipts and payments."],
+    "stepsAr": ["من القائمة الجانبية اختر التقارير.", "من التقارير المالية اختر التحصيل والدفع.", "حدد الفترة وشغّل التقرير لمراجعة المقبوضات والمدفوعات."],
+    "actionKey": "cash-flow", "actionLabelEn": "Open Cash Flow", "actionLabelAr": "فتح التدفق النقدي"
+  },
+  {
+    "id": "reports.profit-loss", "keywords": ["profit and loss", "income statement", "p and l", "الأرباح والخسائر", "قائمة الدخل"],
+    "titleEn": "View profit and loss", "titleAr": "عرض تقرير الأرباح والخسائر",
+    "stepsEn": ["From the main sidebar, select Reports.", "Under Financial Reports, select Profit and Loss.", "Choose the reporting period and run the report."],
+    "stepsAr": ["من القائمة الجانبية اختر التقارير.", "من التقارير المالية اختر تقرير الأرباح والخسائر.", "حدد الفترة ثم شغّل التقرير."],
+    "actionKey": "profit-loss", "actionLabelEn": "Open Profit and Loss", "actionLabelAr": "فتح الأرباح والخسائر"
+  },
+  {
+    "id": "reports.credit-sales", "keywords": ["credit sales report", "unpaid sales", "sales on account", "مبيعات الآجل", "المبيعات غير النقدية"],
+    "titleEn": "View credit sales", "titleAr": "عرض تقرير مبيعات الآجل",
+    "stepsEn": ["From the main sidebar, select Reports.", "Select Credit Sales.", "Choose the date range and customer filters, then run the report."],
+    "stepsAr": ["من القائمة الجانبية اختر التقارير.", "اختر تقرير مبيعات الآجل.", "حدد الفترة وفلاتر الزبون ثم شغّل التقرير."],
+    "actionKey": "credit-sales", "actionLabelEn": "Open Credit Sales", "actionLabelAr": "فتح مبيعات الآجل"
+  },
+  {
+    "id": "reports.discount-summary", "keywords": ["discount summary", "discount report", "sales discounts", "ملخص الخصومات", "تقرير الخصم"],
+    "titleEn": "View the discount summary", "titleAr": "عرض ملخص الخصومات",
+    "stepsEn": ["From the main sidebar, select Reports.", "Select Discount Summary.", "Choose the period and available filters, then run the report."],
+    "stepsAr": ["من القائمة الجانبية اختر التقارير.", "اختر ملخص الخصومات.", "حدد الفترة والفلاتر المتاحة ثم شغّل التقرير."],
+    "actionKey": "discount-summary", "actionLabelEn": "Open Discount Summary", "actionLabelAr": "فتح ملخص الخصومات"
+  },
+  {
+    "id": "reports.item-cost", "keywords": ["item cost detail", "product cost report", "cost breakdown", "تفاصيل تكلفة الأصناف", "تكلفة الصنف"],
+    "titleEn": "View item cost details", "titleAr": "عرض تفاصيل تكلفة الأصناف",
+    "stepsEn": ["From the main sidebar, select Reports.", "Select Item Cost Detail.", "Choose the product and available date or warehouse filters, then run the report."],
+    "stepsAr": ["من القائمة الجانبية اختر التقارير.", "اختر تفاصيل تكلفة الأصناف.", "حدد الصنف وفلاتر التاريخ أو المستودع المتاحة ثم شغّل التقرير."],
+    "actionKey": "item-cost-detail", "actionLabelEn": "Open Item Cost Detail", "actionLabelAr": "فتح تفاصيل تكلفة الأصناف"
+  },
+  {
+    "id": "reports.price-list", "keywords": ["price list report", "product prices", "print price list", "قائمة الأسعار", "أسعار الأصناف"],
+    "titleEn": "View the price list", "titleAr": "عرض قائمة الأسعار",
+    "stepsEn": ["From the main sidebar, select Reports.", "Select Price List.", "Apply available category or product filters, then run or export the list."],
+    "stepsAr": ["من القائمة الجانبية اختر التقارير.", "اختر قائمة الأسعار.", "طبّق فلاتر الفئة أو الصنف المتاحة ثم شغّل القائمة أو صدّرها."],
+    "actionKey": "price-list", "actionLabelEn": "Open Price List", "actionLabelAr": "فتح قائمة الأسعار"
+  },
+  {
+    "id": "reports.stock-balances", "keywords": ["stock balances report", "inventory difference", "physical inventory", "الجرد والفرق", "فروقات المخزون"],
+    "titleEn": "View stock balances and differences", "titleAr": "عرض الجرد والفرق",
+    "stepsEn": ["From the main sidebar, select Reports.", "Under Inventory, select Stock Balances.", "Choose the warehouse and filters, then run the report to review balances and differences."],
+    "stepsAr": ["من القائمة الجانبية اختر التقارير.", "من تقارير المخزون اختر الجرد والفرق.", "حدد المستودع والفلاتر ثم شغّل التقرير لمراجعة الأرصدة والفروقات."],
+    "actionKey": "stock-balances", "actionLabelEn": "Open Stock Balances", "actionLabelAr": "فتح الجرد والفرق"
+  },
+  {
+    "id": "reports.material-movements", "keywords": ["material movements", "stock adjustments report", "inventory adjustments", "التسويات المخزنية", "حركات المواد"],
+    "titleEn": "View material movements", "titleAr": "عرض التسويات المخزنية",
+    "stepsEn": ["From the main sidebar, select Reports.", "Under Inventory, select Material Movements.", "Choose the period and filters, then run the report."],
+    "stepsAr": ["من القائمة الجانبية اختر التقارير.", "من تقارير المخزون اختر التسويات المخزنية.", "حدد الفترة والفلاتر ثم شغّل التقرير."],
+    "actionKey": "material-movements", "actionLabelEn": "Open Material Movements", "actionLabelAr": "فتح التسويات المخزنية"
+  },
+  {
+    "id": "reports.inactive-items", "keywords": ["inactive items report", "dormant items", "slow moving items", "الأصناف الراكدة", "مواد راكدة"],
+    "titleEn": "View inactive items", "titleAr": "عرض الأصناف الراكدة",
+    "stepsEn": ["From the main sidebar, select Reports.", "Select Inactive Items.", "Choose the inactivity period and available filters, then run the report."],
+    "stepsAr": ["من القائمة الجانبية اختر التقارير.", "اختر الأصناف الراكدة.", "حدد مدة الركود والفلاتر المتاحة ثم شغّل التقرير."],
+    "actionKey": "inactive-items", "actionLabelEn": "Open Inactive Items", "actionLabelAr": "فتح الأصناف الراكدة"
+  },
+  {
+    "id": "session.login-logout", "keywords": ["login", "sign in", "logout", "change user", "تسجيل الدخول", "تسجيل خروج", "تغيير المستخدم"],
+    "titleEn": "Sign in or sign out", "titleAr": "تسجيل الدخول أو الخروج",
+    "stepsEn": ["On the login window, enter the assigned username and password, then sign in.", "To end the current user session, select Logout at the bottom of the main sidebar.", "Confirm when requested; the application returns to login."],
+    "stepsAr": ["في نافذة الدخول أدخل اسم المستخدم وكلمة المرور المخصصين ثم سجل الدخول.", "لإنهاء جلسة المستخدم اختر تسجيل خروج أسفل القائمة الجانبية الرئيسية.", "أكد عند الطلب وسيعود التطبيق إلى نافذة الدخول."]
+  }
+]

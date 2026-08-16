@@ -6,6 +6,7 @@ using RaccoonWarehouse.Domain.Invoices;
 using RaccoonWarehouse.Domain.StockDocuments;
 using RaccoonWarehouse.Domain.Users;
 using RaccoonWarehouse.Domain.Vouchers;
+using RaccoonWarehouse.Core.Interface.Accounting;
 
 namespace RaccoonWarehouse.Core.Interface
 {
@@ -17,7 +18,7 @@ namespace RaccoonWarehouse.Core.Interface
         IGenericRepository<Invoice> Invoices { get; }
         IGenericRepository<StockDocument> StockDocuments { get; }
         IGenericRepository<CashierSession> CashierSessions { get; }
-        IGenericRepository<Account> Accounts { get; }
+        IAccountRepository Accounts { get; }
         IGenericRepository<JournalEntry> JournalEntries { get; }
         Task<int> CommitAsync();
 	}

@@ -8,6 +8,7 @@ using RaccoonWarehouse.Domain.Accounting.Accounts.DTOs;
 using RaccoonWarehouse.Domain.Accounting.Enums;
 using RaccoonWarehouse.Domain.Accounting.JournalEntries;
 using RaccoonWarehouse.Domain.Accounting.JournalEntries.DTOs;
+using RaccoonWarehouse.Domain.Accounting.TaxRates;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.FinancialTransactions.DTOs;
 using RaccoonWarehouse.Domain.InvoiceLines.DTOs;
@@ -29,6 +30,8 @@ namespace RaccoonWarehouse.Application.Service.Accounting
         public const string AccountsReceivableAccountCodeKey = "Accounting.AccountCode.AccountsReceivable";
         public const string InputTaxAccountCodeKey = "Accounting.AccountCode.InputTax";
         public const string InventoryAccountCodeKey = "Accounting.AccountCode.Inventory";
+        public const string ChecksInHandAccountCodeKey = "Accounting.AccountCode.ChecksInHand";
+        public const string IssuedChecksPayableAccountCodeKey = "Accounting.AccountCode.IssuedChecksPayable";
         public const string OtherReceivablesAccountCodeKey = "Accounting.AccountCode.OtherReceivables";
         public const string AccountsPayableAccountCodeKey = "Accounting.AccountCode.AccountsPayable";
         public const string OutputTaxAccountCodeKey = "Accounting.AccountCode.OutputTax";
@@ -46,12 +49,14 @@ namespace RaccoonWarehouse.Application.Service.Accounting
         private readonly ApplicationDbContext _context;
         private readonly IUOW _uow;
         private readonly IMapper _mapper;
+        private readonly CurrencyService _currencyService;
 
-        public AccountingService(ApplicationDbContext context, IUOW uow, IMapper mapper)
+        public AccountingService(ApplicationDbContext context, IUOW uow, IMapper mapper, CurrencyService currencyService)
         {
             _context = context;
             _uow = uow;
             _mapper = mapper;
+            _currencyService = currencyService;
         }
 
         public async Task<Result<AccountWriteDto>> CreateAccountAsync(AccountWriteDto dto)
@@ -154,6 +159,23 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                 return Result<JournalEntryReadDto>.Fail($"Posting is locked through {postingLockDate:yyyy-MM-dd}.");
             }
 
+            var taxRateIds = effectiveLines
+                .Where(x => x.TaxRateId.HasValue)
+                .Select(x => x.TaxRateId!.Value)
+                .Distinct()
+                .ToList();
+
+            var taxRates = taxRateIds.Count == 0
+                ? new Dictionary<int, TaxRate>()
+                : await _context.TaxRates
+                    .Where(x => taxRateIds.Contains(x.Id) && x.IsActive)
+                    .ToDictionaryAsync(x => x.Id);
+
+            if (taxRateIds.Count > 0 && taxRates.Count != taxRateIds.Count)
+            {
+                return Result<JournalEntryReadDto>.Fail("One or more tax rates were not found or inactive.");
+            }
+
             var entry = new JournalEntry
             {
                 EntryNumber = string.IsNullOrWhiteSpace(dto.EntryNumber) ? GenerateEntryNumber(now) : dto.EntryNumber,
@@ -164,16 +186,76 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                 ReferenceId = dto.ReferenceId,
                 CreatedDate = now,
                 UpdatedDate = now,
-                Lines = effectiveLines.Select(line => new JournalEntryLine
+                Lines = new List<JournalEntryLine>()
+            };
+
+            foreach (var line in effectiveLines)
+            {
+                decimal debit = line.Debit;
+                decimal credit = line.Credit;
+                decimal? fxRate = null;
+                decimal? foreignAmount = null;
+
+                if (line.CurrencyId.HasValue)
+                {
+                    fxRate = line.ExchangeRate.HasValue && line.ExchangeRate.Value > 0
+                        ? line.ExchangeRate.Value
+                        : await _currencyService.GetRateAsync(line.CurrencyId.Value, entryDate);
+
+                    foreignAmount = line.ForeignAmount ?? (line.Debit != 0m ? line.Debit : line.Credit);
+                    var convertedAmount = foreignAmount.Value * fxRate.Value;
+                    debit = line.Debit != 0m ? convertedAmount : 0m;
+                    credit = line.Credit != 0m ? convertedAmount : 0m;
+                }
+
+                entry.Lines.Add(new JournalEntryLine
                 {
                     AccountId = line.AccountId,
-                    Debit = line.Debit,
-                    Credit = line.Credit,
+                    PartyUserId = line.PartyUserId,
+                    CustomerId = line.CustomerId,
+                    SupplierId = line.SupplierId,
+                    Debit = debit,
+                    Credit = credit,
+                    CostCenterId = line.CostCenterId,
+                    TaxRateId = line.TaxRateId,
+                    TaxAmount = line.TaxAmount,
+                    CurrencyId = line.CurrencyId,
+                    ForeignAmount = foreignAmount,
+                    ExchangeRate = fxRate,
                     Description = line.Description,
                     CreatedDate = now,
                     UpdatedDate = now
-                }).ToList()
-            };
+                });
+
+                if (line.TaxRateId.HasValue)
+                {
+                    var taxRate = taxRates[line.TaxRateId.Value];
+                    var taxAmount = line.TaxAmount ?? 0m;
+                    if (taxAmount < 0)
+                    {
+                        return Result<JournalEntryReadDto>.Fail("Tax amount cannot be negative.");
+                    }
+
+                    if (taxAmount > 0)
+                    {
+                        entry.Lines.Add(new JournalEntryLine
+                        {
+                            AccountId = taxRate.TaxAccountId,
+                            Debit = debit > 0 ? taxAmount : 0m,
+                            Credit = credit > 0 ? taxAmount : 0m,
+                            CostCenterId = line.CostCenterId,
+                            TaxRateId = line.TaxRateId,
+                            TaxAmount = taxAmount,
+                            CurrencyId = line.CurrencyId,
+                            ForeignAmount = line.ForeignAmount,
+                            ExchangeRate = line.ExchangeRate,
+                            Description = $"Tax - {line.Description}",
+                            CreatedDate = now,
+                            UpdatedDate = now
+                        });
+                    }
+                }
+            }
 
             await _uow.JournalEntries.AddAsync(entry);
             await _uow.CommitAsync();
@@ -229,6 +311,10 @@ namespace RaccoonWarehouse.Application.Service.Accounting
 
         public async Task EnsureDefaultAccountsAsync()
         {
+            await EnsureStandardDefaultAccountsAsync();
+            await CleanupLegacyAccountChartAsync();
+            return;
+
             var now = GetJordanNow();
             var defaults = new[]
             {
@@ -312,7 +398,11 @@ namespace RaccoonWarehouse.Application.Service.Accounting
             if (invoice.Id <= 0)
                 return Result<JournalEntryReadDto>.Fail("Invoice id is required.");
 
-            if (invoice.Status is InvoiceStatus.OnHold or InvoiceStatus.Draft or InvoiceStatus.Cancelled)
+            if (invoice.Status is InvoiceStatus.OnHold
+                or InvoiceStatus.Draft
+                or InvoiceStatus.Cancelled
+                or InvoiceStatus.Unknown
+                or InvoiceStatus.InProcess)
                 return Result<JournalEntryReadDto>.Ok(new JournalEntryReadDto(), "Invoice is not in a postable status.");
 
             if (await TryGetExistingEntryAsync("Invoice", invoice.Id) is { } existing)
@@ -321,18 +411,19 @@ namespace RaccoonWarehouse.Application.Service.Accounting
             var lines = new List<JournalEntryLineWriteDto>();
             var entryDate = invoice.CreatedDate == default ? GetJordanNow() : invoice.CreatedDate;
             var settlementAccountId = await ResolveSettlementAccountIdAsync(invoice.PaymentType, invoice.InvoiceType is InvoiceType.Purchase or InvoiceType.PurchaseReturn);
-            var salesRevenueId = await ResolveSystemAccountIdAsync(SalesRevenueAccountCodeKey, "4101");
-            var salesReturnsId = await ResolveSystemAccountIdAsync(SalesReturnsAccountCodeKey, "4102");
-            var salesDiscountId = await ResolveSystemAccountIdAsync(SalesDiscountAccountCodeKey, "4103");
-            var inventoryId = await ResolveSystemAccountIdAsync(InventoryAccountCodeKey, "1105");
-            var cogsId = await ResolveSystemAccountIdAsync(CostOfGoodsSoldAccountCodeKey, "5101");
-            var outputTaxId = await ResolveSystemAccountIdAsync(OutputTaxAccountCodeKey, "2102");
-            var inputTaxId = await ResolveSystemAccountIdAsync(InputTaxAccountCodeKey, "1106");
+            var salesRevenueId = await ResolveSystemAccountIdAsync(SalesRevenueAccountCodeKey, "4110000000");
+            var salesReturnsId = await ResolveSystemAccountIdAsync(SalesReturnsAccountCodeKey, "4120000000");
+            var salesDiscountId = await ResolveSystemAccountIdAsync(SalesDiscountAccountCodeKey, "4130000000");
+            var inventoryId = await ResolveSystemAccountIdAsync(InventoryAccountCodeKey, "1150000000");
+            var cogsId = await ResolveSystemAccountIdAsync(CostOfGoodsSoldAccountCodeKey, "5110000000");
+            var outputTaxId = await ResolveSystemAccountIdAsync(OutputTaxAccountCodeKey, "2120000000");
+            var inputTaxId = await ResolveSystemAccountIdAsync(InputTaxAccountCodeKey, "1160000000");
 
             switch (invoice.InvoiceType)
             {
                 case InvoiceType.Sale:
-                    AddDebit(lines, settlementAccountId, invoice.TotalAmount, $"Invoice #{invoice.InvoiceNumber} settlement");
+                    AddDebit(lines, settlementAccountId, invoice.TotalAmount, $"Invoice #{invoice.InvoiceNumber} settlement",
+                        customerId: invoice.PaymentType == PaymentType.Credit ? invoice.CustomerId : null);
                     if ((invoice.DiscountAmount ?? 0m) > 0)
                         AddDebit(lines, salesDiscountId, invoice.DiscountAmount!.Value, $"Invoice #{invoice.InvoiceNumber} discount");
                     AddCredit(lines, salesRevenueId, invoice.SubTotal, $"Invoice #{invoice.InvoiceNumber} sales");
@@ -354,7 +445,8 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                     AddDebit(lines, salesReturnsId, returnNetSales, $"Sales return #{invoice.InvoiceNumber}");
                     if (returnTax > 0)
                         AddDebit(lines, outputTaxId, returnTax, $"Sales return #{invoice.InvoiceNumber} tax reversal");
-                    AddCredit(lines, settlementAccountId, returnTotal, $"Sales return #{invoice.InvoiceNumber} settlement");
+                    AddCredit(lines, settlementAccountId, returnTotal, $"Sales return #{invoice.InvoiceNumber} settlement",
+                        customerId: invoice.PaymentType == PaymentType.Credit ? invoice.CustomerId : null);
                     if (returnCogs > 0)
                     {
                         AddDebit(lines, inventoryId, returnCogs, $"Sales return #{invoice.InvoiceNumber} inventory recovery");
@@ -402,11 +494,13 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                     AddDebit(lines, inventoryId, invoice.NetSales, $"Purchase invoice #{invoice.InvoiceNumber} inventory");
                     if (invoice.TotalTax > 0)
                         AddDebit(lines, inputTaxId, invoice.TotalTax, $"Purchase invoice #{invoice.InvoiceNumber} input tax");
-                    AddCredit(lines, settlementAccountId, invoice.TotalAmount, $"Purchase invoice #{invoice.InvoiceNumber} settlement");
+                    AddCredit(lines, settlementAccountId, invoice.TotalAmount, $"Purchase invoice #{invoice.InvoiceNumber} settlement",
+                        supplierId: invoice.PaymentType == PaymentType.Credit ? invoice.SupplierId : null);
                     break;
 
                 case InvoiceType.PurchaseReturn:
-                    AddDebit(lines, settlementAccountId, invoice.TotalAmount, $"Purchase return #{invoice.InvoiceNumber} settlement");
+                    AddDebit(lines, settlementAccountId, invoice.TotalAmount, $"Purchase return #{invoice.InvoiceNumber} settlement",
+                        supplierId: invoice.PaymentType == PaymentType.Credit ? invoice.SupplierId : null);
                     if (invoice.TotalTax > 0)
                         AddCredit(lines, inputTaxId, invoice.TotalTax, $"Purchase return #{invoice.InvoiceNumber} input tax reversal");
                     AddCredit(lines, inventoryId, invoice.NetSales, $"Purchase return #{invoice.InvoiceNumber} inventory reversal");
@@ -448,11 +542,13 @@ namespace RaccoonWarehouse.Application.Service.Accounting
             if (voucher.VoucherType == VoucherType.Receipt)
             {
                 AddDebit(lines, settlementAccountId, voucher.Amount, description);
-                AddCredit(lines, counterpartAccountId, voucher.Amount, description);
+                AddCredit(lines, counterpartAccountId, voucher.Amount, description,
+                    customerId: voucher.CustomerId);
             }
             else
             {
-                AddDebit(lines, counterpartAccountId, voucher.Amount, description);
+                AddDebit(lines, counterpartAccountId, voucher.Amount, description,
+                    supplierId: voucher.SupplierId);
                 AddCredit(lines, settlementAccountId, voucher.Amount, description);
             }
 
@@ -481,11 +577,11 @@ namespace RaccoonWarehouse.Application.Service.Accounting
             if (totalAmount <= 0)
                 return Result<JournalEntryReadDto>.Ok(new JournalEntryReadDto(), "Stock document amount is zero.");
 
-            var inventoryId = await ResolveSystemAccountIdAsync(InventoryAccountCodeKey, "1105");
-            var stockGainId = await ResolveSystemAccountIdAsync(StockGainAccountCodeKey, "4104");
-            var stockLossId = await ResolveSystemAccountIdAsync(StockLossAccountCodeKey, "5102");
-            var internalConsumptionId = await ResolveSystemAccountIdAsync(InternalConsumptionAccountCodeKey, "6102");
-            var accountsPayableId = await ResolveSystemAccountIdAsync(AccountsPayableAccountCodeKey, "2101");
+            var inventoryId = await ResolveSystemAccountIdAsync(InventoryAccountCodeKey, "1150000000");
+            var stockGainId = await ResolveSystemAccountIdAsync(StockGainAccountCodeKey, "4140000000");
+            var stockLossId = await ResolveSystemAccountIdAsync(StockLossAccountCodeKey, "5120000000");
+            var internalConsumptionId = await ResolveSystemAccountIdAsync(InternalConsumptionAccountCodeKey, "5140000000");
+            var accountsPayableId = await ResolveSystemAccountIdAsync(AccountsPayableAccountCodeKey, "2110000000");
             var description = BuildStockDocumentDescription(document);
             var lines = new List<JournalEntryLineWriteDto>();
 
@@ -566,9 +662,9 @@ namespace RaccoonWarehouse.Application.Service.Accounting
             if (amount <= 0)
                 return Result<JournalEntryReadDto>.Ok(new JournalEntryReadDto(), "Adjustment amount is zero.");
 
-            var inventoryId = await ResolveSystemAccountIdAsync(InventoryAccountCodeKey, "1105");
-            var stockGainId = await ResolveSystemAccountIdAsync(StockGainAccountCodeKey, "4104");
-            var stockLossId = await ResolveSystemAccountIdAsync(StockLossAccountCodeKey, "5102");
+            var inventoryId = await ResolveSystemAccountIdAsync(InventoryAccountCodeKey, "1150000000");
+            var stockGainId = await ResolveSystemAccountIdAsync(StockGainAccountCodeKey, "4140000000");
+            var stockLossId = await ResolveSystemAccountIdAsync(StockLossAccountCodeKey, "5120000000");
             var description = $"Stock adjustment #{adjustment.Id} - {adjustment.AdjustmentType}";
             var lines = new List<JournalEntryLineWriteDto>();
 
@@ -664,17 +760,95 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                 return Result<List<GeneralLedgerAccountDto>>.Fail("Invalid date range.");
             }
 
-            var accountsQuery = _uow.Accounts.GetAllAsQueryable()
-                .AsNoTracking()
-                .OrderBy(x => x.Code);
-
             if (filter.AccountId.HasValue)
             {
-                accountsQuery = accountsQuery.Where(x => x.Id == filter.AccountId.Value)
-                    .OrderBy(x => x.Code);
+                var selectedAccount = await _uow.Accounts.GetAllAsQueryable()
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.Id == filter.AccountId.Value);
+
+                if (selectedAccount == null)
+                {
+                    return Result<List<GeneralLedgerAccountDto>>.Ok(new List<GeneralLedgerAccountDto>());
+                }
+
+                var allAccounts = await _uow.Accounts.GetAllAsQueryable()
+                    .AsNoTracking()
+                    .Select(x => new AccountScopeNode
+                    {
+                        Id = x.Id,
+                        ParentAccountId = x.ParentAccountId
+                    })
+                    .ToListAsync();
+
+                var scopedAccountIds = ResolveAccountScopeIds(selectedAccount.Id, allAccounts);
+                var scopedLines = await BuildLedgerLineQuery(filter.IncludePostedOnly)
+                    .Where(x => scopedAccountIds.Contains(x.AccountId))
+                    .Where(x => x.EntryDate <= filter.To)
+                    .OrderBy(x => x.EntryDate)
+                    .ThenBy(x => x.EntryNumber)
+                    .ToListAsync();
+
+                var openingBalance = scopedLines
+                    .Where(x => x.EntryDate < filter.From)
+                    .Sum(x => x.Debit - x.Credit);
+
+                var rows = new List<GeneralLedgerRowDto>();
+                var runningBalance = openingBalance;
+
+                if (filter.IncludeOpeningBalance)
+                {
+                    rows.Add(new GeneralLedgerRowDto
+                    {
+                        EntryDate = filter.From.Date,
+                        EntryNumber = "OPENING",
+                        Description = "الرصيد الافتتاحي",
+                        RunningBalance = runningBalance,
+                        IsOpeningBalance = true
+                    });
+                }
+
+                foreach (var line in scopedLines.Where(x => x.EntryDate >= filter.From && x.EntryDate <= filter.To))
+                {
+                    runningBalance += line.Debit - line.Credit;
+                    rows.Add(new GeneralLedgerRowDto
+                    {
+                        EntryDate = line.EntryDate,
+                        EntryNumber = line.EntryNumber,
+                        Description = string.IsNullOrWhiteSpace(line.LineDescription) ? line.EntryDescription : line.LineDescription!,
+                        ReferenceType = line.ReferenceType,
+                        ReferenceId = line.ReferenceId,
+                        Debit = line.Debit,
+                        Credit = line.Credit,
+                        RunningBalance = runningBalance
+                    });
+                }
+
+                if (!rows.Any() && openingBalance == 0m)
+                {
+                    return Result<List<GeneralLedgerAccountDto>>.Ok(new List<GeneralLedgerAccountDto>());
+                }
+
+                return Result<List<GeneralLedgerAccountDto>>.Ok(new List<GeneralLedgerAccountDto>
+                {
+                    new GeneralLedgerAccountDto
+                    {
+                        AccountId = selectedAccount.Id,
+                        AccountCode = selectedAccount.Code,
+                        AccountName = selectedAccount.Name,
+                        AccountType = selectedAccount.AccountType,
+                        OpeningBalance = openingBalance,
+                        TotalDebit = rows.Where(x => !x.IsOpeningBalance).Sum(x => x.Debit),
+                        TotalCredit = rows.Where(x => !x.IsOpeningBalance).Sum(x => x.Credit),
+                        ClosingBalance = runningBalance,
+                        Rows = rows
+                    }
+                });
             }
 
-            var accounts = await accountsQuery.ToListAsync();
+            var accounts = await _uow.Accounts.GetAllAsQueryable()
+                .AsNoTracking()
+                .OrderBy(x => x.Code)
+                .ToListAsync();
             if (!accounts.Any())
             {
                 return Result<List<GeneralLedgerAccountDto>>.Ok(new List<GeneralLedgerAccountDto>());
@@ -898,8 +1072,15 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                 Lines = entry.Lines.Select(line => new JournalEntryLine
                 {
                     AccountId = line.AccountId,
+                    PartyUserId = line.PartyUserId,
+                    CustomerId = line.CustomerId,
+                    SupplierId = line.SupplierId,
                     Debit = line.Credit,
                     Credit = line.Debit,
+                    CostCenterId = line.CostCenterId,
+                    CurrencyId = line.CurrencyId,
+                    ForeignAmount = line.ForeignAmount,
+                    ExchangeRate = line.ExchangeRate,
                     Description = $"Reversal - {line.Description ?? entry.Description}",
                     CreatedDate = now,
                     UpdatedDate = now
@@ -1045,7 +1226,10 @@ namespace RaccoonWarehouse.Application.Service.Accounting
             if (paymentType == PaymentType.Credit)
                 return await ResolveSystemAccountIdAsync(
                     isPurchaseSide ? AccountsPayableAccountCodeKey : AccountsReceivableAccountCodeKey,
-                    isPurchaseSide ? "2101" : "1104");
+                    isPurchaseSide ? "2110000000" : "1140000000");
+
+            if (paymentType == PaymentType.Check && isPurchaseSide)
+                return await ResolveSystemAccountIdAsync(IssuedChecksPayableAccountCodeKey, "2140000000");
 
             return await ResolveCashLikeAccountIdAsync(MapPaymentTypeToMethod(paymentType));
         }
@@ -1054,10 +1238,10 @@ namespace RaccoonWarehouse.Application.Service.Accounting
         {
             return method switch
             {
-                PaymentMethod.Cash => await ResolveSystemAccountIdAsync(CashMainAccountCodeKey, "1101"),
-                PaymentMethod.Credit => await ResolveSystemAccountIdAsync(AccountsReceivableAccountCodeKey, "1104"),
-                PaymentMethod.Check => await ResolveSystemAccountIdAsync(OtherReceivablesAccountCodeKey, "1107"),
-                _ => await ResolveSystemAccountIdAsync(BankAccountCodeKey, "1103")
+                PaymentMethod.Cash => await ResolveSystemAccountIdAsync(CashMainAccountCodeKey, "1110000000"),
+                PaymentMethod.Credit => await ResolveSystemAccountIdAsync(AccountsReceivableAccountCodeKey, "1140000000"),
+                PaymentMethod.Check => await ResolveSystemAccountIdAsync(ChecksInHandAccountCodeKey, "1180000000"),
+                _ => await ResolveSystemAccountIdAsync(BankAccountCodeKey, "1130000000")
             };
         }
 
@@ -1065,15 +1249,15 @@ namespace RaccoonWarehouse.Application.Service.Accounting
         {
             return transaction.SourceType switch
             {
-                FinancialSourceType.ReceiptVoucher => await ResolveSystemAccountIdAsync(AccountsReceivableAccountCodeKey, "1104"),
-                FinancialSourceType.PaymentVoucher => await ResolveSystemAccountIdAsync(AccountsPayableAccountCodeKey, "2101"),
-                FinancialSourceType.Expense => await ResolveSystemAccountIdAsync(GeneralExpenseAccountCodeKey, "6101"),
-                FinancialSourceType.SessionOpening => await ResolveSystemAccountIdAsync(OtherPayablesAccountCodeKey, "2103"),
-                FinancialSourceType.SessionClosing => await ResolveSystemAccountIdAsync(OtherPayablesAccountCodeKey, "2103"),
-                FinancialSourceType.Manual when transaction.Direction == TransactionDirection.In => await ResolveSystemAccountIdAsync(OtherReceivablesAccountCodeKey, "1107"),
-                FinancialSourceType.Manual => await ResolveSystemAccountIdAsync(OtherPayablesAccountCodeKey, "2103"),
-                _ when transaction.Direction == TransactionDirection.In => await ResolveSystemAccountIdAsync(OtherReceivablesAccountCodeKey, "1107"),
-                _ => await ResolveSystemAccountIdAsync(GeneralExpenseAccountCodeKey, "6101")
+                FinancialSourceType.ReceiptVoucher => await ResolveSystemAccountIdAsync(AccountsReceivableAccountCodeKey, "1140000000"),
+                FinancialSourceType.PaymentVoucher => await ResolveSystemAccountIdAsync(AccountsPayableAccountCodeKey, "2110000000"),
+                FinancialSourceType.Expense => await ResolveSystemAccountIdAsync(GeneralExpenseAccountCodeKey, "5130000000"),
+                FinancialSourceType.SessionOpening => await ResolveSystemAccountIdAsync(OtherPayablesAccountCodeKey, "2130000000"),
+                FinancialSourceType.SessionClosing => await ResolveSystemAccountIdAsync(OtherPayablesAccountCodeKey, "2130000000"),
+                FinancialSourceType.Manual when transaction.Direction == TransactionDirection.In => await ResolveSystemAccountIdAsync(OtherReceivablesAccountCodeKey, "1170000000"),
+                FinancialSourceType.Manual => await ResolveSystemAccountIdAsync(OtherPayablesAccountCodeKey, "2130000000"),
+                _ when transaction.Direction == TransactionDirection.In => await ResolveSystemAccountIdAsync(OtherReceivablesAccountCodeKey, "1170000000"),
+                _ => await ResolveSystemAccountIdAsync(GeneralExpenseAccountCodeKey, "5130000000")
             };
         }
 
@@ -1126,8 +1310,10 @@ namespace RaccoonWarehouse.Application.Service.Accounting
 
         private async Task<int> GetAccountIdByCodeAsync(string code)
         {
+            code = NormalizeAccountCode(code);
+
             var accountId = await _uow.Accounts.GetAllAsQueryable()
-                .Where(x => x.Code == code && x.IsActive && x.IsPosting)
+                .Where(x => (x.Code == code || x.AccountCode == code) && x.IsActive && x.IsPosting)
                 .Select(x => x.Id)
                 .FirstOrDefaultAsync();
 
@@ -1146,37 +1332,60 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                 .FirstOrDefaultAsync();
 
             var codeToUse = string.IsNullOrWhiteSpace(configuredCode) ? fallbackCode : configuredCode.Trim();
+            codeToUse = NormalizeAccountCode(codeToUse);
             return await GetAccountIdByCodeAsync(codeToUse);
+        }
+
+        private static string NormalizeAccountCode(string code)
+        {
+            if (string.IsNullOrWhiteSpace(code))
+                return code;
+
+            var trimmed = code.Trim();
+            if (AccountCodeHelper.IsFlatAccountCode(trimmed))
+                return trimmed;
+
+            return LegacyAccountCodeMap.TryGetValue(trimmed, out var mappedCode)
+                ? mappedCode
+                : trimmed;
         }
 
         private async Task EnsureDefaultAccountSettingsAsync(DateTime now)
         {
             var defaults = new Dictionary<string, (string Value, string Description)>
             {
-                [CashMainAccountCodeKey] = ("1101", "Default cash account code for accounting posting."),
-                [BankAccountCodeKey] = ("1103", "Default bank account code for accounting posting."),
-                [AccountsReceivableAccountCodeKey] = ("1104", "Default accounts receivable account code for accounting posting."),
-                [InputTaxAccountCodeKey] = ("1106", "Default input tax account code for accounting posting."),
-                [InventoryAccountCodeKey] = ("1105", "Default inventory account code for accounting posting."),
-                [OtherReceivablesAccountCodeKey] = ("1107", "Default other receivables account code for accounting posting."),
-                [AccountsPayableAccountCodeKey] = ("2101", "Default accounts payable account code for accounting posting."),
-                [OutputTaxAccountCodeKey] = ("2102", "Default output tax account code for accounting posting."),
-                [OtherPayablesAccountCodeKey] = ("2103", "Default other payables account code for accounting posting."),
-                [SalesRevenueAccountCodeKey] = ("4101", "Default sales revenue account code for accounting posting."),
-                [SalesReturnsAccountCodeKey] = ("4102", "Default sales returns account code for accounting posting."),
-                [SalesDiscountAccountCodeKey] = ("4103", "Default sales discount account code for accounting posting."),
-                [StockGainAccountCodeKey] = ("4104", "Default stock gain account code for accounting posting."),
-                [CostOfGoodsSoldAccountCodeKey] = ("5101", "Default cost of goods sold account code for accounting posting."),
-                [GeneralExpenseAccountCodeKey] = ("6101", "Default general expense account code for accounting posting."),
-                [StockLossAccountCodeKey] = ("5102", "Default stock loss account code for accounting posting."),
-                [PosCashAccountCodeKey] = ("1102", "Default POS cash account code for accounting posting."),
-                [InternalConsumptionAccountCodeKey] = ("6102", "Default internal consumption account code for stock out posting.")
+                [CashMainAccountCodeKey] = ("1110000000", "Default cash account code for accounting posting."),
+                [BankAccountCodeKey] = ("1130000000", "Default bank account code for accounting posting."),
+                [AccountsReceivableAccountCodeKey] = ("1140000000", "Default accounts receivable account code for accounting posting."),
+                [InputTaxAccountCodeKey] = ("1160000000", "Default input tax account code for accounting posting."),
+                [InventoryAccountCodeKey] = ("1150000000", "Default inventory account code for accounting posting."),
+                [ChecksInHandAccountCodeKey] = ("1180000000", "Default checks in hand account code for accounting posting."),
+                [IssuedChecksPayableAccountCodeKey] = ("2140000000", "Default issued checks payable account code for accounting posting."),
+                [OtherReceivablesAccountCodeKey] = ("1170000000", "Default other receivables account code for accounting posting."),
+                [AccountsPayableAccountCodeKey] = ("2110000000", "Default accounts payable account code for accounting posting."),
+                [OutputTaxAccountCodeKey] = ("2120000000", "Default output tax account code for accounting posting."),
+                [OtherPayablesAccountCodeKey] = ("2130000000", "Default other payables account code for accounting posting."),
+                [SalesRevenueAccountCodeKey] = ("4110000000", "Default sales revenue account code for accounting posting."),
+                [SalesReturnsAccountCodeKey] = ("4120000000", "Default sales returns account code for accounting posting."),
+                [SalesDiscountAccountCodeKey] = ("4130000000", "Default sales discount account code for accounting posting."),
+                [StockGainAccountCodeKey] = ("4140000000", "Default stock gain account code for accounting posting."),
+                [CostOfGoodsSoldAccountCodeKey] = ("5110000000", "Default cost of goods sold account code for accounting posting."),
+                [GeneralExpenseAccountCodeKey] = ("5130000000", "Default general expense account code for accounting posting."),
+                [StockLossAccountCodeKey] = ("5120000000", "Default stock loss account code for accounting posting."),
+                [PosCashAccountCodeKey] = ("1120000000", "Default POS cash account code for accounting posting."),
+                [InternalConsumptionAccountCodeKey] = ("5140000000", "Default internal consumption account code for stock out posting.")
             };
 
             var legacyDefaultCodes = new HashSet<string>
             {
                 "1000", "1100", "1200", "1210", "1300", "1400", "2000", "2100", "2200",
-                "4000", "4100", "4200", "4300", "5000", "6000", "6100"
+                "4000", "4100", "4200", "4300", "5000", "6000", "6100",
+                "0000000001.0000000001.0000000001", "0000000001.0000000001.0000000002", "0000000001.0000000001.0000000003",
+                "0000000001.0000000001.0000000004", "0000000001.0000000001.0000000005", "0000000001.0000000001.0000000006",
+                "0000000001.0000000001.0000000007", "0000000002.0000000001.0000000001", "0000000002.0000000001.0000000002",
+                "0000000002.0000000001.0000000003", "0000000004.0000000001.0000000001", "0000000004.0000000001.0000000002",
+                "0000000004.0000000001.0000000003", "0000000004.0000000001.0000000004", "0000000005.0000000001.0000000001",
+                "0000000005.0000000001.0000000002", "0000000005.0000000001.0000000003", "0000000005.0000000001.0000000004"
             };
 
             var existing = await _context.AppSettings
@@ -1214,25 +1423,37 @@ namespace RaccoonWarehouse.Application.Service.Accounting
         private async Task<int> ResolveVoucherSettlementAccountIdAsync(VoucherWriteDto voucher)
         {
             var method = MapPaymentTypeToMethod(voucher.PaymentType);
+            if (voucher.VoucherType == VoucherType.Payment && method == PaymentMethod.Check)
+                return await ResolveSystemAccountIdAsync(IssuedChecksPayableAccountCodeKey, "2140000000");
             if (voucher.CashierSessionId.HasValue && method == PaymentMethod.Cash)
-                return await ResolveSystemAccountIdAsync(PosCashAccountCodeKey, "1102");
+                return await ResolveSystemAccountIdAsync(PosCashAccountCodeKey, "1120000000");
 
             return await ResolveCashLikeAccountIdAsync(method);
         }
 
         private async Task<int> ResolveVoucherCounterpartAccountIdAsync(VoucherWriteDto voucher)
         {
+            if (voucher.VoucherType == VoucherType.Receipt && voucher.CustomerId.HasValue)
+                return await ResolveSystemAccountIdAsync(AccountsReceivableAccountCodeKey, "1140000000");
+
+            if (voucher.VoucherType == VoucherType.Payment && voucher.SupplierId.HasValue)
+                return await ResolveSystemAccountIdAsync(AccountsPayableAccountCodeKey, "2110000000");
+
             return voucher.VoucherType switch
             {
-                VoucherType.Receipt when voucher.CustomerId.HasValue => await ResolveSystemAccountIdAsync(AccountsReceivableAccountCodeKey, "1104"),
-                VoucherType.Receipt => await ResolveSystemAccountIdAsync(OtherReceivablesAccountCodeKey, "1107"),
-                VoucherType.Payment when voucher.SupplierId.HasValue => await ResolveSystemAccountIdAsync(AccountsPayableAccountCodeKey, "2101"),
-                VoucherType.Payment => await ResolveSystemAccountIdAsync(GeneralExpenseAccountCodeKey, "6101"),
-                _ => await ResolveSystemAccountIdAsync(GeneralExpenseAccountCodeKey, "6101")
+                VoucherType.Receipt => await ResolveSystemAccountIdAsync(OtherReceivablesAccountCodeKey, "1170000000"),
+                VoucherType.Payment => await ResolveSystemAccountIdAsync(GeneralExpenseAccountCodeKey, "5130000000"),
+                _ => await ResolveSystemAccountIdAsync(GeneralExpenseAccountCodeKey, "5130000000")
             };
         }
 
-        private static void AddDebit(List<JournalEntryLineWriteDto> lines, int accountId, decimal amount, string description)
+        private static void AddDebit(
+            List<JournalEntryLineWriteDto> lines,
+            int accountId,
+            decimal amount,
+            string description,
+            int? customerId = null,
+            int? supplierId = null)
         {
             if (amount <= 0)
                 return;
@@ -1240,13 +1461,21 @@ namespace RaccoonWarehouse.Application.Service.Accounting
             lines.Add(new JournalEntryLineWriteDto
             {
                 AccountId = accountId,
+                CustomerId = customerId,
+                SupplierId = supplierId,
                 Debit = amount,
                 Credit = 0m,
                 Description = description
             });
         }
 
-        private static void AddCredit(List<JournalEntryLineWriteDto> lines, int accountId, decimal amount, string description)
+        private static void AddCredit(
+            List<JournalEntryLineWriteDto> lines,
+            int accountId,
+            decimal amount,
+            string description,
+            int? customerId = null,
+            int? supplierId = null)
         {
             if (amount <= 0)
                 return;
@@ -1254,10 +1483,141 @@ namespace RaccoonWarehouse.Application.Service.Accounting
             lines.Add(new JournalEntryLineWriteDto
             {
                 AccountId = accountId,
+                CustomerId = customerId,
+                SupplierId = supplierId,
                 Debit = 0m,
                 Credit = amount,
                 Description = description
             });
+        }
+
+        private async Task EnsureStandardDefaultAccountsAsync()
+        {
+            var now = GetJordanNow();
+            var seeds = new[]
+            {
+                new { Code = "1000000000", LegacyCode = "1", ParentCode = (string?)null, NameAr = "الأصول", NameEn = "Assets", Description = "الحساب الرئيسي للأصول", AccountType = AccountType.Asset, NormalBalance = NormalBalanceType.Debit, Level = 1, IsPosting = false, AllowManualEntry = false },
+                new { Code = "1100000000", LegacyCode = "11", ParentCode = (string?)"1000000000", NameAr = "الأصول المتداولة", NameEn = "Current Assets", Description = "الأصول المتداولة", AccountType = AccountType.Asset, NormalBalance = NormalBalanceType.Debit, Level = 2, IsPosting = false, AllowManualEntry = false },
+                new { Code = "1110000000", LegacyCode = "1101", ParentCode = (string?)"1100000000", NameAr = "الصندوق الرئيسي", NameEn = "Main Cash", Description = "الصندوق الرئيسي للمنشأة", AccountType = AccountType.Asset, NormalBalance = NormalBalanceType.Debit, Level = 3, IsPosting = true, AllowManualEntry = true },
+                new { Code = "1120000000", LegacyCode = "1102", ParentCode = (string?)"1100000000", NameAr = "صندوق نقطة البيع", NameEn = "POS Cash", Description = "صندوق نقطة البيع", AccountType = AccountType.Asset, NormalBalance = NormalBalanceType.Debit, Level = 3, IsPosting = true, AllowManualEntry = true },
+                new { Code = "1130000000", LegacyCode = "1103", ParentCode = (string?)"1100000000", NameAr = "البنك", NameEn = "Bank", Description = "الحسابات البنكية", AccountType = AccountType.Asset, NormalBalance = NormalBalanceType.Debit, Level = 3, IsPosting = true, AllowManualEntry = true },
+                new { Code = "1180000000", LegacyCode = "1118", ParentCode = (string?)"1100000000", NameAr = "الشيكات في اليد", NameEn = "Checks in Hand", Description = "الشيكات المحصلة قبل الإيداع", AccountType = AccountType.Asset, NormalBalance = NormalBalanceType.Debit, Level = 3, IsPosting = true, AllowManualEntry = true },
+                new { Code = "1140000000", LegacyCode = "1104", ParentCode = (string?)"1100000000", NameAr = "الذمم المدينة - الزبائن", NameEn = "Accounts Receivable - Customers", Description = "ذمم الزبائن", AccountType = AccountType.Asset, NormalBalance = NormalBalanceType.Debit, Level = 3, IsPosting = true, AllowManualEntry = true },
+                new { Code = "1150000000", LegacyCode = "1105", ParentCode = (string?)"1100000000", NameAr = "المخزون", NameEn = "Inventory", Description = "قيمة المخزون", AccountType = AccountType.Asset, NormalBalance = NormalBalanceType.Debit, Level = 3, IsPosting = true, AllowManualEntry = true },
+                new { Code = "1160000000", LegacyCode = "1106", ParentCode = (string?)"1100000000", NameAr = "ضريبة المدخلات", NameEn = "Input Tax", Description = "ضريبة مدخلات المشتريات", AccountType = AccountType.Asset, NormalBalance = NormalBalanceType.Debit, Level = 3, IsPosting = true, AllowManualEntry = true },
+                new { Code = "1170000000", LegacyCode = "1107", ParentCode = (string?)"1100000000", NameAr = "ذمم مدينة أخرى", NameEn = "Other Receivables", Description = "ذمم مدينة أخرى", AccountType = AccountType.Asset, NormalBalance = NormalBalanceType.Debit, Level = 3, IsPosting = true, AllowManualEntry = true },
+
+                new { Code = "2000000000", LegacyCode = "2", ParentCode = (string?)null, NameAr = "الخصوم", NameEn = "Liabilities", Description = "الحساب الرئيسي للخصوم", AccountType = AccountType.Liability, NormalBalance = NormalBalanceType.Credit, Level = 1, IsPosting = false, AllowManualEntry = false },
+                new { Code = "2100000000", LegacyCode = "21", ParentCode = (string?)"2000000000", NameAr = "الخصوم المتداولة", NameEn = "Current Liabilities", Description = "الخصوم المتداولة", AccountType = AccountType.Liability, NormalBalance = NormalBalanceType.Credit, Level = 2, IsPosting = false, AllowManualEntry = false },
+                new { Code = "2110000000", LegacyCode = "2101", ParentCode = (string?)"2100000000", NameAr = "الذمم الدائنة - الموردين", NameEn = "Accounts Payable - Suppliers", Description = "ذمم الموردين", AccountType = AccountType.Liability, NormalBalance = NormalBalanceType.Credit, Level = 3, IsPosting = true, AllowManualEntry = true },
+                new { Code = "2120000000", LegacyCode = "2102", ParentCode = (string?)"2100000000", NameAr = "ضريبة مستحقة", NameEn = "Output Tax", Description = "ضريبة مستحقة على المبيعات", AccountType = AccountType.Liability, NormalBalance = NormalBalanceType.Credit, Level = 3, IsPosting = true, AllowManualEntry = true },
+                new { Code = "2130000000", LegacyCode = "2103", ParentCode = (string?)"2100000000", NameAr = "ذمم دائنة أخرى", NameEn = "Other Payables", Description = "ذمم دائنة أخرى", AccountType = AccountType.Liability, NormalBalance = NormalBalanceType.Credit, Level = 3, IsPosting = true, AllowManualEntry = true },
+                new { Code = "2140000000", LegacyCode = "2104", ParentCode = (string?)"2100000000", NameAr = "شيكات صادرة مستحقة", NameEn = "Issued Checks Payable", Description = "الشيكات الصادرة التي لم تتم تصفيتها بعد", AccountType = AccountType.Liability, NormalBalance = NormalBalanceType.Credit, Level = 3, IsPosting = true, AllowManualEntry = true },
+
+                new { Code = "3000000000", LegacyCode = "3", ParentCode = (string?)null, NameAr = "حقوق الملكية", NameEn = "Equity", Description = "الحساب الرئيسي لحقوق الملكية", AccountType = AccountType.Equity, NormalBalance = NormalBalanceType.Credit, Level = 1, IsPosting = false, AllowManualEntry = false },
+                new { Code = "3100000000", LegacyCode = "31", ParentCode = (string?)"3000000000", NameAr = "حقوق الملكية", NameEn = "Owner Equity", Description = "مجموعة حقوق الملكية", AccountType = AccountType.Equity, NormalBalance = NormalBalanceType.Credit, Level = 2, IsPosting = false, AllowManualEntry = false },
+                new { Code = "3110000000", LegacyCode = "3101", ParentCode = (string?)"3100000000", NameAr = "رأس المال", NameEn = "Capital", Description = "رأس مال المنشأة", AccountType = AccountType.Equity, NormalBalance = NormalBalanceType.Credit, Level = 3, IsPosting = true, AllowManualEntry = true },
+                new { Code = "3120000000", LegacyCode = "3102", ParentCode = (string?)"3100000000", NameAr = "الأرباح المحتجزة", NameEn = "Retained Earnings", Description = "الأرباح المرحلة", AccountType = AccountType.Equity, NormalBalance = NormalBalanceType.Credit, Level = 3, IsPosting = true, AllowManualEntry = true },
+
+                new { Code = "4000000000", LegacyCode = "4", ParentCode = (string?)null, NameAr = "الإيرادات", NameEn = "Revenue", Description = "الحساب الرئيسي للإيرادات", AccountType = AccountType.Revenue, NormalBalance = NormalBalanceType.Credit, Level = 1, IsPosting = false, AllowManualEntry = false },
+                new { Code = "4100000000", LegacyCode = "41", ParentCode = (string?)"4000000000", NameAr = "إيرادات التشغيل", NameEn = "Operating Revenue", Description = "إيرادات النشاط", AccountType = AccountType.Revenue, NormalBalance = NormalBalanceType.Credit, Level = 2, IsPosting = false, AllowManualEntry = false },
+                new { Code = "4110000000", LegacyCode = "4101", ParentCode = (string?)"4100000000", NameAr = "المبيعات", NameEn = "Sales", Description = "إيراد المبيعات", AccountType = AccountType.Revenue, NormalBalance = NormalBalanceType.Credit, Level = 3, IsPosting = true, AllowManualEntry = true },
+                new { Code = "4120000000", LegacyCode = "4102", ParentCode = (string?)"4100000000", NameAr = "مردودات المبيعات", NameEn = "Sales Returns", Description = "مردودات المبيعات", AccountType = AccountType.Revenue, NormalBalance = NormalBalanceType.Debit, Level = 3, IsPosting = true, AllowManualEntry = true },
+                new { Code = "4130000000", LegacyCode = "4103", ParentCode = (string?)"4100000000", NameAr = "خصومات المبيعات", NameEn = "Sales Discounts", Description = "خصومات المبيعات", AccountType = AccountType.Revenue, NormalBalance = NormalBalanceType.Debit, Level = 3, IsPosting = true, AllowManualEntry = true },
+                new { Code = "4140000000", LegacyCode = "4104", ParentCode = (string?)"4100000000", NameAr = "أرباح تسويات المخزون", NameEn = "Inventory Adjustment Gains", Description = "أرباح تسويات المخزون", AccountType = AccountType.Revenue, NormalBalance = NormalBalanceType.Credit, Level = 3, IsPosting = true, AllowManualEntry = true },
+
+                new { Code = "5000000000", LegacyCode = "5", ParentCode = (string?)null, NameAr = "المصروفات", NameEn = "Expenses", Description = "الحساب الرئيسي للمصروفات", AccountType = AccountType.Expense, NormalBalance = NormalBalanceType.Debit, Level = 1, IsPosting = false, AllowManualEntry = false },
+                new { Code = "5100000000", LegacyCode = "51", ParentCode = (string?)"5000000000", NameAr = "المصروفات التشغيلية", NameEn = "Operating Expenses", Description = "مجموعة المصروفات التشغيلية", AccountType = AccountType.Expense, NormalBalance = NormalBalanceType.Debit, Level = 2, IsPosting = false, AllowManualEntry = false },
+                new { Code = "5110000000", LegacyCode = "5101", ParentCode = (string?)"5100000000", NameAr = "تكلفة البضاعة المباعة", NameEn = "Cost of Goods Sold", Description = "تكلفة البضاعة المباعة", AccountType = AccountType.Expense, NormalBalance = NormalBalanceType.Debit, Level = 3, IsPosting = true, AllowManualEntry = true },
+                new { Code = "5120000000", LegacyCode = "5102", ParentCode = (string?)"5100000000", NameAr = "خسائر التالف", NameEn = "Damaged Stock Loss", Description = "خسائر التالف والمخزون الهالك", AccountType = AccountType.Expense, NormalBalance = NormalBalanceType.Debit, Level = 3, IsPosting = true, AllowManualEntry = true },
+                new { Code = "5130000000", LegacyCode = "6101", ParentCode = (string?)"5100000000", NameAr = "المصروفات العامة", NameEn = "General Expenses", Description = "المصروفات العامة", AccountType = AccountType.Expense, NormalBalance = NormalBalanceType.Debit, Level = 3, IsPosting = true, AllowManualEntry = true },
+                new { Code = "5140000000", LegacyCode = "6102", ParentCode = (string?)"5100000000", NameAr = "استهلاك داخلي", NameEn = "Internal Consumption", Description = "استهلاك داخلي للمخزون", AccountType = AccountType.Expense, NormalBalance = NormalBalanceType.Debit, Level = 3, IsPosting = true, AllowManualEntry = true }
+            };
+
+            var existingAccounts = await _context.Accounts.ToListAsync();
+
+            Account? FindMatchingAccount(string code)
+            {
+                return existingAccounts.FirstOrDefault(x =>
+                    string.Equals(NormalizeAccountCode(x.Code), code, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(NormalizeAccountCode(x.AccountCode), code, StringComparison.OrdinalIgnoreCase));
+            }
+
+            foreach (var seed in seeds)
+            {
+                var account = FindMatchingAccount(seed.Code);
+
+                if (account == null)
+                {
+                    account = new Account();
+                    _context.Accounts.Add(account);
+                    existingAccounts.Add(account);
+                }
+
+                account.Code = seed.Code;
+                account.AccountCode = seed.Code;
+                account.AccountLevel = seed.Level;
+                account.Level = seed.Level;
+                account.AccountType = seed.AccountType;
+                account.NormalBalanceType = seed.NormalBalance;
+                account.IsPosting = seed.IsPosting;
+                account.IsActive = true;
+                account.AllowManualEntry = seed.AllowManualEntry;
+                account.Name = seed.NameAr;
+                account.ArabicName = seed.NameAr;
+                account.EnglishName = seed.NameEn;
+                account.Description = seed.Description;
+                account.AccountNature = seed.NormalBalance == NormalBalanceType.Debit ? "Debit" : "Credit";
+                account.AccountCategory = seed.AccountType.ToString();
+                account.AccountTypeCode = seed.AccountType is AccountType.Revenue or AccountType.Expense ? "PL" : "BS";
+            }
+
+            foreach (var seed in seeds)
+            {
+                var account = FindMatchingAccount(seed.Code);
+                if (account == null)
+                    continue;
+
+                account.ParentAccount = seed.ParentCode is null
+                    ? null
+                    : FindMatchingAccount(seed.ParentCode);
+            }
+
+            await EnsureDefaultAccountSettingsAsync(now);
+            await _context.SaveChangesAsync();
+        }
+
+        private sealed class AccountScopeNode
+        {
+            public int Id { get; set; }
+            public int? ParentAccountId { get; set; }
+        }
+
+        private static HashSet<int> ResolveAccountScopeIds(int rootId, List<AccountScopeNode> nodes)
+        {
+            var lookup = nodes
+                .Where(x => x.ParentAccountId.HasValue)
+                .GroupBy(x => x.ParentAccountId!.Value)
+                .ToDictionary(x => x.Key, x => x.Select(n => n.Id).ToList());
+
+            var result = new HashSet<int>();
+
+            void Visit(int id)
+            {
+                if (!result.Add(id))
+                    return;
+
+                if (lookup.TryGetValue(id, out var children))
+                {
+                    foreach (var childId in children)
+                    {
+                        Visit(childId);
+                    }
+                }
+            }
+
+            Visit(rootId);
+            return result;
         }
 
         private static DateTime GetJordanNow()
@@ -1265,6 +1625,142 @@ namespace RaccoonWarehouse.Application.Service.Accounting
             var jordanTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Jordan Standard Time");
             return TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, jordanTimeZone);
         }
+
+        private async Task CleanupLegacyAccountChartAsync()
+        {
+            var allAccounts = await _context.Accounts
+                .AsNoTracking()
+                .Select(x => new { x.Id, x.Code, x.AccountCode, x.ParentAccountId })
+                .ToListAsync();
+
+            var legacyAccountsExist = allAccounts.Any(x => !AccountCodeHelper.IsFlatAccountCode(x.Code));
+
+            if (!legacyAccountsExist)
+            {
+                return;
+            }
+
+            var newAccountIdsByCode = allAccounts
+                .Where(x => AccountCodeHelper.IsFlatAccountCode(x.Code))
+                .ToDictionary(x => x.Code, x => x.Id, StringComparer.OrdinalIgnoreCase);
+
+            foreach (var (legacyCode, newCode) in LegacyAccountCodeMap)
+            {
+                if (!newAccountIdsByCode.TryGetValue(newCode, out var newAccountId))
+                {
+                    continue;
+                }
+
+                var legacyAccountIds = allAccounts
+                    .Where(x => string.Equals(x.Code, legacyCode, StringComparison.OrdinalIgnoreCase)
+                             || string.Equals(x.AccountCode, legacyCode, StringComparison.OrdinalIgnoreCase))
+                    .Select(x => x.Id)
+                    .ToList();
+
+                foreach (var legacyAccountId in legacyAccountIds)
+                {
+                    await _context.JournalEntryLines
+                        .Where(x => x.AccountId == legacyAccountId)
+                        .ExecuteUpdateAsync(s => s.SetProperty(x => x.AccountId, newAccountId));
+
+                    await _context.AccountOpeningBalances
+                        .Where(x => x.AccountId == legacyAccountId)
+                        .ExecuteUpdateAsync(s => s.SetProperty(x => x.AccountId, newAccountId));
+
+                    await _context.RecurringJournalLines
+                        .Where(x => x.AccountId == legacyAccountId)
+                        .ExecuteUpdateAsync(s => s.SetProperty(x => x.AccountId, newAccountId));
+
+                    await _context.BankAccounts
+                        .Where(x => x.GlAccountId == legacyAccountId)
+                        .ExecuteUpdateAsync(s => s.SetProperty(x => x.GlAccountId, newAccountId));
+
+                    await _context.TaxRates
+                        .Where(x => x.TaxAccountId == legacyAccountId)
+                        .ExecuteUpdateAsync(s => s.SetProperty(x => x.TaxAccountId, newAccountId));
+                }
+            }
+
+            var legacyIds = allAccounts
+                .Where(x => !AccountCodeHelper.IsFlatAccountCode(x.Code))
+                .Select(x => x.Id)
+                .ToList();
+
+            if (legacyIds.Count > 0)
+            {
+                await _context.Accounts
+                    .Where(x => legacyIds.Contains(x.Id))
+                    .ExecuteUpdateAsync(s => s.SetProperty(x => x.ParentAccountId, (int?)null));
+
+                await _context.Accounts
+                    .Where(x => legacyIds.Contains(x.Id))
+                    .ExecuteDeleteAsync();
+            }
+        }
+
+        private static readonly Dictionary<string, string> LegacyAccountCodeMap = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["1"] = "1000000000",
+            ["11"] = "1100000000",
+            ["1101"] = "1110000000",
+            ["1102"] = "1120000000",
+            ["1103"] = "1130000000",
+            ["1104"] = "1140000000",
+            ["1105"] = "1150000000",
+            ["1106"] = "1160000000",
+            ["1107"] = "1170000000",
+            ["2"] = "2000000000",
+            ["21"] = "2100000000",
+            ["2101"] = "2110000000",
+            ["2102"] = "2120000000",
+            ["2103"] = "2130000000",
+            ["3"] = "3000000000",
+            ["31"] = "3100000000",
+            ["3101"] = "3110000000",
+            ["3102"] = "3120000000",
+            ["4"] = "4000000000",
+            ["41"] = "4100000000",
+            ["4101"] = "4110000000",
+            ["4102"] = "4120000000",
+            ["4103"] = "4130000000",
+            ["4104"] = "4140000000",
+            ["5"] = "5000000000",
+            ["51"] = "5100000000",
+            ["5101"] = "5110000000",
+            ["5102"] = "5120000000",
+            ["6101"] = "5130000000",
+            ["6102"] = "5140000000",
+            ["0000000001"] = "1000000000",
+            ["0000000001.0000000001"] = "1100000000",
+            ["0000000001.0000000001.0000000001"] = "1110000000",
+            ["0000000001.0000000001.0000000002"] = "1120000000",
+            ["0000000001.0000000001.0000000003"] = "1130000000",
+            ["0000000001.0000000001.0000000004"] = "1140000000",
+            ["0000000001.0000000001.0000000005"] = "1150000000",
+            ["0000000001.0000000001.0000000006"] = "1160000000",
+            ["0000000001.0000000001.0000000007"] = "1170000000",
+            ["0000000002"] = "2000000000",
+            ["0000000002.0000000001"] = "2100000000",
+            ["0000000002.0000000001.0000000001"] = "2110000000",
+            ["0000000002.0000000001.0000000002"] = "2120000000",
+            ["0000000002.0000000001.0000000003"] = "2130000000",
+            ["0000000003"] = "3000000000",
+            ["0000000003.0000000001"] = "3100000000",
+            ["0000000003.0000000001.0000000001"] = "3110000000",
+            ["0000000003.0000000001.0000000002"] = "3120000000",
+            ["0000000004"] = "4000000000",
+            ["0000000004.0000000001"] = "4100000000",
+            ["0000000004.0000000001.0000000001"] = "4110000000",
+            ["0000000004.0000000001.0000000002"] = "4120000000",
+            ["0000000004.0000000001.0000000003"] = "4130000000",
+            ["0000000004.0000000001.0000000004"] = "4140000000",
+            ["0000000005"] = "5000000000",
+            ["0000000005.0000000001"] = "5100000000",
+            ["0000000005.0000000001.0000000001"] = "5110000000",
+            ["0000000005.0000000001.0000000002"] = "5120000000",
+            ["0000000005.0000000001.0000000003"] = "5130000000",
+            ["0000000005.0000000001.0000000004"] = "5140000000"
+        };
     }
 
     public interface IAccountingService

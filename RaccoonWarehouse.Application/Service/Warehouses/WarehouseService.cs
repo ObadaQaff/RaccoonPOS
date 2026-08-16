@@ -23,9 +23,30 @@ namespace RaccoonWarehouse.Application.Service.Warehouses
             _uow = uow;
             _mapper = mapper;
         }
+
+        public async Task EnsureDefaultWarehousesAsync()
+        {
+            var existing = await _uow.GetRepository<Warehouse>().GetAllAsync();
+            if (existing.Any())
+                return;
+
+            var now = DateTime.Now;
+            await _uow.GetRepository<Warehouse>().AddAsync(new Warehouse
+            {
+                Code = "WH-001",
+                Name = "المستودع الرئيسي",
+                Location = null,
+                Description = "Default main warehouse",
+                Status = Domain.Enums.WarehouseStatus.active,
+                CreatedDate = now,
+                UpdatedDate = now
+            });
+
+            await _uow.CommitAsync();
+        }
     }
     public interface IWarehouseService : IGenericService<Warehouse, WarehouseWriteDto, WarehouseReadDto>
     {
-
+        Task EnsureDefaultWarehousesAsync();
     }
 }

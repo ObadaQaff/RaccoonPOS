@@ -38,13 +38,25 @@ namespace RaccoonWarehouse.Invoices
                 MessageBox.Show(result.Message ?? UiText.T("تعذر تحميل نتائج البحث.", "Failed to load search results."), UiText.T("خطأ", "Error"));
         }
 
-        private void SelectBtn_Click(object sender, RoutedEventArgs e)
+        private async void SelectBtn_Click(object sender, RoutedEventArgs e)
         {
             if (ResultsGrid.SelectedItem is InvoiceReadDto invoice)
             {
-                Result = invoice;
-                DialogResult = true;
-                Close();
+                try
+                {
+                    var fullInvoice = await _invoiceService.GetFullInvoiceByIdAsync(invoice.Id);
+                    Result = fullInvoice ?? invoice;
+                    DialogResult = true;
+                    Close();
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(
+                        UiText.T($"تعذر تحميل الفاتورة الكاملة: {ex.Message}", $"Failed to load full invoice: {ex.Message}"),
+                        UiText.T("خطأ", "Error"),
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Error);
+                }
             }
         }
     }

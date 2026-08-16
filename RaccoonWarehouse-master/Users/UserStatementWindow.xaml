@@ -1,0 +1,179 @@
+<Window x:Class="RaccoonWarehouse.UserStatementWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:fa="http://schemas.fontawesome.io/icons/"
+        Title="كشف حساب المستخدم"
+        Height="900"
+        Width="1500"
+        WindowStartupLocation="CenterScreen"
+        FlowDirection="RightToLeft"
+        Background="{StaticResource AppPageBackgroundBrush}">
+    <Grid Background="{StaticResource AppPageBackgroundBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="220"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" CornerRadius="0,0,34,34" Background="{StaticResource AppDashboardHeroBrush}">
+            <Grid Margin="34,24,34,34">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="كشف حساب المستخدم"
+                               FontSize="34"
+                               FontWeight="Bold"
+                               Foreground="White"/>
+                    <TextBlock Text="عرض الحركات المرتبطة بالعميل أو المورد مع الرصيد الافتتاحي والرصيد الجاري."
+                               Margin="0,8,0,0"
+                               FontSize="16"
+                               Foreground="#D6E7E2"/>
+                </StackPanel>
+
+                <Border Grid.Column="1"
+                        Padding="18,12"
+                        CornerRadius="20"
+                        Background="#1FFFFFFF"
+                        VerticalAlignment="Center">
+                    <StackPanel>
+                        <TextBlock Text="المستخدم" FontSize="12" Foreground="#CFE8E3" HorizontalAlignment="Center"/>
+                        <TextBlock x:Name="UserSummaryText"
+                                   Margin="0,4,0,0"
+                                   FontSize="18"
+                                   FontWeight="Bold"
+                                   Foreground="White"
+                                   HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="1" Margin="24,-52,24,24">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <Border Grid.Row="0" Style="{StaticResource AppCardBorderStyle}" Padding="24">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="220"/>
+                        <ColumnDefinition Width="220"/>
+                        <ColumnDefinition Width="220"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Margin="0,0,16,0">
+                        <TextBlock Text="من تاريخ" FontWeight="SemiBold"/>
+                        <DatePicker x:Name="FromDatePicker" Margin="0,8,0,0" Height="40"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1" Margin="0,0,16,0">
+                        <TextBlock Text="إلى تاريخ" FontWeight="SemiBold"/>
+                        <DatePicker x:Name="ToDatePicker" Margin="0,8,0,0" Height="40"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Bottom">
+                        <Button Width="170" Style="{StaticResource AppHeroButtonStyle}" Click="GenerateBtn_Click">
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <fa:ImageAwesome Icon="Book" Width="16" Height="16" Margin="0,0,8,0"
+                                                 Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                                <TextBlock Text="عرض الكشف"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Width="120" Margin="12,0,0,0" Style="{StaticResource AppSecondaryButtonStyle}" Click="BackBtn_Click">
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <fa:ImageAwesome Icon="ArrowRight" Width="16" Height="16" Margin="0,0,8,0"
+                                                 Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                                <TextBlock Text="رجوع"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <Grid Grid.Row="1" Margin="0,18,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="2*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" Style="{StaticResource AppCardBorderStyle}" Padding="18">
+                    <TextBlock x:Name="HeaderText" FontSize="20" FontWeight="Bold"/>
+                </Border>
+
+                <Border Grid.Column="1" Style="{StaticResource AppCardBorderStyle}" Padding="18" Margin="12,0">
+                    <StackPanel>
+                        <TextBlock Text="الرصيد الافتتاحي" Foreground="#6B7280"/>
+                        <TextBlock x:Name="OpeningText" FontSize="22" FontWeight="Bold"/>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="2" Style="{StaticResource AppCardBorderStyle}" Padding="18" Margin="12,0">
+                    <StackPanel>
+                        <TextBlock Text="إجمالي المدين" Foreground="#6B7280"/>
+                        <TextBlock x:Name="DebitText" FontSize="22" FontWeight="Bold"/>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="3" Style="{StaticResource AppCardBorderStyle}" Padding="18" Margin="12,0">
+                    <StackPanel>
+                        <TextBlock Text="إجمالي الدائن" Foreground="#6B7280"/>
+                        <TextBlock x:Name="CreditText" FontSize="22" FontWeight="Bold"/>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="4" Style="{StaticResource AppCardBorderStyle}" Padding="18">
+                    <StackPanel>
+                        <TextBlock Text="الرصيد الختامي" Foreground="#6B7280"/>
+                        <TextBlock x:Name="ClosingText" FontSize="22" FontWeight="Bold"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <Border Grid.Row="2" Margin="0,18,0,0" Style="{StaticResource AppCardBorderStyle}" Padding="16">
+                <DataGrid x:Name="StatementGrid"
+                          Style="{StaticResource AppModernDataGridStyle}"
+                          AutoGenerateColumns="False"
+                          IsReadOnly="True"
+                          MouseDoubleClick="StatementGrid_MouseDoubleClick">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="التاريخ" Binding="{Binding EntryDate, StringFormat=yyyy-MM-dd}" Width="130"/>
+                        <DataGridTextColumn Header="رقم القيد" Binding="{Binding EntryNumber}" Width="170"/>
+                        <DataGridTextColumn Header="البيان" Binding="{Binding Description}" Width="*"/>
+                        <DataGridTextColumn Header="المرجع" Binding="{Binding Reference}" Width="180"/>
+                        <DataGridTextColumn Header="نوع المرجع" Binding="{Binding ReferenceType}" Width="150"/>
+                        <DataGridTextColumn Header="رقم المرجع" Binding="{Binding ReferenceId}" Width="120"/>
+                        <DataGridTemplateColumn x:Name="OpenReferenceColumn" Width="70">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Button Width="34"
+                                            Height="34"
+                                            Padding="0"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            Click="OpenReference_Click">
+                                        <TextBlock Text="↗"
+                                                   FontSize="16"
+                                                   FontWeight="Bold"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"/>
+                                    </Button>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTextColumn Header="مدين" Binding="{Binding Debit, StringFormat=N2}" Width="130"/>
+                        <DataGridTextColumn Header="دائن" Binding="{Binding Credit, StringFormat=N2}" Width="130"/>
+                        <DataGridTextColumn Header="الرصيد الجاري" Binding="{Binding RunningBalance, StringFormat=N2}" Width="160"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>

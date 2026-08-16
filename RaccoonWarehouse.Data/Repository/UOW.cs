@@ -1,5 +1,6 @@
 using AutoMapper;
 using RaccoonWarehouse.Core.Interface;
+using RaccoonWarehouse.Core.Interface.Accounting;
 using RaccoonWarehouse.Domain.Accounting.Accounts;
 using RaccoonWarehouse.Domain.Accounting.JournalEntries;
 using RaccoonWarehouse.Domain.Base;
@@ -22,7 +23,7 @@ namespace RaccoonWarehouse.Data.Repository
 		private IGenericRepository<StockDocument> _stockDocuments;
 		private IGenericRepository<Invoice> _invoices;
 		private IGenericRepository<CashierSession> _cashierSessions;
-		private IGenericRepository<Account> _accounts;
+		private IAccountRepository _accounts;
 		private IGenericRepository<JournalEntry> _journalEntries;
 
 		public UOW(ApplicationDbContext context, IMapper mapper)
@@ -33,6 +34,11 @@ namespace RaccoonWarehouse.Data.Repository
 
 		public IGenericRepository<T> GetRepository<T>() where T : BaseEntity
 		{
+			if (typeof(T) == typeof(Account))
+			{
+				return (IGenericRepository<T>)Accounts;
+			}
+
 			if (!_repositories.ContainsKey(typeof(T)))
 			{
 				var repositoryInstance = new GenericService<T>(_context, _mapper);
@@ -52,7 +58,7 @@ namespace RaccoonWarehouse.Data.Repository
 
 		public IGenericRepository<CashierSession> CashierSessions => _cashierSessions ??= new GenericService<CashierSession>(_context, _mapper);
 
-		public IGenericRepository<Account> Accounts => _accounts ??= new GenericService<Account>(_context, _mapper);
+		public IAccountRepository Accounts => _accounts ??= new AccountRepository(_context, _mapper);
 
 		public IGenericRepository<JournalEntry> JournalEntries => _journalEntries ??= new GenericService<JournalEntry>(_context, _mapper);
 

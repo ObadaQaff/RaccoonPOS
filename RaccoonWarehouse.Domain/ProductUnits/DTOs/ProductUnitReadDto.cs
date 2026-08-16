@@ -31,6 +31,8 @@ namespace RaccoonWarehouse.Domain.ProductUnits.DTOs
             set => IsBaseUnit = value;
         }
 
+        public string DisplayName => Unit?.Name ?? UnitId.ToString();
+
         public DateTime CreatedDate { get; set; }
         public DateTime UpdatedDate { get; set; }
     }

@@ -3,6 +3,7 @@ using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Warehouses.DTOs;
 using RaccoonWarehouse.Helpers.Localization;
 using System;
+using System.Threading.Tasks;
 using System.Windows;
 
 namespace RaccoonWarehouse.Warehouses
@@ -10,6 +11,8 @@ namespace RaccoonWarehouse.Warehouses
     public partial class CreateWarehouse : Window
     {
         private readonly IWarehouseService _warehouseService;
+        private bool _isEditMode;
+        private int _editingWarehouseId;
 
         public CreateWarehouse(IWarehouseService warehouseService)
         {
@@ -20,12 +23,31 @@ namespace RaccoonWarehouse.Warehouses
             UiText.ApplyTranslations(this);
         }
 
+        public void InitializeForEdit(WarehouseWriteDto warehouse)
+        {
+            if (warehouse == null)
+                throw new ArgumentNullException(nameof(warehouse));
+
+            _isEditMode = true;
+            _editingWarehouseId = warehouse.Id;
+
+            Title = UiText.T("تعديل مستودع", "Edit Warehouse");
+            CreateWarehouseBtn.Content = UiText.T("تحديث", "Update");
+
+            WarehouseName.Text = warehouse.Name;
+            WarehouseLocation.Text = warehouse.Location;
+            WarehousePhone.Text = warehouse.PhoneNumber?.ToString();
+            WarehouseDescription.Text = warehouse.Description;
+            WarehouseStatus.SelectedItem = warehouse.Status;
+        }
+
         private async void CreateWarehouseBtn_Click(object sender, RoutedEventArgs e)
         {
             try
             {
                 var dto = new WarehouseWriteDto
                 {
+                    Id = _isEditMode ? _editingWarehouseId : 0,
                     Name = WarehouseName.Text,
                     Location = WarehouseLocation.Text,
                     PhoneNumber = int.TryParse(WarehousePhone.Text, out var phone) ? phone : 0,
@@ -35,11 +57,15 @@ namespace RaccoonWarehouse.Warehouses
                     UpdatedDate = DateTime.UtcNow
                 };
 
-                var result = await _warehouseService.CreateAsync(dto);
+                var result = _isEditMode
+                    ? await _warehouseService.UpdateAsync(dto)
+                    : await _warehouseService.CreateAsync(dto);
                 if (result.Success)
                 {
                     MessageBox.Show(
-                        UiText.T("تمت إضافة المستودع بنجاح.", "The warehouse was added successfully."),
+                        _isEditMode
+                            ? UiText.T("تم تحديث المستودع بنجاح.", "The warehouse was updated successfully.")
+                            : UiText.T("تمت إضافة المستودع بنجاح.", "The warehouse was added successfully."),
                         UiText.T("نجاح", "Success"),
                         MessageBoxButton.OK,
                         MessageBoxImage.Information);
@@ -47,13 +73,14 @@ namespace RaccoonWarehouse.Warehouses
                 else
                 {
                     MessageBox.Show(
-                        result.Message ?? UiText.T("حدث خطأ أثناء إضافة المستودع.", "An error occurred while adding the warehouse."),
+                        result.Message ?? (_isEditMode
+                            ? UiText.T("حدث خطأ أثناء تحديث المستودع.", "An error occurred while updating the warehouse.")
+                            : UiText.T("حدث خطأ أثناء إضافة المستودع.", "An error occurred while adding the warehouse.")),
                         UiText.T("خطأ", "Error"),
                         MessageBoxButton.OK,
                         MessageBoxImage.Error);
                 }
 
-                DialogResult = true;
                 Close();
             }
             catch (Exception ex)

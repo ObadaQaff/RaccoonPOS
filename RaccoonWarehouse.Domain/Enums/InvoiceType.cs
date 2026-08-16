@@ -14,6 +14,8 @@ namespace RaccoonWarehouse.Domain.Enums
         PurchaseReturn,
         Letter,
         Exchange,
+        appCart,
         EndpointOrder = 6
+
     }
 }

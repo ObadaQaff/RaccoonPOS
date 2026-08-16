@@ -82,6 +82,17 @@
                 <TextBlock Text="اسم الزبون" FlowDirection="RightToLeft" FontSize="18"/>
                 <TextBox Height="44" FontSize="18" Margin="0,0,0,20"/>
 
+                <!-- المنتج -->
+                <TextBlock Text="المنتج" FlowDirection="RightToLeft" FontSize="18"/>
+                <ComboBox x:Name="ProductBox"
+                          Height="44"
+                          FontSize="18"
+                          Margin="0,0,0,20"
+                          DisplayMemberPath="Name"
+                          SelectedValuePath="Id"
+                          IsEditable="True"
+                          TextSearch.TextPath="Name"/>
+
                 <!-- سبب المردود -->
                 <TextBlock Text="سبب المردود" FlowDirection="RightToLeft" FontSize="18"/>
                 <TextBox Height="80" FontSize="18" Margin="0,0,0,20" TextWrapping="Wrap" AcceptsReturn="True"/>

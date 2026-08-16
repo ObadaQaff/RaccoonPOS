@@ -6,6 +6,7 @@ using RaccoonWarehouse.Core.Common;
 using RaccoonWarehouse.Core.Interface;
 using RaccoonWarehouse.Data;
 using RaccoonWarehouse.Domain.Enums;
+using RaccoonWarehouse.Domain.Checks;
 using RaccoonWarehouse.Domain.InvoiceLines;
 using RaccoonWarehouse.Domain.InvoiceLines.DTOs;
 using RaccoonWarehouse.Domain.Invoices;
@@ -61,9 +62,15 @@ namespace RaccoonWarehouse.Application.Service.Invoices
             {
                 var invoiceRepo = _uow.GetRepository<Invoice>();
                 var lineRepo = _uow.GetRepository<InvoiceLine>();
+                var checkRepo = _uow.GetRepository<Check>();
 
                 if (dto.InvoiceLines == null || !dto.InvoiceLines.Any())
                     return Result<InvoiceWriteDto>.Fail("Invoice must contain at least one line.");
+                if (dto.InvoiceType == InvoiceType.Purchase && dto.InvoiceLines.Any(line => line.ExpiryDate == default))
+                    return Result<InvoiceWriteDto>.Fail("Expiry date is required for every purchase invoice line.");
+                var partyValidation = ValidateCreditParty(dto);
+                if (partyValidation != null)
+                    return Result<InvoiceWriteDto>.Fail(partyValidation);
 
                 await NormalizeInvoiceLinesAsync(dto.InvoiceLines);
 
@@ -94,6 +101,9 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 dto.TotalCOGS = dto.InvoiceLines.Sum(x => x.CostTotal);
                 dto.NetSales = dto.SubTotal - (dto.DiscountAmount ?? 0m); // قبل الضريبة
                 dto.GrossProfit = dto.NetSales - dto.TotalCOGS;
+                var checkValidation = ValidateChecks(dto);
+                if (checkValidation != null)
+                    return Result<InvoiceWriteDto>.Fail(checkValidation);
                 if (dto.CreatedDate == default)
                     dto.CreatedDate = DateTime.Now;
                 dto.UpdatedDate = DateTime.Now;
@@ -101,6 +111,7 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 // 3) أنشئ invoice بدون lines (مهم)
                 var invoice = _mapper.Map<Invoice>(dto);
                 invoice.InvoiceLines = new List<InvoiceLine>();
+                invoice.Checks = new List<Check>();
 
                 await invoiceRepo.AddAsync(invoice);
                 await _uow.CommitAsync(); // ✅ هسا صار عندك invoice.Id
@@ -116,6 +127,15 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                     await lineRepo.AddAsync(line);
                 }
 
+                foreach (var checkDto in dto.Checks ?? Enumerable.Empty<Domain.Checks.DTOs.CheckWriteDto>())
+                {
+                    var check = _mapper.Map<Check>(checkDto);
+                    check.Id = 0;
+                    check.InvoiceId = invoice.Id;
+                    check.Invoice = null;
+                    await checkRepo.AddAsync(check);
+                }
+
                 await _uow.CommitAsync();
 
                 dto.Id = invoice.Id;
@@ -125,6 +145,7 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                     if (!journalResult.Success)
                     {
                         _context.Set<InvoiceLine>().RemoveRange(_context.Set<InvoiceLine>().Where(x => x.InvoiceId == invoice.Id));
+                        _context.Set<Check>().RemoveRange(_context.Set<Check>().Where(x => x.InvoiceId == invoice.Id));
                         _context.Set<Invoice>().Remove(invoice);
                         await _uow.CommitAsync();
                         return Result<InvoiceWriteDto>.Fail($"Invoice creation was rolled back because accounting posting failed: {journalResult.Message}");
@@ -148,11 +169,17 @@ namespace RaccoonWarehouse.Application.Service.Invoices
 
                 if (dto.InvoiceLines == null || !dto.InvoiceLines.Any())
                     return Result<InvoiceWriteDto>.Fail("Invoice must contain at least one line.");
+                if (dto.InvoiceType == InvoiceType.Purchase && dto.InvoiceLines.Any(line => line.ExpiryDate == default))
+                    return Result<InvoiceWriteDto>.Fail("Expiry date is required for every purchase invoice line.");
+                var partyValidation = ValidateCreditParty(dto);
+                if (partyValidation != null)
+                    return Result<InvoiceWriteDto>.Fail(partyValidation);
 
                 var invoiceRepo = _uow.GetRepository<Invoice>();
                 var lineRepo = _uow.GetRepository<InvoiceLine>();
                 var existingInvoice = await invoiceRepo.GetAllAsQueryable()
                     .Include(x => x.InvoiceLines)
+                    .Include(x => x.Checks)
                     .FirstOrDefaultAsync(x => x.Id == dto.Id);
 
                 if (existingInvoice == null)
@@ -160,19 +187,31 @@ namespace RaccoonWarehouse.Application.Service.Invoices
 
                 await NormalizeInvoiceLinesAsync(dto.InvoiceLines);
                 ApplyInvoiceTotals(dto, existingInvoice.CreatedDate);
+                var checkValidation = ValidateChecks(dto);
+                if (checkValidation != null)
+                    return Result<InvoiceWriteDto>.Fail(checkValidation);
 
                 var oldStatus = existingInvoice.Status;
-                var hadPostedAccounting = oldStatus is not InvoiceStatus.OnHold and not InvoiceStatus.Draft and not InvoiceStatus.Cancelled;
+                var hadPostedAccounting = oldStatus is not InvoiceStatus.OnHold
+                    and not InvoiceStatus.Draft
+                    and not InvoiceStatus.Cancelled
+                    and not InvoiceStatus.Unknown
+                    and not InvoiceStatus.InProcess;
+
+                var existingLines = existingInvoice.InvoiceLines?.ToList() ?? new List<InvoiceLine>();
+                var existingChecks = existingInvoice.Checks?.ToList() ?? new List<Check>();
 
                 _mapper.Map(dto, existingInvoice);
                 existingInvoice.CreatedDate = dto.CreatedDate;
                 existingInvoice.UpdatedDate = dto.UpdatedDate;
 
-                var existingLines = existingInvoice.InvoiceLines?.ToList() ?? new List<InvoiceLine>();
                 if (existingLines.Count > 0)
                     _context.Set<InvoiceLine>().RemoveRange(existingLines);
+                if (existingChecks.Count > 0)
+                    _context.Set<Check>().RemoveRange(existingChecks);
 
                 existingInvoice.InvoiceLines = new List<InvoiceLine>();
+                existingInvoice.Checks = new List<Check>();
 
                 await _uow.CommitAsync();
 
@@ -184,6 +223,16 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                     line.CreatedDate = lineDto.CreatedDate == default ? dto.CreatedDate : lineDto.CreatedDate;
                     line.UpdatedDate = dto.UpdatedDate;
                     await lineRepo.AddAsync(line);
+                }
+
+                var checkRepo = _uow.GetRepository<Check>();
+                foreach (var checkDto in dto.Checks ?? Enumerable.Empty<Domain.Checks.DTOs.CheckWriteDto>())
+                {
+                    var check = _mapper.Map<Check>(checkDto);
+                    check.Id = 0;
+                    check.InvoiceId = existingInvoice.Id;
+                    check.Invoice = null;
+                    await checkRepo.AddAsync(check);
                 }
 
                 await _uow.CommitAsync();
@@ -214,6 +263,35 @@ namespace RaccoonWarehouse.Application.Service.Invoices
             {
                 return Result<InvoiceWriteDto>.Fail($"Error updating invoice: {ex.Message}");
             }
+        }
+
+        private static string? ValidateCreditParty(InvoiceWriteDto dto)
+        {
+            if (dto.InvoiceType is InvoiceType.Purchase or InvoiceType.PurchaseReturn)
+                return dto.SupplierId.HasValue ? null : "A supplier is required for purchase invoices.";
+
+            if (dto.PaymentType == PaymentType.Credit && !dto.CustomerId.HasValue)
+                return "A customer is required for credit sales invoices.";
+
+            return null;
+        }
+
+        private static string? ValidateChecks(InvoiceWriteDto dto)
+        {
+            if (dto.PaymentType != PaymentType.Check)
+                return null;
+
+            var checks = dto.Checks?.ToList() ?? new List<Domain.Checks.DTOs.CheckWriteDto>();
+            if (checks.Count == 0)
+                return "At least one check is required for check payment.";
+            if (checks.Any(x => string.IsNullOrWhiteSpace(x.CheckNumber) || x.Amount <= 0m || x.DueDate == default))
+                return "Check number, positive amount, and due date are required.";
+            if (checks.GroupBy(x => x.CheckNumber.Trim(), StringComparer.OrdinalIgnoreCase).Any(x => x.Count() > 1))
+                return "Check numbers cannot be duplicated within an invoice.";
+            if (Math.Round(checks.Sum(x => x.Amount), 3) != Math.Round(dto.TotalAmount, 3))
+                return "The total check amount must equal the invoice total.";
+
+            return null;
         }
 
         private async Task NormalizeInvoiceLinesAsync(IEnumerable<InvoiceLineWriteDto> lines)
@@ -334,6 +412,7 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 .Include(i => i.InvoiceLines)
                     .ThenInclude(l => l.ProductUnit)
                         .ThenInclude(u => u.Unit)
+                .Include(i => i.Checks)
                 .Include(i => i.User)          // customer
                 .Include(i => i.Delegate)
                 .Include(i => i.Voucher)       // voucher (optional)
@@ -464,9 +543,14 @@ namespace RaccoonWarehouse.Application.Service.Invoices
             if (type.HasValue)
                 invoicesQ = invoicesQ.Where(x => x.InvoiceType == type.Value);
             else if (filter.IncludeReturns)
-                invoicesQ = invoicesQ.Where(x => x.InvoiceType == InvoiceType.Sale || x.InvoiceType == InvoiceType.Return);
+                invoicesQ = invoicesQ.Where(x =>
+                    x.InvoiceType == InvoiceType.Sale ||
+                    x.InvoiceType == InvoiceType.Return ||
+                    x.InvoiceType == InvoiceType.EndpointOrder);
             else
-                invoicesQ = invoicesQ.Where(x => x.InvoiceType == InvoiceType.Sale);
+                invoicesQ = invoicesQ.Where(x =>
+                    x.InvoiceType == InvoiceType.Sale ||
+                    x.InvoiceType == InvoiceType.EndpointOrder);
 
             if (isPOS.HasValue)
                 invoicesQ = invoicesQ.Where(x => x.IsPOS == isPOS.Value);
@@ -539,20 +623,31 @@ namespace RaccoonWarehouse.Application.Service.Invoices
             }).OrderByDescending(r => r.Date).ToList();
 
             // ✅ summary
-            var totalSales = rows.Where(r => r.InvoiceType == InvoiceType.Sale.ToString()).Sum(r => r.SubTotal);
-            var totalTax = rows.Where(r => r.InvoiceType == InvoiceType.Sale.ToString()).Sum(r => r.TotalTax);
-            var totalDiscounts = rows.Where(r => r.InvoiceType == InvoiceType.Sale.ToString()).Sum(r => r.Discount);
+            static bool IsCountedSale(SalesReportRowDto row)
+            {
+                if (row.InvoiceType == InvoiceType.Sale.ToString())
+                    return true;
+
+                return row.InvoiceType == InvoiceType.EndpointOrder.ToString() &&
+                       (row.Status == InvoiceStatus.Completed.ToString() ||
+                        row.Status == InvoiceStatus.Posted.ToString());
+            }
+
+            var countedSales = rows.Where(IsCountedSale).ToList();
+            var totalSales = countedSales.Sum(r => r.SubTotal);
+            var totalTax = countedSales.Sum(r => r.TotalTax);
+            var totalDiscounts = countedSales.Sum(r => r.Discount);
 
             var totalReturns = filter.IncludeReturns
                 ? rows.Where(r => r.InvoiceType == InvoiceType.Return.ToString()).Sum(r => r.SubTotal)
                 : 0m;
 
             var netSales = (totalSales - totalReturns) - totalDiscounts; // قبل الضريبة
-            var totalCogs = rows.Where(r => r.InvoiceType == InvoiceType.Sale.ToString()).Sum(r => r.Cogs);
+            var totalCogs = countedSales.Sum(r => r.Cogs);
             var grossProfit = netSales - totalCogs;
             var margin = netSales == 0 ? 0 : Math.Round((grossProfit / netSales) * 100m, 2);
 
-            var countInvoices = rows.Count(r => r.InvoiceType == InvoiceType.Sale.ToString());
+            var countInvoices = countedSales.Count;
             var avg = countInvoices == 0 ? 0 : Math.Round(netSales / countInvoices, 2);
 
             var summary = new FinancialSummaryDto
@@ -573,6 +668,36 @@ namespace RaccoonWarehouse.Application.Service.Invoices
 
             return Result<(FinancialSummaryDto, List<SalesReportRowDto>)>.Ok((summary, rows));
         }
+
+        public async Task<Result<(DateTime? from, DateTime? to)>> GetSalesReportDateRangeAsync()
+        {
+            try
+            {
+                var invoices = _uow.GetRepository<Invoice>()
+                    .GetAllAsQueryable()
+                    .Where(x =>
+                        x.InvoiceType == InvoiceType.Sale ||
+                        x.InvoiceType == InvoiceType.Return ||
+                        x.InvoiceType == InvoiceType.EndpointOrder);
+
+                var from = await invoices
+                    .OrderBy(x => x.CreatedDate)
+                    .Select(x => (DateTime?)x.CreatedDate)
+                    .FirstOrDefaultAsync();
+
+                var to = await invoices
+                    .OrderByDescending(x => x.CreatedDate)
+                    .Select(x => (DateTime?)x.CreatedDate)
+                    .FirstOrDefaultAsync();
+
+                return Result<(DateTime?, DateTime?)>.Ok((from, to));
+            }
+            catch (Exception ex)
+            {
+                return Result<(DateTime?, DateTime?)>.Fail(
+                    $"Failed to determine the sales report date range: {ex.Message}");
+            }
+        }
     }
     public interface IInvoiceService : IGenericService<Invoice, InvoiceWriteDto, InvoiceReadDto>
     {
@@ -592,5 +717,6 @@ namespace RaccoonWarehouse.Application.Service.Invoices
         Task<Result<List<InvoiceReadDto>>> GetHeldPOSInvoicesAsync();
         Task<Result<(FinancialSummaryDto summary, List<SalesReportRowDto> rows)>>
                 GetSalesReportAsync(FinancialSummaryFilterDto filter, InvoiceType? type = null, bool? isPOS = null);
+        Task<Result<(DateTime? from, DateTime? to)>> GetSalesReportDateRangeAsync();
     }
 }

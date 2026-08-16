@@ -119,9 +119,9 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                 }
 
                 parentLevel = parent.AccountLevel ?? 1;
-                if (parentLevel >= 5)
+                if (parentLevel >= 3)
                 {
-                    return Result<AccountTreeNodeDto>.Fail("Cannot create child account under level 5 posting account.");
+                    return Result<AccountTreeNodeDto>.Fail("Cannot create child account under level 3 posting account.");
                 }
 
                 var siblingCount = await _uow.Accounts.GetAllAsQueryable()
@@ -132,14 +132,22 @@ namespace RaccoonWarehouse.Application.Service.Accounting
             }
             else
             {
-                var rootCount = await _uow.Accounts.GetAllAsQueryable()
-                    .Where(x => x.ParentAccountId == null)
-                    .CountAsync();
-                accountCode = (rootCount + 1).ToString();
+                var accountType = ResolveAccountType(dto.Category);
+                accountCode = AccountCodeHelper.GetRootCode(accountType);
+
+                var existingRoot = await _uow.Accounts.GetAllAsQueryable()
+                    .FirstOrDefaultAsync(x =>
+                        x.ParentAccountId == null &&
+                        (x.Code == accountCode || x.AccountCode == accountCode));
+
+                if (existingRoot != null)
+                {
+                    return Result<AccountTreeNodeDto>.Fail($"Root account for {accountType} already exists.");
+                }
             }
 
             var level = parentLevel + 1;
-            var isPosting = level == 5;
+            var isPosting = level == 3;
 
             var account = new Account
             {

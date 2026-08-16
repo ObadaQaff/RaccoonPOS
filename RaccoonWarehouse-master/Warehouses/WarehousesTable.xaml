@@ -54,6 +54,17 @@
                           CanUserDeleteRows="False"
                           CanUserResizeRows="False"
                           SelectionMode="Single">
+                    <DataGrid.Resources>
+                        <ContextMenu x:Key="WarehouseRowContextMenu">
+                            <MenuItem Header="تعديل" Click="EditWarehouseMenuItem_Click"/>
+                            <MenuItem Header="حذف" Click="DeleteWarehouseMenuItem_Click"/>
+                        </ContextMenu>
+                    </DataGrid.Resources>
+                    <DataGrid.RowStyle>
+                        <Style TargetType="DataGridRow">
+                            <Setter Property="ContextMenu" Value="{StaticResource WarehouseRowContextMenu}"/>
+                        </Style>
+                    </DataGrid.RowStyle>
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="الرقم" Binding="{Binding Id}" Width="100"/>
                         <DataGridTextColumn Header="اسم المستودع" Binding="{Binding Name}" Width="200"/>

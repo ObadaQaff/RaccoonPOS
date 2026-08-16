@@ -114,8 +114,7 @@ namespace RaccoonWarehouse.Application.Service.Generic
             Expression<Func<T, bool>> predicate,
             params Expression<Func<T, object>>[]? includes)
         {
-
-            var entity = _repository.GetByIdWithIncludeAsync(predicate, includes).Result;
+            var entity = await _repository.GetByIdWithIncludeAsync(predicate, includes);
 
             if (entity == null)
             {
@@ -133,9 +132,7 @@ namespace RaccoonWarehouse.Application.Service.Generic
             Expression<Func<T, bool>> predicate,
             params Expression<Func<T, object>>[] includes)
         {
-
-
-            var entity = _repository.GetByIdWithIncludeAsync(predicate, includes).Result;
+            var entity = await _repository.GetByIdWithIncludeAsync(predicate, includes);
 
             if (entity == null)
             {

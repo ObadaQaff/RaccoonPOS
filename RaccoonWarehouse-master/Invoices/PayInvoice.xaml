@@ -265,7 +265,8 @@
                     <StackPanel Margin="6" Grid.Column="0">
                         <TextBlock Text="طريقة الدفع" FontSize="14" FontWeight="SemiBold"/>
                         <ComboBox x:Name="PaymentMethodComboBox"
-                                  Style="{StaticResource ComboBoxStyleModern}">
+                                  Style="{StaticResource ComboBoxStyleModern}"
+                                  SelectionChanged="PaymentMethodComboBox_SelectionChanged">
                             <ComboBoxItem Tag="1">نقدي</ComboBoxItem>
                             <ComboBoxItem Tag="3">شبكة</ComboBoxItem>
                             <ComboBoxItem Tag="4">شيك</ComboBoxItem>
@@ -284,7 +285,15 @@
 
                 <!-- منطقة إدخال المنتج (نفس المبيعات) -->
                 <StackPanel Margin="10" Orientation="Vertical" Background="#E8F0F7">
-                    <TextBlock Text="إضافة منتج" Style="{StaticResource HeaderText}"/>
+                    <DockPanel>
+                        <Button Content="إضافة صنف"
+                                DockPanel.Dock="Left"
+                                Style="{StaticResource PrimaryButtonStyle}"
+                                Width="110"
+                                Margin="10,0,0,0"
+                                Click="CreateProductBtn_Click"/>
+                        <TextBlock Text="إضافة منتج" Style="{StaticResource HeaderText}"/>
+                    </DockPanel>
 
                     <Grid Margin="0,10,0,0">
                         <Grid.ColumnDefinitions>
@@ -315,7 +324,9 @@
                                           DisplayMemberPath="Name"
                                           SelectedValuePath="Id"
                                           SelectionChanged="ProductBox_SelectionChanged"
-                                          TextSearch.TextPath="Name"
+                                          PreviewMouseLeftButtonUp="ProductBox_PreviewMouseLeftButtonUp"
+                                          PreviewKeyDown="ProductBox_PreviewKeyDown"
+                                          IsTextSearchEnabled="False"
                                           IsEditable="True" />
 
                                 <!-- Search Button -->
@@ -354,6 +365,7 @@
                                       Style="{StaticResource ComboBoxStyleModern}"
                                       DisplayMemberPath="Unit.Name"
                                       SelectedValuePath="Id"
+                                      SelectionChanged="UnitBox_SelectionChanged"
                                       Height="39"/>
                         </StackPanel>
 
@@ -378,6 +390,7 @@
                             <TextBlock Text="سعر البيع"/>
                             <TextBox x:Name="SaleBox"
                                      Style="{StaticResource InputBoxStyle}"
+                                     IsReadOnly="True"
                                      HorizontalContentAlignment="Center"/>
                         </StackPanel>
 
@@ -482,6 +495,15 @@
                             <fa:ImageAwesome Icon="Save" Width="18" Height="18"/>
                             <TextBlock Text="حفظ" Margin="8,0,0,0"/>
                         </StackPanel>
+                    </Button>
+
+                    <Button x:Name="ChecksBtn"
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            Width="150"
+                            Margin="10,0,0,0"
+                            Visibility="Collapsed"
+                            Click="ChecksBtn_Click">
+                        <TextBlock Text="الشيكات" Margin="8,0,0,0"/>
                     </Button>
 
                     <Button x:Name="SearchInvoiceBtn"

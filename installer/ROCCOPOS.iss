@@ -2,7 +2,9 @@
 #define MyAppExeName "RaccoonWarehouse.exe"
 #define MyAppPublisher "ROCCOPOS"
 #define MyAppVersion "1.0.0"
+#ifndef MyPublishDir
 #define MyPublishDir "..\publish\single-exe"
+#endif
 
 [Setup]
 AppId={{C1C77291-D949-4DF7-A2F8-17958C86E753}

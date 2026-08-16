@@ -258,6 +258,15 @@
                     <StackPanel Margin="6" Grid.Column="2"/>
                 </Grid>
 
+                <StackPanel Margin="6,0,0,10" HorizontalAlignment="Left">
+                    <TextBlock Text="المستودع" Style="{StaticResource HeaderText}" FontSize="14"/>
+                    <ComboBox x:Name="WarehouseComboBox"
+                              Width="230"
+                              Height="32"
+                              DisplayMemberPath="Name"
+                              SelectedValuePath="Id"/>
+                </StackPanel>
+
                 <!-- ====== PRODUCT INPUT SECTION ====== -->
                 <StackPanel Margin="10" Orientation="Vertical" Background="#E8F0F7" >
 

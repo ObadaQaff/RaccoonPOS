@@ -259,6 +259,7 @@
                                                 <DataGridTextColumn Header="الفئة"           Width="160" Binding="{Binding SubCategory.Name, TargetNullValue=---}"/>
                                                 <DataGridTextColumn Header="العلامة التجارية" Width="160" Binding="{Binding Brand.Name, TargetNullValue=---}"/>
                                                 <DataGridTextColumn Header="الوصف"           Width="320" Binding="{Binding Description, TargetNullValue=---}"/>
+                                                <DataGridTextColumn Header="الكمية المتوفرة"  Width="130" Binding="{Binding CurrentStockQuantity, StringFormat={}{0:N2}, TargetNullValue=---}"/>
                                                 <DataGridTextColumn Header="سعر المخزون الحالي" Width="150" Binding="{Binding CurrentSalePrice, StringFormat={}{0:N2}, FallbackValue=0.00}"/>
                                             </DataGrid.Columns>
                                         </DataGrid>
@@ -289,13 +290,13 @@
     <!-- ══════════════════════════════════════════════════════════════════
          ROOT  – 3 columns:  [sidebar] [main-area] [invoice+payment panel]
      ══════════════════════════════════════════════════════════════════ -->
-    <Grid>
+        <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="148"/>
             <!-- col 0: action sidebar   -->
-            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="0.9*"/>
             <!-- col 1: browse + barcode -->
-            <ColumnDefinition Width="400"/>
+            <ColumnDefinition Width="560"/>
             <!-- col 2: invoice + totals -->
         </Grid.ColumnDefinitions>
 
@@ -500,7 +501,7 @@
                             </Grid>
                         </Button>
                         <Button Style="{StaticResource SidebarActionBtn}"
-                                Click="DailyReportBtn_Click" ToolTip="تقرير يومي (F10)">
+                                Click="DailyReportBtn_Click" ToolTip="ملخص الشفت (F10)">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
@@ -508,7 +509,7 @@
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 <iconPacks:PackIconMaterial Kind="ChartBar" Width="18" Height="18" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Column="2" Text="تقرير يومي" Style="{StaticResource SidebarButtonText}"/>
+                                <TextBlock Grid.Column="2" Text="ملخص الشفت" Style="{StaticResource SidebarButtonText}"/>
                             </Grid>
                         </Button>
                         <Button Style="{StaticResource SidebarDangerBtn}"
@@ -586,12 +587,26 @@
                     <!-- Customer -->
                     <StackPanel Grid.Column="2" Margin="0,0,12,0" VerticalAlignment="Center">
                         <TextBlock Text="العميل" FontSize="11" Foreground="{StaticResource AppMutedTextBrush}" Margin="0,0,0,4"/>
-                        <ComboBox x:Name="CustomerComboBox"
-                                  Height="34" DisplayMemberPath="Name"
-                                  Style="{StaticResource AppComboBoxStyle}"
-                                  IsEditable="True"
-                                  PreviewKeyDown="CustomerComboBox_PreviewKeyDown"
-                                  GotKeyboardFocus="CustomerComboBox_GotKeyboardFocus"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="36"/>
+                            </Grid.ColumnDefinitions>
+                            <ComboBox x:Name="CustomerComboBox"
+                                      Height="34" DisplayMemberPath="Name"
+                                      Style="{StaticResource AppComboBoxStyle}"
+                                      IsEditable="True"
+                                      PreviewKeyDown="CustomerComboBox_PreviewKeyDown"
+                                      GotKeyboardFocus="CustomerComboBox_GotKeyboardFocus"/>
+                            <Button Grid.Column="1"
+                                    Width="34"
+                                    Height="34"
+                                    Margin="4,0,0,0"
+                                    ToolTip="إضافة عميل جديد"
+                                    Click="AddCustomerBtn_Click">
+                                <iconPacks:PackIconMaterial Kind="Plus" Width="16" Height="16"/>
+                            </Button>
+                        </Grid>
                     </StackPanel>
 
                     <!-- Barcode -->
@@ -917,6 +932,32 @@
                                                  Language="en-US"
                                                  PreviewKeyDown="NumericEditor_PreviewKeyDown"
                                                  PreviewTextInput="NumericEditor_PreviewTextInput"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellEditingTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="المتوفر" Width="75"
+                                                IsReadOnly="True" Binding="{Binding AvailableQuantitySnapshot, StringFormat={}{0:0.###}}"/>
+                            <DataGridTemplateColumn Header="الوحدة" Width="110">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding UnitNameSnapshot, TargetNullValue=---}"
+                                                   Padding="4,0"
+                                                   VerticalAlignment="Center"
+                                                   TextAlignment="Center"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                                <DataGridTemplateColumn.CellEditingTemplate>
+                                    <DataTemplate>
+                                        <ComboBox x:Name="InvoiceUnitComboBox"
+                                                  Padding="4,2"
+                                                  BorderThickness="0"
+                                                  Background="Transparent"
+                                                  VerticalContentAlignment="Center"
+                                                  DisplayMemberPath="DisplayName"
+                                                  SelectedValuePath="Id"
+                                                  SelectedValue="{Binding ProductUnitId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  Loaded="InvoiceUnitCombo_Loaded"
+                                                  SelectionChanged="InvoiceUnitCombo_SelectionChanged"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellEditingTemplate>
                             </DataGridTemplateColumn>

@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore.Storage.Json;
 using Microsoft.Extensions.DependencyInjection;
 using RaccoonWarehouse.Application.Service.Settings;
+using RaccoonWarehouse.Application.Service.Notifications;
 using RaccoonWarehouse.Application.Service.Permissions;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Accounting;
@@ -35,6 +36,10 @@ using RaccoonWarehouse.Settings;
 using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Core.Modules;
 using RaccoonWarehouse.Navigation.Modules;
+using RaccoonWarehouse.Domain.Enums;
+using RaccoonWarehouse.Domain.Notifications;
+using RaccoonWarehouse.Application.Service.Orders;
+using System.Windows.Threading;
 
 
 
@@ -53,11 +58,23 @@ namespace RaccoonWarehouse
         private readonly IDelegateFeatureService _delegateFeatureService;
         private readonly IEmployeeFeatureService _employeeFeatureService;
         private readonly IAccountingFeatureService _accountingFeatureService;
+        private readonly INotificationService _notificationService;
+        private readonly IBoxCartApiService _boxCartApiService;
         private readonly ILoadingService _loadingService;
         private readonly DashboardModuleRegistry _dashboardModules;
         private readonly DashboardActionRegistry _dashboardActions;
         private bool _isLoadingReports;
         private bool _isOpeningReport;
+        private bool _isPollingPendingOrders;
+        private bool _pendingSnapshotInitialized;
+        private readonly HashSet<int> _knownPendingCartIds = new();
+        private readonly HashSet<int> _unreadPendingCartIds = new();
+        private readonly DispatcherTimer _pendingOrdersTimer = new()
+        {
+            Interval = TimeSpan.FromSeconds(10)
+        };
+        private const bool BoxPendingOrdersPollingEnabled = false;
+        private const string OrderReceivedNotificationCategory = "OrderReceived";
 
         public Dashboard()
             : this(
@@ -67,6 +84,8 @@ namespace RaccoonWarehouse
                 ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<IDelegateFeatureService>(),
                 ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<IEmployeeFeatureService>(),
                 ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<IAccountingFeatureService>(),
+                ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<INotificationService>(),
+                ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<IBoxCartApiService>(),
                 ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<ILoadingService>(),
                 ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<DashboardModuleRegistry>(),
                 ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<DashboardActionRegistry>())
@@ -80,6 +99,8 @@ namespace RaccoonWarehouse
             IDelegateFeatureService delegateFeatureService,
             IEmployeeFeatureService employeeFeatureService,
             IAccountingFeatureService accountingFeatureService,
+            INotificationService notificationService,
+            IBoxCartApiService boxCartApiService,
             ILoadingService loadingService,
             DashboardModuleRegistry dashboardModules,
             DashboardActionRegistry dashboardActions)
@@ -91,9 +112,13 @@ namespace RaccoonWarehouse
             _delegateFeatureService = delegateFeatureService;
             _employeeFeatureService = employeeFeatureService;
             _accountingFeatureService = accountingFeatureService;
+            _notificationService = notificationService;
+            _boxCartApiService = boxCartApiService;
             _loadingService = loadingService;
             _dashboardModules = dashboardModules;
             _dashboardActions = dashboardActions;
+            _pendingOrdersTimer.Tick += PendingOrdersTimer_Tick;
+            Closed += Dashboard_Closed;
             Loaded += Dashboard_Loaded;
         }
 
@@ -109,11 +134,25 @@ namespace RaccoonWarehouse
                     ? Visibility.Visible
                     : Visibility.Collapsed;
 
+                EmployeeNavButton.Visibility = await _employeeFeatureService.IsEnabledAsync()
+                    ? Visibility.Visible
+                    : Visibility.Collapsed;
+
+                _knownPendingCartIds.Clear();
+                _unreadPendingCartIds.Clear();
+                _pendingSnapshotInitialized = false;
+                UpdateOrdersBadge();
                 Receipt_Click(null, null);
             }
             finally
             {
                 _loadingService.Hide();
+            }
+
+            if (BoxPendingOrdersPollingEnabled)
+            {
+                _pendingOrdersTimer.Start();
+                await PollPendingOrdersAsync();
             }
         }
 
@@ -260,6 +299,13 @@ namespace RaccoonWarehouse
                 : Visibility.Collapsed;
         }
 
+        private async Task RefreshEmployeeNavigationAsync()
+        {
+            EmployeeNavButton.Visibility = await _employeeFeatureService.IsEnabledAsync()
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        }
+
         private DashboardActionContext CreateDashboardActionContext()
         {
             return new DashboardActionContext
@@ -394,6 +440,8 @@ namespace RaccoonWarehouse
 
         private void Orders_Click(object sender, RoutedEventArgs e)
         {
+            _unreadPendingCartIds.Clear();
+            UpdateOrdersBadge();
             WindowManager.Show<OrdersTable>(WindowSizeType.LargeRectangle);
         }
 
@@ -441,7 +489,151 @@ namespace RaccoonWarehouse
 
         private async void Customers_Click(object sender, RoutedEventArgs e)
         {
-            await ShowDashboardModuleAsync(UsersDashboardModule.Key, DashboardActionButton_Click);
+            await ShowDashboardModuleAsync(CustomersDashboardModule.Key, DashboardActionButton_Click);
+        }
+
+        private async void Employees_Click(object sender, RoutedEventArgs e)
+        {
+            if (!await _employeeFeatureService.IsEnabledAsync())
+            {
+                MessageBox.Show(UiText.T("نظام الموظفين متوقف حالياً.", "The employees module is currently disabled."));
+                return;
+            }
+
+            WindowManager.Show<EmployeesTable>();
+        }
+
+        private async void NotificationTest_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var delivered = await _notificationService.PublishAsync(new AppNotificationDto
+                {
+                    Title = UiText.T("تنبيه تجريبي", "Test notification"),
+                    Message = UiText.T("هذا اختبار لعرض التنبيه داخل التطبيق.", "This is a test notification shown inside the app."),
+                    Severity = NotificationSeverity.Warning,
+                    RecipientRole = UserRole.Admin,
+                    CreatedAt = DateTime.Now
+                });
+
+                if (!delivered)
+                {
+                    MessageBox.Show(UiText.T("لا يوجد مستخدم إداري نشط لعرض التنبيه.", "No active admin user is available to receive the notification."), UiText.T("تنبيه", "Alert"));
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"{UiText.T("تعذر إرسال التنبيه التجريبي", "Failed to send the test notification")}: {ex.Message}", UiText.T("خطأ", "Error"));
+            }
+        }
+
+        private void ChatAssistant_Click(object sender, RoutedEventArgs e)
+        {
+            WindowManager.Show<RaccoonWarehouse.ChatAssistant.ChatAssistantWindow>(WindowSizeType.MediumRectangle);
+        }
+
+        private async void PendingOrdersTimer_Tick(object? sender, EventArgs e)
+        {
+            await PollPendingOrdersAsync();
+        }
+
+        private async Task PollPendingOrdersAsync()
+        {
+            if (_isPollingPendingOrders)
+                return;
+
+            _isPollingPendingOrders = true;
+            try
+            {
+                var result = await _boxCartApiService.GetPendingOrdersAsync();
+                if (!result.Success || result.Data == null)
+                    return;
+
+                var pendingCartIds = result.Data.Orders
+                    .Select(order => order.CartId)
+                    .ToHashSet();
+
+                if (!_pendingSnapshotInitialized)
+                {
+                    _knownPendingCartIds.Clear();
+                    foreach (var cartId in pendingCartIds)
+                    {
+                        _knownPendingCartIds.Add(cartId);
+                        _unreadPendingCartIds.Add(cartId);
+                    }
+
+                    _pendingSnapshotInitialized = true;
+                    if (_unreadPendingCartIds.Count > 0)
+                    {
+                        UpdateOrdersBadge();
+                        await PublishPendingOrdersNotificationAsync(_unreadPendingCartIds.Count);
+                    }
+                    return;
+                }
+
+                foreach (var removedCartId in _knownPendingCartIds.Except(pendingCartIds).ToList())
+                {
+                    _knownPendingCartIds.Remove(removedCartId);
+                    _unreadPendingCartIds.Remove(removedCartId);
+                }
+
+                var newCartIds = pendingCartIds
+                    .Where(cartId => !_knownPendingCartIds.Contains(cartId))
+                    .ToList();
+
+                foreach (var cartId in newCartIds)
+                {
+                    _knownPendingCartIds.Add(cartId);
+                    _unreadPendingCartIds.Add(cartId);
+                }
+
+                if (newCartIds.Count > 0)
+                {
+                    UpdateOrdersBadge();
+                    await PublishPendingOrdersNotificationAsync(newCartIds.Count);
+                }
+                else
+                {
+                    UpdateOrdersBadge();
+                }
+            }
+            finally
+            {
+                _isPollingPendingOrders = false;
+            }
+        }
+
+        private async Task PublishPendingOrdersNotificationAsync(int count)
+        {
+            await _notificationService.PublishAsync(new AppNotificationDto
+            {
+                Title = UiText.T("طلب جديد", "New order"),
+                Message = count == 1
+                    ? UiText.T("تم استلام طلب جديد من Panda.", "A new Panda order was received.")
+                    : string.Format(
+                        UiText.T("تم استلام {0} طلبات جديدة من Panda.", "{0} new Panda orders were received."),
+                        count),
+                Category = OrderReceivedNotificationCategory,
+                Severity = NotificationSeverity.Info,
+                CreatedAt = DateTime.Now
+            });
+        }
+
+        private void UpdateOrdersBadge()
+        {
+            if (OrdersBadgeBorder == null || OrdersBadgeText == null)
+                return;
+
+            var count = _unreadPendingCartIds.Count;
+            OrdersBadgeText.Text = count > 99 ? "99+" : count.ToString();
+            OrdersBadgeBorder.Visibility = count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private void Dashboard_Closed(object? sender, EventArgs e)
+        {
+            _pendingOrdersTimer.Stop();
+            _pendingOrdersTimer.Tick -= PendingOrdersTimer_Tick;
+            Closed -= Dashboard_Closed;
         }
 
         private async void Accounting_Click(object sender, RoutedEventArgs e)

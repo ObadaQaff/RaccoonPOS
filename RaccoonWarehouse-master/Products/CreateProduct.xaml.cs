@@ -5,6 +5,7 @@ using RaccoonWarehouse.Application.Service.Products;
 using RaccoonWarehouse.Application.Service.ProductUnits;
 using RaccoonWarehouse.Application.Service.SubCategories;
 using RaccoonWarehouse.Application.Service.Units;
+using RaccoonWarehouse.Common;
 using RaccoonWarehouse.Helpers.Localization;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Products.DTOs;
@@ -32,6 +33,7 @@ namespace RaccoonWarehouse.Products
         private bool _isLoaded;
         private int? _preferredSubCategoryId;
         private List<UnitLookupItem> _unitLookupItems = new();
+        public string? InitialItemCode { get; set; }
 
         public CreateProduct(
             IProductService productService,
@@ -54,6 +56,8 @@ namespace RaccoonWarehouse.Products
 
                 _isLoaded = true;
                 await LoadDataAsync();
+                if (!string.IsNullOrWhiteSpace(InitialItemCode))
+                    ITEMCODE.Text = InitialItemCode;
             };
         }
 
@@ -300,13 +304,9 @@ namespace RaccoonWarehouse.Products
                     UpdatedDate = DateTime.Now
                 };
 
-                if (dto.TaxExempt != true)
+                foreach (var unit in _productUnits)
                 {
-                    foreach (var unit in _productUnits)
-                    {
-                        unit.UnTaxedPrice = unit.SalePrice;
-                        unit.SalePrice = unit.SalePrice + (unit.SalePrice * (dto.TaxRate ?? 0m) / 100m);
-                    }
+                    unit.UnTaxedPrice = unit.SalePrice;
                 }
 
                 var result = await _productService.CreateAsync(dto);
@@ -326,6 +326,7 @@ namespace RaccoonWarehouse.Products
                 }
 
                 MessageBox.Show(UiText.T("تم إنشاء المنتج والوحدات بنجاح!", "The product and units were created successfully!"), UiText.T("نجاح", "Success"), MessageBoxButton.OK, MessageBoxImage.Information);
+                CatalogRefreshNotifier.NotifyCatalogChanged();
                 ClearForm();
             }
             catch (Exception ex)

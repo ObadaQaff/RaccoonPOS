@@ -44,15 +44,10 @@ namespace RaccoonWarehouse.Application.Service.Products
 
         public async Task<Result> ApplyTaxToProductUnitsAsync(Product product)
         {
-            // إذا TaxExempt => ما في ضريبة
-            /*if (product.TaxExempt)
-                return Result.Ok("Product is tax exempt. No changes applied.");
-*/
             var taxRate = product.TaxRate ?? 0m;
             if (taxRate < 0)
                 return Result.Fail("TaxRate cannot be negative.");
 
-            // جيب كل الوحدات للمنتج
             var unitRepo = _uow.GetRepository<ProductUnit>();
 
             var units = await unitRepo
@@ -65,19 +60,14 @@ namespace RaccoonWarehouse.Application.Service.Products
 
             foreach (var u in units)
             {
-                // ✅ لازم يكون عندك UnTaxedPrice (سعر بدون ضريبة)
-                // إذا مش موجود عندك بالـ entity، ضيفه.
-                var basePrice = u.UnTaxedPrice;
-
-                // احسب السعر مع الضريبة
-                u.SalePrice = basePrice + (basePrice * taxRate / 100m);
+                u.UnTaxedPrice = u.SalePrice;
                 u.UpdatedDate = DateTime.Now;
 
                 await unitRepo.UpdateAsync(u);
             }
 
             await _uow.CommitAsync();
-            return Result.Ok("Tax applied to all product units successfully.");
+            return Result.Ok("Product tax settings saved without changing unit sale prices.");
         }
         public async Task<Result> UpdateProductWithUnitsAsync(
             ProductWriteDto productDto,
@@ -136,21 +126,9 @@ namespace RaccoonWarehouse.Application.Service.Products
             {
                 await unitRepo.DeleteAsync(unit.Id);
             }
-            if (product.TaxExempt == false)
+            foreach (var unit in unitsDto)
             {
-                if (product.TaxRate > 0)
-                {
-                    decimal taxRate = product.TaxRate.Value;
-                    foreach (var unit in unitsDto)
-                    {
-
-                            unit.UnTaxedPrice = unit.SalePrice; 
-                            var basePrice = unit.UnTaxedPrice;
-                            unit.SalePrice = basePrice + (basePrice * taxRate / 100m);
-                            unit.UpdatedDate = DateTime.Now;
-                        
-                    }
-                }
+                unit.UnTaxedPrice = unit.SalePrice;
             }
 
             // 2.b Update existing + Add new

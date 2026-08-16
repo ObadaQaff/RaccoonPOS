@@ -261,11 +261,26 @@
                     <!-- اسم الزبون -->
                     <StackPanel Margin="6" Grid.Column="3">
                         <TextBlock Text="اسم الزبون" FontSize="14" FontWeight="SemiBold"/>
-                        <ComboBox x:Name="CustomerComboBox"
-                                  Style="{StaticResource ComboBoxStyleModern}"
-                                  Loaded="CustomerComboBox_Loaded"
-                                  PreviewTextInput="CustomerComboBox_PreviewTextInput"
-                                  KeyUp="CustomerComboBox_KeyUp"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="40"/>
+                            </Grid.ColumnDefinitions>
+                            <ComboBox x:Name="CustomerComboBox"
+                                      Style="{StaticResource ComboBoxStyleModern}"
+                                      Loaded="CustomerComboBox_Loaded"
+                                      PreviewTextInput="CustomerComboBox_PreviewTextInput"
+                                      KeyUp="CustomerComboBox_KeyUp"/>
+                            <Button Grid.Column="1"
+                                    Width="34"
+                                    Height="34"
+                                    Margin="4,0,0,0"
+                                    VerticalAlignment="Center"
+                                    ToolTip="إضافة زبون جديد"
+                                    Click="AddCustomerBtn_Click">
+                                <TextBlock Text="+" FontSize="18" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Button>
+                        </Grid>
                     </StackPanel>
                 </Grid>
 
@@ -287,10 +302,12 @@
                         <StackPanel Margin="6" Grid.Column="0">
                             <TextBlock Text="طريقة الدفع" FontSize="14" FontWeight="SemiBold"/>
                             <ComboBox x:Name="PaymentMethodComboBox"
-                                      Style="{StaticResource ComboBoxStyleModern}">
+                                      Style="{StaticResource ComboBoxStyleModern}"
+                                      SelectionChanged="PaymentMethodComboBox_SelectionChanged">
                                 <ComboBoxItem Tag="1">نقدي</ComboBoxItem>
                                 <ComboBoxItem Tag="7">فيزا</ComboBoxItem>
                                 <ComboBoxItem Tag="6">ماستر</ComboBoxItem>
+                                <ComboBoxItem Tag="4">شيك</ComboBoxItem>
                                 <ComboBoxItem Tag="2">آجل</ComboBoxItem>
                             </ComboBox>
                         </StackPanel>
@@ -325,7 +342,15 @@
                 <!-- ================== PRODUCT INPUT (مثل StockOut) ================== -->
                 <StackPanel Margin="10" Orientation="Vertical" Background="#E8F0F7" >
 
-                    <TextBlock Text="إضافة منتج" Style="{StaticResource HeaderText}"/>
+                    <DockPanel>
+                        <Button Content="إضافة صنف"
+                                DockPanel.Dock="Left"
+                                Style="{StaticResource PrimaryButtonStyle}"
+                                Width="110"
+                                Margin="10,0,0,0"
+                                Click="CreateProductBtn_Click"/>
+                        <TextBlock Text="إضافة منتج" Style="{StaticResource HeaderText}"/>
+                    </DockPanel>
 
                     <Grid Margin="0,10,0,0">
                         <Grid.ColumnDefinitions>
@@ -355,7 +380,11 @@
                                    DisplayMemberPath="Name"
                                    SelectedValuePath="Id"
                                    SelectionChanged="ProductBox_SelectionChanged"
-                                   TextSearch.TextPath="Name"
+                                   PreviewMouseLeftButtonUp="ProductBox_PreviewMouseLeftButtonUp"
+                                   PreviewKeyDown="ProductBox_PreviewKeyDown"
+                                   PreviewTextInput="ProductBox_PreviewTextInput"
+                                   KeyUp="ProductBox_KeyUp"
+                                   IsTextSearchEnabled="False"
                                    IsEditable="True" />
 
                                 <!-- Search Button -->
@@ -392,10 +421,10 @@
                         <StackPanel Grid.Column="1" Margin="6">
                             <TextBlock Text="الوحدة"/>
                             <ComboBox x:Name="UnitBox"
-                                 Style="{StaticResource ComboBoxStyleModern}"
-                                 DisplayMemberPath="Unit.Name"
+                                 DisplayMemberPath="DisplayName"
                                  SelectedValuePath="Id"
                                  SelectionChanged="UnitBox_SelectionChanged"
+                                 IsEditable="False"
                                  Height="39"/>
                         </StackPanel>
 
@@ -450,7 +479,7 @@
                     <DataGrid x:Name="ProductsGrid"
                               AutoGenerateColumns="False"
                               CanUserAddRows="False"
-                              IsReadOnly="True"
+                              IsReadOnly="False"
                               Style="{StaticResource MinimalDataGrid}"
                               Margin="0,10,0,0">
 
@@ -461,22 +490,44 @@
                                                 Width="180"/>
 
                             <DataGridTextColumn Header="الوحدة"
-                                                Binding="{Binding UnitName}"
-                                                Width="100"/>
+                                                Width="120"
+                                                IsReadOnly="True"
+                                                Binding="{Binding UnitNameSnapshot, TargetNullValue=---}"/>
 
-                            <DataGridTextColumn Header="الكمية"
-                                                Binding="{Binding Quantity}"
-                                                Width="80"/>
+                            <DataGridTemplateColumn Header="الكمية" Width="80">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBox Text="{Binding Quantity, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                 HorizontalContentAlignment="Center"
+                                                 Tag="Quantity"
+                                                 LostFocus="LineNumberBox_LostFocus"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
 
                             <!-- 🔹 Purchase Cost (UnitCost) -->
-                            <DataGridTextColumn Header="سعر الشراء"
-                    Binding="{Binding UnitCost}"
-                    Width="100"/>
+                            <DataGridTemplateColumn Header="سعر الشراء" Width="100">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBox Text="{Binding UnitCost, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                 HorizontalContentAlignment="Center"
+                                                 Tag="UnitCost"
+                                                 LostFocus="LineNumberBox_LostFocus"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
 
                             <!-- 🔹 Sale Price (UnitPrice) -->
-                            <DataGridTextColumn Header="سعر البيع"
-                                Binding="{Binding UnitPrice}"
-                                Width="100"/>
+                            <DataGridTemplateColumn Header="سعر البيع" Width="100">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBox Text="{Binding UnitPrice, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                 HorizontalContentAlignment="Center"
+                                                 Tag="UnitPrice"
+                                                 LostFocus="LineNumberBox_LostFocus"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
 
                             <!-- 🔹 SubTotal -->
                             <DataGridTextColumn Header="قبل الضريبة"
@@ -549,6 +600,15 @@
                             <fa:ImageAwesome Icon="Save" Width="18" Height="18"/>
                             <TextBlock Text="حفظ" Margin="8,0,0,0"/>
                         </StackPanel>
+                    </Button>
+
+                    <Button x:Name="ChecksBtn"
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            Width="150"
+                            Margin="10,0,0,0"
+                            Visibility="Collapsed"
+                            Click="ChecksBtn_Click">
+                        <TextBlock Text="الشيكات" Margin="8,0,0,0"/>
                     </Button>
 
                     <Button x:Name="SearchInvoiceBtn"

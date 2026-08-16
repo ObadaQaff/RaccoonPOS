@@ -1,68 +1,31 @@
-using RaccoonWarehouse.Application.Service.Accounting;
-using RaccoonWarehouse.Application.Service.Settings;
-using RaccoonWarehouse.Common.Loading;
+using RaccoonWarehouse.Accounting.ViewModels;
 using RaccoonWarehouse.Helpers.Localization;
-using System;
-using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
 
 namespace RaccoonWarehouse.Accounting
 {
     public partial class AccountsTable : Window
     {
-        private readonly IAccountingService _accountingService;
-        private readonly IAccountingFeatureService _featureService;
-        private readonly ILoadingService _loadingService;
+        private readonly AccountTreeViewModel _viewModel;
 
-        public AccountsTable(IAccountingService accountingService, IAccountingFeatureService featureService, ILoadingService loadingService)
+        public AccountsTable(AccountTreeViewModel viewModel)
         {
-            _accountingService = accountingService;
-            _featureService = featureService;
-            _loadingService = loadingService;
+            _viewModel = viewModel;
             InitializeComponent();
             UiText.ApplyWindow(this);
-            _ = LoadAccountsAsync();
-        }
-
-        private async Task LoadAccountsAsync()
-        {
-            try
-            {
-                if (!await _featureService.IsEnabledAsync())
-                {
-                    MessageBox.Show(UiText.T("نظام المحاسبة متوقف حالياً.", "The accounting system is currently disabled."));
-                    Close();
-                    return;
-                }
-
-                _loadingService.Show();
-                var result = await _accountingService.GetAccountsAsync(activeOnly: false);
-                if (!result.Success)
-                {
-                    MessageBox.Show(result.Message ?? UiText.T("فشل تحميل الحسابات.", "Failed to load accounts."));
-                    return;
-                }
-
-                AccountsGrid.ItemsSource = result.Data;
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"{UiText.T("حدث خطأ غير متوقع أثناء تحميل الحسابات", "An unexpected error occurred while loading accounts")}: {ex.Message}");
-            }
-            finally
-            {
-                _loadingService.Hide();
-            }
-        }
-
-        private async void RefreshBtn_Click(object sender, RoutedEventArgs e)
-        {
-            await LoadAccountsAsync();
+            DataContext = _viewModel;
+            Loaded += async (_, _) => await _viewModel.RefreshAsync();
         }
 
         private void BackBtn_Click(object sender, RoutedEventArgs e)
         {
             Close();
+        }
+
+        private void AccountsTree_OnSelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
+        {
+            _viewModel.SelectedAccount = e.NewValue as AccountTreeNode;
         }
     }
 }

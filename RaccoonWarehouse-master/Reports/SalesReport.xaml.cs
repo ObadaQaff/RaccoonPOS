@@ -1,5 +1,6 @@
 ﻿using RaccoonWarehouse.Application.Service.Invoices;
 using RaccoonWarehouse.Application.Service.Users;
+using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Reports.Financial.Filters;
 using RaccoonWarehouse.Domain.Reports.Sales.Dtos;
@@ -19,76 +20,115 @@ namespace RaccoonWarehouse.Reports
     {
         private readonly IInvoiceService _invoiceService;   // ✅ real invoices query
         private readonly IUserService _userService;
+        private readonly ILoadingService _loadingService;
 
         private List<UserReadDto> _customers = new();
         private List<UserReadDto> _cashiers = new();
         private List<SalesReportRowDto> _currentRows = new();
 
-        public SalesReport(IInvoiceService invoiceService, IUserService userService)
+        public SalesReport(
+            IInvoiceService invoiceService,
+            IUserService userService,
+            ILoadingService loadingService)
         {
             InitializeComponent();
             UiText.ApplyWindow(this);
 
             _invoiceService = invoiceService;
             _userService = userService;
+            _loadingService = loadingService;
 
             Loaded += SalesReport_Loaded;
         }
 
         private async void SalesReport_Loaded(object sender, RoutedEventArgs e)
         {
-            // ✅ default date range
-            FromDatePicker.SelectedDate = DateTime.Today;
-            ToDatePicker.SelectedDate = DateTime.Today;
+            string? errorMessage = null;
 
-            // ✅ invoice type filter
-            // مهم: نخزن القيمة كـ enum داخل ComboBoxItem.Tag حتى ما نعتمد على string
-            InvoiceTypeComboBox.Items.Clear();
-            InvoiceTypeComboBox.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = UiText.T("الكل", "All"), Tag = (InvoiceType?)null });
-            InvoiceTypeComboBox.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = UiText.T("مبيعات", "Sales"), Tag = (InvoiceType?)InvoiceType.Sale });
-            InvoiceTypeComboBox.Items.Add(new System.Windows.Controls.ComboBoxItem { Content = UiText.T("مرتجع", "Return"), Tag = (InvoiceType?)InvoiceType.Return });
-            InvoiceTypeComboBox.SelectedIndex = 0;
+            try
+            {
+                _loadingService.Show();
 
-            PosFilterComboBox.Items.Clear();
-            PosFilterComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("الكل", "All"), Tag = null });
-            PosFilterComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("فواتير POS فقط", "POS invoices only"), Tag = true });
-            PosFilterComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("فواتير غير POS", "Non-POS invoices"), Tag = false });
-            PosFilterComboBox.SelectedIndex = 0;
+                InvoiceTypeComboBox.Items.Clear();
+                InvoiceTypeComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("الكل", "All"), Tag = (InvoiceType?)null });
+                InvoiceTypeComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("مبيعات", "Sales"), Tag = (InvoiceType?)InvoiceType.Sale });
+                InvoiceTypeComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("مرتجع", "Return"), Tag = (InvoiceType?)InvoiceType.Return });
+                InvoiceTypeComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("طلبات API", "Endpoint orders"), Tag = (InvoiceType?)InvoiceType.EndpointOrder });
+                InvoiceTypeComboBox.SelectedIndex = 0;
 
-            // ✅ load report users
-            var usersRes = await _userService.GetAllAsync();
-            var allUsers = usersRes.Data ?? new List<UserReadDto>();
+                PosFilterComboBox.Items.Clear();
+                PosFilterComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("الكل", "All"), Tag = null });
+                PosFilterComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("فواتير POS فقط", "POS invoices only"), Tag = true });
+                PosFilterComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("فواتير غير POS", "Non-POS invoices"), Tag = false });
+                PosFilterComboBox.SelectedIndex = 0;
 
-            _customers = allUsers
-                .Where(x => x.Role == UserRole.Customer)
-                .OrderBy(x => x.Name)
-                .ToList();
+                var rangeResult = await _invoiceService.GetSalesReportDateRangeAsync();
+                if (!rangeResult.Success)
+                    errorMessage = rangeResult.Message;
 
-            _cashiers = allUsers
-                .Where(x => x.Role == UserRole.Casher)
-                .OrderBy(x => x.Name)
-                .ToList();
+                FromDatePicker.SelectedDate = rangeResult.Success
+                    ? rangeResult.Data.from?.Date ?? DateTime.Today
+                    : DateTime.Today;
+                ToDatePicker.SelectedDate = rangeResult.Success
+                    ? rangeResult.Data.to?.Date ?? DateTime.Today
+                    : DateTime.Today;
 
-            var customerList = new List<UserReadDto>();
-            customerList.Add(new UserReadDto { Id = 0, Name = UiText.T("الكل", "All") });
-            customerList.AddRange(_customers);
+                var usersRes = await _userService.GetAllAsync();
+                if (!usersRes.Success)
+                    errorMessage ??= usersRes.Message;
 
-            var cashierList = new List<UserReadDto>();
-            cashierList.Add(new UserReadDto { Id = 0, Name = UiText.T("الكل", "All") });
-            cashierList.AddRange(_cashiers);
+                var allUsers = usersRes.Data ?? new List<UserReadDto>();
+                _customers = allUsers
+                    .Where(x => x.Role == UserRole.Customer)
+                    .OrderBy(x => x.Name)
+                    .ToList();
+                _cashiers = allUsers
+                    .Where(x => x.Role == UserRole.Casher)
+                    .OrderBy(x => x.Name)
+                    .ToList();
 
-            CustomerComboBox.ItemsSource = customerList;
-            CustomerComboBox.SelectedValue = 0;
-            CashierComboBox.ItemsSource = cashierList;
-            CashierComboBox.SelectedValue = 0;
-            UiText.ApplyTranslations(this);
+                CustomerComboBox.ItemsSource = new List<UserReadDto>
+                {
+                    new() { Id = 0, Name = UiText.T("الكل", "All") }
+                }.Concat(_customers).ToList();
+                CustomerComboBox.SelectedValue = 0;
 
-            // ✅ init cards
-            ClearSummary();
+                CashierComboBox.ItemsSource = new List<UserReadDto>
+                {
+                    new() { Id = 0, Name = UiText.T("الكل", "All") }
+                }.Concat(_cashiers).ToList();
+                CashierComboBox.SelectedValue = 0;
+
+                UiText.ApplyTranslations(this);
+                ClearSummary();
+            }
+            catch (Exception ex)
+            {
+                errorMessage = $"{UiText.T("تعذر تهيئة تقرير المبيعات", "Failed to initialize the sales report")}: {ex.Message}";
+            }
+            finally
+            {
+                _loadingService.Hide();
+            }
+
+            if (!string.IsNullOrWhiteSpace(errorMessage))
+            {
+                MessageBox.Show(errorMessage, UiText.T("خطأ", "Error"));
+                return;
+            }
+
+            await LoadReportAsync();
         }
 
         private async void GenerateReportBtn_Click(object sender, RoutedEventArgs e)
         {
+            await LoadReportAsync();
+        }
+
+        private async System.Threading.Tasks.Task LoadReportAsync()
+        {
+            string? errorMessage = null;
+
             try
             {
                 if (FromDatePicker.SelectedDate == null || ToDatePicker.SelectedDate == null)
@@ -96,6 +136,8 @@ namespace RaccoonWarehouse.Reports
                     MessageBox.Show(UiText.T("يرجى اختيار تاريخ البداية والنهاية.", "Please choose the start and end dates."));
                     return;
                 }
+
+                _loadingService.Show();
 
                 var from = FromDatePicker.SelectedDate.Value.Date;
                 var to = ToDatePicker.SelectedDate.Value.Date.AddDays(1).AddTicks(-1); // include full day
@@ -134,28 +176,28 @@ namespace RaccoonWarehouse.Reports
 
                 if (!res.Success)
                 {
-                    MessageBox.Show(res.Message ?? UiText.T("فشل تحميل التقرير", "Failed to load the report."));
-                    return;
+                    errorMessage = res.Message ?? UiText.T("فشل تحميل التقرير", "Failed to load the report.");
                 }
-
-                // ✅ res.Data هو (summary, rows)
-                var rows = res.Data.rows ?? new List<SalesReportRowDto>();
-                _currentRows = rows;
-                SalesReportGrid.ItemsSource = rows;
-
-                // لو عندك Summary Cards
-                FillSummary(rows); // أو FillSummary(res.Data.summary) حسب طريقتك
-                if (!res.Success)
+                else
                 {
-                    MessageBox.Show(res.Message ?? UiText.T("فشل تحميل التقرير.", "Failed to load the report."));
-                    return;
+                    var rows = res.Data.rows ?? new List<SalesReportRowDto>();
+                    _currentRows = rows;
+                    SalesReportGrid.ItemsSource = rows;
+                    FillSummary(rows);
                 }
-
-               
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"{UiText.T("خطأ", "Error")}: {ex.Message}");
+                errorMessage = $"{UiText.T("تعذر تحميل تقرير المبيعات", "Failed to load the sales report")}: {ex.Message}";
+            }
+            finally
+            {
+                _loadingService.Hide();
+            }
+
+            if (!string.IsNullOrWhiteSpace(errorMessage))
+            {
+                MessageBox.Show(errorMessage, UiText.T("خطأ", "Error"));
             }
         }
 
@@ -168,11 +210,22 @@ namespace RaccoonWarehouse.Reports
                        || t.Contains("مرت", StringComparison.OrdinalIgnoreCase);
             }
 
-            decimal totalSales = data.Where(x => !IsReturn(x)).Sum(x => x.SubTotal);
+            bool IsCountedSale(SalesReportRowDto x)
+            {
+                if (string.Equals(x.InvoiceType, InvoiceType.Sale.ToString(), StringComparison.OrdinalIgnoreCase))
+                    return true;
+
+                return string.Equals(x.InvoiceType, InvoiceType.EndpointOrder.ToString(), StringComparison.OrdinalIgnoreCase) &&
+                       (string.Equals(x.Status, InvoiceStatus.Completed.ToString(), StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(x.Status, InvoiceStatus.Posted.ToString(), StringComparison.OrdinalIgnoreCase));
+            }
+
+            var countedSales = data.Where(IsCountedSale).ToList();
+            decimal totalSales = countedSales.Sum(x => x.SubTotal);
             decimal totalReturns = data.Where(IsReturn).Sum(x => x.SubTotal);
-            decimal totalTax = data.Where(x => !IsReturn(x)).Sum(x => x.TotalTax);
-            decimal totalDiscount = data.Where(x => !IsReturn(x)).Sum(x => x.Discount);
-            decimal totalCogs = data.Where(x => !IsReturn(x)).Sum(x => x.Cogs);
+            decimal totalTax = countedSales.Sum(x => x.TotalTax);
+            decimal totalDiscount = countedSales.Sum(x => x.Discount);
+            decimal totalCogs = countedSales.Sum(x => x.Cogs);
 
             decimal netSales = (totalSales - totalReturns) - totalDiscount;
             decimal grossProfit = netSales - totalCogs;

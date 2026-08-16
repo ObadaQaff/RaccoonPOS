@@ -12,6 +12,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
@@ -46,13 +47,79 @@
             </DockPanel>
         </Border>
 
+        <Border Grid.Row="1"
+                Style="{StaticResource AppCardBorderStyle}"
+                Padding="14"
+                Margin="0,0,0,12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="2*"/>
+                    <ColumnDefinition Width="1.2*"/>
+                    <ColumnDefinition Width="1.2*"/>
+                    <ColumnDefinition Width="1.2*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                    <TextBlock Text="&#x627;&#x644;&#x628;&#x62D;&#x62B;" FontWeight="SemiBold" Margin="0,0,0,6"/>
+                    <TextBox x:Name="SearchTextBox"
+                             Height="38"
+                             Padding="10,6"
+                             Style="{StaticResource AppSearchTextBoxStyle}"
+                             TextChanged="SearchTextBox_TextChanged"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Margin="0,0,10,0">
+                    <TextBlock Text="&#x627;&#x644;&#x62D;&#x627;&#x644;&#x629;" FontWeight="SemiBold" Margin="0,0,0,6"/>
+                    <ComboBox x:Name="StatusFilterComboBox"
+                              Height="38"
+                              SelectionChanged="StatusFilterComboBox_SelectionChanged"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="2" Margin="0,0,10,0">
+                    <TextBlock Text="&#x645;&#x646; &#x62A;&#x627;&#x631;&#x64A;&#x62E;" FontWeight="SemiBold" Margin="0,0,0,6"/>
+                    <DatePicker x:Name="FromDatePicker" Height="38"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="3" Margin="0,0,10,0">
+                    <TextBlock Text="&#x625;&#x644;&#x649; &#x62A;&#x627;&#x631;&#x64A;&#x62E;" FontWeight="SemiBold" Margin="0,0,0,6"/>
+                    <DatePicker x:Name="ToDatePicker" Height="38"/>
+                </StackPanel>
+
+                <Button Grid.Column="4"
+                        MinWidth="105"
+                        Height="38"
+                        Margin="0,22,10,0"
+                        Style="{StaticResource PrimaryButtonStyle}"
+                        Click="ApplyFilters_Click">
+                    <StackPanel Orientation="Horizontal">
+                        <fa:ImageAwesome Icon="Search" Width="15" Height="15"
+                                         Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                        <TextBlock Text=" &#x628;&#x62D;&#x62B;" Margin="7,0,0,0"/>
+                    </StackPanel>
+                </Button>
+
+                <Button Grid.Column="5"
+                        MinWidth="115"
+                        Height="38"
+                        Margin="0,22,0,0"
+                        Click="ClearFilters_Click">
+                    <StackPanel Orientation="Horizontal">
+                        <fa:ImageAwesome Icon="Remove" Width="15" Height="15"/>
+                        <TextBlock Text=" &#x645;&#x633;&#x62D; &#x627;&#x644;&#x641;&#x644;&#x627;&#x62A;&#x631;" Margin="7,0,0,0"/>
+                    </StackPanel>
+                </Button>
+            </Grid>
+        </Border>
+
         <TextBlock x:Name="StatusText"
-                   Grid.Row="1"
+                   Grid.Row="2"
                    Margin="4,0,4,12"
                    FontSize="15"
                    Foreground="#657078"/>
 
-        <Border Grid.Row="2"
+        <Border Grid.Row="3"
                 Style="{StaticResource AppCardBorderStyle}"
                 Padding="14">
             <DataGrid x:Name="OrdersGrid"

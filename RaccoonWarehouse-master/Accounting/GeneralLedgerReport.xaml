@@ -103,7 +103,11 @@
                 </Border>
             </Grid>
             <Border Grid.Row="2" Margin="0,18,0,0" Style="{StaticResource AppCardBorderStyle}" Padding="16">
-                <DataGrid x:Name="LedgerGrid" Style="{StaticResource AppModernDataGridStyle}" AutoGenerateColumns="False" IsReadOnly="True">
+                <DataGrid x:Name="LedgerGrid"
+                          Style="{StaticResource AppModernDataGridStyle}"
+                          AutoGenerateColumns="False"
+                          IsReadOnly="True"
+                          MouseDoubleClick="LedgerGrid_MouseDoubleClick">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="التاريخ" Binding="{Binding EntryDate, StringFormat=yyyy-MM-dd}" Width="130"/>
                         <DataGridTextColumn Header="رقم القيد" Binding="{Binding EntryNumber}" Width="170"/>
