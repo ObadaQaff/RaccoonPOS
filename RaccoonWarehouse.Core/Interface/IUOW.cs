@@ -20,6 +20,13 @@ namespace RaccoonWarehouse.Core.Interface
         IGenericRepository<CashierSession> CashierSessions { get; }
         IAccountRepository Accounts { get; }
         IGenericRepository<JournalEntry> JournalEntries { get; }
-        Task<int> CommitAsync();
+		Task<int> CommitAsync();
+        Task<IUnitOfWorkTransaction> BeginTransactionAsync();
 	}
+
+    public interface IUnitOfWorkTransaction : IAsyncDisposable
+    {
+        Task CommitAsync();
+        Task RollbackAsync();
+    }
 }

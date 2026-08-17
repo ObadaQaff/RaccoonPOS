@@ -25,6 +25,7 @@ namespace RaccoonWarehouse.Navigation.Modules
                                 new ModuleActionDefinition("Accounting.Accounts", "دليل الحسابات"),
                                 new ModuleActionDefinition("Accounting.JournalEntry.Create", "قيد يومية يدوي"),
                                 new ModuleActionDefinition("Accounting.JournalEntries", "سجل القيود"),
+                                new ModuleActionDefinition("Accounting.Operations", UiText.T("عمليات المحاسبة", "Accounting Operations")),
                                 new ModuleActionDefinition("Accounting.TrialBalance", "ميزان المراجعة"),
                                 new ModuleActionDefinition("Accounting.GeneralLedger", "دفتر الأستاذ"),
                                 new ModuleActionDefinition("Accounting.BalanceSheet", "الميزانية العمومية")

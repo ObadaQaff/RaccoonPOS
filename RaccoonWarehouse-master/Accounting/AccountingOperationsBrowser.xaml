@@ -1,0 +1,83 @@
+<Window x:Class="RaccoonWarehouse.Accounting.AccountingOperationsBrowser"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:fa="http://schemas.fontawesome.io/icons/"
+        Title="Accounting Operations"
+        Height="760"
+        Width="1380"
+        WindowStartupLocation="CenterScreen"
+        FlowDirection="RightToLeft"
+        Background="{StaticResource AppPageBackgroundBrush}">
+    <Grid Background="{StaticResource AppPageBackgroundBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="128"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" CornerRadius="0,0,24,24" Background="{StaticResource AppDashboardHeroBrush}">
+            <Grid Margin="28,12,28,22">
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock x:Name="TitleText" Text="Accounting Operations" FontSize="34" FontWeight="Bold" Foreground="White"/>
+                    <TextBlock x:Name="SubtitleText" Margin="0,4,0,0" FontSize="13" Foreground="#D6E7E2" Text="Monitor accounting work created by sales and retry failures safely."/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="1" Margin="24,-30,24,24">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <Border Grid.Row="0" Style="{StaticResource AppCardBorderStyle}" Padding="14,10">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
+                        <Button Width="130" Height="40" Style="{StaticResource AppHeroButtonStyle}" Click="RefreshBtn_Click">
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <fa:ImageAwesome Icon="Refresh" Width="15" Height="15" Margin="0,0,8,0" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                                <TextBlock x:Name="RefreshText" Text="Refresh"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Width="145" Height="40" Margin="10,0,0,0" Style="{StaticResource AppHeroButtonStyle}" Click="ProcessNowBtn_Click">
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <fa:ImageAwesome Icon="Play" Width="15" Height="15" Margin="0,0,8,0" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                                <TextBlock x:Name="ProcessNowText" Text="Process now"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Width="150" Height="40" Margin="10,0,0,0" Style="{StaticResource AppSecondaryButtonStyle}" Click="RetrySelectedBtn_Click">
+                            <TextBlock x:Name="RetrySelectedText" Text="Retry selected"/>
+                        </Button>
+                        <Button Width="150" Height="40" Margin="10,0,0,0" Style="{StaticResource AppSecondaryButtonStyle}" Click="RetryFailedBtn_Click">
+                            <TextBlock x:Name="RetryFailedText" Text="Retry failed"/>
+                        </Button>
+                        <Button Width="110" Height="40" Margin="10,0,0,0" Style="{StaticResource AppSecondaryButtonStyle}" Click="CloseBtn_Click">
+                            <TextBlock x:Name="CloseText" Text="Close"/>
+                        </Button>
+                    </StackPanel>
+                    <TextBlock x:Name="SummaryText" VerticalAlignment="Center" FontSize="16" FontWeight="SemiBold"/>
+                </DockPanel>
+            </Border>
+
+            <Border Grid.Row="1" Margin="0,18,0,0" Style="{StaticResource AppCardBorderStyle}" Padding="16">
+                <DataGrid x:Name="OperationsGrid"
+                          Style="{StaticResource AppModernDataGridStyle}"
+                          AutoGenerateColumns="False"
+                          IsReadOnly="True"
+                          SelectionMode="Single"
+                          ScrollViewer.VerticalScrollBarVisibility="Auto"
+                          ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Status" Binding="{Binding StatusLabel}" Width="130"/>
+                        <DataGridTextColumn Header="Reference" Binding="{Binding ReferenceNumber}" Width="190"/>
+                        <DataGridTextColumn Header="Type" Binding="{Binding OperationType}" Width="230"/>
+                        <DataGridTextColumn Header="Reference ID" Binding="{Binding ReferenceId}" Width="110"/>
+                        <DataGridTextColumn Header="Retries" Binding="{Binding RetryCount}" Width="80"/>
+                        <DataGridTextColumn Header="Last attempt" Binding="{Binding LastAttemptDate, StringFormat=yyyy-MM-dd HH:mm:ss}" Width="170"/>
+                        <DataGridTextColumn Header="Updated" Binding="{Binding UpdatedDate, StringFormat=yyyy-MM-dd HH:mm:ss}" Width="170"/>
+                        <DataGridTextColumn Header="Error" Binding="{Binding LastError}" Width="*"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>

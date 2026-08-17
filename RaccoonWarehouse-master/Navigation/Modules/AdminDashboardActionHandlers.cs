@@ -154,6 +154,7 @@ namespace RaccoonWarehouse.Navigation.Modules
                 "Accounting.Accounts" or
                 "Accounting.JournalEntry.Create" or
                 "Accounting.JournalEntries" or
+                "Accounting.Operations" or
                 "Accounting.TrialBalance" or
                 "Accounting.GeneralLedger" or
                 "Accounting.BalanceSheet" or
@@ -176,6 +177,9 @@ namespace RaccoonWarehouse.Navigation.Modules
                     break;
                 case "Accounting.JournalEntries":
                     WindowManager.Show<JournalEntriesBrowser>(WindowSizeType.LargeRectangle);
+                    break;
+                case "Accounting.Operations":
+                    WindowManager.Show<AccountingOperationsBrowser>(WindowSizeType.LargeRectangle);
                     break;
                 case "Accounting.TrialBalance":
                     context.OpenReportWindow(() => WindowManager.Show<TrialBalanceReport>(WindowSizeType.LargeRectangle));

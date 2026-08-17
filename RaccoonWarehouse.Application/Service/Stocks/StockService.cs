@@ -2,6 +2,7 @@ using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using RaccoonWarehouse.Application.Service.Accounting;
 using RaccoonWarehouse.Application.Service.Generic;
+using RaccoonWarehouse.Application.Service.Sales;
 using RaccoonWarehouse.Core.Common;
 using RaccoonWarehouse.Core.Interface;
 using RaccoonWarehouse.Data;
@@ -17,6 +18,7 @@ using RaccoonWarehouse.Domain.StockTransactions;
 using RaccoonWarehouse.Domain.Units;
 using RaccoonWarehouse.Domain.POS.DTOs;
 using RaccoonWarehouse.Domain.SubCategories.DTOs;
+using System.Diagnostics;
 
 namespace RaccoonWarehouse.Application.Service.Stocks
 {
@@ -141,6 +143,56 @@ namespace RaccoonWarehouse.Application.Service.Stocks
 
             var availableQuantity = factor > 0 ? totalBaseQuantity / factor : totalBaseQuantity;
             return Result<decimal>.Ok(Math.Max(availableQuantity, 0m));
+        }
+
+        public async Task<Result<List<StockAvailabilityDto>>> GetAvailableQuantitiesInUnitsAsync(
+            IEnumerable<StockAllocationRequestDto> requests)
+        {
+            var keys = requests?
+                .Where(x => x != null && x.ProductId > 0 && x.ProductUnitId > 0)
+                .Select(x => (x.ProductId, x.ProductUnitId))
+                .Distinct()
+                .ToList() ?? new List<(int ProductId, int ProductUnitId)>();
+
+            if (keys.Count == 0)
+                return Result<List<StockAvailabilityDto>>.Ok(new List<StockAvailabilityDto>());
+
+            var unitIds = keys.Select(x => x.ProductUnitId).ToList();
+            var productIds = keys.Select(x => x.ProductId).Distinct().ToList();
+            var unitRepo = _uow.GetRepository<ProductUnit>();
+            var lotRepo = _uow.GetRepository<StockLot>();
+
+            var factors = await unitRepo.GetAllAsQueryable()
+                .Where(unit => unitIds.Contains(unit.Id))
+                .Select(unit => new { unit.Id, unit.ProductId, unit.QuantityPerUnit })
+                .ToListAsync();
+
+            var totalsByProduct = await lotRepo.GetAllAsQueryable()
+                .Where(lot => productIds.Contains(lot.ProductId) &&
+                              lot.Status == BatchStatus.Active &&
+                              lot.RemainingBaseQuantity > 0 &&
+                              (!lot.ExpiryDate.HasValue || lot.ExpiryDate.Value >= DateTime.Today))
+                .GroupBy(lot => lot.ProductId)
+                .Select(group => new
+                {
+                    ProductId = group.Key,
+                    TotalBaseQuantity = group.Sum(lot => lot.RemainingBaseQuantity)
+                })
+                .ToDictionaryAsync(x => x.ProductId, x => x.TotalBaseQuantity);
+
+            var result = keys.Select(key =>
+            {
+                var factor = factors.FirstOrDefault(x => x.Id == key.ProductUnitId && x.ProductId == key.ProductId)?.QuantityPerUnit ?? 1m;
+                var totalBaseQuantity = totalsByProduct.TryGetValue(key.ProductId, out var total) ? total : 0m;
+                return new StockAvailabilityDto
+                {
+                    ProductId = key.ProductId,
+                    ProductUnitId = key.ProductUnitId,
+                    AvailableQuantity = Math.Max(totalBaseQuantity / (factor > 0 ? factor : 1m), 0m)
+                };
+            }).ToList();
+
+            return Result<List<StockAvailabilityDto>>.Ok(result);
         }
 
         public async Task<Result<StockLotUpdateDto>> UpdateBatchMetadataAsync(StockLotUpdateDto dto)
@@ -429,20 +481,40 @@ namespace RaccoonWarehouse.Application.Service.Stocks
             var simulatedRemaining = new Dictionary<int, decimal>();
             var allocations = new List<StockLotAllocationDto>();
 
+            var unitIds = items.Select(x => x.ProductUnitId).Distinct().ToList();
+            var productIds = items.Select(x => x.ProductId).Distinct().ToList();
+            var selectedUnits = await unitRepo.GetAllAsQueryable()
+                .Where(unit => unitIds.Contains(unit.Id))
+                .ToDictionaryAsync(unit => unit.Id);
+
+            var availableLots = await lotRepo.GetAllAsQueryable()
+                .Where(lot => productIds.Contains(lot.ProductId) &&
+                              lot.Status == BatchStatus.Active &&
+                              lot.RemainingBaseQuantity > 0 &&
+                              (!lot.ExpiryDate.HasValue || lot.ExpiryDate.Value >= DateTime.Today))
+                .OrderBy(lot => lot.ProductId)
+                .ThenBy(lot => lot.ExpiryDate == null ? 1 : 0)
+                .ThenBy(lot => lot.ExpiryDate)
+                .ThenBy(lot => lot.CreatedDate)
+                .ToListAsync();
+            var lotsByProduct = availableLots
+                .GroupBy(lot => lot.ProductId)
+                .ToDictionary(group => group.Key, group => group.ToList());
+
             foreach (var request in items)
             {
-                var selectedUnit = await unitRepo.GetAllAsQueryable()
-                    .FirstOrDefaultAsync(unit => unit.Id == request.ProductUnitId && unit.ProductId == request.ProductId);
+                selectedUnits.TryGetValue(request.ProductUnitId, out var selectedUnit);
 
-                if (selectedUnit == null)
+                if (selectedUnit == null || selectedUnit.ProductId != request.ProductId)
                 {
                     return Result<List<StockLotAllocationDto>>.Fail(
                         $"Product unit #{request.ProductUnitId} was not found for product #{request.ProductId}.");
                 }
 
                 var requestedFactor = selectedUnit.QuantityPerUnit > 0 ? selectedUnit.QuantityPerUnit : 1m;
-                var lots = await GetAvailableLotsQuery(lotRepo, request.ProductId)
-                    .ToListAsync();
+                var lots = lotsByProduct.TryGetValue(request.ProductId, out var productLots)
+                    ? productLots
+                    : new List<StockLot>();
                 var averagePurchasePrice = CalculateWeightedAverageUnitCost(lots, requestedFactor);
 
                 var remainingRequiredBase = request.Quantity * requestedFactor;
@@ -469,6 +541,7 @@ namespace RaccoonWarehouse.Application.Service.Stocks
 
                     allocations.Add(new StockLotAllocationDto
                     {
+                        RequestIndex = request.RequestIndex,
                         StockLotId = lot.Id,
                         ProductId = request.ProductId,
                         ProductUnitId = request.ProductUnitId,
@@ -661,6 +734,8 @@ namespace RaccoonWarehouse.Application.Service.Stocks
 
         public async Task<Result> PostMovementsAsync(IEnumerable<StockMovementPostDto> dtos)
         {
+            var totalTiming = Stopwatch.StartNew();
+            var stepTiming = Stopwatch.StartNew();
             var items = dtos?.ToList() ?? new List<StockMovementPostDto>();
             if (items.Count == 0)
                 return Result.Ok("No stock movements to post.");
@@ -687,6 +762,8 @@ namespace RaccoonWarehouse.Application.Service.Stocks
             if (errors.Count > 0)
                 return Result.Fail("Invalid stock movement.", errors.Distinct().ToList());
 
+            LogStockTiming("stock movement validation", totalTiming, stepTiming);
+
             var stockRepo = _uow.GetRepository<Stock>();
             var transactionRepo = _uow.GetRepository<StockTransaction>();
             var lotRepo = _uow.GetRepository<StockLot>();
@@ -695,6 +772,24 @@ namespace RaccoonWarehouse.Application.Service.Stocks
             var unitRepo = _uow.GetRepository<Unit>();
             var now = NowInJordan();
             var touchedKeys = new HashSet<(int ProductId, int ProductUnitId)>();
+            var outgoingProductIds = items
+                .Where(item => item.Quantity < 0)
+                .Select(item => item.ProductId)
+                .Distinct()
+                .ToList();
+            var outgoingLotQueryTiming = Stopwatch.StartNew();
+            var outgoingLots = outgoingProductIds.Count == 0
+                ? new List<StockLot>()
+                : await lotRepo.GetAllAsQueryable()
+                    .Where(lot => outgoingProductIds.Contains(lot.ProductId) &&
+                                  lot.Status == BatchStatus.Active &&
+                                  lot.RemainingBaseQuantity > 0 &&
+                                  (!lot.ExpiryDate.HasValue || lot.ExpiryDate.Value >= DateTime.Today))
+                    .ToListAsync();
+            LogStockTiming("outgoing stock lots batch query", totalTiming, outgoingLotQueryTiming);
+            var outgoingLotsByProduct = outgoingLots
+                .GroupBy(lot => lot.ProductId)
+                .ToDictionary(group => group.Key, group => group.ToList());
 
             foreach (var dto in items)
             {
@@ -752,8 +847,8 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                 {
                     var remainingToConsume = Math.Abs(dto.Quantity);
                     var requestedFactor = dto.QuantityPerUnitSnapshot > 0 ? dto.QuantityPerUnitSnapshot : 1m;
-                    var candidates = await GetAvailableLotsQuery(lotRepo, dto.ProductId, dto)
-                        .ToListAsync();
+                    outgoingLotsByProduct.TryGetValue(dto.ProductId, out var availableLots);
+                    var candidates = GetAvailableLots(availableLots ?? Enumerable.Empty<StockLot>(), dto).ToList();
                     var totalAvailableBeforeConsumption = candidates.Sum(x => x.RemainingBaseQuantity) / requestedFactor;
 
                     if (!candidates.Any())
@@ -797,7 +892,6 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                         }
 
                         lot.UpdatedDate = now;
-                        await lotRepo.UpdateAsync(lot);
 
                         await transactionRepo.AddAsync(new StockTransaction
                         {
@@ -838,10 +932,24 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                 }
             }
 
-            await _uow.CommitAsync();
+            LogStockTiming("stock lot and transaction preparation", totalTiming, stepTiming);
 
-            foreach (var key in touchedKeys)
-                await SyncStockSummaryAsync(stockRepo, lotRepo, key.ProductId, key.ProductUnitId, now);
+            var requiresInitialCommit = items.Any(item => item.Quantity > 0);
+            if (requiresInitialCommit)
+            {
+                await _uow.CommitAsync();
+                LogStockTiming("stock movement database save", totalTiming, stepTiming);
+            }
+            else
+            {
+                PosPerformanceLogger.Write(
+                    "stock movement initial database save skipped",
+                    0,
+                    totalTiming.ElapsedMilliseconds);
+            }
+
+            await SyncStockSummariesAsync(stockRepo, lotRepo, touchedKeys, now);
+            LogStockTiming("stock summary synchronization", totalTiming, stepTiming);
 
             var averageCostKeys = items
                 .Where(item => item.Quantity > 0 &&
@@ -852,9 +960,21 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                 .ToList();
             foreach (var key in averageCostKeys)
                 await UpdateProductUnitAverageCostAsync(productUnitRepo, lotRepo, key.ProductId, key.ProductUnitId, now);
+            LogStockTiming("product average cost synchronization", totalTiming, stepTiming);
 
             await _uow.CommitAsync();
+            LogStockTiming("stock final database save", totalTiming, stepTiming);
+            PosPerformanceLogger.Write("stock posting total", totalTiming.ElapsedMilliseconds, totalTiming.ElapsedMilliseconds);
             return Result.Ok("Stock movement posted successfully.");
+        }
+
+        private static void LogStockTiming(string step, Stopwatch totalTiming, Stopwatch stepTiming)
+        {
+            var stepMilliseconds = stepTiming.ElapsedMilliseconds;
+            var totalMilliseconds = totalTiming.ElapsedMilliseconds;
+            PosPerformanceLogger.Write(step, stepMilliseconds, totalMilliseconds);
+            Debug.WriteLine($"[POS timing] {step}: {stepMilliseconds} ms (total {totalMilliseconds} ms)");
+            stepTiming.Restart();
         }
 
         private static async Task UpdateProductUnitAverageCostAsync(
@@ -934,6 +1054,121 @@ namespace RaccoonWarehouse.Application.Service.Stocks
             }
 
             return query;
+        }
+
+        private static IEnumerable<StockLot> GetAvailableLots(
+            IEnumerable<StockLot> lots,
+            StockMovementPostDto? hint = null)
+        {
+            var availableLots = lots.Where(lot =>
+                lot.Status == BatchStatus.Active &&
+                lot.RemainingBaseQuantity > 0 &&
+                (!lot.ExpiryDate.HasValue || lot.ExpiryDate.Value >= DateTime.Today));
+
+            if (hint?.StockLotId is > 0)
+            {
+                return availableLots
+                    .OrderByDescending(lot => lot.Id == hint.StockLotId)
+                    .ThenBy(lot => lot.ExpiryDate == null ? 1 : 0)
+                    .ThenBy(lot => lot.ExpiryDate)
+                    .ThenBy(lot => lot.CreatedDate);
+            }
+
+            var hasHint = hint?.ExpiryDate.HasValue == true ||
+                          hint?.PurchasePrice.HasValue == true ||
+                          hint?.SalePrice.HasValue == true;
+
+            if (hasHint)
+            {
+                return availableLots
+                    .OrderByDescending(lot =>
+                        lot.ExpiryDate == hint!.ExpiryDate &&
+                        (!hint.PurchasePrice.HasValue || lot.PurchasePrice == hint.PurchasePrice.Value) &&
+                        (!hint.SalePrice.HasValue || lot.SalePrice == hint.SalePrice.Value))
+                    .ThenBy(lot => lot.ExpiryDate == null ? 1 : 0)
+                    .ThenBy(lot => lot.ExpiryDate)
+                    .ThenBy(lot => lot.CreatedDate);
+            }
+
+            return availableLots
+                .OrderBy(lot => lot.ExpiryDate == null ? 1 : 0)
+                .ThenBy(lot => lot.ExpiryDate)
+                .ThenBy(lot => lot.CreatedDate);
+        }
+
+        private static async Task SyncStockSummariesAsync(
+            IGenericRepository<Stock> stockRepo,
+            IGenericRepository<StockLot> lotRepo,
+            IEnumerable<(int ProductId, int ProductUnitId)> touchedKeys,
+            DateTime now)
+        {
+            var keys = touchedKeys
+                .Distinct()
+                .ToList();
+            if (keys.Count == 0)
+                return;
+
+            var productIds = keys.Select(key => key.ProductId).Distinct().ToList();
+            var productUnitIds = keys.Select(key => key.ProductUnitId).Distinct().ToList();
+            var today = now.Date;
+
+            var lotsQueryTiming = Stopwatch.StartNew();
+            var lots = await lotRepo.GetAllAsQueryable()
+                .Where(l => productIds.Contains(l.ProductId) &&
+                            productUnitIds.Contains(l.ProductUnitId) &&
+                            l.Status == BatchStatus.Active &&
+                            l.RemainingQuantity > 0 &&
+                            (!l.ExpiryDate.HasValue || l.ExpiryDate.Value >= today))
+                .ToListAsync();
+            LogStockTiming("stock summary lots query", lotsQueryTiming, lotsQueryTiming);
+
+            var stocksQueryTiming = Stopwatch.StartNew();
+            var stocks = await stockRepo.GetAllAsQueryable()
+                .Where(s => productIds.Contains(s.ProductId) &&
+                            productUnitIds.Contains(s.ProductUnitId))
+                .ToListAsync();
+            LogStockTiming("stock summary records query", stocksQueryTiming, stocksQueryTiming);
+
+            var recalculationTiming = Stopwatch.StartNew();
+            var lotsByKey = lots
+                .GroupBy(lot => (lot.ProductId, lot.ProductUnitId))
+                .ToDictionary(group => group.Key, group => group.ToList());
+            var stocksByKey = stocks.ToDictionary(stock => (stock.ProductId, stock.ProductUnitId));
+
+            foreach (var key in keys)
+            {
+                lotsByKey.TryGetValue(key, out var keyLots);
+                keyLots ??= new List<StockLot>();
+
+                var currentLot = keyLots
+                    .OrderByDescending(lot => lot.CreatedDate)
+                    .FirstOrDefault();
+                var summaryFactor = currentLot?.QuantityPerUnitSnapshot > 0
+                    ? currentLot.QuantityPerUnitSnapshot
+                    : 1m;
+                var weightedPurchasePrice = CalculateWeightedAverageUnitCost(keyLots, summaryFactor);
+
+                if (!stocksByKey.TryGetValue(key, out var stock))
+                {
+                    await stockRepo.AddAsync(new Stock
+                    {
+                        ProductId = key.ProductId,
+                        ProductUnitId = key.ProductUnitId,
+                        Quantity = keyLots.Sum(lot => lot.RemainingQuantity),
+                        PurchasePrice = weightedPurchasePrice,
+                        SalePrice = currentLot?.SalePrice ?? 0m,
+                        CreatedDate = now,
+                        UpdatedDate = now
+                    });
+                    continue;
+                }
+
+                stock.Quantity = keyLots.Sum(lot => lot.RemainingQuantity);
+                stock.PurchasePrice = weightedPurchasePrice;
+                stock.SalePrice = currentLot?.SalePrice ?? 0m;
+                stock.UpdatedDate = now;
+            }
+            LogStockTiming("stock summary in-memory recalculation", recalculationTiming, recalculationTiming);
         }
 
         private static async Task SyncStockSummaryAsync(
@@ -1115,6 +1350,7 @@ namespace RaccoonWarehouse.Application.Service.Stocks
         Task<Result> PostMovementsAsync(IEnumerable<StockMovementPostDto> dtos);
         Task<Result<List<StockLotAllocationDto>>> AllocateOutgoingAsync(IEnumerable<StockAllocationRequestDto> requests);
         Task<Result<decimal>> GetAvailableQuantityInUnitAsync(int productId, int productUnitId);
+        Task<Result<List<StockAvailabilityDto>>> GetAvailableQuantitiesInUnitsAsync(IEnumerable<StockAllocationRequestDto> requests);
         Task<Result<PagedResult<PosBrowseItemDto>>> GetPosBrowsePageAsync(int pageNumber, int pageSize, string? searchText, int? subCategoryId);
         Task<Result<List<SubCategoryReadDto>>> GetPosBrowseSubCategoriesAsync();
         Task<Result<List<StockBatchLookupDto>>> GetBatchLookupAsync(int? productId = null);
@@ -1148,13 +1384,22 @@ namespace RaccoonWarehouse.Application.Service.Stocks
 
     public class StockAllocationRequestDto
     {
+        public int RequestIndex { get; set; }
         public int ProductId { get; set; }
         public int ProductUnitId { get; set; }
         public decimal Quantity { get; set; }
     }
 
+    public class StockAvailabilityDto
+    {
+        public int ProductId { get; set; }
+        public int ProductUnitId { get; set; }
+        public decimal AvailableQuantity { get; set; }
+    }
+
     public class StockLotAllocationDto
     {
+        public int RequestIndex { get; set; }
         public int StockLotId { get; set; }
         public int ProductId { get; set; }
         public int ProductUnitId { get; set; }

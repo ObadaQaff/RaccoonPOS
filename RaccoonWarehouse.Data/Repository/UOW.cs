@@ -1,4 +1,5 @@
 using AutoMapper;
+using Microsoft.EntityFrameworkCore.Storage;
 using RaccoonWarehouse.Core.Interface;
 using RaccoonWarehouse.Core.Interface.Accounting;
 using RaccoonWarehouse.Domain.Accounting.Accounts;
@@ -67,8 +68,29 @@ namespace RaccoonWarehouse.Data.Repository
 			return await _context.SaveChangesAsync();
 		}
 
+        public async Task<IUnitOfWorkTransaction> BeginTransactionAsync()
+        {
+            return new UnitOfWorkTransaction(await _context.Database.BeginTransactionAsync());
+        }
+
 		public void Dispose()
 		{
 		}
 	}
+
+    internal sealed class UnitOfWorkTransaction : IUnitOfWorkTransaction
+    {
+        private readonly IDbContextTransaction _transaction;
+
+        public UnitOfWorkTransaction(IDbContextTransaction transaction)
+        {
+            _transaction = transaction;
+        }
+
+        public Task CommitAsync() => _transaction.CommitAsync();
+
+        public Task RollbackAsync() => _transaction.RollbackAsync();
+
+        public ValueTask DisposeAsync() => _transaction.DisposeAsync();
+    }
 }

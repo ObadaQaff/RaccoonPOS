@@ -5,6 +5,7 @@ using RaccoonWarehouse.Domain.Accounting.AccountOpeningBalances;
 using RaccoonWarehouse.Domain.Accounting.Accounts;
 using RaccoonWarehouse.Domain.Accounting.Banks;
 using RaccoonWarehouse.Domain.Accounting.JournalEntries;
+using RaccoonWarehouse.Domain.Accounting.Operations;
 using RaccoonWarehouse.Domain.Accounting.Periods;
 using RaccoonWarehouse.Domain.Accounting.RecurringJournals;
 using RaccoonWarehouse.Domain.Accounting.TaxRates;
@@ -50,6 +51,7 @@ namespace RaccoonWarehouse.Data
         public DbSet<Account> Accounts => Set<Account>();
         public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
         public DbSet<JournalEntryLine> JournalEntryLines => Set<JournalEntryLine>();
+        public DbSet<AccountingOperation> AccountingOperations => Set<AccountingOperation>();
         public DbSet<RecurringJournal> RecurringJournals => Set<RecurringJournal>();
         public DbSet<RecurringJournalLine> RecurringJournalLines => Set<RecurringJournalLine>();
         public DbSet<FiscalYear> FiscalYears => Set<FiscalYear>();
@@ -79,6 +81,7 @@ namespace RaccoonWarehouse.Data
             modelBuilder.ApplyConfiguration(new CategoryConfiguration());
             modelBuilder.ApplyConfiguration(new AccountConfiguration());
             modelBuilder.ApplyConfiguration(new IntegrationInboxConfiguration());
+            modelBuilder.ApplyConfiguration(new AccountingOperationConfiguration());
 
             var assembly = typeof(BaseEntity).Assembly;
             var entityTypes = assembly.GetTypes()

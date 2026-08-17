@@ -1,5 +1,6 @@
 using AutoMapper;
 using Microsoft.EntityFrameworkCore;
+using RaccoonWarehouse.Application.Service.Sales;
 using RaccoonWarehouse.Core.Common;
 using RaccoonWarehouse.Core.Interface;
 using RaccoonWarehouse.Data;
@@ -19,6 +20,7 @@ using RaccoonWarehouse.Domain.Settings;
 using RaccoonWarehouse.Domain.StockAdjustments.DTOs;
 using RaccoonWarehouse.Domain.StockDocuments.DTOs;
 using RaccoonWarehouse.Domain.Vouchers.DTOs;
+using System.Diagnostics;
 
 namespace RaccoonWarehouse.Application.Service.Accounting
 {
@@ -110,6 +112,8 @@ namespace RaccoonWarehouse.Application.Service.Accounting
 
         public async Task<Result<JournalEntryReadDto>> PostJournalEntryAsync(JournalEntryWriteDto dto)
         {
+            var totalTiming = Stopwatch.StartNew();
+            var stepTiming = Stopwatch.StartNew();
             if (dto.Lines == null || dto.Lines.Count < 2)
             {
                 return Result<JournalEntryReadDto>.Fail("Journal entry must contain at least two lines.");
@@ -175,6 +179,8 @@ namespace RaccoonWarehouse.Application.Service.Accounting
             {
                 return Result<JournalEntryReadDto>.Fail("One or more tax rates were not found or inactive.");
             }
+
+            LogAccountingTiming("journal validation and account loading", totalTiming, stepTiming);
 
             var entry = new JournalEntry
             {
@@ -257,14 +263,18 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                 }
             }
 
+            LogAccountingTiming("journal line construction", totalTiming, stepTiming);
+
             await _uow.JournalEntries.AddAsync(entry);
             await _uow.CommitAsync();
+            LogAccountingTiming("journal database save", totalTiming, stepTiming);
 
             var savedEntry = await _uow.JournalEntries.GetAllAsQueryable()
                 .Include(x => x.Lines)
                 .ThenInclude(x => x.Account)
                 .AsNoTracking()
                 .FirstAsync(x => x.Id == entry.Id);
+            LogAccountingTiming("journal reload", totalTiming, stepTiming);
 
             var result = _mapper.Map<JournalEntryReadDto>(savedEntry);
             result.TotalDebit = savedEntry.Lines.Sum(x => x.Debit);
@@ -395,6 +405,8 @@ namespace RaccoonWarehouse.Application.Service.Accounting
 
         public async Task<Result<JournalEntryReadDto>> PostInvoiceEntryAsync(InvoiceWriteDto invoice)
         {
+            var totalTiming = Stopwatch.StartNew();
+            var stepTiming = Stopwatch.StartNew();
             if (invoice.Id <= 0)
                 return Result<JournalEntryReadDto>.Fail("Invoice id is required.");
 
@@ -410,14 +422,16 @@ namespace RaccoonWarehouse.Application.Service.Accounting
 
             var lines = new List<JournalEntryLineWriteDto>();
             var entryDate = invoice.CreatedDate == default ? GetJordanNow() : invoice.CreatedDate;
-            var settlementAccountId = await ResolveSettlementAccountIdAsync(invoice.PaymentType, invoice.InvoiceType is InvoiceType.Purchase or InvoiceType.PurchaseReturn);
-            var salesRevenueId = await ResolveSystemAccountIdAsync(SalesRevenueAccountCodeKey, "4110000000");
-            var salesReturnsId = await ResolveSystemAccountIdAsync(SalesReturnsAccountCodeKey, "4120000000");
-            var salesDiscountId = await ResolveSystemAccountIdAsync(SalesDiscountAccountCodeKey, "4130000000");
-            var inventoryId = await ResolveSystemAccountIdAsync(InventoryAccountCodeKey, "1150000000");
-            var cogsId = await ResolveSystemAccountIdAsync(CostOfGoodsSoldAccountCodeKey, "5110000000");
-            var outputTaxId = await ResolveSystemAccountIdAsync(OutputTaxAccountCodeKey, "2120000000");
-            var inputTaxId = await ResolveSystemAccountIdAsync(InputTaxAccountCodeKey, "1160000000");
+            var accountIds = await ResolveInvoiceAccountIdsAsync(invoice);
+            var settlementAccountId = accountIds[GetSettlementAccountCodeKey(invoice.PaymentType, invoice.InvoiceType is InvoiceType.Purchase or InvoiceType.PurchaseReturn)];
+            var salesRevenueId = accountIds[SalesRevenueAccountCodeKey];
+            var salesReturnsId = accountIds[SalesReturnsAccountCodeKey];
+            var salesDiscountId = accountIds[SalesDiscountAccountCodeKey];
+            var inventoryId = accountIds[InventoryAccountCodeKey];
+            var cogsId = accountIds[CostOfGoodsSoldAccountCodeKey];
+            var outputTaxId = accountIds[OutputTaxAccountCodeKey];
+            var inputTaxId = accountIds[InputTaxAccountCodeKey];
+            LogAccountingTiming("invoice accounting account resolution", totalTiming, stepTiming);
 
             switch (invoice.InvoiceType)
             {
@@ -510,7 +524,8 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                     return Result<JournalEntryReadDto>.Ok(new JournalEntryReadDto(), "Invoice type does not create an accounting entry.");
             }
 
-            return await PostJournalEntryAsync(new JournalEntryWriteDto
+            LogAccountingTiming("invoice accounting line construction", totalTiming, stepTiming);
+            var result = await PostJournalEntryAsync(new JournalEntryWriteDto
             {
                 EntryDate = entryDate,
                 Description = BuildInvoiceDescription(invoice),
@@ -518,6 +533,17 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                 ReferenceId = invoice.Id,
                 Lines = lines
             });
+            LogAccountingTiming("invoice accounting total", totalTiming, stepTiming);
+            return result;
+        }
+
+        private static void LogAccountingTiming(string step, Stopwatch totalTiming, Stopwatch stepTiming)
+        {
+            var stepMilliseconds = stepTiming.ElapsedMilliseconds;
+            var totalMilliseconds = totalTiming.ElapsedMilliseconds;
+            PosPerformanceLogger.Write(step, stepMilliseconds, totalMilliseconds);
+            Debug.WriteLine($"[POS timing] {step}: {stepMilliseconds} ms (total {totalMilliseconds} ms)");
+            stepTiming.Restart();
         }
 
         public async Task<Result<JournalEntryReadDto>> PostVoucherEntryAsync(VoucherWriteDto voucher)
@@ -1232,6 +1258,80 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                 return await ResolveSystemAccountIdAsync(IssuedChecksPayableAccountCodeKey, "2140000000");
 
             return await ResolveCashLikeAccountIdAsync(MapPaymentTypeToMethod(paymentType));
+        }
+
+        private async Task<Dictionary<string, int>> ResolveInvoiceAccountIdsAsync(InvoiceWriteDto invoice)
+        {
+            var settlementKey = GetSettlementAccountCodeKey(
+                invoice.PaymentType,
+                invoice.InvoiceType is InvoiceType.Purchase or InvoiceType.PurchaseReturn);
+            var requiredCodes = new Dictionary<string, string>
+            {
+                [settlementKey] = settlementKey switch
+                {
+                    AccountsPayableAccountCodeKey => "2110000000",
+                    AccountsReceivableAccountCodeKey => "1140000000",
+                    IssuedChecksPayableAccountCodeKey => "2140000000",
+                    ChecksInHandAccountCodeKey => "1180000000",
+                    BankAccountCodeKey => "1130000000",
+                    _ => "1110000000"
+                },
+                [SalesRevenueAccountCodeKey] = "4110000000",
+                [SalesReturnsAccountCodeKey] = "4120000000",
+                [SalesDiscountAccountCodeKey] = "4130000000",
+                [InventoryAccountCodeKey] = "1150000000",
+                [CostOfGoodsSoldAccountCodeKey] = "5110000000",
+                [OutputTaxAccountCodeKey] = "2120000000",
+                [InputTaxAccountCodeKey] = "1160000000"
+            };
+
+            var settings = await _context.AppSettings
+                .AsNoTracking()
+                .Where(setting => requiredCodes.Keys.Contains(setting.Key))
+                .ToDictionaryAsync(setting => setting.Key, setting => setting.Value);
+
+            var normalizedCodesByKey = requiredCodes.ToDictionary(
+                pair => pair.Key,
+                pair => NormalizeAccountCode(
+                    settings.TryGetValue(pair.Key, out var configuredCode) && !string.IsNullOrWhiteSpace(configuredCode)
+                        ? configuredCode.Trim()
+                        : pair.Value));
+            var normalizedCodes = normalizedCodesByKey.Values.Distinct().ToList();
+
+            var accounts = await _uow.Accounts.GetAllAsQueryable()
+                .Where(account => normalizedCodes.Contains(account.Code) || normalizedCodes.Contains(account.AccountCode))
+                .Where(account => account.IsActive && account.IsPosting)
+                .ToListAsync();
+
+            var accountIds = new Dictionary<string, int>();
+            foreach (var pair in normalizedCodesByKey)
+            {
+                var account = accounts.FirstOrDefault(item =>
+                    item.Code == pair.Value || item.AccountCode == pair.Value);
+                if (account == null)
+                    throw new InvalidOperationException($"Accounting setup is incomplete. Account code '{pair.Value}' is missing.");
+
+                accountIds[pair.Key] = account.Id;
+            }
+
+            return accountIds;
+        }
+
+        private static string GetSettlementAccountCodeKey(PaymentType? paymentType, bool isPurchaseSide)
+        {
+            if (paymentType == PaymentType.Credit)
+                return isPurchaseSide ? AccountsPayableAccountCodeKey : AccountsReceivableAccountCodeKey;
+
+            if (paymentType == PaymentType.Check && isPurchaseSide)
+                return IssuedChecksPayableAccountCodeKey;
+
+            return MapPaymentTypeToMethod(paymentType) switch
+            {
+                PaymentMethod.Cash => CashMainAccountCodeKey,
+                PaymentMethod.Credit => AccountsReceivableAccountCodeKey,
+                PaymentMethod.Check => ChecksInHandAccountCodeKey,
+                _ => BankAccountCodeKey
+            };
         }
 
         private async Task<int> ResolveCashLikeAccountIdAsync(PaymentMethod? method)

@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using RaccoonWarehouse.Application.Service.Accounting;
 using RaccoonWarehouse.Application.Service.Generic;
+using RaccoonWarehouse.Application.Service.Sales;
 using RaccoonWarehouse.Core.Common;
 using RaccoonWarehouse.Core.Interface;
 using RaccoonWarehouse.Data;
@@ -20,6 +21,7 @@ using RaccoonWarehouse.Domain.Users;
 using RaccoonWarehouse.Domain.Vouchers.DTOs;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -58,6 +60,8 @@ namespace RaccoonWarehouse.Application.Service.Invoices
         }
         public override async Task<Result<InvoiceWriteDto>> CreateAsync(InvoiceWriteDto dto)
         {
+            var totalTiming = Stopwatch.StartNew();
+            var stepTiming = Stopwatch.StartNew();
             try
             {
                 var invoiceRepo = _uow.GetRepository<Invoice>();
@@ -101,6 +105,7 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 dto.TotalCOGS = dto.InvoiceLines.Sum(x => x.CostTotal);
                 dto.NetSales = dto.SubTotal - (dto.DiscountAmount ?? 0m); // قبل الضريبة
                 dto.GrossProfit = dto.NetSales - dto.TotalCOGS;
+                LogInvoiceTiming("invoice line normalization and totals", totalTiming, stepTiming);
                 var checkValidation = ValidateChecks(dto);
                 if (checkValidation != null)
                     return Result<InvoiceWriteDto>.Fail(checkValidation);
@@ -115,6 +120,7 @@ namespace RaccoonWarehouse.Application.Service.Invoices
 
                 await invoiceRepo.AddAsync(invoice);
                 await _uow.CommitAsync(); // ✅ هسا صار عندك invoice.Id
+                LogInvoiceTiming("invoice header database save", totalTiming, stepTiming);
 
                 // 4) أضف السطور وربط InvoiceId يدوي
                 foreach (var l in dto.InvoiceLines)
@@ -137,17 +143,20 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 }
 
                 await _uow.CommitAsync();
+                LogInvoiceTiming("invoice lines and checks database save", totalTiming, stepTiming);
 
                 dto.Id = invoice.Id;
-                if (_accountingService != null)
+                if (_accountingService != null && !dto.DeferAccountingPosting)
                 {
                     var journalResult = await _accountingService.PostInvoiceEntryAsync(dto);
+                    LogInvoiceTiming("invoice accounting entry", totalTiming, stepTiming);
                     if (!journalResult.Success)
                     {
                         _context.Set<InvoiceLine>().RemoveRange(_context.Set<InvoiceLine>().Where(x => x.InvoiceId == invoice.Id));
                         _context.Set<Check>().RemoveRange(_context.Set<Check>().Where(x => x.InvoiceId == invoice.Id));
                         _context.Set<Invoice>().Remove(invoice);
                         await _uow.CommitAsync();
+                        LogInvoiceTiming("invoice rollback database save", totalTiming, stepTiming);
                         return Result<InvoiceWriteDto>.Fail($"Invoice creation was rolled back because accounting posting failed: {journalResult.Message}");
                     }
                 }
@@ -158,6 +167,15 @@ namespace RaccoonWarehouse.Application.Service.Invoices
             {
                 return Result<InvoiceWriteDto>.Fail($"Error creating invoice: {ex.Message}");
             }
+        }
+
+        private static void LogInvoiceTiming(string step, Stopwatch totalTiming, Stopwatch stepTiming)
+        {
+            var stepMilliseconds = stepTiming.ElapsedMilliseconds;
+            var totalMilliseconds = totalTiming.ElapsedMilliseconds;
+            PosPerformanceLogger.Write(step, stepMilliseconds, totalMilliseconds);
+            Debug.WriteLine($"[POS timing] {step}: {stepMilliseconds} ms (total {totalMilliseconds} ms)");
+            stepTiming.Restart();
         }
 
         public override async Task<Result<InvoiceWriteDto>> UpdateAsync(InvoiceWriteDto dto)

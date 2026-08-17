@@ -18,6 +18,7 @@ using RaccoonWarehouse.Application.Service.Invoices;
 using RaccoonWarehouse.Application.Service.Permissions;
 using RaccoonWarehouse.Application.Service.Products;
 using RaccoonWarehouse.Application.Service.ProductUnits;
+using RaccoonWarehouse.Application.Service.Sales;
 using RaccoonWarehouse.Application.Service.Settings;
 using RaccoonWarehouse.Application.Service.StockDocuments;
 using RaccoonWarehouse.Application.Service.Stocks;
@@ -132,6 +133,8 @@ namespace RaccoonWarehouse
                 Shutdown();
                 return;
             }
+
+            ServiceProvider.GetRequiredService<AccountingOperationProcessor>().Start();
 
             // 🔐 Login
             var login = ServiceProvider.GetRequiredService<LoginWindow>();
@@ -347,6 +350,7 @@ namespace RaccoonWarehouse
                 await EnsureDelegateSchemaAsync(db);
                 await EnsureEmployeeSchemaAsync(db);
                 await EnsureCheckSchemaAsync(db);
+                await EnsureAccountingOperationsSchemaAsync(db);
                 await CurrencySeeder.SeedBaseCurrencyAsync(db);
                 await scope.ServiceProvider.GetRequiredService<IWarehouseService>().EnsureDefaultWarehousesAsync();
                 await scope.ServiceProvider.GetRequiredService<IPermissionService>().EnsureSeedDataAsync();
@@ -738,6 +742,45 @@ END;";
             await db.Database.ExecuteSqlRawAsync(sql);
         }
 
+        private static async Task EnsureAccountingOperationsSchemaAsync(ApplicationDbContext db)
+        {
+            const string sql = @"
+IF OBJECT_ID(N'dbo.AccountingOperations', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[AccountingOperations]
+    (
+        [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [ReferenceType] NVARCHAR(50) NOT NULL,
+        [ReferenceId] INT NOT NULL,
+        [ReferenceNumber] NVARCHAR(100) NOT NULL,
+        [OperationType] NVARCHAR(100) NOT NULL,
+        [PayloadJson] NVARCHAR(MAX) NOT NULL,
+        [Status] INT NOT NULL,
+        [RetryCount] INT NOT NULL,
+        [LastError] NVARCHAR(4000) NULL,
+        [LastAttemptDate] DATETIME2 NULL,
+        [CompletedDate] DATETIME2 NULL,
+        [NextAttemptDate] DATETIME2 NULL,
+        [CreatedDate] DATETIME2 NOT NULL,
+        [UpdatedDate] DATETIME2 NOT NULL
+    );
+END;
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_AccountingOperations_Reference' AND object_id = OBJECT_ID(N'dbo.AccountingOperations'))
+BEGIN
+    CREATE UNIQUE INDEX [UX_AccountingOperations_Reference]
+        ON [dbo].[AccountingOperations] ([ReferenceType], [ReferenceId], [OperationType]);
+END;
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_AccountingOperations_Status_NextAttempt' AND object_id = OBJECT_ID(N'dbo.AccountingOperations'))
+BEGIN
+    CREATE INDEX [IX_AccountingOperations_Status_NextAttempt]
+        ON [dbo].[AccountingOperations] ([Status], [NextAttemptDate]);
+END;";
+
+            await db.Database.ExecuteSqlRawAsync(sql);
+        }
+
         private static async Task EnsureCheckSchemaAsync(ApplicationDbContext db)
         {
             const string sql = @"
@@ -868,6 +911,7 @@ END;";
             services.AddScoped<IWarehouseService, WarehouseService>();
             services.AddScoped<IInvoiceLineService, InvoiceLineService>();
             services.AddScoped<IInvoiceService, InvoiceService>();
+            services.AddScoped<ISaleCheckoutService, SaleCheckoutService>();
             // Temporary Box API integration. Remove this registration with the isolated service when retired.
             services.AddSingleton<IBoxCartApiService, BoxCartApiService>();
             services.AddScoped<IEndpointOrderStatusService, EndpointOrderStatusService>();
@@ -884,6 +928,8 @@ END;";
             services.AddScoped<ICheckService, CheckService>();
             services.AddScoped<IFinancialTransactionService, FinancialTransactionService>();
             services.AddScoped<IAccountingService, AccountingService>();
+            services.AddScoped<IAccountingOperationService, AccountingOperationService>();
+            services.AddSingleton<AccountingOperationProcessor>();
             services.AddScoped<IAccountingFeatureService, AccountingFeatureService>();
             services.AddScoped<IAccountTreeService, AccountTreeService>();
             services.AddScoped<CurrencyService>();
@@ -950,6 +996,7 @@ END;";
             services.AddTransient<AddAccountDialog>();
             services.AddTransient<CreateJournalEntry>();
             services.AddTransient<JournalEntriesBrowser>();
+            services.AddTransient<AccountingOperationsBrowser>();
             services.AddTransient<TrialBalanceReport>();
             services.AddTransient<GeneralLedgerReport>();
             services.AddTransient<BalanceSheetReport>();

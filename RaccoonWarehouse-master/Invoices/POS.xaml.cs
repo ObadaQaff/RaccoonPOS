@@ -6,6 +6,7 @@ using RaccoonWarehouse.Application.Service.Accounting;
 using RaccoonWarehouse.Application.Service.Invoices;
 using RaccoonWarehouse.Application.Service.Products;
 using RaccoonWarehouse.Application.Service.ProductUnits;
+using RaccoonWarehouse.Application.Service.Sales;
 using RaccoonWarehouse.Application.Service.Stocks;
 using RaccoonWarehouse.Application.Service.StockTransactions;
 using RaccoonWarehouse.Application.Service.Users;
@@ -78,6 +79,8 @@ namespace RaccoonWarehouse.Invoices
         private readonly ICashierSessionService _cashierSessionService;
         private readonly IUserSession _userSession;
         private readonly IFinancialTransactionService _financialService;
+        private readonly ISaleCheckoutService _saleCheckoutService;
+        private bool _isProcessingPayment;
 
         private Popup _currentPopup;
         private TextBox _currentEditingTextBox;
@@ -187,7 +190,8 @@ namespace RaccoonWarehouse.Invoices
                    IStockTransactionService stockTransactionService,
                    ICashierSessionService cashierSessionService,
                    IUserSession userSession,
-                   IFinancialTransactionService financialService
+                   IFinancialTransactionService financialService,
+                   ISaleCheckoutService saleCheckoutService
         #endregion
             )
         {
@@ -203,6 +207,7 @@ namespace RaccoonWarehouse.Invoices
             _cashierSessionService = cashierSessionService;
             _userSession = userSession;
             _financialService = financialService;
+            _saleCheckoutService = saleCheckoutService;
             #endregion
 
             InitializeComponent();
@@ -1750,12 +1755,27 @@ namespace RaccoonWarehouse.Invoices
         }
         private async Task<bool> ValidateStockAvailabilityAsync()
         {
-            foreach (var line in _invoiceLines.Where(l => l.Quantity > 0).ToList())
-            {
-                var existingStock = await _stockService.GetAllWriteDtoWithFilteringAndIncludeAsync(
-                    s => s.ProductId == line.ProductId && s.ProductUnitId == line.ProductUnitId);
+            var sellableLines = _invoiceLines.Where(l => l.Quantity > 0).ToList();
+            var availabilityResult = await _stockService.GetAvailableQuantitiesInUnitsAsync(
+                sellableLines.Select(line => new StockAllocationRequestDto
+                {
+                    ProductId = line.ProductId,
+                    ProductUnitId = line.ProductUnitId,
+                    Quantity = line.Quantity
+                }));
+            var availabilityByKey = (availabilityResult.Data ?? new List<StockAvailabilityDto>())
+                .ToDictionary(x => (x.ProductId, x.ProductUnitId), x => x.AvailableQuantity);
+            var productIds = sellableLines.Select(line => line.ProductId).Distinct().ToList();
+            var productUnitIds = sellableLines.Select(line => line.ProductUnitId).Distinct().ToList();
+            var stockSnapshotResult = await _stockService.GetAllWriteDtoWithFilteringAndIncludeAsync(
+                stock => productIds.Contains(stock.ProductId) && productUnitIds.Contains(stock.ProductUnitId));
+            var stockByKey = (stockSnapshotResult.Data ?? new List<StockWriteDto>())
+                .GroupBy(stock => (stock.ProductId, stock.ProductUnitId))
+                .ToDictionary(group => group.Key, group => group.First());
 
-                var stock = existingStock?.Data?.FirstOrDefault();
+            foreach (var line in sellableLines)
+            {
+                stockByKey.TryGetValue((line.ProductId, line.ProductUnitId), out var stock);
                 if (stock != null)
                 {
                     _stockLookup[(stock.ProductId, stock.ProductUnitId)] = new StockReadDto
@@ -1770,7 +1790,10 @@ namespace RaccoonWarehouse.Invoices
                     line.UnitCost = stock.PurchasePrice;
                 }
 
-                var availableQuantity = await GetAvailableQuantityForProductUnitAsync(line.ProductId, line.ProductUnitId);
+                var availableQuantity = availabilityByKey.TryGetValue(
+                    (line.ProductId, line.ProductUnitId), out var available)
+                    ? available
+                    : 0m;
                 if (availableQuantity <= 0)
                 {
                     MessageBox.Show(
@@ -1827,6 +1850,26 @@ namespace RaccoonWarehouse.Invoices
         private async Task<List<InvoiceLineWriteDto>?> ExpandInvoiceLinesByFefoAsync(IEnumerable<InvoiceLineWriteDto> sourceLines)
         {
             var expandedLines = new List<InvoiceLineWriteDto>();
+            var positiveLines = sourceLines.Where(line => line.Quantity > 0).ToList();
+            var allocationResult = await _stockService.AllocateOutgoingAsync(
+                positiveLines.Select((line, index) => new StockAllocationRequestDto
+                {
+                    RequestIndex = index,
+                    ProductId = line.ProductId,
+                    ProductUnitId = line.ProductUnitId,
+                    Quantity = line.Quantity
+                }));
+
+            if (!allocationResult.Success || allocationResult.Data == null)
+            {
+                MessageBox.Show(
+                    allocationResult.Message ?? UiText.T("تعذر تخصيص المخزون.", "Could not allocate stock."),
+                    UiText.T("تنبيه", "Notice"));
+                return null;
+            }
+            var allocationsByRequest = allocationResult.Data
+                .GroupBy(allocation => allocation.RequestIndex)
+                .ToDictionary(group => group.Key, group => group.ToList());
 
             foreach (var returnLine in sourceLines.Where(line => line.Quantity < 0))
             {
@@ -1835,27 +1878,19 @@ namespace RaccoonWarehouse.Invoices
                 expandedLines.Add(signedLine);
             }
 
-            foreach (var sourceLine in sourceLines.Where(line => line.Quantity > 0))
+            for (var index = 0; index < positiveLines.Count; index++)
             {
-                var allocationResult = await _stockService.AllocateOutgoingAsync(new[]
-                {
-                    new StockAllocationRequestDto
-                    {
-                        ProductId = sourceLine.ProductId,
-                        ProductUnitId = sourceLine.ProductUnitId,
-                        Quantity = sourceLine.Quantity
-                    }
-                });
+                var sourceLine = positiveLines[index];
 
-                if (!allocationResult.Success || allocationResult.Data == null || allocationResult.Data.Count == 0)
+                if (!allocationsByRequest.TryGetValue(index, out var lineAllocations) || lineAllocations.Count == 0)
                 {
                     MessageBox.Show(
-                        allocationResult.Message ?? UiText.T($"تعذر تخصيص المخزون للصنف {sourceLine.ProductName}.", $"Could not allocate stock for item {sourceLine.ProductName}."),
+                        UiText.T($"تعذر تخصيص المخزون للصنف {sourceLine.ProductName}.", $"Could not allocate stock for item {sourceLine.ProductName}."),
                         UiText.T("تنبيه", "Notice"));
                     return null;
                 }
 
-                foreach (var allocation in allocationResult.Data)
+                foreach (var allocation in lineAllocations)
                 {
                     var splitLine = new InvoiceLineWriteDto
                     {
@@ -3675,41 +3710,72 @@ namespace RaccoonWarehouse.Invoices
         #endregion
         #region financialhandle 
 
-        private PaymentMethod MapPaymentMethod(PaymentType paymentType)
-        {
-            return paymentType switch
-            {
-                PaymentType.Cash => PaymentMethod.Cash,
-                PaymentType.Visa => PaymentMethod.Visa,
-                PaymentType.Master => PaymentMethod.Master,
-                PaymentType.Debit => PaymentMethod.BankTransfer,
-                PaymentType.Check => PaymentMethod.Check,
-                PaymentType.MobilePayment => PaymentMethod.MobilePayment,
-                PaymentType.Credit => PaymentMethod.Credit,
-                _ => PaymentMethod.Cash
-            };
-        }
-
         private async Task ProcessPaymentAsync(PaymentType paymentType)
         {
+            if (_isProcessingPayment)
+                return;
+
+            _isProcessingPayment = true;
             var loadingShown = false;
             try
             {
+                var timing = System.Diagnostics.Stopwatch.StartNew();
+                var stepTiming = System.Diagnostics.Stopwatch.StartNew();
+
+                void HideLoadingForDialog()
+                {
+                    if (loadingShown)
+                    {
+                        _loading.Hide();
+                        loadingShown = false;
+                    }
+                }
+
+                void ShowLoadingForWork()
+                {
+                    if (!loadingShown)
+                    {
+                        _loading.Show();
+                        loadingShown = true;
+                    }
+                }
+
+                _loading.Show();
+                loadingShown = true;
+                LogPosTiming("click to processing indicator", timing, stepTiming);
                 _currentInvoice.PaymentType = paymentType;
 
+                HideLoadingForDialog();
                 if (!CanSaveInvoice())
                     return;
+
+                ShowLoadingForWork();
+                HideLoadingForDialog();
                 if (!await ValidateReturnOrExchangeAgainstOriginalInvoiceAsync())
                     return;
+
+                ShowLoadingForWork();
+                HideLoadingForDialog();
                 if (!TryGetActiveCashierSession(out var session))
                     return;
+
+                ShowLoadingForWork();
+                LogPosTiming("payment validation", timing, stepTiming);
+                HideLoadingForDialog();
                 if (!await ValidateStockAvailabilityAsync())
                     return;
 
+                ShowLoadingForWork();
+                LogPosTiming("stock validation", timing, stepTiming);
+
                 PrepareInvoiceForSave();
+                HideLoadingForDialog();
                 var expandedLines = await ExpandInvoiceLinesByFefoAsync(_invoiceLines);
                 if (expandedLines == null)
                     return;
+
+                ShowLoadingForWork();
+                LogPosTiming("FEFO expansion", timing, stepTiming);
                 _currentInvoice.InvoiceLines = expandedLines;
                 _currentInvoice.SubTotal = expandedLines.Sum(l => l.LineSubTotal);
                 _currentInvoice.TotalTax = expandedLines.Sum(l => l.TaxAmount);
@@ -3720,12 +3786,16 @@ namespace RaccoonWarehouse.Invoices
 
                 if (paymentType == PaymentType.Check)
                 {
+                    HideLoadingForDialog();
                     if (!await CaptureCheckDetailsAsync(_currentInvoice.TotalAmount))
                         return;
+
+                    ShowLoadingForWork();
                 }
 
                 if (paymentType == PaymentType.Credit)
                 {
+                    HideLoadingForDialog();
                     if (CustomerComboBox.SelectedItem is not UserReadDto)
                     {
                         MessageBox.Show(
@@ -3736,56 +3806,63 @@ namespace RaccoonWarehouse.Invoices
 
                     if (!await EnsureCustomerCreditAllowedAsync(_currentInvoice.TotalAmount))
                         return;
+
+                    ShowLoadingForWork();
                 }
 
-                _loading.Show();
-                loadingShown = true;
-
-                var result = _currentInvoice.Id > 0
-                    ? await _invoiceService.UpdateAsync(_currentInvoice)
-                    : await _invoiceService.CreateAsync(_currentInvoice);
-                if (!result.Success || result.Data == null)
+                _currentInvoice.DeferAccountingPosting = true;
+                var checkoutResult = await _saleCheckoutService.CompleteAsync(new SaleCheckoutRequest
                 {
-                    _loading.Hide();
-                    loadingShown = false;
-                    MessageBox.Show(result.Message ?? UiText.T("فشل حفظ الفاتورة", "Failed to save the invoice."), UiText.T("خطأ", "Error"));
+                    Invoice = _currentInvoice,
+                    Session = session,
+                    StockMovementsFactory = savedInvoiceId => BuildPosStockMovements(expandedLines, savedInvoiceId, session)
+                });
+                LogPosTiming("sale checkout", timing, stepTiming);
+                if (!checkoutResult.Success || checkoutResult.Data == null)
+                {
+                    HideLoadingForDialog();
+                    MessageBox.Show(checkoutResult.Message ?? UiText.T("فشل حفظ الفاتورة", "Failed to save the invoice."), UiText.T("خطأ", "Error"));
                     return;
                 }
 
-                var savedInvoiceId = result.Data.Id > 0 ? result.Data.Id : _currentInvoice.Id;
+                _lastSavedInvoice = null;
 
-                _lastSavedInvoice = await _invoiceService.GetFullInvoiceByIdAsync(savedInvoiceId);
-
-                var movementResult = await _stockService.PostMovementsAsync(BuildPosStockMovements(expandedLines, savedInvoiceId, session));
-                if (!movementResult.Success)
-                {
-                    _loading.Hide();
-                    loadingShown = false;
-                    MessageBox.Show(movementResult.Message ?? UiText.T("فشل تحديث المخزون.", "Failed to update stock."), UiText.T("خطأ", "Error"));
-                    return;
-                }
-
-                if (paymentType != PaymentType.Credit)
-                    await PostFinancialForInvoiceAsync(savedInvoiceId);
-
-                _loading.Hide();
-                loadingShown = false;
+                HideLoadingForDialog();
                 MessageBox.Show(
                     paymentType == PaymentType.Credit
                         ? UiText.T("تم حفظ الفاتورة الآجلة بنجاح ✅", "The credit invoice was saved successfully.")
-                        : UiText.T("تم حفظ الفاتورة وتسجيل الحركة المالية ✅", "The invoice was saved and the financial transaction was posted successfully."),
+                        : UiText.T("تم حفظ الفاتورة، وسيتم تسجيل الحركة المالية تلقائياً ✅", "The invoice was saved; the financial transaction will be posted automatically."),
                     UiText.T("نجاح", "Success"));
                 ResetPOS();
             }
             catch (Exception ex)
             {
+                if (loadingShown)
+                {
+                    _loading.Hide();
+                    loadingShown = false;
+                }
                 MessageBox.Show($"{UiText.T("تعذر إتمام عملية الدفع", "Could not complete the payment")}: {ex.Message}", UiText.T("خطأ", "Error"));
             }
             finally
             {
                 if (loadingShown)
                     _loading.Hide();
+
+                _isProcessingPayment = false;
             }
+        }
+
+        private static void LogPosTiming(
+            string step,
+            System.Diagnostics.Stopwatch totalTiming,
+            System.Diagnostics.Stopwatch stepTiming)
+        {
+            var stepMilliseconds = stepTiming.ElapsedMilliseconds;
+            var totalMilliseconds = totalTiming.ElapsedMilliseconds;
+            PosPerformanceLogger.Write(step, stepMilliseconds, totalMilliseconds);
+            System.Diagnostics.Debug.WriteLine($"[POS timing] {step}: {stepMilliseconds} ms (total {totalMilliseconds} ms)");
+            stepTiming.Restart();
         }
 
         private async Task<bool> CaptureCheckDetailsAsync(decimal invoiceAmount)
@@ -3802,6 +3879,7 @@ namespace RaccoonWarehouse.Invoices
             await Task.CompletedTask;
             return true;
         }
+        #if false
         private FinancialSourceType MapSourceTypeByInvoiceType(InvoiceType invoiceType)
         {
             return invoiceType switch
@@ -3865,6 +3943,7 @@ namespace RaccoonWarehouse.Invoices
         }
 
 
+        #endif
         #endregion
         private void BarcodeTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {

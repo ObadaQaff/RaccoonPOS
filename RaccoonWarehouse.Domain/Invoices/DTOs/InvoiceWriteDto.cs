@@ -49,6 +49,7 @@ namespace RaccoonWarehouse.Domain.Invoices.DTOs
         public decimal TotalCOGS { get; set; }          // مجموع تكلفة السطور
         public decimal GrossProfit { get; set; }        // (SubTotal - Discount) - TotalCOGS
         public decimal NetSales { get; set; }
+        public bool DeferAccountingPosting { get; set; }
 
     }
 }
