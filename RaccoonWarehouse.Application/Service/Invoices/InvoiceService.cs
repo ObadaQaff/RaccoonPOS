@@ -76,6 +76,10 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 if (partyValidation != null)
                     return Result<InvoiceWriteDto>.Fail(partyValidation);
 
+                var returnPaymentValidation = await ValidateReturnPaymentTermsAsync(dto, invoiceRepo);
+                if (returnPaymentValidation != null)
+                    return Result<InvoiceWriteDto>.Fail(returnPaymentValidation);
+
                 await NormalizeInvoiceLinesAsync(dto.InvoiceLines);
 
                 // 1) احسب قيم السطور (Tax/Cost/Profit) قبل الحفظ
@@ -203,6 +207,10 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 if (existingInvoice == null)
                     return Result<InvoiceWriteDto>.Fail("Invoice not found.");
 
+                var returnPaymentValidation = await ValidateReturnPaymentTermsAsync(dto, invoiceRepo);
+                if (returnPaymentValidation != null)
+                    return Result<InvoiceWriteDto>.Fail(returnPaymentValidation);
+
                 await NormalizeInvoiceLinesAsync(dto.InvoiceLines);
                 ApplyInvoiceTotals(dto, existingInvoice.CreatedDate);
                 var checkValidation = ValidateChecks(dto);
@@ -286,10 +294,42 @@ namespace RaccoonWarehouse.Application.Service.Invoices
         private static string? ValidateCreditParty(InvoiceWriteDto dto)
         {
             if (dto.InvoiceType is InvoiceType.Purchase or InvoiceType.PurchaseReturn)
-                return dto.SupplierId.HasValue ? null : "A supplier is required for purchase invoices.";
+            {
+                return dto.PaymentType == PaymentType.Credit && !dto.SupplierId.HasValue
+                    ? "A supplier is required for credit purchase invoices."
+                    : null;
+            }
 
             if (dto.PaymentType == PaymentType.Credit && !dto.CustomerId.HasValue)
                 return "A customer is required for credit sales invoices.";
+
+            return null;
+        }
+
+        private static async Task<string?> ValidateReturnPaymentTermsAsync(
+            InvoiceWriteDto dto,
+            IGenericRepository<Invoice> invoiceRepo)
+        {
+            if (dto.InvoiceType is not (InvoiceType.Return or InvoiceType.Exchange) ||
+                string.IsNullOrWhiteSpace(dto.OriginalInvoiceId))
+            {
+                return null;
+            }
+
+            var original = await invoiceRepo.GetAllAsQueryable()
+                .AsNoTracking()
+                .Where(invoice => invoice.InvoiceNumber == dto.OriginalInvoiceId)
+                .Select(invoice => new { invoice.PaymentType, invoice.CustomerId })
+                .FirstOrDefaultAsync();
+
+            if (original == null)
+                return "The original invoice was not found.";
+
+            if (original.PaymentType == PaymentType.Credit && dto.PaymentType != PaymentType.Credit)
+                return "A return or exchange from a credit invoice must also use credit payment.";
+
+            if (original.PaymentType == PaymentType.Credit && original.CustomerId != dto.CustomerId)
+                return "The credit customer must match the original invoice customer.";
 
             return null;
         }

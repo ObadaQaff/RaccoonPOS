@@ -7,6 +7,7 @@ namespace RaccoonWarehouse.Domain.POS.VM
         public DateTime Date { get; set; }
         public string DocumentTypeText { get; set; } = string.Empty;
         public string DocumentNumber { get; set; } = string.Empty;
+        public string? CustomerName { get; set; }
         public string? ReferenceText { get; set; }
         public string? DirectionText { get; set; }
         public string? MethodText { get; set; }
@@ -18,6 +19,7 @@ namespace RaccoonWarehouse.Domain.POS.VM
         public int? ReferenceId { get; set; }
         public string SourceKind { get; set; } = string.Empty;
 
+        public bool IsInvoice => string.Equals(SourceKind, "Invoice", StringComparison.OrdinalIgnoreCase);
         public bool IsOpenable => !string.IsNullOrWhiteSpace(ReferenceType) && ReferenceId.HasValue && ReferenceId.Value > 0;
     }
 }

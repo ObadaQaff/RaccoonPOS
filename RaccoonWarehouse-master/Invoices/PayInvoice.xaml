@@ -326,6 +326,8 @@
                                           SelectionChanged="ProductBox_SelectionChanged"
                                           PreviewMouseLeftButtonUp="ProductBox_PreviewMouseLeftButtonUp"
                                           PreviewKeyDown="ProductBox_PreviewKeyDown"
+                                          PreviewTextInput="ProductBox_PreviewTextInput"
+                                          KeyUp="ProductBox_KeyUp"
                                           IsTextSearchEnabled="False"
                                           IsEditable="True" />
 

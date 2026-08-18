@@ -42,6 +42,21 @@ namespace RaccoonWarehouse.Application.Service.Products
             return await ApplyTaxToProductUnitsAsync(product);
         }
 
+        public async Task<Result<ProductReadDto>> GetByIdWithUnitsAsync(int productId)
+        {
+            var product = await _uow.GetRepository<Product>()
+                .GetAllAsQueryable()
+                .AsNoTracking()
+                .Include(p => p.ProductUnits!)
+                    .ThenInclude(unit => unit.Unit)
+                .FirstOrDefaultAsync(p => p.Id == productId);
+
+            if (product == null)
+                return Result<ProductReadDto>.Fail("Product not found.");
+
+            return Result<ProductReadDto>.Ok(_mapper.Map<ProductReadDto>(product));
+        }
+
         public async Task<Result> ApplyTaxToProductUnitsAsync(Product product)
         {
             var taxRate = product.TaxRate ?? 0m;
@@ -241,6 +256,7 @@ namespace RaccoonWarehouse.Application.Service.Products
     }
     public interface IProductService : IGenericService<Product, ProductWriteDto, ProductReadDto>
     {
+        Task<Result<ProductReadDto>> GetByIdWithUnitsAsync(int productId);
         Task<Result> ApplyTaxToProductUnitsAsync(int productId);
         Task<Result> ApplyTaxToProductUnitsAsync(Product product);
         Task<Result> UpdateProductWithUnitsAsync(

@@ -484,10 +484,12 @@ namespace RaccoonWarehouse.Application.Service.Stocks
             var unitIds = items.Select(x => x.ProductUnitId).Distinct().ToList();
             var productIds = items.Select(x => x.ProductId).Distinct().ToList();
             var selectedUnits = await unitRepo.GetAllAsQueryable()
+                .AsNoTracking()
                 .Where(unit => unitIds.Contains(unit.Id))
                 .ToDictionaryAsync(unit => unit.Id);
 
             var availableLots = await lotRepo.GetAllAsQueryable()
+                .AsNoTracking()
                 .Where(lot => productIds.Contains(lot.ProductId) &&
                               lot.Status == BatchStatus.Active &&
                               lot.RemainingBaseQuantity > 0 &&
@@ -515,6 +517,10 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                 var lots = lotsByProduct.TryGetValue(request.ProductId, out var productLots)
                     ? productLots
                     : new List<StockLot>();
+                var totalAvailableBaseQuantity = lots.Sum(lot => lot.RemainingBaseQuantity);
+                var availableQuantityAfterAllocation = Math.Max(
+                    totalAvailableBaseQuantity - (request.Quantity * requestedFactor),
+                    0m) / requestedFactor;
                 var averagePurchasePrice = CalculateWeightedAverageUnitCost(lots, requestedFactor);
 
                 var remainingRequiredBase = request.Quantity * requestedFactor;
@@ -548,6 +554,7 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                         Quantity = allocatedQuantity,
                         QuantityPerUnitSnapshot = requestedFactor,
                         BaseQuantity = allocatedBaseQuantity,
+                        AvailableQuantityAfterAllocation = availableQuantityAfterAllocation,
                         PurchasePrice = purchasePrice,
                         SalePrice = salePrice,
                         ExpiryDate = lot.ExpiryDate
@@ -1406,6 +1413,7 @@ namespace RaccoonWarehouse.Application.Service.Stocks
         public decimal Quantity { get; set; }
         public decimal QuantityPerUnitSnapshot { get; set; }
         public decimal BaseQuantity { get; set; }
+        public decimal AvailableQuantityAfterAllocation { get; set; }
         public decimal PurchasePrice { get; set; }
         public decimal SalePrice { get; set; }
         public DateTime? ExpiryDate { get; set; }

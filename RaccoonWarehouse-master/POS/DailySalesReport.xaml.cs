@@ -11,6 +11,8 @@ using RaccoonWarehouse.Domain.POS.VM;
 using RaccoonWarehouse.Domain.Users.DTOs;
 using RaccoonWarehouse.Domain.Vouchers.DTOs;
 using RaccoonWarehouse.Helpers.Localization;
+using RaccoonWarehouse.Helpers.Pdf;
+using RaccoonWarehouse.Helpers.Pdf.Reports;
 using RaccoonWarehouse.Navigation;
 using System;
 using System.Collections.Generic;
@@ -32,6 +34,7 @@ namespace RaccoonWarehouse.POS
         private int? _selectedSessionIdOverride;
         private bool _isLoading;
         private bool _isInitializing;
+        private List<SessionTransactionRowDto> _allTransactionRows = new();
 
         private static bool IsTransactionOperator(UserReadDto user)
             => user.Role == UserRole.Casher || user.Role == UserRole.Admin;
@@ -335,14 +338,12 @@ namespace RaccoonWarehouse.POS
                 _vm.TotalIn = rows.Where(IsIncoming).Sum(x => x.Amount);
                 _vm.TotalOut = rows.Where(x => !IsIncoming(x)).Sum(x => x.Amount);
 
-                _vm.Transactions.Clear();
-                foreach (var row in rows
+                _allTransactionRows = rows
                     .OrderByDescending(x => x.Date)
                     .ThenByDescending(x => x.SourceKind)
-                    .ThenByDescending(x => x.DocumentNumber))
-                {
-                    _vm.Transactions.Add(row);
-                }
+                    .ThenByDescending(x => x.DocumentNumber)
+                    .ToList();
+                ApplyInvoiceSearch();
 
                 if (selectedSession != null)
                 {
@@ -429,6 +430,7 @@ namespace RaccoonWarehouse.POS
                 Date = invoice.ClosedAt ?? invoice.CreatedDate,
                 DocumentTypeText = invoice.InvoiceType == InvoiceType.Sale ? "فاتورة بيع" : invoice.InvoiceType.ToString(),
                 DocumentNumber = invoice.InvoiceNumber,
+                CustomerName = invoice.Customer?.Name,
                 ReferenceText = referenceText,
                 DirectionText = isReturn ? "صادر" : "وارد",
                 MethodText = invoice.PaymentType?.ToString() ?? "—",
@@ -440,6 +442,78 @@ namespace RaccoonWarehouse.POS
                 ReferenceId = invoice.Id,
                 SourceKind = "Invoice"
             };
+        }
+
+        private void ApplyInvoiceSearch()
+        {
+            var search = InvoiceSearchTextBox?.Text?.Trim();
+            IEnumerable<SessionTransactionRowDto> filteredRows = _allTransactionRows;
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                filteredRows = _allTransactionRows.Where(row =>
+                    row.IsInvoice &&
+                    ((row.DocumentNumber?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                     (row.CustomerName?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false)));
+            }
+
+            _vm.Transactions.Clear();
+            foreach (var row in filteredRows)
+                _vm.Transactions.Add(row);
+        }
+
+        private void InvoiceSearchTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (IsLoaded)
+                ApplyInvoiceSearch();
+        }
+
+        private void ClearInvoiceSearch_Click(object sender, RoutedEventArgs e)
+        {
+            InvoiceSearchTextBox.Clear();
+        }
+
+        private void CopyInvoiceNumber_Click(object sender, RoutedEventArgs e)
+        {
+            if ((sender as Button)?.Tag is not SessionTransactionRowDto row || !row.IsInvoice)
+                return;
+
+            if (!string.IsNullOrWhiteSpace(row.DocumentNumber))
+                Clipboard.SetText(row.DocumentNumber);
+        }
+
+        private async void PrintInvoice_Click(object sender, RoutedEventArgs e)
+        {
+            if ((sender as Button)?.Tag is not SessionTransactionRowDto row ||
+                !row.IsInvoice ||
+                !row.ReferenceId.HasValue)
+            {
+                return;
+            }
+
+            try
+            {
+                using var scope = _serviceProvider.CreateScope();
+                var invoiceService = scope.ServiceProvider.GetRequiredService<IInvoiceService>();
+                var invoice = await invoiceService.GetFullInvoiceByIdAsync(row.ReferenceId.Value);
+                if (invoice == null)
+                {
+                    MessageBox.Show(
+                        UiText.T("تعذر تحميل الفاتورة للطباعة.", "The invoice could not be loaded for printing."),
+                        UiText.T("تنبيه", "Notice"));
+                    return;
+                }
+
+                ReportPrintService.PrintSmallInvoice(invoice, this);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"{UiText.T("تعذر طباعة الفاتورة", "Could not print the invoice")}: {ex.Message}",
+                    UiText.T("خطأ", "Error"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
         }
 
         private static SessionTransactionRowDto BuildVoucherRow(VoucherReadDto voucher, string cashierName)

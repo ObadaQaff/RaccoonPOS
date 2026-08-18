@@ -41,7 +41,6 @@ namespace RaccoonWarehouse.Invoices
 {
     public partial class PayInvoice : Window
     {
-        private const int ProductSearchDelayMs = 300;
         private const int ProductSelectionDelayMs = 150;
         // ====== مجموعات للـ Binding ======
         public ObservableCollection<ProductReadDto> Products { get; set; } = new();
@@ -61,7 +60,6 @@ namespace RaccoonWarehouse.Invoices
         private readonly IUserSession _userSession;
         private readonly ILoadingService _loadingService;
         private bool _isLoadingUnits = false;
-        private int _productSearchVersion;
         private int _productSelectionVersion;
         private string _productSearchText = string.Empty;
         private bool _isRestoringProductSearchText;
@@ -92,8 +90,6 @@ namespace RaccoonWarehouse.Invoices
 
             InitializeComponent();
             UiText.ApplyWindow(this);
-            ProductBox.AddHandler(TextBox.TextChangedEvent, new TextChangedEventHandler(ProductBox_TextChanged));
-
             DataContext = this;
 
             // رقم الفاتورة
@@ -714,14 +710,17 @@ namespace RaccoonWarehouse.Invoices
                     return;
                 }
 
-                if (SupplierComboBox.SelectedItem == null) // أو CustomerComboBox إذا نفس الاسم عندك
+                var selectedPaymentType = GetSelectedPaymentType();
+
+                if (selectedPaymentType == PaymentType.Credit && SupplierComboBox.SelectedItem == null)
                 {
-                    MessageBox.Show("❌ يرجى اختيار المورد.", "تنبيه");
+                    MessageBox.Show(
+                        UiText.T("يرجى اختيار المورد للفواتير الآجلة.", "Please select a supplier for credit purchases."),
+                        UiText.T("تنبيه", "Notice"));
                     return;
                 }
 
                 var supplier = SupplierComboBox.SelectedItem as UserReadDto; // أو UserReadDto للمورد
-                var selectedPaymentType = GetSelectedPaymentType();
                 decimal totalAmount = InvoiceLines.Sum(l => l.LineTotal);
                 if (!TryGetActiveCashierSession(out var session))
                     return;
@@ -1170,33 +1169,29 @@ namespace RaccoonWarehouse.Invoices
             ProductBox.IsDropDownOpen = false;
         }
 
-        private void ProductBox_TextChanged(object sender, TextChangedEventArgs e)
+        private void ProductBox_PreviewTextInput(object sender, TextCompositionEventArgs e)
         {
-            if (_isRestoringProductSearchText)
+            _productSearchText = ProductBox.Text + e.Text;
+            FilterProducts(_productSearchText);
+        }
+
+        private void ProductBox_KeyUp(object sender, KeyEventArgs e)
+        {
+            if (e.Key is not (Key.Back or Key.Delete))
                 return;
 
             _productSearchText = ProductBox.Text ?? string.Empty;
-            System.Threading.Interlocked.Increment(ref _productSelectionVersion);
-            var searchVersion = System.Threading.Interlocked.Increment(ref _productSearchVersion);
-            _ = DebouncedFilterProductsAsync(searchVersion);
-        }
-
-        private async Task DebouncedFilterProductsAsync(int searchVersion)
-        {
-            await Task.Delay(ProductSearchDelayMs);
-            if (searchVersion == _productSearchVersion)
-                FilterProducts();
+            FilterProducts(_productSearchText);
         }
 
         private void SearchProductBtn_Click(object sender, RoutedEventArgs e)
         {
-            System.Threading.Interlocked.Increment(ref _productSearchVersion);
             FilterProducts();
         }
 
-        private void FilterProducts()
+        private void FilterProducts(string? searchText = null)
         {
-            string search = ProductBox.Text?.Trim() ?? "";
+            string search = (searchText ?? ProductBox.Text)?.Trim() ?? "";
 
             if (string.IsNullOrWhiteSpace(search))
             {
