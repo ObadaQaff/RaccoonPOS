@@ -30,8 +30,8 @@ namespace RaccoonWarehouse.Helpers.Pdf.Reports
                 { "إلى تاريخ", _to?.ToString("yyyy/MM/dd") ?? "-" },
                 { "الزبون", _customerName },
                 { "عدد السجلات", _rows.Count.ToString() },
-                { "إجمالي الفواتير", _rows.Sum(x => x.Total).ToString("N2") },
-                { "إجمالي الربح", _rows.Sum(x => x.Profit).ToString("N2") }
+                { "إجمالي الفواتير", _rows.Sum(x => x.Total).ToString("N5") },
+                { "إجمالي الربح", _rows.Sum(x => x.Profit).ToString("N5") }
             };
 
         public override List<string> TableHeaders =>
@@ -52,8 +52,8 @@ namespace RaccoonWarehouse.Helpers.Pdf.Reports
                 x.InvoiceNumber ?? "-",
                 x.Date.ToString("yyyy/MM/dd"),
                 x.CustomerName ?? "-",
-                x.Total.ToString("N2"),
-                x.Profit.ToString("N2"),
+                x.Total.ToString("N5"),
+                x.Profit.ToString("N5"),
                 x.PaymentMethod ?? "-",
                 x.Status ?? "-"
             }).ToList();

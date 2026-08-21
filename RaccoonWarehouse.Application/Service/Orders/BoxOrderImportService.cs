@@ -101,6 +101,7 @@ namespace RaccoonWarehouse.Application.Service.Orders
 
                     var lines = new List<InvoiceLineWriteDto>();
                     var orderErrors = new List<string>();
+                    var missingItemNotes = new List<string>();
 
                     foreach (var item in order.Items)
                     {
@@ -109,6 +110,7 @@ namespace RaccoonWarehouse.Application.Service.Orders
                             !productsByBarcode.TryGetValue(barcode, out var product))
                         {
                             orderErrors.Add($"Cart {order.CartId}: product barcode {item.Barcode} was not matched.");
+                            missingItemNotes.Add(FormatMissingItemNote(item.Barcode, item.ProductName, item.Quantity, item.UnitPrice));
                             continue;
                         }
 
@@ -116,6 +118,7 @@ namespace RaccoonWarehouse.Application.Service.Orders
                         if (unit == null)
                         {
                             orderErrors.Add($"Cart {order.CartId}: product {barcode} has no usable unit.");
+                            missingItemNotes.Add(FormatMissingItemNote(item.Barcode, item.ProductName, item.Quantity, item.UnitPrice));
                             continue;
                         }
 
@@ -140,7 +143,7 @@ namespace RaccoonWarehouse.Application.Service.Orders
                         });
                     }
 
-                    if (orderErrors.Count > 0 || lines.Count == 0 || lines.Count != order.Items.Count)
+                    if (lines.Count == 0)
                     {
                         result.SkippedCount++;
                         result.Errors.AddRange(orderErrors);
@@ -160,6 +163,7 @@ namespace RaccoonWarehouse.Application.Service.Orders
                         IsPOS = false,
                         OpenedAt = createdDate,
                         InvoiceLines = lines,
+                        Notes = string.Join(Environment.NewLine, new[] { order.Note }.Concat(missingItemNotes).Where(note => !string.IsNullOrWhiteSpace(note))),
                         CreatedDate = createdDate,
                         UpdatedDate = DateTime.Now
                     });
@@ -267,6 +271,12 @@ namespace RaccoonWarehouse.Application.Service.Orders
                    ?? units.FirstOrDefault();
         }
 
+        public static string FormatMissingItemNote(string? barcode, string? productName, decimal quantity, decimal price)
+        {
+            var displayBarcode = string.IsNullOrWhiteSpace(barcode) ? "(missing)" : barcode.Trim();
+            var displayName = string.IsNullOrWhiteSpace(productName) ? "(unknown)" : productName.Trim();
+            return $"Missing item | Barcode: {displayBarcode} | Name: {displayName} | Quantity: {quantity:0.###} | Price: {price:0.###}";
+        }
         public static string NormalizeBarcode(string? barcode)
         {
             var normalized = barcode?.Trim();

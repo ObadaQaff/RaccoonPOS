@@ -1,4 +1,4 @@
-﻿using QuestPDF.Fluent;
+using QuestPDF.Fluent;
 using QuestPDF.Infrastructure;
 using RaccoonWarehouse.Domain.StockDocuments.DTOs;
 
@@ -70,7 +70,7 @@ namespace RaccoonWarehouse.Helpers.pdf
                         {
                             table.Cell().Element(CellStyle).Text(item.Product?.Name ?? "");
                             table.Cell().Element(CellStyle).Text(item.ProductUnit?.Unit?.Name ?? "");
-                            table.Cell().Element(CellStyle).Text(item.Quantity.ToString("0.##"));
+                            table.Cell().Element(CellStyle).Text(item.Quantity.ToString("0.00000"));
                             table.Cell().Element(CellStyle).Text(item.ExpiryDate?.ToString("yyyy/MM/dd") ?? "");
                         }
                     });

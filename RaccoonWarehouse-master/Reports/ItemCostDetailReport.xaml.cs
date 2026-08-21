@@ -36,7 +36,7 @@ namespace RaccoonWarehouse.Reports
         {
             ItemCostDetailGrid.ItemsSource = rows;
             TotalItemsText.Text = rows.Count.ToString();
-            TotalValueText.Text = rows.Sum(x => x.Total).ToString("0.000");
+            TotalValueText.Text = rows.Sum(x => x.Total).ToString("0.00000");
         }
 
         private void BackBtn_Click(object sender, RoutedEventArgs e)

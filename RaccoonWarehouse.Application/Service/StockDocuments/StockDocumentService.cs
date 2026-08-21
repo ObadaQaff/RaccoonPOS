@@ -38,6 +38,15 @@ namespace RaccoonWarehouse.Application.Service.StockDocuments
                     return Result<StockDocumentWriteDto>.Fail("Stock document must contain at least one item.");
                 if (dto.Type == StockVoucherType.In && dto.Items.Any(item => !item.ExpiryDate.HasValue))
                     return Result<StockDocumentWriteDto>.Fail("Expiry date is required for every stock-in item.");
+                if (dto.Type == StockVoucherType.In && dto.PaymentType == PaymentType.Credit && !dto.SupplierId.HasValue)
+                    return Result<StockDocumentWriteDto>.Fail("A user/account is required for credit stock-in / الذمة تتطلب اختيار حساب.");
+                if (dto.Type == StockVoucherType.In && dto.PaymentType == PaymentType.Check)
+                {
+                    var expected = Math.Round(dto.Items.Sum(item => item.Quantity * item.PurchasePrice) - Math.Clamp(dto.DiscountAmount ?? 0m, 0m, dto.Items.Sum(item => item.Quantity * item.PurchasePrice)), 3);
+                    var checksTotal = Math.Round((dto.Checks ?? new List<RaccoonWarehouse.Domain.Checks.DTOs.CheckWriteDto>()).Sum(check => check.Amount), 3);
+                    if (checksTotal != expected)
+                        return Result<StockDocumentWriteDto>.Fail($"Check total ({checksTotal:0.###}) must equal stock-in total ({expected:0.###}) / مجموع الشيكات يجب أن يساوي إجمالي سند الإدخال.");
+                }
 
                 var now = GetJordanNow();
                 dto.CreatedDate = dto.CreatedDate == default ? now : dto.CreatedDate;
@@ -54,6 +63,7 @@ namespace RaccoonWarehouse.Application.Service.StockDocuments
                 dto.Id = document.Id;
 
                 var lineRepo = _uow.GetRepository<StockItem>();
+                var checkRepo = _uow.GetRepository<RaccoonWarehouse.Domain.Checks.Check>();
                 for (var i = 0; i < dto.Items.Count; i++)
                 {
                     var itemDto = dto.Items[i];
@@ -65,6 +75,15 @@ namespace RaccoonWarehouse.Application.Service.StockDocuments
                     await lineRepo.AddAsync(item);
                 }
 
+                foreach (var checkDto in dto.Checks ?? Enumerable.Empty<RaccoonWarehouse.Domain.Checks.DTOs.CheckWriteDto>())
+                {
+                    var check = _mapper.Map<RaccoonWarehouse.Domain.Checks.Check>(checkDto);
+                    check.Id = 0;
+                    check.StockDocumentId = document.Id;
+                    check.StockDocument = null;
+                    await checkRepo.AddAsync(check);
+                }
+
                 await _uow.CommitAsync();
 
                 if (_accountingService != null)
@@ -73,6 +92,7 @@ namespace RaccoonWarehouse.Application.Service.StockDocuments
                     if (!journalResult.Success)
                     {
                         _context.Set<StockItem>().RemoveRange(_context.Set<StockItem>().Where(x => x.StockDocumentId == document.Id));
+                        _context.Set<RaccoonWarehouse.Domain.Checks.Check>().RemoveRange(_context.Set<RaccoonWarehouse.Domain.Checks.Check>().Where(x => x.StockDocumentId == document.Id));
                         _context.Set<StockDocument>().Remove(document);
                         await _uow.CommitAsync();
                         return Result<StockDocumentWriteDto>.Fail($"Stock document creation was rolled back because accounting posting failed: {journalResult.Message}");
@@ -205,6 +225,7 @@ namespace RaccoonWarehouse.Application.Service.StockDocuments
                     .ThenInclude(i => i.ProductUnit)
                         .ThenInclude(u => u.Unit)
                 .Include(d => d.Supplier)
+                .Include(d => d.Checks)
                 .AsQueryable();
 
             query = stockIn

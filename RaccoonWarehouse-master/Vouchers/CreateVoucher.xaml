@@ -1,4 +1,4 @@
-﻿<Window x:Class="RaccoonWarehouse.Vouchers.CreateVoucher"
+<Window x:Class="RaccoonWarehouse.Vouchers.CreateVoucher"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -9,7 +9,8 @@
         Height="800"
         Width="1400"
         WindowStartupLocation="CenterScreen"
-        WindowState="Maximized">
+        WindowState="Maximized"
+        PreviewKeyDown="CreateVoucher_PreviewKeyDown">
 
     <!-- ============== RESOURCES ============== -->
     <Window.Resources>
@@ -264,17 +265,24 @@
                     <!-- المبلغ -->
                     <StackPanel Margin="6" Grid.Column="2">
                         <TextBlock Text="المبلغ" FontSize="14" FontWeight="SemiBold" Width="163"/>
-                        <TextBox x:Name="Amount" Style="{StaticResource InputBoxStyle}" Width="160"/>
+                        <TextBox x:Name="Amount" Style="{StaticResource InputBoxStyle}" Width="160" PreviewKeyDown="Amount_PreviewKeyDown"/>
                     </StackPanel>
 
                     <!-- الحساب / الجهة -->
                     <StackPanel Margin="6" Grid.Column="3">
                         <TextBlock Text="الحساب / الجهة" FontSize="14" FontWeight="SemiBold" Width="232"/>
-                        <ComboBox x:Name="AccountComboBox"
-                  Style="{StaticResource ComboBoxStyleModern}"
-                  Width="230"
-                  DisplayMemberPath="Name"
-                  SelectedValuePath="Id"/>
+                        <Grid Width="270">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="230"/><ColumnDefinition Width="40"/></Grid.ColumnDefinitions>
+                            <ComboBox x:Name="AccountComboBox"
+                                      Grid.Column="0"
+                                      Style="{StaticResource ComboBoxStyleModern}"
+                                      Width="230"
+                                      DisplayMemberPath="Name"
+                                      SelectedValuePath="Id"
+                                    IsTextSearchEnabled="False"
+                                   />
+                            <Button Grid.Column="1" Width="34" Height="32" Margin="5,0,0,0" Content="+" FontSize="18" FontWeight="Bold" Click="AddCustomerBtn_Click"/>
+                        </Grid>
                     </StackPanel>
                 </Grid>
 
@@ -284,14 +292,17 @@
                               Style="{StaticResource ComboBoxStyleModern}"
                               Width="230"
                               DisplayMemberPath="Name"
-                              SelectedValuePath="Id"/>
+                              SelectedValuePath="Id"
+                              IsTextSearchEnabled="False"
+                              PreviewKeyDown="FormField_PreviewKeyDown"
+                                   />
                 </StackPanel>
 
                 <StackPanel Margin="6" HorizontalAlignment="Left">
                     <TextBlock Text="طريقة الدفع" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,3" Width="192"/>
                     <ComboBox x:Name="PaymentTypeCombo"
-                          Style="{StaticResource ComboBoxStyleModern}"
-                       
+                        Style="{StaticResource ComboBoxStyleModern}"
+                        PreviewKeyDown="FormField_PreviewKeyDown"
                           SelectionChanged="PaymentTypeCombo_SelectionChanged">
                         <ComboBoxItem Tag="1">نقدي</ComboBoxItem>
                         <ComboBoxItem Tag="3">شبكة</ComboBoxItem>

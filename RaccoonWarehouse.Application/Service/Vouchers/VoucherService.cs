@@ -8,6 +8,7 @@ using RaccoonWarehouse.Data;
 using RaccoonWarehouse.Domain.Accounting.Enums;
 using RaccoonWarehouse.Domain.Checks;
 using RaccoonWarehouse.Domain.Enums;
+using RaccoonWarehouse.Domain.Users;
 using RaccoonWarehouse.Domain.Vouchers;
 using RaccoonWarehouse.Domain.Vouchers.DTOs;
 
@@ -34,6 +35,17 @@ namespace RaccoonWarehouse.Application.Service.Vouchers
         {
             try
             {
+                if (dto.Id <= 0)
+                {
+                    if (!int.TryParse(dto.VoucherNumber, out var voucherNumber) || voucherNumber < 100 || voucherNumber > 99999)
+                        return Result<VoucherWriteDto>.Fail("Voucher number must contain 3 to 5 digits / رقم السند يجب أن يتكون من 3 إلى 5 أرقام.");
+
+                    var voucherNumberExists = await _uow.Vouchers.GetAllAsQueryable()
+                        .AnyAsync(voucher => voucher.VoucherNumber == dto.VoucherNumber);
+                    if (voucherNumberExists)
+                        return Result<VoucherWriteDto>.Fail("Voucher number already exists / رقم السند موجود مسبقاً.");
+                }
+
                 var now = GetJordanNow();
                 dto.CreatedDate = dto.CreatedDate == default ? now : dto.CreatedDate;
                 dto.UpdatedDate = now;
@@ -159,10 +171,16 @@ namespace RaccoonWarehouse.Application.Service.Vouchers
                 query = query.Where(d => d.VoucherNumber == voucherNumber);
 
             if (!string.IsNullOrWhiteSpace(customerName))
+            {
+                var accountSearch = customerName.Trim();
                 query = query.Where(d =>
-                    (d.VoucherNumber != null && d.VoucherNumber.Contains(customerName)) ||
-                    (d.ReferenceNumber != null && d.ReferenceNumber.Contains(customerName)) ||
-                    (d.Notes != null && d.Notes.Contains(customerName)));
+                    (d.VoucherNumber != null && d.VoucherNumber.Contains(accountSearch)) ||
+                    (d.ReferenceNumber != null && d.ReferenceNumber.Contains(accountSearch)) ||
+                    (d.Notes != null && d.Notes.Contains(accountSearch)) ||
+                    (d.CustomerId.HasValue && _context.Set<User>().Any(u => u.Id == d.CustomerId.Value && u.Name.Contains(accountSearch))) ||
+                    (d.SupplierId.HasValue && _context.Set<User>().Any(u => u.Id == d.SupplierId.Value && u.Name.Contains(accountSearch))) ||
+                    (d.CreatedBy.HasValue && _context.Set<User>().Any(u => u.Id == d.CreatedBy.Value && u.Name.Contains(accountSearch))));
+            }
 
             if (dateFrom.HasValue)
                 query = query.Where(d => d.CreatedDate >= dateFrom.Value);

@@ -1,4 +1,4 @@
-﻿using QuestPDF.Fluent;
+using QuestPDF.Fluent;
 using QuestPDF.Infrastructure;
 using RaccoonWarehouse.Helpers.Pdf;
 using RaccoonWarehouse.Domain.Vouchers.DTOs;
@@ -25,7 +25,7 @@ namespace RaccoonWarehouse.Helpers.Pdf.Reports
                 { "رقم السند", _voucher.VoucherNumber },
                 { "التاريخ", _voucher.CreatedDate.ToString("yyyy/MM/dd") },
                 { "الجهة", "-" },
-                { "المبلغ", _voucher.Amount.ToString("N2") },
+                { "المبلغ", _voucher.Amount.ToString("N5") },
                 { "طريقة الدفع", _voucher.PaymentType.ToString() },
                 { "ملاحظات", _voucher.Notes ?? "-" }
             };
@@ -51,7 +51,7 @@ namespace RaccoonWarehouse.Helpers.Pdf.Reports
                 {
                     c.CheckNumber,
                     c.BankName,
-                    c.Amount.ToString("N2"),
+                    c.Amount.ToString("N5"),
                     c.DueDate.ToString("yyyy/MM/dd"),
                     c.Notes ?? ""
                 }).ToList();

@@ -80,51 +80,35 @@ namespace RaccoonWarehouse.Application.Service.Accounting
             if (user == null)
                 return Result<UserStatementReportDto>.Fail("User was not found.");
 
-            var userRole = user.Role;
-            var isCreditNature = userRole == UserRole.Supplier;
-            var controlAccountId = await GetPartyControlAccountIdAsync(userRole);
+            var statementRole = filter.Role ?? user.Role;
+            var isCreditNature = statementRole == UserRole.Supplier;
+            var customerControlAccountId = await GetPartyControlAccountIdAsync(UserRole.Customer);
+            var supplierControlAccountId = await GetPartyControlAccountIdAsync(UserRole.Supplier);
 
             var baseQuery = _context.Set<JournalEntryLine>()
                 .AsNoTracking()
                 .Include(x => x.JournalEntry)
                 .Where(x => x.JournalEntry.Status == Domain.Accounting.Enums.JournalEntryStatus.Posted);
 
-            if (userRole == UserRole.Customer)
-            {
-                baseQuery = baseQuery.Where(x =>
-                    x.CustomerId == filter.UserId ||
-                    x.PartyUserId == filter.UserId ||
-                    (
-                        x.CustomerId == null && x.SupplierId == null && x.PartyUserId == null &&
-                        x.AccountId == controlAccountId &&
-                        x.JournalEntry.ReferenceType == "Invoice" &&
-                        x.JournalEntry.ReferenceId.HasValue &&
-                        _context.Set<Invoice>().Any(invoice =>
-                            invoice.Id == x.JournalEntry.ReferenceId.Value &&
-                            invoice.PaymentType == PaymentType.Credit &&
-                            invoice.CustomerId == filter.UserId)
-                    ));
-            }
-            else if (userRole == UserRole.Supplier)
-            {
-                baseQuery = baseQuery.Where(x =>
-                    x.SupplierId == filter.UserId ||
-                    x.PartyUserId == filter.UserId ||
-                    (
-                        x.CustomerId == null && x.SupplierId == null && x.PartyUserId == null &&
-                        x.AccountId == controlAccountId &&
-                        x.JournalEntry.ReferenceType == "Invoice" &&
-                        x.JournalEntry.ReferenceId.HasValue &&
-                        _context.Set<Invoice>().Any(invoice =>
-                            invoice.Id == x.JournalEntry.ReferenceId.Value &&
-                            invoice.PaymentType == PaymentType.Credit &&
-                            invoice.SupplierId == filter.UserId)
-                    ));
-            }
-            else
-            {
-                baseQuery = baseQuery.Where(x => x.PartyUserId == filter.UserId);
-            }
+            baseQuery = baseQuery.Where(x =>
+                x.CustomerId == filter.UserId ||
+                x.SupplierId == filter.UserId ||
+                x.PartyUserId == filter.UserId ||
+                (
+                    x.CustomerId == null && x.SupplierId == null && x.PartyUserId == null &&
+                    x.JournalEntry.ReferenceType == "Invoice" &&
+                    x.JournalEntry.ReferenceId.HasValue &&
+                    ((x.AccountId == customerControlAccountId &&
+                      _context.Set<Invoice>().Any(invoice =>
+                          invoice.Id == x.JournalEntry.ReferenceId.Value &&
+                          invoice.PaymentType == PaymentType.Credit &&
+                          invoice.CustomerId == filter.UserId)) ||
+                     (x.AccountId == supplierControlAccountId &&
+                      _context.Set<Invoice>().Any(invoice =>
+                          invoice.Id == x.JournalEntry.ReferenceId.Value &&
+                          invoice.PaymentType == PaymentType.Credit &&
+                          invoice.SupplierId == filter.UserId)))
+                ));
 
             var openingBalance = await baseQuery
                 .Where(x => x.JournalEntry.EntryDate < filter.From)

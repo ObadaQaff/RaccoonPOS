@@ -26,7 +26,7 @@ namespace RaccoonWarehouse.Application.Service.Accounting
 
             var cutoff = filter.AsOfDate.Date.AddDays(1);
             var controlAccountId = await GetPartyControlAccountIdAsync(filter.Role);
-            var users = _context.Set<User>().AsNoTracking().Where(x => x.Role == filter.Role);
+            var users = _context.Set<User>().AsNoTracking();
             var search = filter.Search?.Trim();
             if (!string.IsNullOrWhiteSpace(search))
                 users = users.Where(x => x.Name.Contains(search) || (x.PhoneNumber != null && x.PhoneNumber.Contains(search)));

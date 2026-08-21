@@ -41,6 +41,7 @@ namespace RaccoonWarehouse.Application.Service.Accounting
         public const string SalesRevenueAccountCodeKey = "Accounting.AccountCode.SalesRevenue";
         public const string SalesReturnsAccountCodeKey = "Accounting.AccountCode.SalesReturns";
         public const string SalesDiscountAccountCodeKey = "Accounting.AccountCode.SalesDiscount";
+        public const string PurchaseDiscountAccountCodeKey = "Accounting.AccountCode.PurchaseDiscount";
         public const string StockGainAccountCodeKey = "Accounting.AccountCode.StockGain";
         public const string CostOfGoodsSoldAccountCodeKey = "Accounting.AccountCode.Cogs";
         public const string GeneralExpenseAccountCodeKey = "Accounting.AccountCode.GeneralExpense";
@@ -427,6 +428,7 @@ namespace RaccoonWarehouse.Application.Service.Accounting
             var salesRevenueId = accountIds[SalesRevenueAccountCodeKey];
             var salesReturnsId = accountIds[SalesReturnsAccountCodeKey];
             var salesDiscountId = accountIds[SalesDiscountAccountCodeKey];
+            var purchaseDiscountId = accountIds[PurchaseDiscountAccountCodeKey];
             var inventoryId = accountIds[InventoryAccountCodeKey];
             var cogsId = accountIds[CostOfGoodsSoldAccountCodeKey];
             var outputTaxId = accountIds[OutputTaxAccountCodeKey];
@@ -505,19 +507,25 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                     break;
 
                 case InvoiceType.Purchase:
-                    AddDebit(lines, inventoryId, invoice.NetSales, $"Purchase invoice #{invoice.InvoiceNumber} inventory");
+                    AddDebit(lines, inventoryId, invoice.SubTotal, $"Purchase invoice #{invoice.InvoiceNumber} inventory");
                     if (invoice.TotalTax > 0)
                         AddDebit(lines, inputTaxId, invoice.TotalTax, $"Purchase invoice #{invoice.InvoiceNumber} input tax");
+                    if ((invoice.DiscountAmount ?? 0m) > 0)
+                        AddCredit(lines, purchaseDiscountId, invoice.DiscountAmount!.Value, $"Purchase invoice #{invoice.InvoiceNumber} discount");
                     AddCredit(lines, settlementAccountId, invoice.TotalAmount, $"Purchase invoice #{invoice.InvoiceNumber} settlement",
                         supplierId: invoice.PaymentType == PaymentType.Credit ? invoice.SupplierId : null);
                     break;
 
                 case InvoiceType.PurchaseReturn:
-                    AddDebit(lines, settlementAccountId, invoice.TotalAmount, $"Purchase return #{invoice.InvoiceNumber} settlement",
+                    var purchaseReturnTax = Math.Abs(invoice.TotalTax);
+                    var purchaseReturnTotal = Math.Abs(invoice.TotalAmount);
+                    var purchaseReturnNetSales = Math.Abs(invoice.NetSales);
+
+                    AddDebit(lines, settlementAccountId, purchaseReturnTotal, $"Purchase return #{invoice.InvoiceNumber} settlement",
                         supplierId: invoice.PaymentType == PaymentType.Credit ? invoice.SupplierId : null);
-                    if (invoice.TotalTax > 0)
-                        AddCredit(lines, inputTaxId, invoice.TotalTax, $"Purchase return #{invoice.InvoiceNumber} input tax reversal");
-                    AddCredit(lines, inventoryId, invoice.NetSales, $"Purchase return #{invoice.InvoiceNumber} inventory reversal");
+                    if (purchaseReturnTax > 0)
+                        AddCredit(lines, inputTaxId, purchaseReturnTax, $"Purchase return #{invoice.InvoiceNumber} input tax reversal");
+                    AddCredit(lines, inventoryId, purchaseReturnNetSales, $"Purchase return #{invoice.InvoiceNumber} inventory reversal");
                     break;
 
                 default:
@@ -599,12 +607,15 @@ namespace RaccoonWarehouse.Application.Service.Accounting
             if (document.Items == null || document.Items.Count == 0)
                 return Result<JournalEntryReadDto>.Ok(new JournalEntryReadDto(), "Stock document has no items to post.");
 
-            var totalAmount = document.Items.Sum(x => x.Quantity * x.PurchasePrice);
+            var grossAmount = document.Items.Sum(x => x.Quantity * x.PurchasePrice);
+            var discount = Math.Clamp(document.DiscountAmount ?? 0m, 0m, Math.Max(grossAmount, 0m));
+            var totalAmount = grossAmount - discount;
             if (totalAmount <= 0)
                 return Result<JournalEntryReadDto>.Ok(new JournalEntryReadDto(), "Stock document amount is zero.");
 
             var inventoryId = await ResolveSystemAccountIdAsync(InventoryAccountCodeKey, "1150000000");
             var stockGainId = await ResolveSystemAccountIdAsync(StockGainAccountCodeKey, "4140000000");
+            var purchaseDiscountId = await ResolveSystemAccountIdAsync(PurchaseDiscountAccountCodeKey, "4150000000");
             var stockLossId = await ResolveSystemAccountIdAsync(StockLossAccountCodeKey, "5120000000");
             var internalConsumptionId = await ResolveSystemAccountIdAsync(InternalConsumptionAccountCodeKey, "5140000000");
             var accountsPayableId = await ResolveSystemAccountIdAsync(AccountsPayableAccountCodeKey, "2110000000");
@@ -614,7 +625,18 @@ namespace RaccoonWarehouse.Application.Service.Accounting
             if (document.Type == StockVoucherType.In)
             {
                 AddDebit(lines, inventoryId, totalAmount, description);
-                AddCredit(lines, document.SupplierId.HasValue ? accountsPayableId : stockGainId, totalAmount, description);
+                if (discount > 0)
+                    AddCredit(lines, purchaseDiscountId, discount, description + " purchase discount");
+
+                var settlementAccountId = document.PaymentType.HasValue
+                    ? await ResolveSettlementAccountIdAsync(document.PaymentType, isPurchaseSide: true)
+                    : document.SupplierId.HasValue ? accountsPayableId : stockGainId;
+                AddCredit(
+                    lines,
+                    settlementAccountId,
+                    totalAmount,
+                    description,
+                    supplierId: document.PaymentType == PaymentType.Credit ? document.SupplierId : null);
             }
             else if (document.Type == StockVoucherType.Out)
             {
@@ -1279,6 +1301,7 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                 [SalesRevenueAccountCodeKey] = "4110000000",
                 [SalesReturnsAccountCodeKey] = "4120000000",
                 [SalesDiscountAccountCodeKey] = "4130000000",
+                [PurchaseDiscountAccountCodeKey] = "4150000000",
                 [InventoryAccountCodeKey] = "1150000000",
                 [CostOfGoodsSoldAccountCodeKey] = "5110000000",
                 [OutputTaxAccountCodeKey] = "2120000000",
@@ -1468,6 +1491,7 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                 [SalesRevenueAccountCodeKey] = ("4110000000", "Default sales revenue account code for accounting posting."),
                 [SalesReturnsAccountCodeKey] = ("4120000000", "Default sales returns account code for accounting posting."),
                 [SalesDiscountAccountCodeKey] = ("4130000000", "Default sales discount account code for accounting posting."),
+                [PurchaseDiscountAccountCodeKey] = ("4150000000", "Default purchase discount account code for accounting posting."),
                 [StockGainAccountCodeKey] = ("4140000000", "Default stock gain account code for accounting posting."),
                 [CostOfGoodsSoldAccountCodeKey] = ("5110000000", "Default cost of goods sold account code for accounting posting."),
                 [GeneralExpenseAccountCodeKey] = ("5130000000", "Default general expense account code for accounting posting."),
@@ -1625,6 +1649,7 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                 new { Code = "4120000000", LegacyCode = "4102", ParentCode = (string?)"4100000000", NameAr = "مردودات المبيعات", NameEn = "Sales Returns", Description = "مردودات المبيعات", AccountType = AccountType.Revenue, NormalBalance = NormalBalanceType.Debit, Level = 3, IsPosting = true, AllowManualEntry = true },
                 new { Code = "4130000000", LegacyCode = "4103", ParentCode = (string?)"4100000000", NameAr = "خصومات المبيعات", NameEn = "Sales Discounts", Description = "خصومات المبيعات", AccountType = AccountType.Revenue, NormalBalance = NormalBalanceType.Debit, Level = 3, IsPosting = true, AllowManualEntry = true },
                 new { Code = "4140000000", LegacyCode = "4104", ParentCode = (string?)"4100000000", NameAr = "أرباح تسويات المخزون", NameEn = "Inventory Adjustment Gains", Description = "أرباح تسويات المخزون", AccountType = AccountType.Revenue, NormalBalance = NormalBalanceType.Credit, Level = 3, IsPosting = true, AllowManualEntry = true },
+                new { Code = "4150000000", LegacyCode = "4105", ParentCode = (string?)"4100000000", NameAr = "خصومات المشتريات", NameEn = "Purchase Discounts", Description = "خصومات المشتريات", AccountType = AccountType.Revenue, NormalBalance = NormalBalanceType.Credit, Level = 3, IsPosting = true, AllowManualEntry = true },
 
                 new { Code = "5000000000", LegacyCode = "5", ParentCode = (string?)null, NameAr = "المصروفات", NameEn = "Expenses", Description = "الحساب الرئيسي للمصروفات", AccountType = AccountType.Expense, NormalBalance = NormalBalanceType.Debit, Level = 1, IsPosting = false, AllowManualEntry = false },
                 new { Code = "5100000000", LegacyCode = "51", ParentCode = (string?)"5000000000", NameAr = "المصروفات التشغيلية", NameEn = "Operating Expenses", Description = "مجموعة المصروفات التشغيلية", AccountType = AccountType.Expense, NormalBalance = NormalBalanceType.Debit, Level = 2, IsPosting = false, AllowManualEntry = false },

@@ -177,7 +177,7 @@ namespace RaccoonWarehouse.Accounting
         private async void JournalEntriesGrid_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
             if (JournalEntriesGrid.SelectedItem is not JournalEntryListItem entry ||
-                !string.Equals(entry.ReferenceType, "Invoice", StringComparison.OrdinalIgnoreCase) ||
+                string.IsNullOrWhiteSpace(entry.ReferenceType) ||
                 !entry.ReferenceId.HasValue || entry.ReferenceId.Value <= 0)
             {
                 return;
@@ -191,7 +191,7 @@ namespace RaccoonWarehouse.Accounting
             {
                 MessageBox.Show(
                     ex.Message,
-                    UiText.T("تعذر فتح الفاتورة", "Could not open invoice"),
+                    UiText.T("تعذر فتح المستند المصدر", "Could not open the source document"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
             }

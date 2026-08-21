@@ -100,7 +100,7 @@ public sealed class PandaOrderProcessor : IPandaOrderProcessor
             {
                 InvoiceNumber = reference, OriginalInvoiceId = reference, InvoiceType = InvoiceType.EndpointOrder,
                 PaymentType = PaymentType.Credit, CustomerId = customerId, Status = InvoiceStatus.Unknown,
-                IsPOS = false, OpenedAt = integrationEvent.OccurredAtUtc, InvoiceLines = lines,
+                IsPOS = false, OpenedAt = integrationEvent.OccurredAtUtc, InvoiceLines = lines, Notes = integrationEvent.Order.Note,
                 DiscountAmount = integrationEvent.Order.DiscountTotal,
                 CreatedDate = integrationEvent.OccurredAtUtc, UpdatedDate = DateTime.UtcNow
             });

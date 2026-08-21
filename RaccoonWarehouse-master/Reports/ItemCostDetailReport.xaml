@@ -28,7 +28,7 @@
                 <Border Grid.Column="1" Background="#244D74" CornerRadius="18" Padding="18,10">
                     <StackPanel>
                         <TextBlock Text="إجمالي القيمة" Foreground="#BFD9EF" FontSize="13" HorizontalAlignment="Center"/>
-                        <TextBlock x:Name="TotalValueText" Text="0.000" Foreground="White" FontSize="24" FontWeight="Bold" HorizontalAlignment="Center"/>
+                        <TextBlock x:Name="TotalValueText" Text="0.00000" Foreground="White" FontSize="24" FontWeight="Bold" HorizontalAlignment="Center"/>
                     </StackPanel>
                 </Border>
             </Grid>
@@ -91,9 +91,9 @@
                         <DataGridTextColumn Header="كود الصنف" Binding="{Binding ItemID}" Width="110"/>
                         <DataGridTextColumn Header="اسم الصنف" Binding="{Binding ItemName}" Width="2*"/>
                         <DataGridTextColumn Header="الوحدة" Binding="{Binding UnitName}" Width="*"/>
-                        <DataGridTextColumn Header="الكمية" Binding="{Binding Quantity, StringFormat=N3}" Width="*"/>
-                        <DataGridTextColumn Header="التكلفة" Binding="{Binding Cost, StringFormat=N3}" Width="*"/>
-                        <DataGridTextColumn Header="الإجمالي" Binding="{Binding Total, StringFormat=N3}" Width="*"/>
+                        <DataGridTextColumn Header="الكمية" Binding="{Binding Quantity, StringFormat=N5}" Width="*"/>
+                        <DataGridTextColumn Header="التكلفة" Binding="{Binding Cost, StringFormat=N5}" Width="*"/>
+                        <DataGridTextColumn Header="الإجمالي" Binding="{Binding Total, StringFormat=N5}" Width="*"/>
                     </DataGrid.Columns>
                 </DataGrid>
             </Border>

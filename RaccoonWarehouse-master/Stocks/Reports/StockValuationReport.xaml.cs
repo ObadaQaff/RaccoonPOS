@@ -30,7 +30,7 @@ namespace RaccoonWarehouse.Stocks.Reports
             {
                 var rows = await _stockReportService.GetStockValuationAsync();
                 ValuationGrid.ItemsSource = rows;
-                TotalValueTextBlock.Text = rows.Sum(x => x.TotalValue).ToString("N3");
+                TotalValueTextBlock.Text = rows.Sum(x => x.TotalValue).ToString("N5");
             }
             catch (Exception ex)
             {

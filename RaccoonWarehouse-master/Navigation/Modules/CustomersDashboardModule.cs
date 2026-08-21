@@ -29,20 +29,21 @@ namespace RaccoonWarehouse.Navigation.Modules
 
             if (role.HasValue && await _permissionService.HasPermissionAsync(role.Value, "Users.Create"))
             {
-                actions.Add(new ModuleActionDefinition("Customers.Create", UiText.T("إضافة زبون جديد", "Add New Customer"), "Users.Create"));
+                actions.Add(new ModuleActionDefinition("Customers.Create", UiText.T("إضافة عميل جديد", "Add New Customer"), "Users.Create"));
+                actions.Add(new ModuleActionDefinition("Customers.CreateSupplier", UiText.T("إضافة مورد جديد", "Add New Supplier"), "Users.Create"));
             }
 
             if (role.HasValue && await _permissionService.HasPermissionAsync(role.Value, "Users.View"))
             {
-                actions.Add(new ModuleActionDefinition("Customers.List", UiText.T("إستعلام أو تعديل زبون", "Search or edit customer"), "Users.View"));
+                actions.Add(new ModuleActionDefinition("Customers.List", UiText.T("عرض العملاء والموردين", "View Customers and Suppliers"), "Users.View"));
             }
 
             return new ModuleDefinition(
                 Key,
-                UiText.T("الزبائن", "Customers"),
+                UiText.T("العملاء والموردون", "Customers and Suppliers"),
                 new[]
                 {
-                    new ModuleGroupDefinition(UiText.T("إدارة الزبائن", "Customer Management"), actions)
+                    new ModuleGroupDefinition(UiText.T("إدارة العملاء والموردين", "Customers and Suppliers Management"), actions)
                 });
         }
     }

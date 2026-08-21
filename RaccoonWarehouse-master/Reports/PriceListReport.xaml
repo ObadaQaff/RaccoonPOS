@@ -92,8 +92,8 @@
                         <DataGridTextColumn Header="كود الصنف" Binding="{Binding ItemID}" Width="110"/>
                         <DataGridTextColumn Header="اسم الصنف" Binding="{Binding ItemName}" Width="2*"/>
                         <DataGridTextColumn Header="الوحدة" Binding="{Binding UnitName}" Width="*"/>
-                        <DataGridTextColumn Header="سعر الشراء" Binding="{Binding PurchasePrice, StringFormat=N3}" Width="*"/>
-                        <DataGridTextColumn Header="سعر البيع" Binding="{Binding SalePrice, StringFormat=N3}" Width="*"/>
+                        <DataGridTextColumn Header="سعر الشراء" Binding="{Binding PurchasePrice, StringFormat=N5}" Width="*"/>
+                        <DataGridTextColumn Header="سعر البيع" Binding="{Binding SalePrice, StringFormat=N5}" Width="*"/>
                         <DataGridTextColumn Header="أقرب انتهاء" Binding="{Binding ExpiryDate, StringFormat=yyyy-MM-dd, TargetNullValue=-}" Width="*"/>
                         <DataGridCheckBoxColumn Header="افتراضي بيع" Binding="{Binding IsDefaultSaleUnit}" Width="110"/>
                         <DataGridCheckBoxColumn Header="افتراضي شراء" Binding="{Binding IsDefaultPurchaseUnit}" Width="110"/>

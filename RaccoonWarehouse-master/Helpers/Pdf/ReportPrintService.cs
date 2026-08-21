@@ -189,16 +189,16 @@ namespace RaccoonWarehouse.Helpers.Pdf
             {
                 var row = new TableRow();
                 AddCell(row, string.IsNullOrWhiteSpace(line.ProductName) ? line.Product?.Name ?? "-" : line.ProductName);
-                AddCell(row, line.Quantity.ToString("0.###"));
-                AddCell(row, line.UnitPrice.ToString("N2"));
-                AddCell(row, line.LineTotal.ToString("N2"));
+                AddCell(row, line.Quantity.ToString("0.00000"));
+                AddCell(row, line.UnitPrice.ToString("N5"));
+                AddCell(row, line.LineTotal.ToString("N5"));
                 rows.Rows.Add(row);
             }
             table.RowGroups.Add(rows);
             document.Blocks.Add(table);
 
             document.Blocks.Add(new Paragraph(new Run(
-                $"{UiText.T("الإجمالي", "Total")}: {invoice.TotalAmount:N2}"))
+                $"{UiText.T("الإجمالي", "Total")}: {invoice.TotalAmount:N5}"))
             {
                 TextAlignment = TextAlignment.Right,
                 FontSize = 13,

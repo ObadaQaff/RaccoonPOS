@@ -1,4 +1,4 @@
-﻿using RaccoonWarehouse.Application.Service.Products;
+using RaccoonWarehouse.Application.Service.Products;
 using RaccoonWarehouse.Application.Service.ProductUnits;
 using RaccoonWarehouse.Application.Service.StockDocuments;
 using RaccoonWarehouse.Application.Service.Stocks;
@@ -8,6 +8,10 @@ using RaccoonWarehouse.Application.Service.Warehouses;
 using RaccoonWarehouse.Common;
 using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Domain.Enums;
+using RaccoonWarehouse.Domain.Checks.DTOs;
+using RaccoonWarehouse.Invoices;
+using RaccoonWarehouse.Navigation;
+using RaccoonWarehouse.Products;
 using RaccoonWarehouse.Domain.Products;
 using RaccoonWarehouse.Domain.Products.DTOs;
 using RaccoonWarehouse.Domain.ProductUnits;
@@ -48,6 +52,7 @@ namespace RaccoonWarehouse.Stocks
         private bool _isLoadingUnits = false;
         private int? _currentDocumentId = null;
         private List<StockItemReadDto> _originalItems = new(); // Used for stock adjustment
+        private List<CheckWriteDto> _currentChecks = new();
 
 
         public ObservableCollection<ProductUnitWriteDto> GetUnitsForProduct(int productId)
@@ -103,6 +108,15 @@ namespace RaccoonWarehouse.Stocks
             await LoadDataAsync();
         }
 
+        private void StockIn_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key != Key.F2)
+                return;
+
+            SearchProductBtn_Click(this, new RoutedEventArgs());
+            e.Handled = true;
+        }
+
 
         private async Task LoadDataAsync()
         {
@@ -128,6 +142,14 @@ namespace RaccoonWarehouse.Stocks
                 WarehouseComboBox.ItemsSource = warehouses.Data;
                 WarehouseComboBox.DisplayMemberPath = "Name";
                 WarehouseComboBox.SelectedValuePath = "Id";
+
+                var users = await _userService.GetAllAsync();
+                SupplierComboBox.ItemsSource = users.Data?
+                    .OrderBy(user => user.Name)
+                    .ToList();
+                SupplierComboBox.DisplayMemberPath = "Name";
+                SupplierComboBox.SelectedValuePath = "Id";
+                PaymentTypeComboBox.SelectedIndex = 0;
 
                 var result = await _productService.GetReadDtoPagedListAsync(
                     pageNumber: 1,
@@ -200,6 +222,7 @@ namespace RaccoonWarehouse.Stocks
                 {
                     _itemUnits.Remove(item); // Automatically removes the mapping
                 }
+                UpdateStockTotals();
             }
            
         }
@@ -273,6 +296,26 @@ namespace RaccoonWarehouse.Stocks
 
                 bool isUpdate = _currentDocumentId != null;
 
+                var paymentType = GetSelectedPaymentType();
+                var stockTotal = Math.Round(Items.Sum(item => item.Quantity * item.PurchasePrice) - GetDiscountAmount(), 3);
+                var selectedUserId = SupplierComboBox.SelectedValue is int userId ? userId : 0;
+                if (paymentType == PaymentType.Credit && selectedUserId <= 0)
+                {
+                    HideLoadingIfShown();
+                    MessageBox.Show(UiText.T("يرجى اختيار الحساب للشراء الآجل.", "Please select an account for credit stock-in."), UiText.T("تنبيه", "Notice"));
+                    return;
+                }
+
+                if (paymentType == PaymentType.Check)
+                {
+                    if (_currentChecks.Count == 0 || Math.Round(_currentChecks.Sum(check => check.Amount), 3) != stockTotal)
+                    {
+                        HideLoadingIfShown();
+                        MessageBox.Show(UiText.T("يجب إضافة شيكات يساوي مجموعها إجمالي السند.", "Add checks whose total equals the document total."), UiText.T("تنبيه", "Notice"));
+                        return;
+                    }
+                }
+
                 if (isUpdate)
                 {
                     HideLoadingIfShown();
@@ -290,8 +333,12 @@ namespace RaccoonWarehouse.Stocks
                     Id = _currentDocumentId ?? 0,
                     DocumentNumber = VoucherNumberTxt.Text,
                     Type = StockVoucherType.In,
+                    SupplierId = SupplierComboBox.SelectedValue is int supplierId && supplierId > 0 ? supplierId : null,
+                    PaymentType = paymentType,
+                    Checks = _currentChecks.ToList(),
                     WarehouseId = WarehouseComboBox.SelectedValue != null ? (int)WarehouseComboBox.SelectedValue : null,
                     Notes = NotesTxt.Text,
+                    DiscountAmount = GetDiscountAmount(),
                     Items = Items.ToList(),
                     CreatedDate = isUpdate ? _originalItems.FirstOrDefault()?.CreatedDate ?? DateTime.Now : DateTime.Now,
                     UpdatedDate = DateTime.Now
@@ -320,9 +367,11 @@ namespace RaccoonWarehouse.Stocks
                     HideLoadingIfShown();
                     MessageBox.Show(UiText.T("تم إنشاء السند بنجاح.", "The document was created successfully."), UiText.T("نجاح", "Success"),
                         MessageBoxButton.OK, MessageBoxImage.Information);
+
+                    ClearForm();
+                    PrintBtn.Visibility = Visibility.Collapsed;
+                    NewStockInBtn.Visibility = Visibility.Collapsed;
                 }
-                PrintBtn.Visibility = Visibility.Visible;
-                NewStockInBtn.Visibility = Visibility.Visible;
             }
             catch (Exception ex)
             {
@@ -338,11 +387,18 @@ namespace RaccoonWarehouse.Stocks
 
         private void ClearForm()
         {
+            _currentDocumentId = null;
+            _originalItems.Clear();
             VoucherNumberTxt.Text = GenerateDocumentNumber();
             DatePickerInvoice.SelectedDate = DateTime.Now;
             WarehouseComboBox.SelectedIndex = -1;
+            SupplierComboBox.SelectedIndex = -1;
+            SetSelectedPaymentType(PaymentType.Cash);
+            _currentChecks.Clear();
+            UpdateChecksButtonVisibility();
 
             NotesTxt.Text = "";
+            DiscountTextBox.Text = "0";
             Items.Clear();
             _itemUnits.Clear();
 
@@ -354,13 +410,33 @@ namespace RaccoonWarehouse.Stocks
             ExpiryBox.SelectedDate = null;
 
             ProductsGrid.Items.Refresh();
+            UpdateStockTotals();
+        }
+
+        private decimal GetDiscountAmount()
+        {
+            var subtotal = Items.Sum(item => item.Quantity * item.PurchasePrice);
+            decimal.TryParse(DiscountTextBox.Text, out var discount);
+            return Math.Clamp(discount, 0m, subtotal);
+        }
+
+        private void UpdateStockTotals()
+        {
+            var subtotal = Items.Sum(item => item.Quantity * item.PurchasePrice);
+            var discount = GetDiscountAmount();
+            SubtotalAmountTextBox.Text = subtotal.ToString("0.00000");
+            DiscountTextBox.Text = discount.ToString("0.00000");
+            TotalAmountTextBox.Text = (subtotal - discount).ToString("0.00000");
+        }
+
+        private void DiscountTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (IsLoaded)
+                UpdateStockTotals();
         }
         private string GenerateDocumentNumber()
         {
-            // Example: prefix + current timestamp or sequential number
-            string prefix = "DOC";
-            string datePart = DateTime.Now.ToString("yyyyMMddHHmmss");
-            return $"{prefix}-{datePart}";
+            return (DateTime.Now.Ticks % 90000 + 10000).ToString();
         }
 
         private async Task NormalizeStockItemAsync(StockItemWriteDto item)
@@ -516,29 +592,65 @@ namespace RaccoonWarehouse.Stocks
 
 
 
-        private void SearchProductBtn_Click(object sender, RoutedEventArgs e)
+        private async void SearchProductBtn_Click(object sender, RoutedEventArgs e)
         {
-            string search = ProductBox.Text?.Trim() ?? "";
-
-            if (string.IsNullOrWhiteSpace(search))
+            var searchWindow = new PurchaseProductSearchWindow(
+                _productService,
+                AddProductFromSearchAsync,
+                CreateProductFromSearchAsync)
             {
-                ProductBox.ItemsSource = Products;
-                ProductBox.IsDropDownOpen = true;
-                return;
+                Owner = this
+            };
+
+            searchWindow.ShowDialog();
+        }
+
+        private async Task CreateProductFromSearchAsync(string searchText)
+        {
+            WindowManager.ShowDialog<CreateProduct>(WindowSizeType.LargeRectangle, window =>
+            {
+                if (long.TryParse(searchText, out var barcode))
+                    window.InitialItemCode = barcode.ToString();
+            });
+
+            await LoadDataAsync();
+        }
+
+        private Task<bool> AddProductFromSearchAsync(PurchaseProductSearchWindow.PurchaseProductSearchRow row)
+        {
+            if (row.SelectedUnit == null || row.ProductUnitId <= 0)
+            {
+                MessageBox.Show(UiText.T("لا توجد وحدة شراء معرفة لهذا المنتج.", "No purchase unit is defined for this product."), UiText.T("تنبيه", "Notice"));
+                return Task.FromResult(false);
             }
 
-            var filtered = Products.Where(p =>
-                (!string.IsNullOrEmpty(p.Name) &&
-                 p.Name.Contains(search, StringComparison.OrdinalIgnoreCase))
-                ||
-                p.ITEMCODE.ToString().Contains(search)
-            ).ToList();
+            if (row.Quantity <= 0 || row.PurchasePrice <= 0)
+            {
+                MessageBox.Show(UiText.T("الكمية وسعر الشراء يجب أن يكونا أكبر من صفر.", "Quantity and purchase price must be greater than zero."), UiText.T("تنبيه", "Notice"));
+                return Task.FromResult(false);
+            }
 
-            ProductBox.ItemsSource = filtered;
-            ProductBox.IsDropDownOpen = true;
+            var item = new StockItemWriteDto
+            {
+                ProductId = row.Product.Id,
+                ProductUnitId = row.ProductUnitId,
+                Quantity = row.Quantity,
+                QuantityPerUnitSnapshot = row.QuantityPerUnit,
+                BaseQuantity = row.Quantity * row.QuantityPerUnit,
+                PurchasePrice = row.PurchasePrice,
+                SalePrice = row.SelectedUnit.SalePrice,
+                ExpiryDate = row.ExpiryDate,
+                CreatedDate = DateTime.Now,
+                UpdatedDate = DateTime.Now,
+                ProductName = row.ProductName,
+                UnitName = row.UnitName
+            };
 
-            if (filtered.Count == 1)
-                ProductBox.SelectedItem = filtered.First();
+            Items.Add(item);
+            _itemUnits[item] = row.ProductUnitId;
+            ProductsGrid.Items.Refresh();
+            UpdateStockTotals();
+            return Task.FromResult(true);
         }
 
         #endregion
@@ -725,6 +837,7 @@ namespace RaccoonWarehouse.Stocks
             _itemUnits[item] = unit.Id;
 
             ClearProductInputs();
+            UpdateStockTotals();
         }
 
         private static bool TryParseDecimalInput(string? text, out decimal value)
@@ -852,8 +965,8 @@ namespace RaccoonWarehouse.Stocks
                 row.Cells.Add(new TableCell(new Paragraph(new Run(item.Product?.Name ?? ""))) { Padding = new Thickness(5) });
                 row.Cells.Add(new TableCell(new Paragraph(new Run(item.ProductUnit?.Unit?.Name ?? ""))) { Padding = new Thickness(5) });
                 row.Cells.Add(new TableCell(new Paragraph(new Run(item.Quantity.ToString()))) { Padding = new Thickness(5) });
-                row.Cells.Add(new TableCell(new Paragraph(new Run(item.PurchasePrice.ToString("N2")))) { Padding = new Thickness(5) });
-                row.Cells.Add(new TableCell(new Paragraph(new Run(item.SalePrice.ToString("N2")))) { Padding = new Thickness(5) });
+                row.Cells.Add(new TableCell(new Paragraph(new Run(item.PurchasePrice.ToString("N5")))) { Padding = new Thickness(5) });
+                row.Cells.Add(new TableCell(new Paragraph(new Run(item.SalePrice.ToString("N5")))) { Padding = new Thickness(5) });
                 row.Cells.Add(new TableCell(new Paragraph(new Run(item.ExpiryDate?.ToString("yyyy/MM/dd") ?? "-"))) { Padding = new Thickness(5) });
 
                 itemsGroup.Rows.Add(row);
@@ -1035,7 +1148,7 @@ namespace RaccoonWarehouse.Stocks
         #region Search Daialog about stock  
 
 
-         private void SearchStockBtn_Click(object sender, RoutedEventArgs e)
+         private async void SearchStockBtn_Click(object sender, RoutedEventArgs e)
          {
             var searchWindow = new SearchStockInWindow(_stockDocumentService,true)
             {
@@ -1044,10 +1157,24 @@ namespace RaccoonWarehouse.Stocks
 
             if (searchWindow.ShowDialog() == true)
             {
-                LoadSelectedStockIn(searchWindow.Result);
+                await LoadSelectedStockInWithLoadingAsync(searchWindow.Result);
             }
          }
 
+
+        private async Task LoadSelectedStockInWithLoadingAsync(StockDocumentReadDto doc)
+        {
+            _loadingService.Show();
+            try
+            {
+                await Task.Delay(1);
+                LoadSelectedStockIn(doc);
+            }
+            finally
+            {
+                _loadingService.Hide();
+            }
+        }
 
         private void LoadSelectedStockIn(StockDocumentReadDto doc)
         {
@@ -1056,10 +1183,26 @@ namespace RaccoonWarehouse.Stocks
             _currentDocumentId = doc.Id;                 // <-- critical
             _originalItems = doc.Items.ToList();         // <-- for adjusting stock differences
             WarehouseComboBox.SelectedValue = doc.WarehouseId;
+            SupplierComboBox.SelectedValue = doc.SupplierId;
+            SetSelectedPaymentType(doc.PaymentType ?? PaymentType.Cash);
+            _currentChecks = doc.Checks?.Select(check => new CheckWriteDto
+            {
+                Id = check.Id,
+                CheckNumber = check.CheckNumber,
+                BankName = check.BankName,
+                DueDate = check.DueDate,
+                Amount = check.Amount,
+                Status = check.Status,
+                Notes = check.Notes,
+                CreatedDate = check.CreatedDate,
+                UpdatedDate = check.UpdatedDate
+            }).ToList() ?? new List<CheckWriteDto>();
+            UpdateChecksButtonVisibility();
 
             VoucherNumberTxt.Text = doc.DocumentNumber;
             DatePickerInvoice.SelectedDate = doc.CreatedDate;
             NotesTxt.Text = doc.Notes;
+            DiscountTextBox.Text = (doc.DiscountAmount ?? 0m).ToString("0.00000");
 
             Items.Clear();
             _itemUnits.Clear();
@@ -1088,6 +1231,51 @@ namespace RaccoonWarehouse.Stocks
             ProductsGrid.Items.Refresh();
             PrintBtn.Visibility = Visibility.Visible;
             NewStockInBtn.Visibility = Visibility.Visible;
+        }
+
+        private PaymentType GetSelectedPaymentType()
+        {
+            if (PaymentTypeComboBox.SelectedItem is ComboBoxItem item &&
+                int.TryParse(item.Tag?.ToString(), out var value))
+            {
+                return (PaymentType)value;
+            }
+
+            return PaymentType.Cash;
+        }
+
+        private void SetSelectedPaymentType(PaymentType paymentType)
+        {
+            PaymentTypeComboBox.SelectedItem = PaymentTypeComboBox.Items
+                .OfType<ComboBoxItem>()
+                .FirstOrDefault(item => int.TryParse(item.Tag?.ToString(), out var value) && value == (int)paymentType);
+            PaymentTypeComboBox.SelectedIndex = PaymentTypeComboBox.SelectedItem == null ? 0 : PaymentTypeComboBox.SelectedIndex;
+        }
+
+        private void PaymentTypeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (GetSelectedPaymentType() != PaymentType.Check)
+                _currentChecks.Clear();
+
+            UpdateChecksButtonVisibility();
+        }
+
+        private void UpdateChecksButtonVisibility()
+        {
+            ChecksBtn.Visibility = GetSelectedPaymentType() == PaymentType.Check || _currentChecks.Any()
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        }
+
+        private void ChecksBtn_Click(object sender, RoutedEventArgs e)
+        {
+            var total = Math.Round(Items.Sum(item => item.Quantity * item.PurchasePrice) - GetDiscountAmount(), 3);
+            var dialog = new CheckDetailsWindow(total, _currentChecks);
+            if (dialog.ShowDialog() == true)
+            {
+                _currentChecks = dialog.ResultChecks.ToList();
+                UpdateChecksButtonVisibility();
+            }
         }
 
         private void ClearProductBtn_Click(object sender, RoutedEventArgs e)

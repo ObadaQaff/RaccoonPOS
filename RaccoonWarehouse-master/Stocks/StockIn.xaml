@@ -1,5 +1,6 @@
-﻿<Window x:Class="RaccoonWarehouse.Stocks.StockIn"
+<Window x:Class="RaccoonWarehouse.Stocks.StockIn"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        PreviewKeyDown="StockIn_PreviewKeyDown"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -257,8 +258,36 @@
                     </StackPanel>
 
                     <!-- اسم المورد -->
-                    <StackPanel Margin="6" Grid.Column="2"/>
+                    <StackPanel Margin="6" Grid.Column="2">
+                        <TextBlock Text="اسم المورد" Style="{StaticResource HeaderText}" FontSize="14"/>
+                        <ComboBox x:Name="SupplierComboBox"
+                                  Style="{StaticResource ComboBoxStyleModern}"
+                                  Width="230"
+                                  DisplayMemberPath="Name"
+                                  SelectedValuePath="Id"
+                                  IsEditable="True"
+                                  IsTextSearchEnabled="True"/>
+                    </StackPanel>
                 </Grid>
+
+                <StackPanel Margin="6,0,0,10" HorizontalAlignment="Left">
+                    <TextBlock Text="طريقة الدفع / Payment Type" Style="{StaticResource HeaderText}" FontSize="14"/>
+                    <ComboBox x:Name="PaymentTypeComboBox"
+                              Width="230"
+                              Height="32"
+                              SelectionChanged="PaymentTypeComboBox_SelectionChanged">
+                        <ComboBoxItem Tag="1">نقدي / Cash</ComboBoxItem>
+                        <ComboBoxItem Tag="3">شبكة / Debit</ComboBoxItem>
+                        <ComboBoxItem Tag="4">شيك / Check</ComboBoxItem>
+                        <ComboBoxItem Tag="2">آجل / Credit</ComboBoxItem>
+                    </ComboBox>
+                    <Button x:Name="ChecksBtn"
+                            Content="تفاصيل الشيكات / Check Details"
+                            Width="230"
+                            Margin="0,6,0,0"
+                            Visibility="Collapsed"
+                            Click="ChecksBtn_Click"/>
+                </StackPanel>
 
                 <StackPanel Margin="6,0,0,10" HorizontalAlignment="Left">
                     <TextBlock Text="المستودع" Style="{StaticResource HeaderText}" FontSize="14"/>
@@ -269,8 +298,28 @@
                               SelectedValuePath="Id"/>
                 </StackPanel>
 
+                <Grid Margin="6,0,0,10" HorizontalAlignment="Left">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="210"/>
+                        <ColumnDefinition Width="210"/>
+                        <ColumnDefinition Width="210"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" Margin="6">
+                        <TextBlock Text="Subtotal / الإجمالي قبل الخصم" Style="{StaticResource HeaderText}" FontSize="14"/>
+                        <TextBox x:Name="SubtotalAmountTextBox" Style="{StaticResource InputBoxStyle}" IsReadOnly="True"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Margin="6">
+                        <TextBlock Text="Discount / الخصم" Style="{StaticResource HeaderText}" FontSize="14"/>
+                        <TextBox x:Name="DiscountTextBox" Style="{StaticResource InputBoxStyle}" Text="0" TextChanged="DiscountTextBox_TextChanged"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Margin="6">
+                        <TextBlock Text="Total / الإجمالي" Style="{StaticResource HeaderText}" FontSize="14"/>
+                        <TextBox x:Name="TotalAmountTextBox" Style="{StaticResource InputBoxStyle}" IsReadOnly="True"/>
+                    </StackPanel>
+                </Grid>
+
                 <!-- ====== PRODUCT INPUT SECTION ====== -->
-                <StackPanel Margin="10" Orientation="Vertical" Background="#E8F0F7" >
+                <StackPanel Margin="10" Orientation="Vertical" Background="#E8F0F7" Visibility="Collapsed">
 
                     <TextBlock Text="إضافة منتج" Style="{StaticResource HeaderText}"/>
 
@@ -385,6 +434,12 @@
                     </Grid>
                 </StackPanel>
 
+                <Button Content="إضافة منتج / Add Product"
+                        Style="{StaticResource PrimaryButtonStyle}"
+                        Width="180"
+                        HorizontalAlignment="Center"
+                        Click="SearchProductBtn_Click"/>
+
                 <!-- المنتجات -->
                 <StackPanel Margin="10,0,10,10">
                     <TextBlock Text="المنتجات" Style="{StaticResource HeaderText}"/>
@@ -411,11 +466,11 @@
 
                             <!-- Purchase Price -->
                             <DataGridTextColumn Header="سعر الشراء" Width="100"
-                            Binding="{Binding PurchasePrice}" />
+                            Binding="{Binding PurchasePrice, StringFormat={}{0:0.00000}}" />
 
                             <!-- Sale Price -->
                             <DataGridTextColumn Header="سعر البيع" Width="100"
-                            Binding="{Binding SalePrice}" />
+                            Binding="{Binding SalePrice, StringFormat={}{0:0.00000}}" />
 
                             <!-- Expiry -->
                             <DataGridTextColumn Header="تاريخ الانتهاء" Width="150"

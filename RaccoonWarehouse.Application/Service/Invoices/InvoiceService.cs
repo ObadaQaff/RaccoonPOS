@@ -1,4 +1,4 @@
-﻿using AutoMapper;
+using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using RaccoonWarehouse.Application.Service.Accounting;
 using RaccoonWarehouse.Application.Service.Generic;
@@ -18,6 +18,7 @@ using RaccoonWarehouse.Domain.Reports.Financial.Dtos;
 using RaccoonWarehouse.Domain.Reports.Financial.Filters;
 using RaccoonWarehouse.Domain.Reports.Sales.Dtos;
 using RaccoonWarehouse.Domain.Users;
+using RaccoonWarehouse.Domain.Users.DTOs;
 using RaccoonWarehouse.Domain.Vouchers.DTOs;
 using System;
 using System.Collections.Generic;
@@ -67,6 +68,17 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 var invoiceRepo = _uow.GetRepository<Invoice>();
                 var lineRepo = _uow.GetRepository<InvoiceLine>();
                 var checkRepo = _uow.GetRepository<Check>();
+
+                if (dto.Id <= 0)
+                {
+                    if (!int.TryParse(dto.InvoiceNumber, out var invoiceNumber) || invoiceNumber < 100 || invoiceNumber > 99999)
+                        return Result<InvoiceWriteDto>.Fail("Invoice number must contain 3 to 5 digits / رقم الفاتورة يجب أن يتكون من 3 إلى 5 أرقام.");
+
+                    var invoiceNumberExists = await invoiceRepo.GetAllAsQueryable()
+                        .AnyAsync(invoice => invoice.InvoiceNumber == dto.InvoiceNumber);
+                    if (invoiceNumberExists)
+                        return Result<InvoiceWriteDto>.Fail("Invoice number already exists / رقم الفاتورة موجود مسبقاً.");
+                }
 
                 if (dto.InvoiceLines == null || !dto.InvoiceLines.Any())
                     return Result<InvoiceWriteDto>.Fail("Invoice must contain at least one line.");
@@ -477,7 +489,34 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 .AsNoTracking();
 
             var entity = await query.FirstOrDefaultAsync();
-            return _mapper.Map<InvoiceReadDto>(entity);
+            var mapped = _mapper.Map<InvoiceReadDto>(entity);
+            if (mapped != null)
+                await AttachCustomersAsync(new[] { mapped });
+            return mapped;
+        }
+
+        private async Task AttachCustomersAsync(IEnumerable<InvoiceReadDto> invoices)
+        {
+            var invoiceList = invoices.ToList();
+            var customerIds = invoiceList
+                .Where(invoice => invoice.CustomerId.HasValue)
+                .Select(invoice => invoice.CustomerId!.Value)
+                .Distinct()
+                .ToList();
+
+            if (customerIds.Count == 0)
+                return;
+
+            var customers = await _context.Set<User>()
+                .AsNoTracking()
+                .Where(user => customerIds.Contains(user.Id))
+                .ToDictionaryAsync(user => user.Id);
+
+            foreach (var invoice in invoiceList)
+            {
+                if (invoice.CustomerId is int customerId && customers.TryGetValue(customerId, out var customer))
+                    invoice.Customer = _mapper.Map<UserReadDto>(customer);
+            }
         }
 
         public async Task<Result<List<InvoiceReadDto>>> SearchSalesInvoicesAsync(
@@ -525,7 +564,12 @@ namespace RaccoonWarehouse.Application.Service.Invoices
 
                 if (!string.IsNullOrWhiteSpace(customerName))
                 {
-                    query = query.Where(i => i.User.Name.Contains(customerName));
+                    var accountSearch = customerName.Trim();
+                    query = query.Where(i =>
+                        (i.CustomerId.HasValue && _context.Set<User>().Any(u => u.Id == i.CustomerId.Value && u.Name.Contains(accountSearch))) ||
+                        (i.User != null && i.User.Name.Contains(accountSearch)) ||
+                        (i.SupplierId.HasValue && _context.Set<User>().Any(u => u.Id == i.SupplierId.Value && u.Name.Contains(accountSearch))) ||
+                        (i.CreatedBy.HasValue && _context.Set<User>().Any(u => u.Id == i.CreatedBy.Value && u.Name.Contains(accountSearch))));
                 }
 
                 if (dateFrom.HasValue)
@@ -540,6 +584,7 @@ namespace RaccoonWarehouse.Application.Service.Invoices
 
                 var data = await query.ToListAsync();
                 var mapped = _mapper.Map<List<InvoiceReadDto>>(data);
+                await AttachCustomersAsync(mapped);
 
                 return Result<List<InvoiceReadDto>>.Ok(mapped);
             }

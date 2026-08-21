@@ -44,6 +44,7 @@ public partial class AccountingOperationsBrowser : Window
         SubtitleText.Text = UiText.T("متابعة عمليات المحاسبة وإعادة المحاولة عند الفشل.", "Monitor accounting operations and retry failures safely.");
         RefreshText.Text = UiText.T("تحديث", "Refresh");
         ProcessNowText.Text = UiText.T("تنفيذ الآن", "Process now");
+        ApplyBatchText.Text = UiText.T("تنفيذ 15 عملية", "Apply 15 operations");
         RetrySelectedText.Text = UiText.T("إعادة المحدد", "Retry selected");
         RetryFailedText.Text = UiText.T("إعادة الفاشلة", "Retry failed");
         CloseText.Text = UiText.T("إغلاق", "Close");
@@ -140,6 +141,29 @@ public partial class AccountingOperationsBrowser : Window
         }
     }
 
+    private async void ApplyBatchBtn_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            _loadingService.Show();
+            var result = await _operationProcessor.ProcessPendingBatchAsync(15);
+            await LoadAsync();
+            MessageBox.Show(
+                UiText.T(
+                    $"تم تنفيذ {result.Processed} عملية. الفاشلة: {result.Failed}.",
+                    $"Processed {result.Processed} operations. Failed: {result.Failed}."),
+                UiText.T("عمليات المحاسبة", "Accounting Operations"));
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(ex.Message, UiText.T("تعذر تنفيذ العمليات", "Could not apply accounting operations"), MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            _loadingService.Hide();
+        }
+    }
+
     private async void RetrySelectedBtn_Click(object sender, RoutedEventArgs e)
     {
         if (OperationsGrid.SelectedItem is not AccountingOperationRow selected)
@@ -160,12 +184,29 @@ public partial class AccountingOperationsBrowser : Window
 
     private async void RetryFailedBtn_Click(object sender, RoutedEventArgs e)
     {
-        var failed = Operations.Where(item => item.Status == AccountingOperationStatus.Failed).ToList();
-        foreach (var operation in failed)
-            await RetryOperationAsync(operation.Id);
+        try
+        {
+            _loadingService.Show();
+            using var scope = _scopeFactory.CreateScope();
+            var retriedCount = await scope.ServiceProvider
+                .GetRequiredService<IAccountingOperationService>()
+                .RetryFailedAsync();
 
-        if (failed.Count > 0)
             await LoadAsync();
+            MessageBox.Show(
+                retriedCount > 0
+                    ? UiText.T($"تمت إعادة {retriedCount} عملية فاشلة إلى قائمة الانتظار.", $"{retriedCount} failed operations were queued for retry.")
+                    : UiText.T("لا توجد عمليات فاشلة لإعادة المحاولة.", "There are no failed operations to retry."),
+                UiText.T("إعادة المحاولة", "Retry"));
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(ex.Message, UiText.T("تعذر إعادة المحاولة", "Could not retry failed operations"), MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            _loadingService.Hide();
+        }
     }
 
     private void CloseBtn_Click(object sender, RoutedEventArgs e) => Close();

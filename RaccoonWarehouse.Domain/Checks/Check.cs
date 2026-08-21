@@ -1,5 +1,6 @@
 ﻿using RaccoonWarehouse.Domain.Base;
 using RaccoonWarehouse.Domain.Invoices;
+using RaccoonWarehouse.Domain.StockDocuments;
 using RaccoonWarehouse.Domain.Vouchers;
 using RaccoonWarehouse.Domain.Enums;
 using System;
@@ -22,6 +23,8 @@ namespace RaccoonWarehouse.Domain.Checks
         public Voucher? Voucher { get; set; }
         public int? InvoiceId { get; set; }
         public Invoice? Invoice { get; set; }
+        public int? StockDocumentId { get; set; }
+        public StockDocument? StockDocument { get; set; }
     }
 
 }

@@ -1,5 +1,6 @@
 ﻿using RaccoonWarehouse.Core.EntityAndDtoStructure;
 using RaccoonWarehouse.Domain.Enums;
+using RaccoonWarehouse.Domain.Checks.DTOs;
 using RaccoonWarehouse.Domain.StockItems;
 using RaccoonWarehouse.Domain.StockItems.DTOs;
 using RaccoonWarehouse.Domain.Users;
@@ -17,10 +18,13 @@ namespace RaccoonWarehouse.Domain.StockDocuments.DTOs
         public int Id { get; set; }
         public string DocumentNumber { get; set; } = string.Empty;
         public StockVoucherType Type { get; set; }
-        public int SupplierId { get; set; }
+        public int? SupplierId { get; set; }
         public int? WarehouseId { get; set; }
         public UserReadDto? Supplier { get; set; }
         public string? Notes { get; set; }
+        public decimal? DiscountAmount { get; set; }
+        public PaymentType? PaymentType { get; set; }
+        public ICollection<CheckReadDto>? Checks { get; set; } = new List<CheckReadDto>();
 
         public List<StockItemReadDto> Items { get; set; }
         public DateTime CreatedDate { get; set; }

@@ -68,14 +68,14 @@ namespace RaccoonWarehouse.Helpers.Pdf.Reports
                         foreach (var line in _invoice.InvoiceLines ?? Enumerable.Empty<InvoiceLineReadDto>())
                         {
                             Cell(table.Cell(), line.Product?.Name ?? "-");
-                            Cell(table.Cell(), line.Quantity.ToString("0.###"));
-                            Cell(table.Cell(), line.UnitPrice.ToString("N2"));
-                            Cell(table.Cell(), line.LineTotal.ToString("N2"));
+                            Cell(table.Cell(), line.Quantity.ToString("0.00000"));
+                            Cell(table.Cell(), line.UnitPrice.ToString("N5"));
+                            Cell(table.Cell(), line.LineTotal.ToString("N5"));
                         }
                     });
 
                     column.Item().LineHorizontal(1);
-                    column.Item().AlignRight().Text(UiText.T("الإجمالي", "Total") + $": {_invoice.TotalAmount:N2}").Bold().FontSize(12);
+                    column.Item().AlignRight().Text(UiText.T("الإجمالي", "Total") + $": {_invoice.TotalAmount:N5}").Bold().FontSize(12);
                     column.Item().AlignCenter().Text(UiText.T("شكراً لزيارتكم", "Thank you for your visit")).FontSize(9);
                 });
             });

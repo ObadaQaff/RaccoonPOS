@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:fa="http://schemas.fontawesome.io/icons/"
         mc:Ignorable="d"
-        Title="إدارة الزبائن"
+        Title="إدارة العملاء والموردين"
         Height="800"
         Width="1400"
         WindowStartupLocation="CenterScreen"
@@ -26,7 +26,7 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel VerticalAlignment="Center">
-                    <TextBlock Text="إدارة الزبائن"
+                    <TextBlock Text="إدارة العملاء والموردين"
                                FontSize="34"
                                FontWeight="Bold"
                                Foreground="White"/>
@@ -42,7 +42,7 @@
                         Background="#1FFFFFFF"
                         VerticalAlignment="Center">
                     <StackPanel>
-                        <TextBlock Text="إجمالي الزبائن"
+                        <TextBlock Text="إجمالي العملاء والموردين"
                                    FontSize="12"
                                    Foreground="#CFE8E3"
                                    HorizontalAlignment="Center"/>
@@ -141,6 +141,19 @@
                             </StackPanel>
                         </Button>
 
+                        <Button x:Name="CreateSupplierBtn"
+                                Width="170"
+                                Margin="0,0,12,0"
+                                Style="{StaticResource AppHeroButtonStyle}"
+                                Click="CreateSupplierBtn_Click">
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <fa:ImageAwesome Icon="Plus" Width="16" Height="16"
+                                                 Margin="0,0,8,0"
+                                                 Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                                <TextBlock Text="مورد جديد" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+
                         <Button x:Name="BackBtn"
                                 Width="120"
                                 Style="{StaticResource AppSecondaryButtonStyle}"
@@ -221,6 +234,7 @@
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="المعرف" Binding="{Binding Id}" Width="90"/>
                         <DataGridTextColumn Header="الاسم" Binding="{Binding Name}" Width="2*"/>
+                        <DataGridTextColumn Header="الدور" Binding="{Binding Role}" Width="1.1*"/>
                         <DataGridTextColumn Header="الهاتف" Binding="{Binding PhoneNumber}" Width="1.2*"/>
                         <DataGridTextColumn Header="الحد الائتماني" Binding="{Binding CreditLimit, StringFormat={}{0:N2}}" Width="1.2*"/>
                         <DataGridTextColumn Header="الرصيد الحالي" Binding="{Binding CurrentBalance, StringFormat={}{0:N2}}" Width="1.2*"/>
@@ -244,7 +258,7 @@
                         Padding="18">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel>
-                            <TextBlock Text="تفاصيل العميل" FontSize="22" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}" Margin="0,0,0,12"/>
+                            <TextBlock Text="تفاصيل العميل أو المورد" FontSize="22" FontWeight="Bold" Foreground="{StaticResource PrimaryTextBrush}" Margin="0,0,0,12"/>
                             <Border Background="#F8FAFC" CornerRadius="12" Padding="14" Margin="0,0,0,12">
                                 <StackPanel>
                                     <TextBlock Text="الاسم" Foreground="#67727D" FontSize="12"/>

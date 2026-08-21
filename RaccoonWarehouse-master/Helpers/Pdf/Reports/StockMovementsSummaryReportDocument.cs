@@ -27,7 +27,7 @@ namespace RaccoonWarehouse.Helpers.Pdf.Reports
                 { "من تاريخ", _from?.ToString("yyyy/MM/dd") ?? "-" },
                 { "إلى تاريخ", _to?.ToString("yyyy/MM/dd") ?? "-" },
                 { "عدد الحركات", _rows.Count.ToString() },
-                { "إجمالي الكمية", _rows.Sum(x => x.Quantity).ToString("N3") }
+                { "إجمالي الكمية", _rows.Sum(x => x.Quantity).ToString("N5") }
             };
 
         public override List<string> TableHeaders =>
@@ -50,7 +50,7 @@ namespace RaccoonWarehouse.Helpers.Pdf.Reports
                 x.DocumentType ?? "-",
                 x.ProductName ?? "-",
                 x.UnitName ?? "-",
-                x.Quantity.ToString("N3"),
+                x.Quantity.ToString("N5"),
                 x.CreatedBy ?? "-"
             }).ToList();
     }

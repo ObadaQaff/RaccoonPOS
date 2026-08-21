@@ -16,6 +16,7 @@ public interface IAccountingOperationService
     Task<List<AccountingOperation>> GetAllAsync();
     Task<List<AccountingOperation>> GetFailedAsync();
     Task<bool> RetryAsync(int operationId);
+    Task<int> RetryFailedAsync();
 }
 
 public sealed class AccountingOperationService : IAccountingOperationService
@@ -124,10 +125,35 @@ public sealed class AccountingOperationService : IAccountingOperationService
         await _uow.CommitAsync();
         return true;
     }
+
+    public async Task<int> RetryFailedAsync()
+    {
+        var operations = await _uow.GetRepository<AccountingOperation>()
+            .GetAllAsQueryable()
+            .Where(operation => operation.Status == AccountingOperationStatus.Failed)
+            .ToListAsync();
+
+        if (operations.Count == 0)
+            return 0;
+
+        var now = DateTime.Now;
+        foreach (var operation in operations)
+        {
+            operation.Status = AccountingOperationStatus.Pending;
+            operation.LastError = null;
+            operation.NextAttemptDate = now;
+            operation.UpdatedDate = now;
+        }
+
+        await _uow.CommitAsync();
+        return operations.Count;
+    }
 }
 
 public sealed class AccountingOperationProcessor
 {
+    private sealed record OperationProcessResult(int OperationId, bool Completed);
+
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly CancellationTokenSource _cancellation = new();
     private readonly SemaphoreSlim _runGate = new(1, 1);
@@ -150,7 +176,7 @@ public sealed class AccountingOperationProcessor
         {
             try
             {
-                await ProcessDueAsync(ignoreSchedule: false);
+                await ProcessDueAsync(ignoreSchedule: false, excludedOperationIds: null);
             }
             catch
             {
@@ -164,7 +190,7 @@ public sealed class AccountingOperationProcessor
         await _runGate.WaitAsync();
         try
         {
-            return await ProcessDueAsync(ignoreSchedule: true);
+            return await ProcessDueAsync(ignoreSchedule: true, excludedOperationIds: null) != null;
         }
         finally
         {
@@ -172,19 +198,55 @@ public sealed class AccountingOperationProcessor
         }
     }
 
-    private async Task<bool> ProcessDueAsync(bool ignoreSchedule)
+    public async Task<(int Processed, int Failed)> ProcessPendingBatchAsync(int maxOperations)
+    {
+        if (maxOperations <= 0)
+            return (0, 0);
+
+        await _runGate.WaitAsync();
+        try
+        {
+            var excludedOperationIds = new HashSet<int>();
+            var processed = 0;
+            var failed = 0;
+
+            while (processed + failed < maxOperations)
+            {
+                var result = await ProcessDueAsync(ignoreSchedule: true, excludedOperationIds);
+                if (result == null)
+                    break;
+
+                excludedOperationIds.Add(result.OperationId);
+                if (result.Completed)
+                    processed++;
+                else
+                    failed++;
+            }
+
+            return (processed, failed);
+        }
+        finally
+        {
+            _runGate.Release();
+        }
+    }
+
+    private async Task<OperationProcessResult?> ProcessDueAsync(
+        bool ignoreSchedule,
+        HashSet<int>? excludedOperationIds)
     {
         using var scope = _scopeFactory.CreateScope();
         var uow = scope.ServiceProvider.GetRequiredService<IUOW>();
         var operation = await uow.GetRepository<AccountingOperation>()
             .GetAllAsQueryable()
             .Where(item => (item.Status == AccountingOperationStatus.Pending || item.Status == AccountingOperationStatus.Failed) &&
-                           (ignoreSchedule || !item.NextAttemptDate.HasValue || item.NextAttemptDate <= DateTime.Now))
+                           (ignoreSchedule || !item.NextAttemptDate.HasValue || item.NextAttemptDate <= DateTime.Now) &&
+                           (excludedOperationIds == null || !excludedOperationIds.Contains(item.Id)))
             .OrderBy(item => item.CreatedDate)
             .FirstOrDefaultAsync();
 
         if (operation == null)
-            return false;
+            return null;
 
         operation.Status = AccountingOperationStatus.Processing;
         operation.LastAttemptDate = DateTime.Now;
@@ -228,7 +290,7 @@ public sealed class AccountingOperationProcessor
         }
 
         await UpdateOperationStatusAsync(operation.Id, completed, errorMessage);
-        return true;
+        return new OperationProcessResult(operation.Id, completed);
     }
 
     private async Task UpdateOperationStatusAsync(int operationId, bool completed, string? errorMessage)

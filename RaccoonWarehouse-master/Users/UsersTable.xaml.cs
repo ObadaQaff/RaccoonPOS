@@ -105,7 +105,7 @@ namespace RaccoonWarehouse
                 return;
             }
 
-            WindowManager.ShowDialog<UserStatementWindow>(WindowSizeType.LargeRectangle, window => window.Initialize(selectedUser.Id));
+            WindowManager.ShowDialog<UserStatementWindow>(WindowSizeType.LargeRectangle, window => window.Initialize(selectedUser.Id, selectedUser.Role));
         }
 
         private void BackBtn_Click(object sender, RoutedEventArgs e)

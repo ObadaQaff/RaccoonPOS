@@ -1,6 +1,7 @@
 ﻿    using RaccoonWarehouse.Core.EntityAndDtoStructure;
     using RaccoonWarehouse.Domain.Base;
     using RaccoonWarehouse.Domain.Enums;
+    using RaccoonWarehouse.Domain.Checks.DTOs;
     using RaccoonWarehouse.Domain.StockItems;
     using RaccoonWarehouse.Domain.StockItems.DTOs;
 using RaccoonWarehouse.Domain.Users;
@@ -23,6 +24,9 @@ using System;
             public int? WarehouseId { get; set; }
             public UserWriteDto? Supplier { get; set; }
             public string? Notes { get; set; }
+            public decimal? DiscountAmount { get; set; }
+            public PaymentType? PaymentType { get; set; }
+            public ICollection<CheckWriteDto>? Checks { get; set; } = new List<CheckWriteDto>();
 
             public List<StockItemWriteDto> Items { get; set; }
             public DateTime CreatedDate { get; set; }

@@ -7,6 +7,8 @@ using RaccoonWarehouse.Application.Service.SubCategories;
 using RaccoonWarehouse.Application.Service.Units;
 using RaccoonWarehouse.Common;
 using RaccoonWarehouse.Helpers.Localization;
+using RaccoonWarehouse.Navigation;
+using RaccoonWarehouse.Units;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Products.DTOs;
 using RaccoonWarehouse.Domain.ProductUnits.DTOs;
@@ -18,6 +20,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Input;
 using System.Windows.Media.Imaging;
 
 namespace RaccoonWarehouse.Products
@@ -33,6 +36,9 @@ namespace RaccoonWarehouse.Products
         private bool _isLoaded;
         private int? _preferredSubCategoryId;
         private List<UnitLookupItem> _unitLookupItems = new();
+        private bool _isFilteringUnits;
+        private bool _isNavigatingUnits;
+        private string _unitSearchText = string.Empty;
         public string? InitialItemCode { get; set; }
 
         public CreateProduct(
@@ -49,6 +55,7 @@ namespace RaccoonWarehouse.Products
             _unitService = unitService;
 
             InitializeComponent();
+            UnitComboBox.Loaded += UnitComboBox_Loaded;
             Loaded += async (_, _) =>
             {
                 if (_isLoaded)
@@ -84,7 +91,7 @@ namespace RaccoonWarehouse.Products
             _unitLookupItems = units.Data?
                 .Select(unit => new UnitLookupItem(unit.Id, unit.Name, UiText.Translate(unit.Name)))
                 .ToList() ?? new List<UnitLookupItem>();
-            UnitComboBox.ItemsSource = _unitLookupItems;
+            UnitComboBox.ItemsSource = _unitLookupItems.ToList();
             UnitComboBox.DisplayMemberPath = nameof(UnitLookupItem.DisplayName);
             UnitComboBox.SelectedValuePath = "Id";
 
@@ -100,6 +107,108 @@ namespace RaccoonWarehouse.Products
             SubCategoryComboBox.SelectedValue = _preferredSubCategoryId.Value;
         }
 
+        private void UnitComboBox_Loaded(object sender, RoutedEventArgs e)
+        {
+            if (UnitComboBox.Template.FindName("PART_EditableTextBox", UnitComboBox) is TextBox textBox)
+                textBox.TextChanged += UnitComboBox_TextChanged;
+        }
+
+        private void UnitComboBox_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key is not (Key.Down or Key.Up or Key.Enter) || UnitComboBox.Items.Count == 0)
+                return;
+
+            _isNavigatingUnits = true;
+            try
+            {
+                if (e.Key == Key.Down)
+                {
+                    UnitComboBox.SelectedIndex = Math.Min(UnitComboBox.SelectedIndex + 1, UnitComboBox.Items.Count - 1);
+                    RestoreUnitSearchText();
+                    e.Handled = true;
+                }
+                else if (e.Key == Key.Up)
+                {
+                    UnitComboBox.SelectedIndex = Math.Max(UnitComboBox.SelectedIndex - 1, 0);
+                    RestoreUnitSearchText();
+                    e.Handled = true;
+                }
+                else if (UnitComboBox.SelectedIndex >= 0)
+                {
+                    if (UnitComboBox.SelectedItem is UnitLookupItem selectedUnit)
+                    {
+                        UnitComboBox.Text = selectedUnit.DisplayName;
+                        UnitComboBox.SelectedValue = selectedUnit.Id;
+                        UnitComboBox.IsDropDownOpen = false;
+                        e.Handled = true;
+                    }
+                }
+            }
+            finally
+            {
+                _isNavigatingUnits = false;
+            }
+        }
+
+        private void RestoreUnitSearchText()
+        {
+            if (UnitComboBox.Template.FindName("PART_EditableTextBox", UnitComboBox) is not TextBox textBox)
+                return;
+
+            textBox.Text = _unitSearchText;
+            textBox.CaretIndex = textBox.Text.Length;
+            UnitComboBox.IsDropDownOpen = true;
+        }
+        private void UnitComboBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (_isFilteringUnits || _isNavigatingUnits || !UnitComboBox.IsKeyboardFocusWithin)
+                return;
+
+            var textBox = UnitComboBox.Template.FindName("PART_EditableTextBox", UnitComboBox) as TextBox;
+            if (textBox == null)
+                return;
+
+            var searchText = textBox.Text.Trim();
+            _unitSearchText = searchText;
+
+            if (UnitComboBox.SelectedItem is UnitLookupItem selectedUnit &&
+                string.Equals(selectedUnit.DisplayName, searchText, StringComparison.CurrentCultureIgnoreCase))
+            {
+                return;
+            }
+
+            _isFilteringUnits = true;
+            try
+            {
+                UnitComboBox.SelectedItem = null;
+                UnitComboBox.SelectedValue = null;
+                UnitComboBox.ItemsSource = string.IsNullOrWhiteSpace(searchText)
+                    ? _unitLookupItems.ToList()
+                    : _unitLookupItems.Where(unit => unit.DisplayName.Contains(searchText, StringComparison.CurrentCultureIgnoreCase)).ToList();
+                UnitComboBox.IsDropDownOpen = true;
+            }
+            finally
+            {
+                _isFilteringUnits = false;
+            }
+        }
+
+        private void CreateUnitBtn_Click(object sender, RoutedEventArgs e)
+        {
+            WindowManager.ShowDialog<CreateUnit>(WindowSizeType.SmallSquare, window =>
+            {
+                window.Closed += async (_, _) =>
+                {
+                    var units = await _unitService.GetAllAsync();
+                    _unitLookupItems = units.Data?
+                        .Select(unit => new UnitLookupItem(unit.Id, unit.Name, UiText.Translate(unit.Name)))
+                        .ToList() ?? new List<UnitLookupItem>();
+                    UnitComboBox.ItemsSource = _unitLookupItems.ToList();
+                    if (window.CreatedUnitId.HasValue)
+                        UnitComboBox.SelectedValue = window.CreatedUnitId.Value;
+                };
+            });
+        }
         private void AddUnit_Click(object sender, RoutedEventArgs e)
         {
             if (UnitComboBox.SelectedValue == null)
@@ -126,6 +235,7 @@ namespace RaccoonWarehouse.Products
             var unitDto = new ProductUnitWriteDto
             {
                 UnitId = selectedUnitId,
+                AlternateBarcode = string.IsNullOrWhiteSpace(AlternateBarcodeTextBox.Text) ? null : AlternateBarcodeTextBox.Text.Trim(),
                 SalePrice = salePrice,
                 PurchasePrice = purchasePrice,
                 QuantityPerUnit = qty,
@@ -169,6 +279,7 @@ namespace RaccoonWarehouse.Products
             row.Children.Add(CreateUnitInfoBlock(UiText.T("سعر البيع", "Sale Price"), unit.SalePrice.ToString()));
             row.Children.Add(CreateUnitInfoBlock(UiText.T("سعر الشراء", "Purchase Price"), unit.PurchasePrice.ToString()));
             row.Children.Add(CreateUnitInfoBlock(UiText.T("الكمية", "Quantity"), unit.QuantityPerUnit.ToString()));
+            row.Children.Add(CreateUnitInfoBlock(UiText.T("الرمز المماثل", "Alternate barcode"), unit.AlternateBarcode ?? "-"));
             row.Children.Add(CreateUnitInfoBlock(UiText.T("أساسية", "Primary"), unit.IsBaseUnit ? UiText.T("نعم", "Yes") : UiText.T("لا", "No")));
             row.Children.Add(CreateUnitInfoBlock(UiText.T("بيع", "Sale"), unit.IsDefaultSaleUnit ? UiText.T("افتراضي", "Default") : "-"));
             row.Children.Add(CreateUnitInfoBlock(UiText.T("شراء", "Purchase"), unit.IsDefaultPurchaseUnit ? UiText.T("افتراضي", "Default") : "-"));
@@ -272,6 +383,7 @@ namespace RaccoonWarehouse.Products
             SalePriceTextBox.Clear();
             PurchasePriceTextBox.Clear();
             QuantityPerUnitTextBox.Clear();
+            AlternateBarcodeTextBox.Clear();
             IsBaseUnitCheckBox.IsChecked = false;
             IsDefaultSaleUnitCheckBox.IsChecked = false;
             IsDefaultPurchaseUnitCheckBox.IsChecked = false;

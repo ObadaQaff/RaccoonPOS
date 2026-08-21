@@ -16,6 +16,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 
 namespace RaccoonWarehouse.Products
 {
@@ -92,6 +93,45 @@ namespace RaccoonWarehouse.Products
         {
             _currentBarcodeSearch = SearchByBarcodeTextBox.Text.Trim();
             QueueSearch();
+        }
+
+        private void ProductSearchTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Down)
+            {
+                FocusFirstFilteredProduct();
+                e.Handled = true;
+                return;
+            }
+
+            if (e.Key == Key.Enter)
+            {
+                if (FocusFirstFilteredProduct())
+                    Update_Product(this, new RoutedEventArgs());
+
+                e.Handled = true;
+            }
+        }
+
+        private void ProductsTable1_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key != Key.Enter)
+                return;
+
+            Update_Product(this, new RoutedEventArgs());
+            e.Handled = true;
+        }
+
+        private bool FocusFirstFilteredProduct()
+        {
+            if (ProductsTable1.Items.Count == 0)
+                return false;
+
+            ProductsTable1.SelectedIndex = 0;
+            ProductsTable1.ScrollIntoView(ProductsTable1.SelectedItem);
+            ProductsTable1.Focus();
+            Keyboard.Focus(ProductsTable1);
+            return true;
         }
 
         private void QueueSearch()

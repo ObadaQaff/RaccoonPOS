@@ -1,9 +1,12 @@
-﻿using RaccoonWarehouse.Application.Service.Stocks;
+using RaccoonWarehouse.Application.Service.Stocks;
+using RaccoonWarehouse.Application.Service.ProductUnits;
 using RaccoonWarehouse.Domain.Products.DTOs;
 using RaccoonWarehouse.Domain.ProductUnits;
+using RaccoonWarehouse.Domain.ProductUnits.DTOs;
 using RaccoonWarehouse.Domain.Stock;
 using RaccoonWarehouse.Domain.Stock.DTOs;
 using System;
+using System.Globalization;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -25,14 +28,52 @@ using RaccoonWarehouse.Helpers.Localization;
 
 namespace RaccoonWarehouse.Invoices
 {
+    public sealed class FlexibleDecimalConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+            => value is decimal decimalValue ? decimalValue.ToString("0.00000", culture) : value;
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            var text = value?.ToString()?.Trim();
+            if (string.IsNullOrWhiteSpace(text))
+                return DependencyProperty.UnsetValue;
+
+            text = NormalizeDecimalText(text);
+            return decimal.TryParse(text, NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint,
+                CultureInfo.InvariantCulture, out var result)
+                ? result
+                : DependencyProperty.UnsetValue;
+        }
+
+        private static string NormalizeDecimalText(string text)
+        {
+            var builder = new System.Text.StringBuilder(text.Length);
+            foreach (var character in text)
+            {
+                builder.Append(character switch
+                {
+                    '٠' => '0', '١' => '1', '٢' => '2', '٣' => '3', '٤' => '4',
+                    '٥' => '5', '٦' => '6', '٧' => '7', '٨' => '8', '٩' => '9',
+                    '۰' => '0', '۱' => '1', '۲' => '2', '۳' => '3', '۴' => '4',
+                    '۵' => '5', '۶' => '6', '۷' => '7', '۸' => '8', '۹' => '9',
+                    '٫' or '،' or ',' => '.',
+                    _ => character
+                });
+            }
+
+            return builder.ToString();
+        }
+    }
     /// <summary>
     /// Interaction logic for ProductSearchWindow.xaml
     /// </summary>
     public partial class ProductSearchWindow : Window
     {
-        private const decimal MinimumSellableQuantity = 10m;
+        private const decimal MinimumSellableQuantity = 0m;
         private readonly IStockService _stockService;
-        private readonly Func<ProductReadDto, Task<bool>>? _onAddProduct;
+        private readonly IProductUnitService _productUnitService;
+        private readonly Func<ProductSearchRow, Task<bool>>? _onAddProduct;
         private readonly HashSet<string> _disabledProductKeys;
         private readonly DispatcherTimer _searchDebounceTimer = new() { Interval = TimeSpan.FromMilliseconds(300) };
         private readonly SemaphoreSlim _serviceCallLock = new(1, 1);
@@ -45,12 +86,14 @@ namespace RaccoonWarehouse.Invoices
 
         public ProductSearchWindow(
             IStockService stockService,
-            Func<ProductReadDto, Task<bool>>? onAddProduct = null,
+            IProductUnitService productUnitService,
+            Func<ProductSearchRow, Task<bool>>? onAddProduct = null,
             IEnumerable<string>? disabledProductKeys = null)
         {
             InitializeComponent();
             UiText.ApplyWindow(this);
             _stockService = stockService;
+            _productUnitService = productUnitService;
             _onAddProduct = onAddProduct;
             _disabledProductKeys = disabledProductKeys != null
                 ? new HashSet<string>(disabledProductKeys)
@@ -76,6 +119,157 @@ namespace RaccoonWarehouse.Invoices
             _searchDebounceTimer.Start();
         }
 
+        private async void SearchTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Down && _products.Count > 0)
+            {
+                ProductsGrid.SelectedIndex = 0;
+                ProductsGrid.CurrentCell = new DataGridCellInfo(_products[0], ProductsGrid.Columns[1]);
+                ProductsGrid.Focus();
+                ProductsGrid.BeginEdit();
+                ProductsGrid.ScrollIntoView(ProductsGrid.SelectedItem);
+                e.Handled = true;
+            }
+            else if (e.Key == Key.Enter)
+            {
+                var row = ProductsGrid.SelectedItem as ProductSearchRow ?? _products.FirstOrDefault();
+                if (row != null)
+                    await AddProductAsync(row);
+                e.Handled = true;
+            }
+        }
+
+        private async void ProductsGrid_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            await HandleProductsGridKeyAsync(e);
+        }
+
+        private void ProductSearchWindow_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key != Key.Escape)
+                return;
+
+            Close();
+            e.Handled = true;
+        }
+
+        private async Task HandleProductsGridKeyAsync(KeyEventArgs e)
+        {
+            if (ProductsGrid.SelectedItem is not ProductSearchRow row)
+                return;
+
+            if (e.Key is Key.Enter or Key.Left or Key.Right or Key.Up or Key.Down)
+                e.Handled = true;
+
+            var visibleColumns = ProductsGrid.Columns
+                .Where(column => column.Visibility == Visibility.Visible)
+                .OrderBy(column => column.DisplayIndex)
+                .ToList();
+
+            if (e.Key == Key.Enter)
+            {
+                var currentColumn = ProductsGrid.CurrentCell.Column;
+
+                ProductsGrid.CommitEdit(DataGridEditingUnit.Cell, true);
+                ProductsGrid.CommitEdit(DataGridEditingUnit.Row, true);
+
+                var currentColumnIndex = currentColumn == null
+                    ? -1
+                    : visibleColumns.IndexOf(currentColumn);
+
+                if (currentColumnIndex < 0 || currentColumnIndex == visibleColumns.Count - 1)
+                {
+                    await AddProductAsync(row);
+                }
+                else
+                {
+                    var nextColumn = visibleColumns[currentColumnIndex + 1];
+                    ProductsGrid.CurrentCell = new DataGridCellInfo(row, nextColumn);
+                    ProductsGrid.SelectedIndex = _products.IndexOf(row);
+                    ProductsGrid.ScrollIntoView(row, nextColumn);
+                    ProductsGrid.Focus();
+                    ProductsGrid.BeginEdit();
+                }
+                return;
+            }
+            else if (e.Key is Key.Left or Key.Right)
+            {
+                ProductsGrid.CommitEdit(DataGridEditingUnit.Cell, true);
+                ProductsGrid.CommitEdit(DataGridEditingUnit.Row, true);
+
+                var currentColumn = ProductsGrid.CurrentCell.Column ?? visibleColumns.FirstOrDefault();
+                var currentIndex = currentColumn == null ? -1 : visibleColumns.IndexOf(currentColumn);
+                var direction = e.Key == Key.Left ? 1 : -1;
+                var nextIndex = currentIndex + direction;
+
+                if (currentIndex >= 0 && nextIndex >= 0 && nextIndex < visibleColumns.Count)
+                {
+                    var nextColumn = visibleColumns[nextIndex];
+                    ProductsGrid.CurrentCell = new DataGridCellInfo(row, nextColumn);
+                    ProductsGrid.SelectedIndex = _products.IndexOf(row);
+                    ProductsGrid.ScrollIntoView(row, nextColumn);
+                    ProductsGrid.Focus();
+                    ProductsGrid.BeginEdit();
+                }
+            }
+            else if (e.Key == Key.Down && ProductsGrid.SelectedIndex < _products.Count - 1)
+            {
+                var currentColumn = ProductsGrid.CurrentCell.Column ?? visibleColumns.FirstOrDefault();
+                ProductsGrid.SelectedIndex++;
+                if (ProductsGrid.SelectedItem is ProductSearchRow nextRow && currentColumn != null)
+                    ProductsGrid.CurrentCell = new DataGridCellInfo(nextRow, currentColumn);
+                ProductsGrid.ScrollIntoView(ProductsGrid.SelectedItem);
+            }
+            else if (e.Key == Key.Up)
+            {
+                if (ProductsGrid.SelectedIndex <= 0)
+                {
+                    SearchTextBox.Focus();
+                    SearchTextBox.SelectAll();
+                }
+                else
+                {
+                    var currentColumn = ProductsGrid.CurrentCell.Column ?? visibleColumns.FirstOrDefault();
+                    ProductsGrid.SelectedIndex--;
+                    if (ProductsGrid.SelectedItem is ProductSearchRow previousRow && currentColumn != null)
+                        ProductsGrid.CurrentCell = new DataGridCellInfo(previousRow, currentColumn);
+                    ProductsGrid.ScrollIntoView(ProductsGrid.SelectedItem);
+                }
+            }
+        }
+        private async Task AddProductAsync(ProductSearchRow row)
+        {
+            if (row.Product == null || !row.CanAdd || _isAddingProduct)
+                return;
+
+            _searchDebounceTimer.Stop();
+            try
+            {
+                _isAddingProduct = true;
+                await _serviceCallLock.WaitAsync();
+                if (row.Quantity <= 0)
+                {
+                    MessageBox.Show(UiText.T("الكمية يجب أن تكون أكبر من صفر.", "Quantity must be greater than zero."), UiText.T("تنبيه", "Notice"));
+                    return;
+                }
+                if (_onAddProduct != null && !await _onAddProduct(row))
+                    return;
+
+                row.CanAdd = false;
+                _disabledProductKeys.Add(BuildProductKey(row.Product, row.SelectedUnit?.Id));
+                SearchTextBox.Clear();
+                _products.Clear();
+                SearchTextBox.Focus();
+                Keyboard.Focus(SearchTextBox);
+                SearchTextBox.SelectAll();
+            }
+            finally
+            {
+                if (_serviceCallLock.CurrentCount == 0)
+                    _serviceCallLock.Release();
+                _isAddingProduct = false;
+            }
+        }
         private async void SearchDebounceTimer_Tick(object? sender, EventArgs e)
         {
             _searchDebounceTimer.Stop();
@@ -104,7 +298,8 @@ namespace RaccoonWarehouse.Invoices
                         s.Quantity > 0 &&
                         s.Product != null &&
                         (s.Product.Name.Contains(text) ||
-                         s.Product.ITEMCODE.ToString().Contains(text)),
+                         s.Product.ITEMCODE.ToString().Contains(text) ||
+                         s.Product.ProductUnits!.Any(unit => unit.AlternateBarcode!.Contains(text))),
                     new Expression<Func<Stock, object>>[]
                     {
                         s => s.Product,
@@ -120,10 +315,27 @@ namespace RaccoonWarehouse.Invoices
                     .Select(g => new
                     {
                         Product = g.First().Product!,
-                        CurrentStock = ResolvePreferredStock(g)
+                        CurrentStock = ResolvePreferredStock(g),
+                        StockSalePrices = g
+                            .GroupBy(stock => stock.ProductUnitId)
+                            .ToDictionary(group => group.Key, group => group
+                                .OrderByDescending(stock => stock.Quantity)
+                                .Select(stock => stock.SalePrice)
+                                .FirstOrDefault())
                     })
                     .OrderBy(x => x.Product.Name)
                     .ToList();
+
+                var productIds = rows
+                    .Select(row => row.Product.Id)
+                    .Distinct()
+                    .ToList();
+                var unitResult = await _productUnitService.GetAllWithFilteringAndIncludeAsync(
+                    unit => productIds.Contains(unit.ProductId),
+                    unit => unit.Unit);
+                var unitsByProductId = (unitResult?.Data ?? new List<ProductUnitReadDto>())
+                    .GroupBy(unit => unit.ProductId)
+                    .ToDictionary(group => group.Key, group => group.ToList());
 
                 _products.Clear();
                 foreach (var item in rows)
@@ -131,14 +343,25 @@ namespace RaccoonWarehouse.Invoices
                     item.Product.CurrentSalePrice = item.CurrentStock?.SalePrice ?? item.Product.DefaultSalePrice;
                     item.Product.CurrentPurchasePrice = item.CurrentStock?.PurchasePrice ?? 0m;
                     item.Product.CurrentExpiryDate = item.CurrentStock?.ExpiryDate;
-
-                    _products.Add(new ProductSearchRow
+                    var productUnits = unitsByProductId.TryGetValue(item.Product.Id, out var hydratedUnits)
+                        ? hydratedUnits
+                        : (item.Product.ProductUnits ?? Array.Empty<ProductUnitReadDto>()).ToList();
+                    var searchRow = new ProductSearchRow
                     {
                         Product = item.Product,
-                        CurrentSalePrice = item.Product.CurrentSalePrice,
-                        CurrentExpiryDate = item.Product.CurrentExpiryDate,
-                        CanAdd = !_disabledProductKeys.Contains(BuildProductKey(item.Product))
-                    });
+                        Units = new ObservableCollection<ProductUnitReadDto>(productUnits),
+                        SalePricesByUnitId = item.StockSalePrices,
+                        CanAdd = productUnits.Any(unit =>
+                            !_disabledProductKeys.Contains(BuildProductKey(item.Product, unit.Id)))
+                    };
+                    var defaultSaleUnitId = ProductUnitSelector.GetDefaultSaleUnit(
+                        item.Product.ProductUnits ?? Array.Empty<ProductUnitReadDto>())?.Id;
+                    searchRow.SelectedUnit = productUnits.FirstOrDefault(unit =>
+                        unit.Id == defaultSaleUnitId)
+                        ?? productUnits.FirstOrDefault();
+                    if (searchRow.SelectedUnit == null)
+                        searchRow.SalePrice = item.Product.CurrentSalePrice;
+                    _products.Add(searchRow);
                 }
 
                 ProductsGrid.Items.Refresh();
@@ -167,36 +390,16 @@ namespace RaccoonWarehouse.Invoices
 
         private async void AddProductBtn_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is not Button { DataContext: ProductSearchRow row } || row.Product == null || !row.CanAdd)
-                return;
-
-            _searchDebounceTimer.Stop();
-
-            try
-            {
-                _isAddingProduct = true;
-                await _serviceCallLock.WaitAsync();
-
-                if (_onAddProduct != null && !await _onAddProduct(row.Product))
-                    return;
-
-                row.CanAdd = false;
-                _disabledProductKeys.Add(BuildProductKey(row.Product));
-            }
-            finally
-            {
-                if (_serviceCallLock.CurrentCount == 0)
-                    _serviceCallLock.Release();
-
-                _isAddingProduct = false;
-            }
+            if (sender is Button { DataContext: ProductSearchRow row })
+                await AddProductAsync(row);
         }
-
-        private void ClearBtn_Click(object sender, RoutedEventArgs e)
+private void ClearBtn_Click(object sender, RoutedEventArgs e)
         {
             SearchTextBox.Clear();
             _products.Clear();
             SearchTextBox.Focus();
+            Keyboard.Focus(SearchTextBox);
+            SearchTextBox.SelectAll();
         }
 
         private void CloseBtn_Click(object sender, RoutedEventArgs e)
@@ -204,12 +407,11 @@ namespace RaccoonWarehouse.Invoices
             Close();
         }
 
-        private static string BuildProductKey(ProductReadDto product)
+        private static string BuildProductKey(ProductReadDto product, int? unitId = null)
         {
-            var unitId = ProductUnitSelector.GetDefaultSaleUnit(product.ProductUnits)?.Id ?? 0;
-            return $"{product.Id}:{unitId}";
+            var selectedUnitId = unitId ?? ProductUnitSelector.GetDefaultSaleUnit(product.ProductUnits)?.Id ?? 0;
+            return $"{product.Id}:{selectedUnitId}";
         }
-
         private static StockReadDto? ResolvePreferredStock(IEnumerable<StockReadDto> stocks)
         {
             var stockList = stocks?
@@ -237,26 +439,32 @@ namespace RaccoonWarehouse.Invoices
         public class ProductSearchRow : INotifyPropertyChanged
         {
             private bool _canAdd;
-
-            public ProductReadDto Product { get; set; }
-            public decimal CurrentSalePrice { get; set; }
-            public DateTime? CurrentExpiryDate { get; set; }
-
-            public bool CanAdd
+            private decimal _quantity = 1m;
+            private decimal _salePrice;
+            private ProductUnitReadDto? _selectedUnit;
+            public ProductReadDto Product { get; set; } = new();
+            public ObservableCollection<ProductUnitReadDto> Units { get; set; } = new();
+            public Dictionary<int, decimal> SalePricesByUnitId { get; set; } = new();
+            public ProductUnitReadDto? SelectedUnit
             {
-                get => _canAdd;
+                get => _selectedUnit;
                 set
                 {
-                    if (_canAdd == value)
-                        return;
-
-                    _canAdd = value;
-                    PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanAdd)));
+                    _selectedUnit = value;
+                    _salePrice = value != null && SalePricesByUnitId.TryGetValue(value.Id, out var stockPrice)
+                        ? stockPrice
+                        : value?.SalePrice ?? 0m;
+                    PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SelectedUnit)));
+                    PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SalePrice)));
+                    PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(UnitName)));
                 }
             }
-
+            public string ItemCode => Product.ITEMCODE?.ToString() ?? string.Empty;
+            public string ProductName => Product.Name ?? string.Empty;
+            public string UnitName => SelectedUnit?.Unit?.Name ?? string.Empty;
+            public decimal Quantity { get => _quantity; set { _quantity = value; PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Quantity))); } }
+            public decimal SalePrice { get => _salePrice; set { _salePrice = value; PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SalePrice))); } }
+            public bool CanAdd { get => _canAdd; set { if (_canAdd == value) return; _canAdd = value; PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanAdd))); } }
             public event PropertyChangedEventHandler? PropertyChanged;
-        }
-    }
-
+        }    }
 }

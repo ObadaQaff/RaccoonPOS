@@ -101,6 +101,10 @@
                                 <TextBox x:Name="QuantityPerUnitTextBox" Style="{StaticResource AppTextInputStyle}" />
                             </StackPanel>
                             <StackPanel Margin="6,0,14,10">
+                                <TextBlock Text="الرمز المماثل / Alternate barcode" Style="{StaticResource AppFieldLabelStyle}"/>
+                                <TextBox x:Name="AlternateBarcodeTextBox" Style="{StaticResource AppTextInputStyle}" />
+                            </StackPanel>
+                            <StackPanel Margin="6,0,14,10">
                                 <TextBlock Text="أساسية" Style="{StaticResource AppFieldLabelStyle}"/>
                                 <CheckBox x:Name="IsBaseUnitCheckBox" VerticalAlignment="Center" HorizontalAlignment="Center"/>
                             </StackPanel>
@@ -125,25 +129,25 @@
                             <Border Margin="6,0,6,8" Padding="10" Background="#F7FBFD" BorderBrush="{StaticResource AppBorderBrush}" BorderThickness="1" CornerRadius="10">
                                 <StackPanel>
                                     <TextBlock Text="إجمالي الكمية" Style="{StaticResource AppFieldLabelStyle}"/>
-                                    <TextBlock Text="{Binding CurrentStockTotalQuantity, StringFormat={}{0:0.###}}" FontSize="16" FontWeight="Bold"/>
+                                    <TextBlock Text="{Binding CurrentStockTotalQuantity, StringFormat={}{0:0.00000}}" FontSize="16" FontWeight="Bold"/>
                                 </StackPanel>
                             </Border>
                             <Border Margin="6,0,6,8" Padding="10" Background="#F7FBFD" BorderBrush="{StaticResource AppBorderBrush}" BorderThickness="1" CornerRadius="10">
                                 <StackPanel>
                                     <TextBlock Text="إجمالي الكمية الأساسية" Style="{StaticResource AppFieldLabelStyle}"/>
-                                    <TextBlock Text="{Binding CurrentStockTotalBaseQuantity, StringFormat={}{0:0.###}}" FontSize="16" FontWeight="Bold"/>
+                                    <TextBlock Text="{Binding CurrentStockTotalBaseQuantity, StringFormat={}{0:0.00000}}" FontSize="16" FontWeight="Bold"/>
                                 </StackPanel>
                             </Border>
                             <Border Margin="6,0,6,8" Padding="10" Background="#F7FBFD" BorderBrush="{StaticResource AppBorderBrush}" BorderThickness="1" CornerRadius="10">
                                 <StackPanel>
                                     <TextBlock Text="متوسط التكلفة" Style="{StaticResource AppFieldLabelStyle}"/>
-                                    <TextBlock Text="{Binding CurrentStockAverageCost, StringFormat={}{0:0.###}}" FontSize="16" FontWeight="Bold"/>
+                                    <TextBlock Text="{Binding CurrentStockAverageCost, StringFormat={}{0:0.00000}}" FontSize="16" FontWeight="Bold"/>
                                 </StackPanel>
                             </Border>
                             <Border Margin="6,0,6,8" Padding="10" Background="#F7FBFD" BorderBrush="{StaticResource AppBorderBrush}" BorderThickness="1" CornerRadius="10">
                                 <StackPanel>
                                     <TextBlock Text="متوسط سعر البيع" Style="{StaticResource AppFieldLabelStyle}"/>
-                                    <TextBlock Text="{Binding CurrentStockAverageSalePrice, StringFormat={}{0:0.###}}" FontSize="16" FontWeight="Bold"/>
+                                    <TextBlock Text="{Binding CurrentStockAverageSalePrice, StringFormat={}{0:0.00000}}" FontSize="16" FontWeight="Bold"/>
                                 </StackPanel>
                             </Border>
                             <Border Margin="6,0,6,8" Padding="10" Background="#F7FBFD" BorderBrush="{StaticResource AppBorderBrush}" BorderThickness="1" CornerRadius="10">
@@ -164,10 +168,10 @@
                                   Style="{StaticResource AppModernDataGridStyle}">
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="الوحدة" Binding="{Binding UnitName}" Width="*"/>
-                                <DataGridTextColumn Header="الكمية" Binding="{Binding Quantity, StringFormat={}{0:0.###}}" Width="110"/>
-                                <DataGridTextColumn Header="الكمية الأساسية" Binding="{Binding BaseQuantity, StringFormat={}{0:0.###}}" Width="130"/>
-                                <DataGridTextColumn Header="سعر الشراء" Binding="{Binding PurchasePrice, StringFormat={}{0:0.###}}" Width="110"/>
-                                <DataGridTextColumn Header="سعر البيع" Binding="{Binding SalePrice, StringFormat={}{0:0.###}}" Width="110"/>
+                                <DataGridTextColumn Header="الكمية" Binding="{Binding Quantity, StringFormat={}{0:0.00000}}" Width="110"/>
+                                <DataGridTextColumn Header="الكمية الأساسية" Binding="{Binding BaseQuantity, StringFormat={}{0:0.00000}}" Width="130"/>
+                                <DataGridTextColumn Header="سعر الشراء" Binding="{Binding PurchasePrice, StringFormat={}{0:0.00000}}" Width="110"/>
+                                <DataGridTextColumn Header="سعر البيع" Binding="{Binding SalePrice, StringFormat={}{0:0.00000}}" Width="110"/>
                             </DataGrid.Columns>
                         </DataGrid>
                       </StackPanel>
@@ -189,9 +193,9 @@
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="التاريخ" Binding="{Binding TransactionDate, StringFormat={}{0:yyyy-MM-dd HH:mm}}" Width="160"/>
                                 <DataGridTextColumn Header="النوع" Binding="{Binding TransactionTypeLabel}" Width="95"/>
-                                <DataGridTextColumn Header="الكمية" Binding="{Binding Quantity, StringFormat={}{0:0.###}}" Width="85"/>
-                                <DataGridTextColumn Header="الكمية الأساسية" Binding="{Binding BaseQuantity, StringFormat={}{0:0.###}}" Width="110"/>
-                                <DataGridTextColumn Header="سعر الوحدة" Binding="{Binding UnitPrice, StringFormat={}{0:0.###}}" Width="95"/>
+                                <DataGridTextColumn Header="الكمية" Binding="{Binding Quantity, StringFormat={}{0:0.00000}}" Width="85"/>
+                                <DataGridTextColumn Header="الكمية الأساسية" Binding="{Binding BaseQuantity, StringFormat={}{0:0.00000}}" Width="110"/>
+                                <DataGridTextColumn Header="سعر الوحدة" Binding="{Binding UnitPrice, StringFormat={}{0:0.00000}}" Width="95"/>
                                 <DataGridTemplateColumn Header="مرجع الفاتورة" Width="120">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>

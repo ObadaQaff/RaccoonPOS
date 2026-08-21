@@ -1,4 +1,4 @@
-﻿using RaccoonWarehouse.Application.Service.FinancialTransactions;
+using RaccoonWarehouse.Application.Service.FinancialTransactions;
 using RaccoonWarehouse.Application.Service.Delegates;
 using RaccoonWarehouse.Application.Service.Invoices;
 using RaccoonWarehouse.Application.Service.Products;
@@ -138,9 +138,7 @@ namespace RaccoonWarehouse.Invoices
 
         private string GenerateInvoiceNumber()
         {
-            string prefix = "INV";
-            string datePart = DateTime.Now.ToString("yyyyMMddHHmmss");
-            return $"{prefix}-{datePart}";
+            return (DateTime.Now.Ticks % 90000 + 10000).ToString();
         }
         #region
         // ===================== LOAD DATA =====================
@@ -183,7 +181,7 @@ namespace RaccoonWarehouse.Invoices
 
         private async Task LoadCustomersAsync(int? selectedCustomerId = null)
         {
-            var result = await _userService.GetAllWithFilteringAndIncludeAsync(u => u.Role == UserRole.Customer);
+            var result = await _userService.GetAllAsync();
             _allCustomers = new ObservableCollection<UserReadDto>(result?.Data ?? new List<UserReadDto>());
             CustomerComboBox.ItemsSource = _allCustomers;
             CustomerComboBox.SelectedIndex = -1;
@@ -314,8 +312,8 @@ namespace RaccoonWarehouse.Invoices
             {
                 MessageBox.Show(
                     UiText.T(
-                        $"الحد الائتماني للزبون تم تجاوزه.\nالرصيد الحالي: {currentBalance:N2}\nالحد الائتماني: {customer.CreditLimit:N2}\nالرصيد المتوقع بعد الفاتورة: {projectedBalance:N2}",
-                        $"The customer credit limit was exceeded.\nCurrent balance: {currentBalance:N2}\nCredit limit: {customer.CreditLimit:N2}\nProjected balance after invoice: {projectedBalance:N2}"),
+                        $"الحد الائتماني للزبون تم تجاوزه.\nالرصيد الحالي: {currentBalance:N5}\nالحد الائتماني: {customer.CreditLimit:N5}\nالرصيد المتوقع بعد الفاتورة: {projectedBalance:N5}",
+                        $"The customer credit limit was exceeded.\nCurrent balance: {currentBalance:N5}\nCredit limit: {customer.CreditLimit:N5}\nProjected balance after invoice: {projectedBalance:N5}"),
                     UiText.T("تنبيه", "Notice"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Warning);
@@ -685,11 +683,11 @@ namespace RaccoonWarehouse.Invoices
 
             // Purchase price
             PurchaseBox.Text =
-                unit.PurchasePrice.ToString("0.###");
+                unit.PurchasePrice.ToString("0.00000");
 
             // Sale price
             SaleBox.Text =
-                unit.SalePrice.ToString("0.###");
+                unit.SalePrice.ToString("0.00000");
 
             // Quantity
             if (!TryParseDecimalInput(QtyBox.Text, out var qty) || qty <= 0)
@@ -769,6 +767,8 @@ namespace RaccoonWarehouse.Invoices
             if (e.Key is not Key.Enter)
 
                 return;
+
+            await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Background);
 
             var product = ResolveProductChoice();
             if (product == null)
@@ -952,13 +952,13 @@ namespace RaccoonWarehouse.Invoices
                 // 6. Fill Purchase Price
                 // =====================================================
                 PurchaseBox.Text =
-                    defaultUnit.PurchasePrice.ToString("0.###");
+                    defaultUnit.PurchasePrice.ToString("0.00000");
 
                 // =====================================================
                 // 7. Fill Sale Price
                 // =====================================================
                 SaleBox.Text =
-                    defaultUnit.SalePrice.ToString("0.###");
+                    defaultUnit.SalePrice.ToString("0.00000");
 
                 // =====================================================
                 // 8. Get expiry from available stock
@@ -1070,12 +1070,6 @@ namespace RaccoonWarehouse.Invoices
                 : unit.SalePrice > 0m
                     ? unit.SalePrice
                     : product.DefaultSalePrice;
-
-            if (unitPrice < unitCost)
-            {
-                ResetSalePriceBelowCost(product.Name, unitCost, unitPrice, unit.SalePrice);
-                return;
-            }
 
             // ✅ ADD: Snapshot tax info from product at time of invoice
             bool taxExempt = product.TaxExempt ?? false;
@@ -1225,26 +1219,18 @@ namespace RaccoonWarehouse.Invoices
             {
                 case "Quantity":
                     await UpdateInvoiceLineQuantityAsync(line, value);
-                    textBox.Text = line.Quantity.ToString("0.###");
+                    textBox.Text = line.Quantity.ToString("0.00000");
                     break;
 
                 case "UnitCost":
                     line.UnitCost = Math.Max(value, 0m);
-                    if (line.UnitPrice < line.UnitCost)
-                    {
-                        await ResetLineSalePriceBelowCostAsync(line);
-                    }
                     RecalculateLineAmounts(line);
                     break;
 
                 case "UnitPrice":
                     line.UnitPrice = Math.Max(value, 0m);
-                    if (line.UnitPrice < line.UnitCost)
-                    {
-                        await ResetLineSalePriceBelowCostAsync(line);
-                    }
                     RecalculateLineAmounts(line);
-                    textBox.Text = line.UnitPrice.ToString("0.###");
+                    textBox.Text = line.UnitPrice.ToString("0.00000");
                     break;
             }
 
@@ -1255,7 +1241,7 @@ namespace RaccoonWarehouse.Invoices
         /* private void UpdateTotal()
          {
              TotalAmountTextBox.Text =
-                 InvoiceLines.Sum(x => x.LineTotal).ToString("0.###");
+                 InvoiceLines.Sum(x => x.LineTotal).ToString("0.00000");
          }
             */
         // ✅ ADD: Calculates invoice summary fields needed for reports
@@ -1266,19 +1252,23 @@ namespace RaccoonWarehouse.Invoices
             decimal subTotal = InvoiceLines.Sum(l => l.LineSubTotal);   // قبل الضريبة
             decimal taxTotal = InvoiceLines.Sum(l => l.TaxAmount);      // الضريبة
             decimal grossSales = InvoiceLines.Sum(l => l.Quantity * l.UnitPrice);
-            decimal discount = 0m;
-
-            // ✅ ADD: (optional) if you later add Discount UI textbox
-            // decimal.TryParse(DiscountTextBox.Text, out discount);
+            decimal.TryParse(DiscountTextBox.Text, out var discount);
+            discount = Math.Clamp(discount, 0m, grossSales);
 
             decimal netTotal = grossSales - discount;
 
             // ✅ Existing UI field shows final
-            TotalAmountTextBox.Text = netTotal.ToString("0.###");
+            TotalAmountTextBox.Text = netTotal.ToString("0.00000");
 
             // ✅ Optional: if you want show subtotal/tax in UI, bind to labels/textboxes
-             SubTotalTextBox.Text = subTotal.ToString("0.###");
-             TaxTotalTextBox.Text = taxTotal.ToString("0.###");
+             SubTotalTextBox.Text = subTotal.ToString("0.00000");
+             TaxTotalTextBox.Text = taxTotal.ToString("0.00000");
+         }
+
+        private void DiscountTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (IsLoaded)
+                UpdateTotals();
         }
 
         private void EnsureInvoiceLineDisplaySnapshots()
@@ -1355,8 +1345,8 @@ namespace RaccoonWarehouse.Invoices
                 quantity = remainingQuantity;
                 MessageBox.Show(
                     UiText.T(
-                        $"الكمية المطلوبة للصنف {line.ProductName} أكبر من الكمية المتوفرة. تم تعديل الكمية إلى: {quantity:0.###}.",
-                        $"The requested quantity for {line.ProductName} is greater than available stock. Quantity was adjusted to: {quantity:0.###}."),
+                        $"الكمية المطلوبة للصنف {line.ProductName} أكبر من الكمية المتوفرة. تم تعديل الكمية إلى: {quantity:0.00000}.",
+                        $"The requested quantity for {line.ProductName} is greater than available stock. Quantity was adjusted to: {quantity:0.00000}."),
                     UiText.T("تنبيه", "Notice"));
             }
 
@@ -1371,8 +1361,8 @@ namespace RaccoonWarehouse.Invoices
 
             MessageBox.Show(
                 UiText.T(
-                    $"لا يمكن بيع الصنف {line.ProductName} بسعر أقل من التكلفة. سيتم إعادة سعر البيع إلى: {defaultPrice:0.###}.",
-                    $"Cannot sell {line.ProductName} below cost. Sale price will be restored to: {defaultPrice:0.###}."),
+                    $"لا يمكن بيع الصنف {line.ProductName} بسعر أقل من التكلفة. سيتم إعادة سعر البيع إلى: {defaultPrice:0.00000}.",
+                    $"Cannot sell {line.ProductName} below cost. Sale price will be restored to: {defaultPrice:0.00000}."),
                 UiText.T("تنبيه", "Notice"));
 
             line.UnitPrice = defaultPrice;
@@ -1441,7 +1431,8 @@ namespace RaccoonWarehouse.Invoices
                 decimal subTotal = expandedInvoiceLines.Sum(l => l.LineSubTotal);
                 decimal totalTax = expandedInvoiceLines.Sum(l => l.TaxAmount);
                 decimal grossSales = expandedInvoiceLines.Sum(l => l.Quantity * l.UnitPrice);
-                decimal discount = 0m; // ✅ ADD: later from UI if needed
+                decimal.TryParse(DiscountTextBox.Text, out var discount);
+                discount = Math.Clamp(discount, 0m, grossSales);
 
                 decimal totalAmount = grossSales - discount;
                 bool isUpdate = _currentInvoiceId != null;
@@ -1498,8 +1489,8 @@ namespace RaccoonWarehouse.Invoices
                         HideLoadingIfShown();
                         MessageBox.Show(
                             UiText.T(
-                                $"مجموع الشيكات ({checkTotal:0.###}) يجب أن يساوي إجمالي الفاتورة ({totalAmount:0.###}).",
-                                $"The total check amount ({checkTotal:0.###}) must equal the invoice total ({totalAmount:0.###})."),
+                                $"مجموع الشيكات ({checkTotal:0.00000}) يجب أن يساوي إجمالي الفاتورة ({totalAmount:0.00000}).",
+                                $"The total check amount ({checkTotal:0.00000}) must equal the invoice total ({totalAmount:0.00000})."),
                             UiText.T("تنبيه", "Notice"));
                         return;
                     }
@@ -1712,8 +1703,8 @@ namespace RaccoonWarehouse.Invoices
                     UiText.T("نجاح", "Success"));
                 UiText.ApplyTranslations(this);
             }
-                PrintBtn.Visibility = Visibility.Visible;
-                NewInvoiceBtn.Visibility = Visibility.Visible;
+
+                NewInvoiceBtn_Click(this, new RoutedEventArgs());
             }
             catch (Exception ex)
             {
@@ -1735,6 +1726,22 @@ namespace RaccoonWarehouse.Invoices
                 _isSaving = false;
             }
         }
+        private void CreateSalesInvoice_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.F2)
+            {
+                e.Handled = true;
+                SearchProductBtn_Click(this, new RoutedEventArgs());
+                return;
+            }
+
+            if (e.Key != Key.F1)
+                return;
+
+            e.Handled = true;
+            SaveReceiptBtn_Click(SaveReceiptBtn, new RoutedEventArgs());
+        }
+
         private PaymentMethod MapPaymentMethod(PaymentType paymentType)
         {
             return paymentType switch
@@ -1844,8 +1851,7 @@ namespace RaccoonWarehouse.Invoices
                         MessageBox.Show("تم تحديث الفاتورة بنجاح!");
                 }
 
-                PrintBtn.Visibility = Visibility.Visible;
-                NewInvoiceBtn.Visibility = Visibility.Visible;
+                NewInvoiceBtn_Click(this, new RoutedEventArgs());
             }
             catch (Exception ex)
             {
@@ -1959,18 +1965,32 @@ namespace RaccoonWarehouse.Invoices
         }
 
 
-        private void SearchInvoiceBtn_Click(object sender, RoutedEventArgs e)
+        private async void SearchInvoiceBtn_Click(object sender, RoutedEventArgs e)
         {
-            var searchWindow = new SearchSalesInvoiceWindow(_invoicesService,true)
+            var searchWindow = new SearchSalesInvoiceWindow(_invoicesService, _allCustomers ?? Enumerable.Empty<UserReadDto>(), true)
             {
                 Owner = this
             };
 
             if (searchWindow.ShowDialog() == true)
             {
-                LoadSelectedInvoice(searchWindow.Result);
+                await LoadSelectedInvoiceWithLoadingAsync(searchWindow.Result);
             }
         }
+        private async Task LoadSelectedInvoiceWithLoadingAsync(InvoiceReadDto invoice)
+        {
+            _loadingService.Show();
+            try
+            {
+                await Task.Delay(1);
+                LoadSelectedInvoice(invoice);
+            }
+            finally
+            {
+                _loadingService.Hide();
+            }
+        }
+
         private void LoadSelectedInvoice(InvoiceReadDto invoice)
         {
             if (invoice == null) return;
@@ -1988,6 +2008,7 @@ namespace RaccoonWarehouse.Invoices
                 DelegateComboBox.SelectedItem = _allDelegates.FirstOrDefault(d => d.Id == invoice.DelegateId);
             if (invoice.PaymentType.HasValue)
                 SetSelectedPaymentType(invoice.PaymentType.Value);
+            DiscountTextBox.Text = (invoice.DiscountAmount ?? 0m).ToString("0.00000");
             _currentChecks = CloneChecks(invoice.Checks);
             UpdateChecksButtonVisibility();
             UiText.ApplyTranslations(PaymentMethodComboBox);
@@ -2043,6 +2064,7 @@ namespace RaccoonWarehouse.Invoices
             UpdateChecksButtonVisibility();
 
             TotalAmountTextBox.Text = "0";
+            DiscountTextBox.Text = "0";
             PrintBtn.Visibility = Visibility.Collapsed;
             NewInvoiceBtn.Visibility = Visibility.Collapsed;
         }
@@ -2092,10 +2114,98 @@ namespace RaccoonWarehouse.Invoices
                 FilterProducts();
         }
 
-        private void SearchProductBtn_Click(object sender, RoutedEventArgs e)
+        private async Task<bool> AddProductFromSearchAsync(PurchaseProductSearchWindow.PurchaseProductSearchRow row)
         {
-            System.Threading.Interlocked.Increment(ref _productSearchVersion);
-            FilterProducts();
+            if (row.ProductUnitId <= 0)
+            {
+                MessageBox.Show(
+                    UiText.T("لا توجد وحدة معرفة لهذا المنتج.", "No unit is defined for this product."),
+                    UiText.T("تنبيه", "Notice"));
+                return false;
+            }
+
+            var unit = row.Product.ProductUnits?.FirstOrDefault(x => x.Id == row.ProductUnitId);
+            if (unit == null)
+            {
+                MessageBox.Show(
+                    UiText.T("تعذر تحميل وحدة المنتج.", "The product unit could not be loaded."),
+                    UiText.T("تنبيه", "Notice"));
+                return false;
+            }
+
+            var unitPrice = unit.SalePrice > 0m ? unit.SalePrice : row.Product.DefaultSalePrice;
+            var unitCost = unit.PurchasePrice > 0m ? unit.PurchasePrice : row.Product.DefaultPurchasePrice;
+            var quantityPerUnit = unit.QuantityPerUnit > 0m ? unit.QuantityPerUnit : 1m;
+            var taxExempt = row.Product.TaxExempt ?? false;
+            var taxRate = taxExempt ? 0m : row.Product.TaxRate ?? 0m;
+            var lineTotal = row.Quantity * unitPrice;
+            var divisor = 1m + taxRate / 100m;
+            var lineSubTotal = taxExempt || divisor <= 0m
+                ? lineTotal
+                : Math.Round(lineTotal / divisor, 3);
+
+            var line = new InvoiceLineWriteDto
+            {
+                ProductId = row.Product.Id,
+                ProductName = row.Product.Name,
+                ProductUnitId = row.ProductUnitId,
+                QuantityPerUnitSnapshot = quantityPerUnit,
+                BaseQuantity = row.Quantity * quantityPerUnit,
+                UnitName = unit.Unit?.Name,
+                UnitNameSnapshot = unit.Unit?.Name,
+                Quantity = row.Quantity,
+                UnitPrice = unitPrice,
+                UnitCost = unitCost,
+                TaxExempt = taxExempt,
+                TaxRate = taxRate,
+                TaxAmount = Math.Round(lineTotal - lineSubTotal, 3),
+                LineSubTotal = lineSubTotal,
+                ExpiryDate = row.ExpiryDate,
+                CreatedDate = DateTime.Now,
+                UpdatedDate = DateTime.Now
+            };
+
+            if (!await AddOrResplitDraftInvoiceLineAsync(line))
+                return false;
+
+            UpdateTotals();
+            return true;
+        }
+
+        private async Task CreateProductFromSearchAsync(string searchText)
+        {
+            WindowManager.ShowDialog<CreateProduct>(WindowSizeType.LargeRectangle, window =>
+            {
+                if (long.TryParse(searchText, out var barcode))
+                    window.InitialItemCode = barcode.ToString();
+            });
+
+            await LoadProductsAsync();
+        }
+
+        private async void SearchProductBtn_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var searchWindow = new PurchaseProductSearchWindow(
+                    _productService,
+                    async row => await AddProductFromSearchAsync(row),
+                    async search => await CreateProductFromSearchAsync(search))
+                {
+                    Owner = this
+                };
+
+                searchWindow.ShowDialog();
+                ProductBox.Focus();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"{UiText.T("تعذر فتح نافذة بحث المنتجات", "Could not open the product search window")}: {ex.Message}",
+                    UiText.T("خطأ", "Error"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
         }
 
         private void FilterProducts(string? searchText = null)
@@ -2219,11 +2329,11 @@ namespace RaccoonWarehouse.Invoices
 
                 // Purchase price
                 PurchaseBox.Text = firstUnit.PurchasePrice
-                    .ToString("0.###", CultureInfo.InvariantCulture);
+                    .ToString("0.00000", CultureInfo.InvariantCulture);
 
                 // Sale price
                 SaleBox.Text = firstUnit.SalePrice
-                    .ToString("0.###", CultureInfo.InvariantCulture);
+                    .ToString("0.00000", CultureInfo.InvariantCulture);
 
                 // Get the stock batch for this unit
                 var preferredStock = await GetPreferredAvailableStockAsync(
@@ -2269,11 +2379,11 @@ namespace RaccoonWarehouse.Invoices
         {
             MessageBox.Show(
                 UiText.T(
-                    $"لا يمكن بيع الصنف {productName} بسعر أقل من التكلفة. السعر المدخل: {enteredPrice:0.###}، التكلفة: {unitCost:0.###}. سيتم إعادة السعر الافتراضي: {defaultPrice:0.###}.",
-                    $"Cannot sell {productName} below cost. Entered price: {enteredPrice:0.###}, cost: {unitCost:0.###}. The default price will be restored: {defaultPrice:0.###}."),
+                    $"لا يمكن بيع الصنف {productName} بسعر أقل من التكلفة. السعر المدخل: {enteredPrice:0.00000}، التكلفة: {unitCost:0.00000}. سيتم إعادة السعر الافتراضي: {defaultPrice:0.00000}.",
+                    $"Cannot sell {productName} below cost. Entered price: {enteredPrice:0.00000}, cost: {unitCost:0.00000}. The default price will be restored: {defaultPrice:0.00000}."),
                 UiText.T("تنبيه", "Notice"));
 
-            SaleBox.Text = defaultPrice.ToString("0.###");
+            SaleBox.Text = defaultPrice.ToString("0.00000");
         }
 
         private static ProductUnitWriteDto MapAvailableUnit(StockReadDto stock)
@@ -2371,21 +2481,6 @@ namespace RaccoonWarehouse.Invoices
                     return false;
                 }
 
-                if (line.UnitPrice < line.UnitCost)
-                {
-                    MessageBox.Show(
-                        UiText.T(
-                            $"لا يمكن بيع الصنف {line.ProductName} بسعر أقل من التكلفة. السعر الحالي: {line.UnitPrice:0.###}، التكلفة: {line.UnitCost:0.###}. سيتم إعادة السعر الافتراضي.",
-                            $"Cannot sell {line.ProductName} below cost. Current price: {line.UnitPrice:0.###}, cost: {line.UnitCost:0.###}. The default price will be restored."),
-                        UiText.T("تنبيه", "Notice"));
-
-                    line.UnitPrice = Math.Max(line.UnitPrice, line.UnitCost);
-                    RecalculateLineAmounts(line);
-                    UpdateTotals();
-                    ProductsGrid.Items.Refresh();
-                    return false;
-                }
-
                 if (availableQuantity >= line.Quantity)
                 {
                     RecalculateLineAmounts(line);
@@ -2399,8 +2494,8 @@ namespace RaccoonWarehouse.Invoices
                     RecalculateLineAmounts(line);
                     MessageBox.Show(
                         UiText.T(
-                            $"الكمية المطلوبة للصنف {line.ProductName} غير متوفرة. تم تعديل الكمية إلى الحد الأقصى المتاح: {availableQuantity:0.###}",
-                            $"The requested quantity for {line.ProductName} is not available. The quantity was adjusted to the maximum available: {availableQuantity:0.###}"),
+                            $"الكمية المطلوبة للصنف {line.ProductName} غير متوفرة. تم تعديل الكمية إلى الحد الأقصى المتاح: {availableQuantity:0.00000}",
+                            $"The requested quantity for {line.ProductName} is not available. The quantity was adjusted to the maximum available: {availableQuantity:0.00000}"),
                         UiText.T("تنبيه", "Notice"));
                 }
                 else

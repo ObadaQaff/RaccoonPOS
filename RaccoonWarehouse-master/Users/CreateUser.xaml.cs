@@ -15,6 +15,7 @@ namespace RaccoonWarehouse
         private readonly IUserSession _userSession;
         private readonly IPermissionService _permissionService;
         private bool _customerQuickCreateMode;
+        private UserRole? _quickCreateRole;
 
         public int? CreatedUserId { get; private set; }
 
@@ -25,6 +26,7 @@ namespace RaccoonWarehouse
             _permissionService = permissionService;
             InitializeComponent();
             UiText.ApplyWindow(this);
+            CreateBtn.Content = UiText.T("إنشاء الحساب", "Create Account");
 
             Role.ItemsSource = Enum.GetValues(typeof(UserRole));
             Role.SelectedIndex = 0;
@@ -36,13 +38,14 @@ namespace RaccoonWarehouse
         public void InitializeForCustomerQuickCreate(string? initialName = null, string? initialPhone = null)
         {
             _customerQuickCreateMode = true;
+            _quickCreateRole = UserRole.Customer;
             Role.SelectedItem = UserRole.Customer;
             Role.IsEnabled = false;
             PasswordPanel.Visibility = Visibility.Collapsed;
             ConfirmPasswordPanel.Visibility = Visibility.Collapsed;
             RolePanel.Visibility = Visibility.Collapsed;
             Title = UiText.T("Ø¥Ø¶Ø§ÙØ© Ø¹Ù…ÙŠÙ„ Ø¬Ø¯ÙŠØ¯", "Add New Customer");
-            CreateBtn.Content = UiText.T("Ø¥Ø¶Ø§ÙØ© Ø§Ù„Ø¹Ù…ÙŠÙ„", "Add Customer");
+            CreateBtn.Content = UiText.T("إضافة العميل", "Add Customer");
             FormHintText.Text = UiText.T(
                 "Ø£Ø¯Ø®Ù„ Ø§Ø³Ù… Ø§Ù„Ø¹Ù…ÙŠÙ„ ÙˆØ¨ÙŠØ§Ù†Ø§ØªÙ‡ Ø§Ù„Ø¨Ù†ÙƒÙŠØ© Ø«Ù… Ø§Ø­ÙØ¸Ù‡ ÙƒØ¹Ù…ÙŠÙ„ Ø¬Ø¯ÙŠØ¯.",
                 "Enter the customer name and bank details, then save the new customer.");
@@ -56,16 +59,40 @@ namespace RaccoonWarehouse
             FullName.Focus();
         }
 
+        public void InitializeForSupplierQuickCreate(string? initialName = null, string? initialPhone = null)
+        {
+            _customerQuickCreateMode = false;
+            _quickCreateRole = null;
+            _quickCreateRole = UserRole.Supplier;
+            Role.SelectedItem = UserRole.Supplier;
+            Role.IsEnabled = false;
+            PasswordPanel.Visibility = Visibility.Collapsed;
+            ConfirmPasswordPanel.Visibility = Visibility.Collapsed;
+            RolePanel.Visibility = Visibility.Collapsed;
+            Title = UiText.T("إضافة مورد جديد", "Add New Supplier");
+            CreateBtn.Content = UiText.T("إضافة المورد", "Add Supplier");
+            FormHintText.Text = UiText.T(
+                "أدخل اسم المورد وبياناته البنكية، ثم احفظ المورد.",
+                "Enter the supplier name and bank details, then save the supplier.");
+
+            if (!string.IsNullOrWhiteSpace(initialName))
+                FullName.Text = initialName.Trim();
+            if (!string.IsNullOrWhiteSpace(initialPhone))
+                PhoneNumber.Text = initialPhone.Trim();
+
+            FullName.Focus();
+        }
         public void InitializeForEmployeeCreate()
         {
             _customerQuickCreateMode = false;
+            _quickCreateRole = null;
             Role.SelectedItem = UserRole.Casher;
             Role.IsEnabled = true;
             PasswordPanel.Visibility = Visibility.Visible;
             ConfirmPasswordPanel.Visibility = Visibility.Visible;
             RolePanel.Visibility = Visibility.Visible;
-            Title = UiText.T("Ø¥Ø¶Ø§ÙØ© Ù…ÙˆØ¸Ù Ø¬Ø¯ÙŠØ¯", "Add New Staff User");
-            CreateBtn.Content = UiText.T("Ø¥Ø¶Ø§ÙØ© Ø§Ù„Ù…ÙˆØ¸Ù", "Add Staff User");
+            Title = UiText.T("إضافة موظف جديد", "Add New Staff User");
+            CreateBtn.Content = UiText.T("إضافة الموظف", "Add Staff User");
             FormHintText.Text = UiText.T(
                 "Ø£Ø¯Ø®Ù„ Ø¨ÙŠØ§Ù†Ø§Øª Ø§Ù„Ù…ÙˆØ¸Ù Ø«Ù… Ø§Ø®ØªØ± Ø§Ù„Ø¯ÙˆØ± Ø§Ù„Ù…Ù†Ø§Ø³Ø¨ ÙˆØ­ÙØ¸ Ø§Ù„Ø­Ø³Ø§Ø¨.",
                 "Enter the staff details, choose the appropriate role, and save the account.");
@@ -90,22 +117,23 @@ namespace RaccoonWarehouse
                 }
 
                 var selectedRole = Role.SelectedItem is UserRole roleValue ? roleValue : UserRole.Customer;
-                var isCustomer = _customerQuickCreateMode || selectedRole == UserRole.Customer;
+                var isCustomer = selectedRole == UserRole.Customer;
+                var isQuickCreate = _quickCreateRole.HasValue;
 
-                if (!isCustomer && string.IsNullOrWhiteSpace(Password.Text))
+                if (!isQuickCreate && !isCustomer && string.IsNullOrWhiteSpace(Password.Text))
                 {
                     MessageBox.Show(UiText.T("الرجاء تعبئة كلمة المرور.", "Please enter the password."));
                     return;
                 }
 
-                if (!isCustomer && Password.Text != ConfirmPassword.Text)
+                if (!isQuickCreate && !isCustomer && Password.Text != ConfirmPassword.Text)
                 {
                     MessageBox.Show(UiText.T("تأكيد كلمة المرور غير مطابق.", "Password confirmation does not match."));
                     return;
                 }
 
                 var password = Password.Text;
-                if (isCustomer && string.IsNullOrWhiteSpace(password))
+                if (isQuickCreate && string.IsNullOrWhiteSpace(password))
                 {
                     password = $"cust-{Guid.NewGuid():N}";
                 }
@@ -117,7 +145,7 @@ namespace RaccoonWarehouse
                     Name = FullName.Text.Trim(),
                     PhoneNumber = string.IsNullOrWhiteSpace(PhoneNumber.Text) ? null : PhoneNumber.Text.Trim(),
                     Password = password,
-                    Role = isCustomer ? UserRole.Customer : selectedRole,
+                    Role = selectedRole,
                     BankName = string.IsNullOrWhiteSpace(BankName.Text) ? null : BankName.Text.Trim(),
                     BankAccountNumber = string.IsNullOrWhiteSpace(BankAccountNumber.Text) ? null : BankAccountNumber.Text.Trim(),
                     BankIban = string.IsNullOrWhiteSpace(BankIban.Text) ? null : BankIban.Text.Trim(),
@@ -146,7 +174,7 @@ namespace RaccoonWarehouse
                 CreateStatusText.Text = UiText.T("تم", "Done");
                 MessageBox.Show(UiText.T("تمت إضافة المستخدم بنجاح.", "User added successfully."));
 
-                if (_customerQuickCreateMode)
+                if (_quickCreateRole.HasValue)
                 {
                     DialogResult = true;
                     Close();

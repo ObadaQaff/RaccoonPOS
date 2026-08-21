@@ -114,7 +114,7 @@
                                    FontWeight="SemiBold"
                                    HorizontalAlignment="Center"/>
                         <TextBlock x:Name="TotalValueTextBlock"
-                                   Text="0.000"
+                                   Text="0.00000"
                                    Foreground="White"
                                    FontSize="24"
                                    FontWeight="Bold"

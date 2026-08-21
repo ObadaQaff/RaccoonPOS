@@ -2,6 +2,7 @@ using RaccoonWarehouse.Application.Service.Accounting;
 using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Domain.Reports.Accounting.Dtos;
 using RaccoonWarehouse.Domain.Reports.Accounting.Filters;
+using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Helpers.Localization;
 using RaccoonWarehouse.Navigation;
 using System;
@@ -16,6 +17,7 @@ namespace RaccoonWarehouse
         private readonly ILoadingService _loadingService;
         private readonly SourceDocumentNavigationService _sourceDocumentNavigationService;
         private int _userId;
+        private UserRole? _statementRole;
         private bool _isInitialized;
 
         public UserStatementWindow(
@@ -35,6 +37,13 @@ namespace RaccoonWarehouse
         public void Initialize(int userId)
         {
             _userId = userId;
+            _isInitialized = true;
+        }
+
+        public void Initialize(int userId, UserRole role)
+        {
+            _userId = userId;
+            _statementRole = role;
             _isInitialized = true;
         }
 
@@ -72,6 +81,7 @@ namespace RaccoonWarehouse
                 var result = await _statementService.GetAsync(new UserStatementFilterDto
                 {
                     UserId = _userId,
+                    Role = _statementRole,
                     From = FromDatePicker.SelectedDate.Value.Date,
                     To = ToDatePicker.SelectedDate.Value.Date.AddDays(1).AddTicks(-1)
                 });

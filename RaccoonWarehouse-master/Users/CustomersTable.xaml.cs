@@ -85,6 +85,7 @@ namespace RaccoonWarehouse
             var canCreate = role.HasValue && await _permissionService.HasPermissionAsync(role.Value, "Users.Create");
 
             CreateCustomerBtn.Visibility = canCreate ? Visibility.Visible : Visibility.Collapsed;
+            CreateSupplierBtn.Visibility = canCreate ? Visibility.Visible : Visibility.Collapsed;
         }
 
         private async void LoadCustomers()
@@ -92,7 +93,7 @@ namespace RaccoonWarehouse
             var role = _userSession.CurrentUser?.Role;
             if (!role.HasValue || !await _permissionService.HasPermissionAsync(role.Value, "Users.View"))
             {
-                MessageBox.Show(UiText.T("ليس لديك صلاحية عرض الزبائن.", "You do not have permission to view customers."));
+                MessageBox.Show(UiText.T("ليس لديك صلاحية عرض العملاء والموردين.", "You do not have permission to view customers and suppliers."));
                 Close();
                 return;
             }
@@ -101,7 +102,7 @@ namespace RaccoonWarehouse
             _customers.Clear();
 
             if (customers.Data != null)
-                _customers.AddRange(customers.Data.Where(x => x.Role == UserRole.Customer));
+                _customers.AddRange(customers.Data);
 
             _customersView = CollectionViewSource.GetDefaultView(_customers);
             _customersView.Filter = FilterCustomers;
@@ -117,11 +118,24 @@ namespace RaccoonWarehouse
             var role = _userSession.CurrentUser?.Role;
             if (!role.HasValue || !await _permissionService.HasPermissionAsync(role.Value, "Users.Create"))
             {
-                MessageBox.Show(UiText.T("ليس لديك صلاحية إنشاء زبون جديد.", "You do not have permission to create a new customer."));
+                MessageBox.Show(UiText.T("ليس لديك صلاحية إنشاء عميل جديد.", "You do not have permission to create a new customer."));
                 return;
             }
 
             WindowManager.ShowDialog<CreateUser>(WindowSizeType.SmallSquare, window => window.InitializeForCustomerQuickCreate());
+            LoadCustomers();
+        }
+
+        private async void CreateSupplierBtn_Click(object sender, RoutedEventArgs e)
+        {
+            var role = _userSession.CurrentUser?.Role;
+            if (!role.HasValue || !await _permissionService.HasPermissionAsync(role.Value, "Users.Create"))
+            {
+                MessageBox.Show(UiText.T("ليس لديك صلاحية إنشاء مورد جديد.", "You do not have permission to create a new supplier."));
+                return;
+            }
+
+            WindowManager.ShowDialog<CreateUser>(WindowSizeType.SmallSquare, window => window.InitializeForSupplierQuickCreate());
             LoadCustomers();
         }
 
@@ -136,11 +150,11 @@ namespace RaccoonWarehouse
 
             if (CustomersGrid.SelectedItem is not UserReadDto selectedCustomer)
             {
-                MessageBox.Show(UiText.T("يجب تحديد زبون قبل عرض كشف الحساب.", "You must select a customer before viewing the statement."));
+                MessageBox.Show(UiText.T("يجب تحديد عميل أو مورد قبل عرض كشف الحساب.", "You must select a customer or supplier before viewing the statement."));
                 return;
             }
 
-            WindowManager.ShowDialog<UserStatementWindow>(WindowSizeType.LargeRectangle, window => window.Initialize(selectedCustomer.Id));
+            WindowManager.ShowDialog<UserStatementWindow>(WindowSizeType.LargeRectangle, window => window.Initialize(selectedCustomer.Id, selectedCustomer.Role));
         }
 
         private async void UpdateCustomer_Click(object sender, RoutedEventArgs e)
@@ -148,13 +162,13 @@ namespace RaccoonWarehouse
             var role = _userSession.CurrentUser?.Role;
             if (!role.HasValue || !await _permissionService.HasPermissionAsync(role.Value, "Users.Edit"))
             {
-                MessageBox.Show(UiText.T("ليس لديك صلاحية تعديل الزبائن.", "You do not have permission to edit customers."));
+                MessageBox.Show(UiText.T("ليس لديك صلاحية تعديل العملاء والموردين.", "You do not have permission to edit customers and suppliers."));
                 return;
             }
 
             if (CustomersGrid.SelectedItem is not UserReadDto selectedCustomer)
             {
-                MessageBox.Show(UiText.T("يجب تحديد زبون قبل التعديل.", "You must select a customer before editing."));
+                MessageBox.Show(UiText.T("يجب تحديد عميل أو مورد قبل التعديل.", "You must select a customer or supplier before editing."));
                 return;
             }
 
@@ -167,13 +181,13 @@ namespace RaccoonWarehouse
             var role = _userSession.CurrentUser?.Role;
             if (!role.HasValue || !await _permissionService.HasPermissionAsync(role.Value, "Users.Delete"))
             {
-                MessageBox.Show(UiText.T("ليس لديك صلاحية حذف الزبائن.", "You do not have permission to delete customers."));
+                MessageBox.Show(UiText.T("ليس لديك صلاحية حذف العملاء والموردين.", "You do not have permission to delete customers and suppliers."));
                 return;
             }
 
             if (CustomersGrid.SelectedItem is not UserReadDto selectedCustomer)
             {
-                MessageBox.Show(UiText.T("يجب تحديد زبون قبل الحذف.", "You must select a customer before deleting."));
+                MessageBox.Show(UiText.T("يجب تحديد عميل أو مورد قبل الحذف.", "You must select a customer or supplier before deleting."));
                 return;
             }
 
@@ -205,7 +219,7 @@ namespace RaccoonWarehouse
 
         private bool FilterCustomers(object item)
         {
-            if (item is not UserReadDto customer || customer.Role != UserRole.Customer)
+            if (item is not UserReadDto customer)
                 return false;
 
             var search = SearchBox.Text?.Trim();

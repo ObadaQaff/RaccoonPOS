@@ -130,7 +130,7 @@ namespace RaccoonWarehouse.Accounting
         private void ReportGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
         {
             if (ReportGrid.SelectedItem is PartyBalanceRowDto row)
-                WindowManager.ShowDialog<UserStatementWindow>(WindowSizeType.LargeRectangle, window => window.Initialize(row.UserId));
+                WindowManager.ShowDialog<UserStatementWindow>(WindowSizeType.LargeRectangle, window => window.Initialize(row.UserId, _role));
         }
 
         private void ReportGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)

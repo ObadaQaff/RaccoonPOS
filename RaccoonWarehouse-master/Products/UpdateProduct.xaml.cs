@@ -109,7 +109,7 @@ namespace RaccoonWarehouse.Products
                 DescriptionTextBox.Text = product.Data.Description;
                 StatusComboBox.SelectedValue = product.Data.Status;
                 TaxExemptCheckBox.IsChecked = product.Data.TaxExempt;
-                MinimumQuantityTextBox.Text = product.Data.MiniQuantity?.ToString();
+                MinimumQuantityTextBox.Text = product.Data.MiniQuantity?.ToString("0.00000");
                 BrandComboBox.SelectedValue = product.Data.BrandId;
                 SubCategoryComboBox.SelectedValue = product.Data.SubCategoryId;
                 TaxRate.Text = product.Data.TaxRate.ToString();
@@ -283,6 +283,7 @@ namespace RaccoonWarehouse.Products
             row.Children.Add(CreateEditableDecimalPanel(UiText.T("سعر البيع", "Sale Price"), unit.SalePrice.ToString(), 100));
             row.Children.Add(CreateEditableDecimalPanel(UiText.T("سعر الشراء", "Purchase Price"), unit.PurchasePrice.ToString(), 100));
             row.Children.Add(CreateEditableDecimalPanel(UiText.T("الكمية لكل وحدة", "Quantity per Unit"), unit.QuantityPerUnit.ToString(), 110));
+            row.Children.Add(CreateEditableTextPanel(UiText.T("الرمز المماثل", "Alternate barcode"), unit.AlternateBarcode ?? string.Empty, 150));
             row.Children.Add(CreateCheckPanel(UiText.T("أساسية", "Primary"), unit.IsBaseUnit));
             row.Children.Add(CreateCheckPanel(UiText.T("بيع", "Sale"), unit.IsDefaultSaleUnit));
             row.Children.Add(CreateCheckPanel(UiText.T("شراء", "Purchase"), unit.IsDefaultPurchaseUnit));
@@ -363,6 +364,26 @@ namespace RaccoonWarehouse.Products
             return panel;
         }
 
+        private static StackPanel CreateEditableTextPanel(string label, string value, double width)
+        {
+            var panel = new StackPanel
+            {
+                Width = Math.Max(width, 150),
+                Margin = new Thickness(0, 0, 14, 10),
+                FlowDirection = UiText.CurrentFlowDirection
+            };
+            panel.Children.Add(new TextBlock { Text = label, FontWeight = FontWeights.SemiBold });
+            panel.Children.Add(new TextBox
+            {
+                Width = Math.Max(width, 150),
+                Height = 30,
+                Text = value,
+                FlowDirection = UiText.CurrentFlowDirection,
+                TextAlignment = UiText.IsEnglish ? TextAlignment.Left : TextAlignment.Right
+            });
+            return panel;
+        }
+
         private static StackPanel CreateCheckPanel(string label, bool value)
         {
             var panel = new StackPanel
@@ -405,6 +426,7 @@ namespace RaccoonWarehouse.Products
             {
                 ProductId = _productId,
                 UnitId = selectedUnitId,
+                AlternateBarcode = string.IsNullOrWhiteSpace(AlternateBarcodeTextBox.Text) ? null : AlternateBarcodeTextBox.Text.Trim(),
                 SalePrice = salePrice,
                 PurchasePrice = purchasePrice,
                 QuantityPerUnit = qty,
@@ -485,12 +507,13 @@ namespace RaccoonWarehouse.Products
                 var saleBox = ((row.Children[1] as StackPanel)?.Children[1] as TextBox);
                 var purchaseBox = ((row.Children[2] as StackPanel)?.Children[1] as TextBox);
                 var qtyBox = ((row.Children[3] as StackPanel)?.Children[1] as TextBox);
-                var baseCheck = ((row.Children[4] as StackPanel)?.Children[1] as CheckBox);
-                var saleCheck = ((row.Children[5] as StackPanel)?.Children[1] as CheckBox);
-                var purchaseCheck = ((row.Children[6] as StackPanel)?.Children[1] as CheckBox);
+                var alternateBarcodeBox = ((row.Children[4] as StackPanel)?.Children[1] as TextBox);
+                var baseCheck = ((row.Children[5] as StackPanel)?.Children[1] as CheckBox);
+                var saleCheck = ((row.Children[6] as StackPanel)?.Children[1] as CheckBox);
+                var purchaseCheck = ((row.Children[7] as StackPanel)?.Children[1] as CheckBox);
 
                 if (saleBox == null || purchaseBox == null || qtyBox == null ||
-                    baseCheck == null || saleCheck == null || purchaseCheck == null)
+                    alternateBarcodeBox == null || baseCheck == null || saleCheck == null || purchaseCheck == null)
                 {
                     continue;
                 }
@@ -505,6 +528,7 @@ namespace RaccoonWarehouse.Products
                 unit.SalePrice = sale;
                 unit.PurchasePrice = purchase;
                 unit.QuantityPerUnit = qty;
+                unit.AlternateBarcode = string.IsNullOrWhiteSpace(alternateBarcodeBox.Text) ? null : alternateBarcodeBox.Text.Trim();
                 unit.IsBaseUnit = baseCheck.IsChecked == true;
                 unit.IsDefaultSaleUnit = saleCheck.IsChecked == true;
                 unit.IsDefaultPurchaseUnit = purchaseCheck.IsChecked == true;
@@ -547,6 +571,7 @@ namespace RaccoonWarehouse.Products
             SalePriceTextBox.Clear();
             PurchasePriceTextBox.Clear();
             QuantityPerUnitTextBox.Clear();
+            AlternateBarcodeTextBox.Clear();
             UnitComboBox.SelectedIndex = -1;
             IsBaseUnitCheckBox.IsChecked = false;
             IsDefaultSaleUnitCheckBox.IsChecked = false;

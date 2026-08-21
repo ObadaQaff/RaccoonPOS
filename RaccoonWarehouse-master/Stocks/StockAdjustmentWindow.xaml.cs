@@ -165,12 +165,12 @@ namespace RaccoonWarehouse.Stocks
                 return;
 
             SetComboBoxText(BatchComboBox, _batchSearchTextBox, batch.DisplayName);
-            PurchasePriceTextBox.Text = batch.PurchasePrice.ToString(CultureInfo.InvariantCulture);
-            SalePriceTextBox.Text = batch.SalePrice.ToString(CultureInfo.InvariantCulture);
+            PurchasePriceTextBox.Text = batch.PurchasePrice.ToString("0.00000", CultureInfo.InvariantCulture);
+            SalePriceTextBox.Text = batch.SalePrice.ToString("0.00000", CultureInfo.InvariantCulture);
             ExpiryDatePicker.SelectedDate = batch.ExpiryDate;
             BatchSummaryTextBlock.Text = UiText.IsEnglish
-                ? $"Status: {GetBatchStatusLabel(batch.Status)} | Used: {(batch.IsUsed ? "Yes" : "No")} | Original Qty: {batch.OriginalQuantity:0.###} | Remaining: {batch.RemainingQuantity:0.###} | Purchase Price: {batch.PurchasePrice:0.##} | Sale Price: {batch.SalePrice:0.##}"
-                : $"الحالة: {GetBatchStatusLabel(batch.Status)} | مستخدمة: {(batch.IsUsed ? "نعم" : "لا")} | الكمية الأصلية: {batch.OriginalQuantity:0.###} | المتبقي: {batch.RemainingQuantity:0.###} | سعر الشراء: {batch.PurchasePrice:0.##} | سعر البيع: {batch.SalePrice:0.##}";
+                ? $"Status: {GetBatchStatusLabel(batch.Status)} | Used: {(batch.IsUsed ? "Yes" : "No")} | Original Qty: {batch.OriginalQuantity:0.00000} | Remaining: {batch.RemainingQuantity:0.00000} | Purchase Price: {batch.PurchasePrice:0.00000} | Sale Price: {batch.SalePrice:0.00000}"
+                : $"الحالة: {GetBatchStatusLabel(batch.Status)} | مستخدمة: {(batch.IsUsed ? "نعم" : "لا")} | الكمية الأصلية: {batch.OriginalQuantity:0.00000} | المتبقي: {batch.RemainingQuantity:0.00000} | سعر الشراء: {batch.PurchasePrice:0.00000} | سعر البيع: {batch.SalePrice:0.00000}";
         }
 
         private void AdjustmentTypeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)

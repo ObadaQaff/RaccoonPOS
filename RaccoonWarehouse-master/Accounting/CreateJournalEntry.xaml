@@ -68,14 +68,51 @@
                               CanUserAddRows="False"
                               IsReadOnly="False"
                               SelectionMode="Single"
-                              SelectionUnit="Cell">
+                              SelectionUnit="Cell"
+                              PreviewKeyDown="LinesGrid_PreviewKeyDown"
+                              BeginningEdit="LinesGrid_BeginningEdit">
                         <DataGrid.Columns>
-                            <DataGridComboBoxColumn x:Name="AccountColumn"
-                                                    Header="الحساب"
-                                                    Width="280"
-                                                    SelectedValueBinding="{Binding AccountId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                    SelectedValuePath="Id"
-                                                    DisplayMemberPath="DisplayLabel"/>
+                            <DataGridTemplateColumn x:Name="AccountColumn" Header="الحساب" Width="280">
+    <DataGridTemplateColumn.CellTemplate>
+        <DataTemplate><TextBlock Text="{Binding AccountLabel, TargetNullValue=---}" VerticalAlignment="Center" Padding="6,0"/></DataTemplate>
+    </DataGridTemplateColumn.CellTemplate>
+    <DataGridTemplateColumn.CellEditingTemplate>
+        <DataTemplate>
+            <ComboBox x:Name="AccountComboBox"
+                      IsEditable="True" IsTextSearchEnabled="False"
+                      DisplayMemberPath="DisplayLabel" SelectedValuePath="Id"
+                      SelectedValue="{Binding AccountId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                      ItemsSource="{Binding DataContext.AccountsSource, RelativeSource={RelativeSource AncestorType=Window}}"
+                      Loaded="AccountComboBox_Loaded" DropDownOpened="AccountComboBox_DropDownOpened"
+                      PreviewKeyDown="AccountComboBox_PreviewKeyDown" SelectionChanged="AccountComboBox_SelectionChanged"
+                      LostFocus="AccountComboBox_LostFocus"/>
+        </DataTemplate>
+    </DataGridTemplateColumn.CellEditingTemplate>
+</DataGridTemplateColumn>
+                                <DataGridTemplateColumn Header="المستخدم / User" Width="260">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding PartyUserLabel, TargetNullValue=---}" Padding="6,0"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                                <DataGridTemplateColumn.CellEditingTemplate>
+                                    <DataTemplate>
+                                        <ComboBox IsEditable="True"
+                                                  IsTextSearchEnabled="False"
+                                                  DisplayMemberPath="DisplayLabel"
+                                                  SelectedValuePath="Id"
+                                                  SelectedValue="{Binding PartyUserId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  ItemsSource="{Binding DataContext.UsersSource, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                  Loaded="PartyUserComboBox_Loaded"
+                                                  DropDownOpened="PartyUserComboBox_DropDownOpened"
+                                                  PreviewTextInput="PartyUserComboBox_PreviewTextInput"
+                                                  KeyUp="PartyUserComboBox_KeyUp"
+                                                  PreviewKeyDown="PartyUserComboBox_PreviewKeyDown"
+                                                  SelectionChanged="PartyUserComboBox_SelectionChanged"
+                                                  LostFocus="PartyUserComboBox_LostFocus"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellEditingTemplate>
+                            </DataGridTemplateColumn>
                             <DataGridTextColumn Header="مدين" Width="140" Binding="{Binding Debit, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                             <DataGridTextColumn Header="دائن" Width="140" Binding="{Binding Credit, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                             <DataGridTextColumn Header="الوصف" Width="*" Binding="{Binding Description, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>

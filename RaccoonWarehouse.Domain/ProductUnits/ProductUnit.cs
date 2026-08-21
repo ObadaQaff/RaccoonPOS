@@ -14,6 +14,7 @@ namespace RaccoonWarehouse.Domain.ProductUnits
 {
     public class ProductUnit: BaseEntity
     {
+        public string? AlternateBarcode { get; set; }
         public decimal SalePrice { get; set; }
         public decimal UnTaxedPrice { get; set; } 
         public decimal PurchasePrice { get; set; } //cost 

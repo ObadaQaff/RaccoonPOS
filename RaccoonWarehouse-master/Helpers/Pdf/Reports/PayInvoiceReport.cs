@@ -1,4 +1,4 @@
-﻿using QuestPDF.Fluent;
+using QuestPDF.Fluent;
 using QuestPDF.Infrastructure;
 using RaccoonWarehouse.Domain.Invoices.DTOs;
 using System.Collections.Generic;
@@ -25,7 +25,7 @@ namespace RaccoonWarehouse.Helpers.Pdf
                 { "التاريخ", _invoice.CreatedDate.ToString("yyyy/MM/dd") },
                 { "اسم المورد", _invoice.User?.Name ?? "-" },
                 { "طريقة الدفع", _invoice.PaymentType.ToString() ?? "-" },
-                { "المبلغ الإجمالي", _invoice.TotalAmount.ToString("N2") }
+                { "المبلغ الإجمالي", _invoice.TotalAmount.ToString("N5") }
             };
 
         public override List<string> TableHeaders =>
@@ -45,8 +45,8 @@ namespace RaccoonWarehouse.Helpers.Pdf
                 line.Product?.Name ?? "",
                 line.ProductUnit?.Unit?.Name ?? "",
                 line.Quantity.ToString(),
-                line.UnitPrice.ToString("N2"),
-                line.LineTotal.ToString("N2"),
+                line.UnitPrice.ToString("N5"),
+                line.LineTotal.ToString("N5"),
                 line.ExpiryDate.ToString("yyyy/MM/dd") ?? "-"
             }).ToList();
     }

@@ -136,6 +136,7 @@ namespace RaccoonWarehouse.Application.Service.Sales
             {
                 InvoiceType.Sale => FinancialSourceType.PosSaleInvoice,
                 InvoiceType.Return => FinancialSourceType.SaleReturn,
+                InvoiceType.PurchaseReturn => FinancialSourceType.PurchaseReturn,
                 InvoiceType.Exchange => FinancialSourceType.PosSaleInvoice,
                 _ => FinancialSourceType.Manual
             };
@@ -145,6 +146,9 @@ namespace RaccoonWarehouse.Application.Service.Sales
         {
             if (invoiceType == InvoiceType.Return)
                 return TransactionDirection.Out;
+
+            if (invoiceType == InvoiceType.PurchaseReturn)
+                return TransactionDirection.In;
 
             if (invoiceType == InvoiceType.Exchange)
                 return totalAmount >= 0 ? TransactionDirection.In : TransactionDirection.Out;

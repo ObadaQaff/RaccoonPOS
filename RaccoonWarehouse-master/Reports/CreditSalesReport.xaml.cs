@@ -86,9 +86,9 @@ namespace RaccoonWarehouse.Reports
 
                 CreditSalesReportGrid.ItemsSource = rows;
                 TotalInvoicesText.Text = rows.Count.ToString();
-                TotalDueText.Text = rows.Sum(x => x.InvoiceTotal).ToString("0.00");
-                TotalPaidText.Text = rows.Sum(x => x.AmountPaid).ToString("0.00");
-                TotalRemainingText.Text = rows.Sum(x => x.RemainingAmount).ToString("0.00");
+                TotalDueText.Text = rows.Sum(x => x.InvoiceTotal).ToString("0.00000");
+                TotalPaidText.Text = rows.Sum(x => x.AmountPaid).ToString("0.00000");
+                TotalRemainingText.Text = rows.Sum(x => x.RemainingAmount).ToString("0.00000");
             }
             catch (Exception ex)
             {

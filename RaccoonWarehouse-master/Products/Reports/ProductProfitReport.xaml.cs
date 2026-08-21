@@ -88,12 +88,12 @@ namespace RaccoonWarehouse.Products.Reports
             var gp = rows.Sum(x => x.GrossProfit);
             var margin = netSales == 0 ? 0 : Math.Round((gp / netSales) * 100m, 2);
 
-            NetSalesText.Text = netSales.ToString("0.00");
-            TotalTaxText.Text = tax.ToString("0.00");
-            TotalDiscountText.Text = discount.ToString("0.00");
-            TotalCogsText.Text = cogs.ToString("0.00");
-            GrossProfitText.Text = gp.ToString("0.00");
-            MarginText.Text = margin.ToString("0.##");
+            NetSalesText.Text = netSales.ToString("0.00000");
+            TotalTaxText.Text = tax.ToString("0.00000");
+            TotalDiscountText.Text = discount.ToString("0.00000");
+            TotalCogsText.Text = cogs.ToString("0.00000");
+            GrossProfitText.Text = gp.ToString("0.00000");
+            MarginText.Text = margin.ToString("0.00000");
         }
 
         private void BackBtn_Click(object sender, RoutedEventArgs e)

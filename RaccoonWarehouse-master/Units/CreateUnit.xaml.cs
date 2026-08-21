@@ -11,6 +11,7 @@ namespace RaccoonWarehouse.Units
     {
         private readonly IUnitService _unitService;
         private readonly IMapper _mapper;
+        public int? CreatedUnitId { get; private set; }
 
         public CreateUnit(IUnitService unitService, IMapper mapper)
         {

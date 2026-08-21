@@ -54,7 +54,7 @@ namespace RaccoonWarehouse.Invoices
             UiText.ApplyWindow(this);
 
             TitleText.Text = UiText.T("تفاصيل الشيكات", "Check Details");
-            ExpectedAmountText.Text = UiText.T($"إجمالي الفاتورة المطلوب: {_expectedAmount:0.###}", $"Invoice amount required: {_expectedAmount:0.###}");
+            ExpectedAmountText.Text = UiText.T($"إجمالي الفاتورة المطلوب: {_expectedAmount:0.00000}", $"Invoice amount required: {_expectedAmount:0.00000}");
 
             CheckNumberLabel.Text = UiText.T("رقم الشيك", "Check Number");
             BankNameLabel.Text = UiText.T("اسم البنك", "Bank Name");
@@ -157,7 +157,7 @@ namespace RaccoonWarehouse.Invoices
             if (total != expected)
             {
                 MessageBox.Show(
-                    UiText.T($"مجموع الشيكات ({total:0.###}) يجب أن يساوي إجمالي الفاتورة ({expected:0.###}).", $"The total check amount ({total:0.###}) must equal the invoice total ({expected:0.###})."),
+                    UiText.T($"مجموع الشيكات ({total:0.00000}) يجب أن يساوي إجمالي الفاتورة ({expected:0.00000}).", $"The total check amount ({total:0.00000}) must equal the invoice total ({expected:0.00000})."),
                     UiText.T("تنبيه", "Notice"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Warning);

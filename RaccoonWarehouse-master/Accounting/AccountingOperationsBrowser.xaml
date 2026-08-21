@@ -44,6 +44,12 @@
                                 <TextBlock x:Name="ProcessNowText" Text="Process now"/>
                             </StackPanel>
                         </Button>
+                        <Button Width="155" Height="40" Margin="10,0,0,0" Style="{StaticResource AppHeroButtonStyle}" Click="ApplyBatchBtn_Click">
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <fa:ImageAwesome Icon="PlayCircle" Width="15" Height="15" Margin="0,0,8,0" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                                <TextBlock x:Name="ApplyBatchText" Text="Apply 15"/>
+                            </StackPanel>
+                        </Button>
                         <Button Width="150" Height="40" Margin="10,0,0,0" Style="{StaticResource AppSecondaryButtonStyle}" Click="RetrySelectedBtn_Click">
                             <TextBlock x:Name="RetrySelectedText" Text="Retry selected"/>
                         </Button>

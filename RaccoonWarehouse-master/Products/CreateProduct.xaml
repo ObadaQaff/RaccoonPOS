@@ -85,7 +85,11 @@
                         <WrapPanel Margin="0,0,0,10" ItemWidth="150" ItemHeight="95">
                             <StackPanel Margin="6,0,14,10">
                                 <TextBlock Text="الوحدة" Style="{StaticResource AppFieldLabelStyle}"/>
-                                <ComboBox x:Name="UnitComboBox" Style="{StaticResource AppComboBoxStyle}" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
+                                    <ComboBox x:Name="UnitComboBox" Grid.Column="0" Style="{StaticResource AppComboBoxStyle}" IsEditable="True" IsTextSearchEnabled="False" PreviewKeyDown="UnitComboBox_PreviewKeyDown" />
+                                    <Button Grid.Column="1" Content="+" Margin="6,0,0,0" Height="34" Click="CreateUnitBtn_Click" ToolTip="Create new unit / إنشاء وحدة جديدة"/>
+                                </Grid>
                             </StackPanel>
                             <StackPanel Margin="6,0,14,10">
                                 <TextBlock Text="سعر البيع" Style="{StaticResource AppFieldLabelStyle}"/>
@@ -98,6 +102,10 @@
                             <StackPanel Margin="6,0,14,10">
                                 <TextBlock Text="الكمية لكل وحدة" Style="{StaticResource AppFieldLabelStyle}"/>
                                 <TextBox x:Name="QuantityPerUnitTextBox" Style="{StaticResource AppTextInputStyle}" />
+                            </StackPanel>
+                            <StackPanel Margin="6,0,14,10">
+                                <TextBlock Text="الرمز المماثل / Alternate barcode" Style="{StaticResource AppFieldLabelStyle}"/>
+                                <TextBox x:Name="AlternateBarcodeTextBox" Style="{StaticResource AppTextInputStyle}" />
                             </StackPanel>
                             <StackPanel Margin="6,0,14,10">
                                 <TextBlock Text="أساسية" Style="{StaticResource AppFieldLabelStyle}"/>

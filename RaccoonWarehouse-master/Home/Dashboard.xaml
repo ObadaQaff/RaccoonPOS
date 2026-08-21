@@ -136,7 +136,7 @@
                         <Button Style="{StaticResource DashboardNavButtonStyle}" Margin="0,0,0,8" Click="Customers_Click">
                             <StackPanel Orientation="Horizontal" FlowDirection="{DynamicResource CurrentFlowDirection}">
                                 <fa:ImageAwesome Icon="Users" Width="22" Height="22" Foreground="#F0A34A" Margin="0,0,12,0"/>
-                                <TextBlock Text="الزبائن" Foreground="{StaticResource AppSidebarTextBrush}" FontSize="18" TextWrapping="Wrap"/>
+                                <TextBlock Text="العملاء والموردون" Foreground="{StaticResource AppSidebarTextBrush}" FontSize="18" TextWrapping="Wrap"/>
                             </StackPanel>
                         </Button>
 

@@ -1,4 +1,4 @@
-﻿<Window x:Class="RaccoonWarehouse.Invoices.PayInvoice"
+<Window x:Class="RaccoonWarehouse.Invoices.PayInvoice" PreviewKeyDown="PayInvoice_PreviewKeyDown"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:fa="http://schemas.fontawesome.io/icons/"
@@ -245,11 +245,11 @@
                     <!-- اسم المورد -->
                     <StackPanel Margin="6" Grid.Column="2">
                         <TextBlock Text="اسم المورد" FontSize="14" FontWeight="SemiBold"/>
-                        <ComboBox x:Name="SupplierComboBox"
-                                  Style="{StaticResource ComboBoxStyleModern}"
-                                  Loaded="SupplierComboBox_Loaded"
-                                  PreviewTextInput="SupplierComboBox_PreviewTextInput"
-                                  KeyUp="SupplierComboBox_KeyUp"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="38"/></Grid.ColumnDefinitions>
+                            <ComboBox x:Name="SupplierComboBox" Grid.Column="0" Style="{StaticResource ComboBoxStyleModern}" IsEditable="True" IsTextSearchEnabled="False" StaysOpenOnEdit="True" Loaded="SupplierComboBox_Loaded" PreviewTextInput="SupplierComboBox_PreviewTextInput" KeyUp="SupplierComboBox_KeyUp"/>
+                            <Button Grid.Column="1" Content="+" Margin="4,0,0,0" Click="AddSupplierBtn_Click" ToolTip="إضافة مورد"/>
+                        </Grid>
                     </StackPanel>
                 </Grid>
 
@@ -258,6 +258,8 @@
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="220"/>
                         <ColumnDefinition Width="220"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
@@ -276,26 +278,40 @@
 
                     <!-- المجموع -->
                     <StackPanel Margin="6" Grid.Column="1">
-                        <TextBlock Text="المجموع" FontSize="14" FontWeight="SemiBold"/>
-                        <TextBox x:Name="TotalAmountTextBox"
+                        <TextBlock Text="Subtotal / الإجمالي قبل الضريبة" FontSize="14" FontWeight="SemiBold"/>
+                        <TextBox x:Name="SubtotalAmountTextBox" Style="{StaticResource InputBoxStyle}" IsReadOnly="True"/>
+                    </StackPanel>
+                    <StackPanel Margin="6" Grid.Column="2">
+                        <TextBlock Text="Tax / الضريبة" FontSize="14" FontWeight="SemiBold"/>
+                        <TextBox x:Name="TaxAmountTextBox" Style="{StaticResource InputBoxStyle}" IsReadOnly="True"/>
+                    </StackPanel>
+                    <StackPanel Margin="6" Grid.Column="3">
+                        <TextBlock Text="Total / الإجمالي" FontSize="14" FontWeight="SemiBold"/>
+                        <TextBox x:Name="TotalAmountTextBox" Style="{StaticResource InputBoxStyle}" IsReadOnly="True"/>
+                    </StackPanel>
+                    <StackPanel Margin="6" Grid.Column="4">
+                        <TextBlock Text="Discount / الخصم" FontSize="14" FontWeight="SemiBold"/>
+                        <TextBox x:Name="DiscountTextBox"
                                  Style="{StaticResource InputBoxStyle}"
-                                 IsReadOnly="True"/>
+                                 Text="0"
+                                 TextChanged="DiscountTextBox_TextChanged"/>
                     </StackPanel>
                 </Grid>
 
                 <!-- منطقة إدخال المنتج (نفس المبيعات) -->
-                <StackPanel Margin="10" Orientation="Vertical" Background="#E8F0F7">
+                <StackPanel Margin="10" Orientation="Vertical" Background="#E8F0F7" Visibility="Collapsed">
                     <DockPanel>
                         <Button Content="إضافة صنف"
                                 DockPanel.Dock="Left"
                                 Style="{StaticResource PrimaryButtonStyle}"
                                 Width="110"
                                 Margin="10,0,0,0"
-                                Click="CreateProductBtn_Click"/>
+                                Visibility="Collapsed"
+                                Click="SearchProductBtn_Click"/>
                         <TextBlock Text="إضافة منتج" Style="{StaticResource HeaderText}"/>
                     </DockPanel>
 
-                    <Grid Margin="0,10,0,0">
+                    <Grid Margin="0,10,0,0" Visibility="Collapsed">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="250"/>
                             <ColumnDefinition Width="120"/>
@@ -325,7 +341,7 @@
                                           SelectedValuePath="Id"
                                           SelectionChanged="ProductBox_SelectionChanged"
                                           PreviewMouseLeftButtonUp="ProductBox_PreviewMouseLeftButtonUp"
-                                          PreviewKeyDown="ProductBox_PreviewKeyDown"
+                                          KeyDown="ProductBox_PreviewKeyDown"
                                           PreviewTextInput="ProductBox_PreviewTextInput"
                                           KeyUp="ProductBox_KeyUp"
                                           IsTextSearchEnabled="False"
@@ -415,6 +431,12 @@
                     </Grid>
                 </StackPanel>
 
+                <Button Content="إضافة منتج / Add Product"
+                        Style="{StaticResource PrimaryButtonStyle}"
+                        Width="180"
+                        HorizontalAlignment="Center"
+                        Click="SearchProductBtn_Click"/>
+
                 <!-- GRID للمنتجات -->
                 <StackPanel Margin="10">
                     <TextBlock Text="تفاصيل المنتجات"
@@ -423,8 +445,7 @@
 
                     <DataGrid x:Name="ProductsGrid"
                               AutoGenerateColumns="False"
-                              CanUserAddRows="False"
-                              IsReadOnly="True"
+                              CanUserAddRows="False" IsReadOnly="False" CellEditEnding="ProductsGrid_CellEditEnding"
                               Style="{StaticResource MinimalDataGrid}"
                               Margin="0,10,0,0">
 
@@ -438,16 +459,25 @@
                                                 Width="100"/>
 
                             <DataGridTextColumn Header="الكمية"
-                                                Binding="{Binding Quantity}"
+                                                Binding="{Binding Quantity, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                                                 Width="80"/>
 
                             <DataGridTextColumn Header="سعر الوحدة"
-                                                Binding="{Binding UnitPrice}"
+                                                Binding="{Binding UnitPrice, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                                                 Width="100"/>
 
-                            <DataGridTextColumn Header="تاريخ الانتهاء"
-                                                Binding="{Binding ExpiryDate, StringFormat=yyyy-MM-dd}"
-                                                Width="130"/>
+                            <DataGridTemplateColumn Header="تاريخ الانتهاء" Width="150">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding ExpiryDate, StringFormat=yyyy-MM-dd}" VerticalAlignment="Center"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                                <DataGridTemplateColumn.CellEditingTemplate>
+                                    <DataTemplate>
+                                        <DatePicker SelectedDate="{Binding ExpiryDate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellEditingTemplate>
+                            </DataGridTemplateColumn>
 
                             <DataGridTextColumn Header="الإجمالي"
                                                 Binding="{Binding LineTotal}"

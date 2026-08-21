@@ -1,6 +1,7 @@
 ﻿using RaccoonWarehouse.Core.EntityAndDtoStructure;
 using RaccoonWarehouse.Domain.Invoices;
 using RaccoonWarehouse.Domain.Invoices.DTOs;
+using RaccoonWarehouse.Domain.StockDocuments.DTOs;
 using RaccoonWarehouse.Domain.Vouchers;
 using RaccoonWarehouse.Domain.Vouchers.DTOs;
 using RaccoonWarehouse.Domain.Enums;
@@ -26,6 +27,8 @@ namespace RaccoonWarehouse.Domain.Checks.DTOs
         public VoucherReadDto? Voucher { get; set; }
         public int? InvoiceId { get; set; }
         public InvoiceReadDto? Invoice { get; set; }
+        public int? StockDocumentId { get; set; }
+        public StockDocumentReadDto? StockDocument { get; set; }
         public DateTime CreatedDate { get; set; }
         public DateTime UpdatedDate { get; set; }
 

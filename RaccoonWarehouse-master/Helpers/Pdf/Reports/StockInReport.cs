@@ -1,4 +1,4 @@
-﻿using RaccoonWarehouse.Domain.StockDocuments.DTOs;
+using RaccoonWarehouse.Domain.StockDocuments.DTOs;
 using RaccoonWarehouse.Helpers.Pdf;
 using System.Collections.Generic;
 
@@ -48,9 +48,9 @@ namespace RaccoonWarehouse.Helpers.Pdf.Reports
                     {
                         item.Product?.Name ?? "",
                         item.ProductUnit?.Unit?.Name ?? "",
-                        item.Quantity.ToString("0.##"),
-                        item.PurchasePrice.ToString("N2"),
-                        item.SalePrice.ToString("N2"),
+                        item.Quantity.ToString("0.00000"),
+                        item.PurchasePrice.ToString("N5"),
+                        item.SalePrice.ToString("N5"),
                         item.ExpiryDate?.ToString("yyyy/MM/dd") ?? "-"
                     });
                 }

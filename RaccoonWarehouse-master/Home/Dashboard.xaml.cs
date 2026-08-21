@@ -292,6 +292,20 @@ namespace RaccoonWarehouse
             ShowDashboardGroups(moduleDefinition.Groups, clickHandler, maxColumns);
         }
 
+        private async Task RunSidebarNavigationAsync(Func<Task> navigation)
+        {
+            try
+            {
+                _loadingService.Show();
+                await Task.Yield();
+                await navigation();
+            }
+            finally
+            {
+                _loadingService.Hide();
+            }
+        }
+
         private async Task RefreshAccountingNavigationAsync()
         {
             AccountingNavButton.Visibility = await _accountingFeatureService.IsEnabledAsync()
@@ -412,20 +426,18 @@ namespace RaccoonWarehouse
             WindowManager.Show<CategoriesTable>();
 
         }
-        public async void StocksBtn_Click(object sender, RoutedEventArgs e)
-        {
-            await ShowDashboardModuleAsync(ProductsDashboardModule.Key, DashboardActionButton_Click);
-        }
+        public async void StocksBtn_Click(object sender, RoutedEventArgs e) =>
+            await RunSidebarNavigationAsync(() => ShowDashboardModuleAsync(ProductsDashboardModule.Key, DashboardActionButton_Click));
 
-        private void POSBtn_Click(object sender, RoutedEventArgs e)
-        {
-            WindowManager.Show<RaccoonWarehouse.Invoices.POS>(WindowSizeType.FullScreen);    
-        }
+        private async void POSBtn_Click(object sender, RoutedEventArgs e) =>
+            await RunSidebarNavigationAsync(() =>
+            {
+                WindowManager.Show<RaccoonWarehouse.Invoices.POS>(WindowSizeType.FullScreen);
+                return Task.CompletedTask;
+            });
 
-        private async void Button_Click_3(object sender, RoutedEventArgs e)
-        {
-            await ShowDashboardModuleAsync(CategoriesDashboardModule.Key, DashboardActionButton_Click);
-        }
+        private async void Button_Click_3(object sender, RoutedEventArgs e) =>
+            await RunSidebarNavigationAsync(() => ShowDashboardModuleAsync(CategoriesDashboardModule.Key, DashboardActionButton_Click));
 
 
         private void Button_Click_4(object sender, RoutedEventArgs e)
@@ -438,12 +450,14 @@ namespace RaccoonWarehouse
             await ShowDashboardModuleAsync(SalesDashboardModule.Key, DashboardActionButton_Click);
         }
 
-        private void Orders_Click(object sender, RoutedEventArgs e)
-        {
-            _unreadPendingCartIds.Clear();
-            UpdateOrdersBadge();
-            WindowManager.Show<OrdersTable>(WindowSizeType.LargeRectangle);
-        }
+        private async void Orders_Click(object sender, RoutedEventArgs e) =>
+            await RunSidebarNavigationAsync(() =>
+            {
+                _unreadPendingCartIds.Clear();
+                UpdateOrdersBadge();
+                WindowManager.Show<OrdersTable>(WindowSizeType.LargeRectangle);
+                return Task.CompletedTask;
+            });
 
         private async void Reports_Click(object sender, RoutedEventArgs e)
         {
@@ -453,14 +467,17 @@ namespace RaccoonWarehouse
             try
             {
                 _isLoadingReports = true;
-                var moduleDefinition = await _dashboardModules.GetDefinitionAsync(ReportsDashboardModule.Key);
-                if (moduleDefinition.Groups.Count == 0)
+                await RunSidebarNavigationAsync(async () =>
                 {
-                    ShowDashboardEmptyState(UiText.T("لا توجد تقارير متاحة لهذا المستخدم.", "There are no reports available for this user."));
-                    return;
-                }
+                    var moduleDefinition = await _dashboardModules.GetDefinitionAsync(ReportsDashboardModule.Key);
+                    if (moduleDefinition.Groups.Count == 0)
+                    {
+                        ShowDashboardEmptyState(UiText.T("لا توجد تقارير متاحة لهذا المستخدم.", "There are no reports available for this user."));
+                        return;
+                    }
 
-                ShowDashboardGroups(moduleDefinition.Groups, DashboardActionButton_Click, maxColumns: 3);
+                    ShowDashboardGroups(moduleDefinition.Groups, DashboardActionButton_Click, maxColumns: 3);
+                });
             }
             catch (Exception ex)
             {
@@ -473,34 +490,29 @@ namespace RaccoonWarehouse
         }
 
 
-        private async void Button_Click_6(object sender, RoutedEventArgs e)
-        {
-            await ShowDashboardModuleAsync(WarehousesDashboardModule.Key, DashboardActionButton_Click);
-        }
-        private async void Button_Click_2(object sender, RoutedEventArgs e)
-        {
-            await ShowDashboardModuleAsync(BrandsDashboardModule.Key, DashboardActionButton_Click);
-        }
+        private async void Button_Click_6(object sender, RoutedEventArgs e) =>
+            await RunSidebarNavigationAsync(() => ShowDashboardModuleAsync(WarehousesDashboardModule.Key, DashboardActionButton_Click));
+        private async void Button_Click_2(object sender, RoutedEventArgs e) =>
+            await RunSidebarNavigationAsync(() => ShowDashboardModuleAsync(BrandsDashboardModule.Key, DashboardActionButton_Click));
 
-        private async void Button_Click_5(object sender, RoutedEventArgs e)
-        {
-            await ShowDashboardModuleAsync(SettingsDashboardModule.Key, DashboardActionButton_Click);
-        }
+        private async void Button_Click_5(object sender, RoutedEventArgs e) =>
+            await RunSidebarNavigationAsync(() => ShowDashboardModuleAsync(SettingsDashboardModule.Key, DashboardActionButton_Click));
 
-        private async void Customers_Click(object sender, RoutedEventArgs e)
-        {
-            await ShowDashboardModuleAsync(CustomersDashboardModule.Key, DashboardActionButton_Click);
-        }
+        private async void Customers_Click(object sender, RoutedEventArgs e) =>
+            await RunSidebarNavigationAsync(() => ShowDashboardModuleAsync(CustomersDashboardModule.Key, DashboardActionButton_Click));
 
         private async void Employees_Click(object sender, RoutedEventArgs e)
         {
-            if (!await _employeeFeatureService.IsEnabledAsync())
+            await RunSidebarNavigationAsync(async () =>
             {
-                MessageBox.Show(UiText.T("نظام الموظفين متوقف حالياً.", "The employees module is currently disabled."));
-                return;
-            }
+                if (!await _employeeFeatureService.IsEnabledAsync())
+                {
+                    MessageBox.Show(UiText.T("نظام الموظفين متوقف حالياً.", "The employees module is currently disabled."));
+                    return;
+                }
 
-            WindowManager.Show<EmployeesTable>();
+                WindowManager.Show<EmployeesTable>();
+            });
         }
 
         private async void NotificationTest_Click(object sender, RoutedEventArgs e)
@@ -644,8 +656,11 @@ namespace RaccoonWarehouse
                 return;
             }
 
-            var moduleDefinition = await _dashboardModules.GetDefinitionAsync(AccountingDashboardModule.Key);
-            ShowDashboardGroups(moduleDefinition.Groups, DashboardActionButton_Click);
+            await RunSidebarNavigationAsync(async () =>
+            {
+                var moduleDefinition = await _dashboardModules.GetDefinitionAsync(AccountingDashboardModule.Key);
+                ShowDashboardGroups(moduleDefinition.Groups, DashboardActionButton_Click);
+            });
         }
     }
 }

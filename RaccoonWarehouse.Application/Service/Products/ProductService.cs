@@ -29,6 +29,21 @@ namespace RaccoonWarehouse.Application.Service.Products
             _mapper = mapper;
         }
 
+        public override async Task<Result<ProductWriteDto>> CreateAsync(ProductWriteDto dto)
+        {
+            if (dto.ITEMCODE.HasValue)
+            {
+                var barcodeExists = await _uow.GetRepository<Product>()
+                    .GetAllAsQueryable()
+                    .AnyAsync(product => !product.IsDeleted && product.ITEMCODE == dto.ITEMCODE);
+
+                if (barcodeExists)
+                    return Result<ProductWriteDto>.Fail("الباركود مستخدم بالفعل / This barcode is already used by another product.");
+            }
+
+            return await base.CreateAsync(dto);
+        }
+
         public async Task<Result> ApplyTaxToProductUnitsAsync(int productId)
         {
             var productRepo = _uow.GetRepository<Product>();
@@ -105,6 +120,10 @@ namespace RaccoonWarehouse.Application.Service.Products
             if (product == null)
                 return Result.Fail("Product not found.");
 
+            var alternateBarcodeValidation = await ValidateAlternateBarcodesAsync(productDto, unitsDto);
+            if (alternateBarcodeValidation != null)
+                return Result.Fail(alternateBarcodeValidation);
+
             // =========================
             // 1️⃣ Update Product scalars
             // =========================
@@ -155,6 +174,7 @@ namespace RaccoonWarehouse.Application.Service.Products
                     var unit = existingUnits.First(u => u.Id == unitDto.Id);
 
                     unit.UnitId = unitDto.UnitId;
+                    unit.AlternateBarcode = NormalizeAlternateBarcode(unitDto.AlternateBarcode);
                     unit.SalePrice = unitDto.SalePrice;
                     unit.PurchasePrice = unitDto.PurchasePrice;
                     unit.QuantityPerUnit = unitDto.QuantityPerUnit;
@@ -173,6 +193,7 @@ namespace RaccoonWarehouse.Application.Service.Products
                     {
                         ProductId = product.Id,
                         UnitId = unitDto.UnitId,
+                        AlternateBarcode = NormalizeAlternateBarcode(unitDto.AlternateBarcode),
                         SalePrice = unitDto.SalePrice,
                         PurchasePrice = unitDto.PurchasePrice,
                         QuantityPerUnit = unitDto.QuantityPerUnit,
@@ -218,6 +239,50 @@ namespace RaccoonWarehouse.Application.Service.Products
 
             return null;
         }
+
+        private async Task<string?> ValidateAlternateBarcodesAsync(ProductWriteDto productDto, List<ProductUnitWriteDto> unitsDto)
+        {
+            var alternateBarcodes = unitsDto
+                .Select(unit => NormalizeAlternateBarcode(unit.AlternateBarcode))
+                .Where(barcode => barcode != null)
+                .Select(barcode => barcode!)
+                .ToList();
+
+            if (alternateBarcodes.Count != alternateBarcodes.Distinct(StringComparer.OrdinalIgnoreCase).Count())
+                return "لا يمكن تكرار الرمز المماثل / Alternate barcodes must be unique.";
+
+            if (productDto.ITEMCODE.HasValue && alternateBarcodes.Any(barcode => barcode == productDto.ITEMCODE.Value.ToString()))
+                return "الرمز المماثل يجب أن يختلف عن الباركود الرئيسي / An alternate barcode must differ from the primary barcode.";
+
+            var existingUnitIds = unitsDto
+                .Where(dto => dto.Id > 0)
+                .Select(dto => dto.Id)
+                .ToList();
+
+            var unitRepo = _uow.GetRepository<ProductUnit>();
+            var existingAlternate = await unitRepo.GetAllAsQueryable()
+                .Where(unit => unit.AlternateBarcode != null)
+                .Where(unit => !existingUnitIds.Contains(unit.Id))
+                .Select(unit => unit.AlternateBarcode!)
+                .ToListAsync();
+
+            if (alternateBarcodes.Any(barcode => existingAlternate.Any(existing =>
+                    string.Equals(existing, barcode, StringComparison.OrdinalIgnoreCase))))
+                return "الرمز المماثل مستخدم بالفعل / An alternate barcode is already in use.";
+
+            var primaryBarcodeConflict = await _uow.GetRepository<Product>()
+                .GetAllAsQueryable()
+                .Where(product => product.Id != productDto.Id && product.ITEMCODE.HasValue)
+                .Select(product => product.ITEMCODE!.Value)
+                .AnyAsync(code => alternateBarcodes.Contains(code.ToString()));
+
+            return primaryBarcodeConflict
+                ? "الرمز المماثل مستخدم كرمز رئيسي / An alternate barcode is already used as a primary barcode."
+                : null;
+        }
+
+        private static string? NormalizeAlternateBarcode(string? barcode)
+            => string.IsNullOrWhiteSpace(barcode) ? null : barcode.Trim();
 
         private static void NormalizeUnitFlags(List<ProductUnitWriteDto> unitsDto)
         {

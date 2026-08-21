@@ -198,12 +198,12 @@ namespace RaccoonWarehouse.Invoices.Reports
                 var metrics = CalculateInvoiceMetrics(fullInvoice);
                 var lines = fullInvoice.InvoiceLines?.ToList() ?? new List<InvoiceLineReadDto>();
 
-                SelSubTotalText.Text = metrics.SubTotal.ToString("0.###");
-                SelTaxText.Text = metrics.TotalTax.ToString("0.###");
-                SelDiscountText.Text = metrics.Discount.ToString("0.###");
-                SelCogsText.Text = metrics.TotalCOGS.ToString("0.###");
-                SelGrossProfitText.Text = metrics.Profit.ToString("0.###");
-                SelNetProfitText.Text = metrics.Profit.ToString("0.###");
+                SelSubTotalText.Text = metrics.SubTotal.ToString("0.00000");
+                SelTaxText.Text = metrics.TotalTax.ToString("0.00000");
+                SelDiscountText.Text = metrics.Discount.ToString("0.00000");
+                SelCogsText.Text = metrics.TotalCOGS.ToString("0.00000");
+                SelGrossProfitText.Text = metrics.Profit.ToString("0.00000");
+                SelNetProfitText.Text = metrics.Profit.ToString("0.00000");
 
                 foreach (var line in lines)
                 {

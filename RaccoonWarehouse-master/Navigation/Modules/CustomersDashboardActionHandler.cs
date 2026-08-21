@@ -21,7 +21,7 @@ namespace RaccoonWarehouse.Navigation.Modules
 
         public bool CanHandle(string actionKey)
         {
-            return actionKey is "Customers.Create" or "Customers.List";
+            return actionKey is "Customers.Create" or "Customers.CreateSupplier" or "Customers.List";
         }
 
         public async Task ExecuteAsync(string actionKey, DashboardActionContext context)
@@ -31,17 +31,27 @@ namespace RaccoonWarehouse.Navigation.Modules
                 case "Customers.Create":
                     if (!await HasPermissionAsync("Users.Create"))
                     {
-                        MessageBox.Show(UiText.T("ليس لديك صلاحية إنشاء زبون جديد.", "You do not have permission to create a new customer."));
+                        MessageBox.Show(UiText.T("ليس لديك صلاحية إنشاء عميل جديد.", "You do not have permission to create a new customer."));
                         return;
                     }
 
                     WindowManager.ShowDialog<CreateUser>(WindowSizeType.SmallSquare, window => window.InitializeForCustomerQuickCreate());
                     return;
 
+                case "Customers.CreateSupplier":
+                    if (!await HasPermissionAsync("Users.Create"))
+                    {
+                        MessageBox.Show(UiText.T("ليس لديك صلاحية إنشاء مورد جديد.", "You do not have permission to create a new supplier."));
+                        return;
+                    }
+
+                    WindowManager.ShowDialog<CreateUser>(WindowSizeType.SmallSquare, window => window.InitializeForSupplierQuickCreate());
+                    return;
+
                 case "Customers.List":
                     if (!await HasPermissionAsync("Users.View"))
                     {
-                        MessageBox.Show(UiText.T("ليس لديك صلاحية عرض الزبائن.", "You do not have permission to view customers."));
+                        MessageBox.Show(UiText.T("ليس لديك صلاحية عرض العملاء والموردين.", "You do not have permission to view customers and suppliers."));
                         return;
                     }
 

@@ -494,6 +494,71 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.ToTable("JournalEntryLines");
                 });
 
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Accounting.Operations.AccountingOperation", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("CompletedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("LastAttemptDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<DateTime?>("NextAttemptDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("OperationType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("PayloadJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("ReferenceId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ReferenceNumber")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ReferenceType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int>("RetryCount")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Status", "NextAttemptDate");
+
+                    b.HasIndex("ReferenceType", "ReferenceId", "OperationType")
+                        .IsUnique();
+
+                    b.ToTable("AccountingOperations", (string)null);
+                });
+
             modelBuilder.Entity("RaccoonWarehouse.Domain.Accounting.Periods.AccountingPeriod", b =>
                 {
                     b.Property<int>("Id")
@@ -917,6 +982,9 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Property<int>("Status")
                         .HasColumnType("int");
 
+                    b.Property<int?>("StockDocumentId")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("UpdatedDate")
                         .HasColumnType("datetime2");
 
@@ -926,6 +994,8 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("InvoiceId");
+
+                    b.HasIndex("StockDocumentId");
 
                     b.HasIndex("VoucherId");
 
@@ -1554,6 +1624,9 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Property<decimal>("NetSales")
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<string>("Notes")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<DateTime?>("OpenedAt")
                         .HasColumnType("datetime2");
 
@@ -1744,6 +1817,9 @@ namespace RaccoonWarehouse.Data.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AlternateBarcode")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
@@ -2053,6 +2129,9 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<decimal?>("DiscountAmount")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<DateTime?>("DocumentDate")
                         .HasColumnType("datetime2");
 
@@ -2062,6 +2141,9 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.Property<string>("Notes")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("PaymentType")
+                        .HasColumnType("int");
 
                     b.Property<int>("PostingStatus")
                         .HasColumnType("int");
@@ -2798,11 +2880,17 @@ namespace RaccoonWarehouse.Data.Migrations
                         .WithMany("Checks")
                         .HasForeignKey("InvoiceId");
 
+                    b.HasOne("RaccoonWarehouse.Domain.StockDocuments.StockDocument", "StockDocument")
+                        .WithMany("Checks")
+                        .HasForeignKey("StockDocumentId");
+
                     b.HasOne("RaccoonWarehouse.Domain.Vouchers.Voucher", "Voucher")
                         .WithMany("Checks")
                         .HasForeignKey("VoucherId");
 
                     b.Navigation("Invoice");
+
+                    b.Navigation("StockDocument");
 
                     b.Navigation("Voucher");
                 });
@@ -3277,6 +3365,8 @@ namespace RaccoonWarehouse.Data.Migrations
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.StockDocuments.StockDocument", b =>
                 {
+                    b.Navigation("Checks");
+
                     b.Navigation("Items");
                 });
 

@@ -1,5 +1,6 @@
 using RaccoonWarehouse.Domain.Accounting.Enums;
 using RaccoonWarehouse.Domain.Base;
+using RaccoonWarehouse.Domain.Checks;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.StockItems;
 using RaccoonWarehouse.Domain.Users;
@@ -20,6 +21,9 @@ namespace RaccoonWarehouse.Domain.StockDocuments
         public AccountingPostingStatus PostingStatus { get; set; } = AccountingPostingStatus.NotPosted;
         public int? CreatedBy { get; set; }
         public int? UpdatedBy { get; set; }
+        public decimal? DiscountAmount { get; set; }
+        public PaymentType? PaymentType { get; set; }
+        public ICollection<Check>? Checks { get; set; } = new List<Check>();
         public List<StockItem> Items { get; set; } = new();
     }
 }

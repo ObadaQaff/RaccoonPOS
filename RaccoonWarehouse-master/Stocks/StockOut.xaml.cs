@@ -1,4 +1,4 @@
-﻿using RaccoonWarehouse.Application.Service.Products;
+using RaccoonWarehouse.Application.Service.Products;
 using RaccoonWarehouse.Application.Service.ProductUnits;
 using RaccoonWarehouse.Application.Service.StockDocuments;
 using RaccoonWarehouse.Application.Service.Stocks;
@@ -883,8 +883,8 @@ namespace RaccoonWarehouse.Stocks
                 row.Cells.Add(new TableCell(new Paragraph(new Run(item.Product?.Name ?? ""))) { Padding = new Thickness(5) });
                 row.Cells.Add(new TableCell(new Paragraph(new Run(item.ProductUnit?.Unit?.Name ?? ""))) { Padding = new Thickness(5) });
                 row.Cells.Add(new TableCell(new Paragraph(new Run(item.Quantity.ToString()))) { Padding = new Thickness(5) });
-                row.Cells.Add(new TableCell(new Paragraph(new Run(item.PurchasePrice.ToString("N2")))) { Padding = new Thickness(5) });
-                row.Cells.Add(new TableCell(new Paragraph(new Run(item.SalePrice.ToString("N2")))) { Padding = new Thickness(5) });
+                row.Cells.Add(new TableCell(new Paragraph(new Run(item.PurchasePrice.ToString("N5")))) { Padding = new Thickness(5) });
+                row.Cells.Add(new TableCell(new Paragraph(new Run(item.SalePrice.ToString("N5")))) { Padding = new Thickness(5) });
                 row.Cells.Add(new TableCell(
                     new Paragraph(
                         new Run(item.ExpiryDate?.ToString("yyyy/MM/dd") ?? "-")
@@ -996,7 +996,7 @@ namespace RaccoonWarehouse.Stocks
         #region Search Daialog about stock  
 
 
-        private void SearchStockBtn_Click(object sender, RoutedEventArgs e)
+        private async void SearchStockBtn_Click(object sender, RoutedEventArgs e)
         {
             var searchWindow = new SearchStockInWindow(_stockDocumentService, false)
             {
@@ -1005,10 +1005,24 @@ namespace RaccoonWarehouse.Stocks
 
             if (searchWindow.ShowDialog() == true)
             {
-                LoadSelectedStockIn(searchWindow.Result);
+                await LoadSelectedStockInWithLoadingAsync(searchWindow.Result);
             }
         }
 
+
+        private async Task LoadSelectedStockInWithLoadingAsync(StockDocumentReadDto doc)
+        {
+            _loadingService.Show();
+            try
+            {
+                await Task.Delay(1);
+                LoadSelectedStockIn(doc);
+            }
+            finally
+            {
+                _loadingService.Hide();
+            }
+        }
 
         private void LoadSelectedStockIn(StockDocumentReadDto doc)
         {

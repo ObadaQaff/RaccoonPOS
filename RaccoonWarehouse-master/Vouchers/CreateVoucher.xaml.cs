@@ -1,4 +1,4 @@
-﻿using RaccoonWarehouse.Application.Service.Cashers;
+using RaccoonWarehouse.Application.Service.Cashers;
 using RaccoonWarehouse.Application.Service.FinancialTransactions;
 using RaccoonWarehouse.Application.Service.Units;
 using RaccoonWarehouse.Application.Service.Users;
@@ -20,6 +20,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Documents;
 using System.Windows.Input;
@@ -28,6 +29,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using RaccoonWarehouse.Helpers.Localization;
+using RaccoonWarehouse.Navigation;
 
 
 
@@ -48,6 +50,9 @@ namespace RaccoonWarehouse.Vouchers
         private int? _initialCustomerId;
         private decimal? _maximumCollectionAmount;
         private bool _customerCollectionMode;
+        private List<UserReadDto> _allAccountUsers = new();
+        private bool _isFilteringAccountUsers;
+        private bool _isNavigatingAccountChoices;
 
 
         public CreateVoucher(IVoucherService voucherService, IUserService userService,
@@ -63,6 +68,10 @@ namespace RaccoonWarehouse.Vouchers
             _warehouseService = warehouseService;
             _loadingService = loadingService;
             InitializeComponent();
+            AccountComboBox.Loaded += AccountComboBox_Loaded;
+            AccountComboBox.PreviewKeyDown += AccountComboBox_PreviewKeyDown;
+            AccountComboBox.PreviewTextInput += AccountComboBox_PreviewTextInput;
+            AccountComboBox.KeyUp += AccountComboBox_KeyUp;
             UiText.ApplyWindow(this);
 
             Loaded += async (s, e) => await CreateVoucher_Loaded();
@@ -80,7 +89,7 @@ namespace RaccoonWarehouse.Vouchers
             _customerCollectionMode = true;
             _initialCustomerId = customerId;
             _maximumCollectionAmount = outstandingBalance;
-            Amount.Text = outstandingBalance.ToString("0.00");
+            Amount.Text = outstandingBalance.ToString("0.00000");
             ReceiptDescription.Text = UiText.T("تحصيل ذمم عميل", "Customer credit collection");
             Title = UiText.T("تحصيل دفعة من عميل", "Receive Customer Payment");
 
@@ -92,10 +101,7 @@ namespace RaccoonWarehouse.Vouchers
         }
         private string GenerateDocumentNumber()
         {
-            // Example: prefix + current timestamp or sequential number
-            string prefix = "DOC";
-            string datePart = DateTime.Now.ToString("yyyyMMddHHmmss");
-            return $"{prefix}-{datePart}";
+            return (DateTime.Now.Ticks % 90000 + 10000).ToString();
         }
 
         private async Task CreateVoucher_Loaded()
@@ -105,7 +111,8 @@ namespace RaccoonWarehouse.Vouchers
                 _loadingService.Show();
                 ReceiptDate.SelectedDate = DateTime.Now;
                 var users = await _userService.GetAllAsync();
-                AccountComboBox.ItemsSource = users.Data?.Where(x => x.Role == UserRole.Customer).ToList();
+                _allAccountUsers = users.Data?.ToList() ?? new List<UserReadDto>();
+                AccountComboBox.ItemsSource = _allAccountUsers.ToList();
                 AccountComboBox.DisplayMemberPath = "Name";
                 AccountComboBox.SelectedValuePath = "Id";
                 if (_initialCustomerId.HasValue)
@@ -119,6 +126,11 @@ namespace RaccoonWarehouse.Vouchers
                 WarehouseComboBox.DisplayMemberPath = "Name";
                 WarehouseComboBox.SelectedValuePath = "Id";
                 UiText.ApplyTranslations(this);
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    Amount.Focus();
+                    Amount.SelectAll();
+                }), System.Windows.Threading.DispatcherPriority.Input);
             }
             catch (Exception ex)
             {
@@ -264,7 +276,7 @@ namespace RaccoonWarehouse.Vouchers
                 if (_maximumCollectionAmount.HasValue && amount > _maximumCollectionAmount.Value)
                 {
                     MessageBox.Show(
-                        string.Format(UiText.T("لا يمكن أن تتجاوز الدفعة الرصيد المستحق {0:N2}.", "The payment cannot exceed the outstanding balance of {0:N2}."), _maximumCollectionAmount.Value),
+                        string.Format(UiText.T("لا يمكن أن تتجاوز الدفعة الرصيد المستحق {0:N5}.", "The payment cannot exceed the outstanding balance of {0:N5}."), _maximumCollectionAmount.Value),
                         UiText.T("تنبيه", "Notice"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
@@ -433,6 +445,8 @@ namespace RaccoonWarehouse.Vouchers
                     DialogResult = true;
                     Close();
                 }
+
+                NewVoucherBtn_Click(this, new RoutedEventArgs());
             }
             catch (Exception ex)
             {
@@ -493,6 +507,37 @@ namespace RaccoonWarehouse.Vouchers
         {
             Close();
         }
+
+        private void CreateVoucher_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key != Key.F1)
+                return;
+
+            e.Handled = true;
+            SaveReceiptBtn_Click(SaveReceiptBtn, new RoutedEventArgs());
+        }
+
+        private void Amount_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key != Key.Enter)
+                return;
+
+            e.Handled = true;
+            AccountComboBox.Focus();
+            AccountComboBox.IsDropDownOpen = true;
+        }
+
+        private void FormField_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key != Key.Enter)
+                return;
+
+            e.Handled = true;
+            if (sender == WarehouseComboBox)
+                PaymentTypeCombo.Focus();
+            else if (sender == PaymentTypeCombo)
+                (CheckFieldsPanel.Visibility == Visibility.Visible ? CheckNumberBox : ReceiptDescription).Focus();
+        }
         private void PaymentTypeCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (PaymentTypeCombo.SelectedItem is ComboBoxItem selected)
@@ -514,28 +559,157 @@ namespace RaccoonWarehouse.Vouchers
             }
         }
 
-        private async void AccountComboBox_TextChanged(object sender, TextChangedEventArgs e)
+        private async void AddCustomerBtn_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is not ComboBox comboBox)
-                return;
-
-            var tb = comboBox.Template.FindName("PART_EditableTextBox", AccountComboBox) as TextBox;
-            if (tb == null)
-                return;
-
-            string searchText = tb.Text.ToLower();
-
-            if (string.IsNullOrWhiteSpace(searchText))
+            try
             {
-                AccountComboBox.ItemsSource = (await _userService.GetAllAsync()).Data?
-                    .Where(u => u.Role == UserRole.Customer).ToList();
+                int? createdCustomerId = null;
+                var initialName = AccountComboBox.Text?.Trim();
+                WindowManager.ShowDialog<CreateUser>(WindowSizeType.SmallSquare, window =>
+                {
+                    window.InitializeForCustomerQuickCreate(initialName);
+                    window.Closed += (_, __) => createdCustomerId = window.CreatedUserId;
+                });
+
+                var users = await _userService.GetAllAsync();
+                _allAccountUsers = users.Data?.ToList() ?? new List<UserReadDto>();
+                AccountComboBox.ItemsSource = _allAccountUsers.ToList();
+                if (createdCustomerId.HasValue)
+                    AccountComboBox.SelectedValue = createdCustomerId.Value;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"{UiText.T("تعذر إضافة العميل", "Could not add the customer")}: {ex.Message}",
+                    UiText.T("خطأ", "Error"), MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+        private void AccountComboBox_Loaded(object sender, RoutedEventArgs e)
+        {
+            AccountComboBox.DisplayMemberPath = "Name";
+            AccountComboBox.SelectedValuePath = "Id";
+        }
+        private void AccountComboBox_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key is not (Key.Down or Key.Up or Key.Enter))
+                return;
+
+            if (AccountComboBox.Template.FindName("PART_EditableTextBox", AccountComboBox) is not TextBox textBox)
+                return;
+
+            if (e.Key == Key.Enter)
+            {
+                var selected = AccountComboBox.SelectedItem as UserReadDto
+                    ?? AccountComboBox.Items.OfType<UserReadDto>().FirstOrDefault();
+
+                if (selected == null)
+                {
+                    AccountComboBox.IsDropDownOpen = true;
+                    return;
+                }
+
+                _isNavigatingAccountChoices = true;
+                try
+                {
+                    textBox.Text = selected.Name;
+                    AccountComboBox.SelectedItem = selected;
+                    AccountComboBox.SelectedValue = selected.Id;
+                }
+                finally { _isNavigatingAccountChoices = false; }
+                textBox.CaretIndex = textBox.Text.Length;
+                AccountComboBox.IsDropDownOpen = false;
+                e.Handled = true;
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    AccountComboBox.IsDropDownOpen = false;
+                    WarehouseComboBox.Focus();
+                    Keyboard.Focus(WarehouseComboBox);
+                }), System.Windows.Threading.DispatcherPriority.ContextIdle);
                 return;
             }
 
-            var users = (await _userService.GetAllAsync()).Data;
-            AccountComboBox.ItemsSource = users?
-                .Where(u => u.Role == UserRole.Customer && u.Name.ToLower().Contains(searchText)).ToList();
-            AccountComboBox.IsDropDownOpen = true;  // keep list open
+            var typedText = textBox.Text ?? string.Empty;
+            if (!AccountComboBox.IsDropDownOpen)
+                AccountComboBox.IsDropDownOpen = true;
+
+            var nextIndex = AccountComboBox.SelectedIndex;
+            nextIndex = e.Key == Key.Down
+                ? Math.Min(nextIndex + 1, AccountComboBox.Items.Count - 1)
+                : Math.Max(nextIndex - 1, 0);
+
+            if (AccountComboBox.Items.Count > 0)
+            {
+                _isNavigatingAccountChoices = true;
+                try { AccountComboBox.SelectedIndex = nextIndex; }
+                finally { _isNavigatingAccountChoices = false; }
+                textBox.Text = typedText;
+                textBox.CaretIndex = textBox.Text.Length;
+            }
+
+            e.Handled = true;
+        }
+        private void AccountComboBox_PreviewTextInput(object sender, TextCompositionEventArgs e)
+        {
+            AccountComboBox.SelectedItem = null;
+            Dispatcher.BeginInvoke(new Action(() => FilterAccountList(AccountComboBox.Text)), System.Windows.Threading.DispatcherPriority.Input);
+        }
+
+        private void AccountComboBox_KeyUp(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Back || e.Key == Key.Delete)
+            {
+                AccountComboBox.SelectedItem = null;
+                FilterAccountList(AccountComboBox.Text);
+            }
+        }
+
+        private void FilterAccountList(string text)
+        {
+            var filtered = _allAccountUsers
+                .Where(user => !string.IsNullOrEmpty(user.Name) && user.Name.Contains(text ?? string.Empty, StringComparison.OrdinalIgnoreCase))
+                .GroupBy(user => user.Id)
+                .Select(group => group.First())
+                .ToList();
+
+            _isFilteringAccountUsers = true;
+            try
+            {
+                AccountComboBox.ItemsSource = filtered;
+                AccountComboBox.SelectedItem = null;
+                AccountComboBox.SelectedIndex = -1;
+                AccountComboBox.Text = text ?? string.Empty;
+                AccountComboBox.IsDropDownOpen = filtered.Count > 0;
+            }
+            finally { _isFilteringAccountUsers = false; }
+        }
+        private void AccountComboBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (_isFilteringAccountUsers || _isNavigatingAccountChoices)
+                return;
+
+            var textBox = e.OriginalSource as TextBox ?? Keyboard.FocusedElement as TextBox;
+            if (textBox == null || !textBox.IsKeyboardFocusWithin)
+                return;
+
+            var searchText = textBox.Text ?? string.Empty;
+            var filterText = searchText.Trim();
+            _isFilteringAccountUsers = true;
+            try
+            {
+                AccountComboBox.SelectedItem = null;
+                AccountComboBox.SelectedValue = null;
+                AccountComboBox.ItemsSource = string.IsNullOrWhiteSpace(filterText)
+                    ? _allAccountUsers.ToList()
+                    : _allAccountUsers.Where(user => (user.Name ?? string.Empty).Contains(filterText, StringComparison.CurrentCultureIgnoreCase)).ToList();
+                AccountComboBox.SelectedIndex = -1;
+                AccountComboBox.IsDropDownOpen = true;
+                textBox.Text = searchText;
+                textBox.CaretIndex = textBox.Text.Length;
+            }
+            finally
+            {
+                _isFilteringAccountUsers = false;
+            }
         }
         #region Check Handle 
         private void AddCheck_Click(object sender, RoutedEventArgs e)
@@ -662,7 +836,7 @@ namespace RaccoonWarehouse.Vouchers
             AddInfoRow(UiText.T("رقم السند:", "Voucher No:"), ReceiptNumber.Text);
             AddInfoRow(UiText.T("التاريخ:", "Date:"), (dto.CreatedDate).ToString("yyyy/MM/dd"));
             AddInfoRow(UiText.T("العميل / الجهة:", "Customer / Party:"), (AccountComboBox.Text ?? ""));
-            AddInfoRow(UiText.T("المبلغ:", "Amount:"), dto.Amount.ToString("N2"));
+            AddInfoRow(UiText.T("المبلغ:", "Amount:"), dto.Amount.ToString("N5"));
             AddInfoRow(UiText.T("طريقة الدفع:", "Payment Method:"), dto.PaymentType.ToString());
 
             doc.Blocks.Add(infoTable);
@@ -728,7 +902,7 @@ namespace RaccoonWarehouse.Vouchers
 
                     row.Cells.Add(MakeCell(c.CheckNumber));
                     row.Cells.Add(MakeCell(c.BankName));
-                    row.Cells.Add(MakeCell(c.Amount.ToString("N2")));
+                    row.Cells.Add(MakeCell(c.Amount.ToString("N5")));
                     row.Cells.Add(MakeCell(c.DueDate.ToString("yyyy/MM/dd")));
                     row.Cells.Add(MakeCell(c.Notes));
 
@@ -820,7 +994,7 @@ namespace RaccoonWarehouse.Vouchers
             AddInfo(UiText.T("التاريخ:", "Date:"), dto.CreatedDate.ToString("yyyy/MM/dd"));
             AddInfo(UiText.T("العميل:", "Customer:"), AccountComboBox.Text);
             AddInfo(UiText.T("طريقة الدفع:", "Payment Method:"), dto.PaymentType.ToString());
-            AddInfo(UiText.T("المبلغ:", "Amount:"), dto.Amount.ToString("N2"));
+            AddInfo(UiText.T("المبلغ:", "Amount:"), dto.Amount.ToString("N5"));
 
             doc.Blocks.Add(infoTable);
 
@@ -875,7 +1049,7 @@ namespace RaccoonWarehouse.Vouchers
                     TableRow r = new TableRow();
                     r.Cells.Add(new TableCell(new Paragraph(new Run(ch.CheckNumber))) { Padding = new Thickness(5) });
                     r.Cells.Add(new TableCell(new Paragraph(new Run(ch.BankName))) { Padding = new Thickness(5) });
-                    r.Cells.Add(new TableCell(new Paragraph(new Run(ch.Amount.ToString("N2")))) { Padding = new Thickness(5) });
+                    r.Cells.Add(new TableCell(new Paragraph(new Run(ch.Amount.ToString("N5")))) { Padding = new Thickness(5) });
                     r.Cells.Add(new TableCell(new Paragraph(new Run(ch.DueDate.ToString("yyyy/MM/dd")))) { Padding = new Thickness(5) });
                     r.Cells.Add(new TableCell(new Paragraph(new Run(ch.Notes ?? ""))) { Padding = new Thickness(5) });
 
@@ -969,7 +1143,7 @@ namespace RaccoonWarehouse.Vouchers
             AddInfo(UiText.T("التاريخ:", "Date:"), dto.CreatedDate.ToString("yyyy/MM/dd"));
             AddInfo(UiText.T("العميل:", "Customer:"), AccountComboBox.Text);
             AddInfo(UiText.T("طريقة الدفع:", "Payment Method:"), dto.PaymentType.ToString());
-            AddInfo(UiText.T("المبلغ:", "Amount:"), dto.Amount.ToString("N2"));
+            AddInfo(UiText.T("المبلغ:", "Amount:"), dto.Amount.ToString("N5"));
 
             doc.Blocks.Add(infoTable);
             doc.Blocks.Add(new Paragraph(new Run(" ")));
@@ -1021,7 +1195,7 @@ namespace RaccoonWarehouse.Vouchers
                     TableRow r = new TableRow();
                     r.Cells.Add(new TableCell(new Paragraph(new Run(ch.CheckNumber))) { Padding = new Thickness(5) });
                     r.Cells.Add(new TableCell(new Paragraph(new Run(ch.BankName))) { Padding = new Thickness(5) });
-                    r.Cells.Add(new TableCell(new Paragraph(new Run(ch.Amount.ToString("N2")))) { Padding = new Thickness(5) });
+                    r.Cells.Add(new TableCell(new Paragraph(new Run(ch.Amount.ToString("N5")))) { Padding = new Thickness(5) });
                     r.Cells.Add(new TableCell(new Paragraph(new Run(ch.DueDate.ToString("yyyy/MM/dd")))) { Padding = new Thickness(5) });
                     r.Cells.Add(new TableCell(new Paragraph(new Run(ch.Notes ?? ""))) { Padding = new Thickness(5) });
 
@@ -1179,15 +1353,29 @@ namespace RaccoonWarehouse.Vouchers
         {
             try
             {
-                var search = new SearchVoucherWindow(_voucherService, true);
+                var search = new SearchVoucherWindow(_voucherService, _allAccountUsers, true);
                 if (search.ShowDialog() == true && search.Result != null)
                 {
-                    LoadVoucher(search.Result);
+                    await LoadVoucherWithLoadingAsync(search.Result);
                 }
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"{UiText.T("حدث خطأ أثناء البحث عن السند", "An error occurred while searching for the voucher")}:\n{ex.Message}", UiText.T("خطأ", "Error"), MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private async Task LoadVoucherWithLoadingAsync(VoucherReadDto dto)
+        {
+            _loadingService.Show();
+            try
+            {
+                await Task.Delay(1);
+                LoadVoucher(dto);
+            }
+            finally
+            {
+                _loadingService.Hide();
             }
         }
 

@@ -1,4 +1,4 @@
-﻿using RaccoonWarehouse.Application.Service.Invoices;
+using RaccoonWarehouse.Application.Service.Invoices;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Domain.Enums;
@@ -230,12 +230,12 @@ namespace RaccoonWarehouse.Reports
             decimal netSales = (totalSales - totalReturns) - totalDiscount;
             decimal grossProfit = netSales - totalCogs;
 
-            TotalSalesText.Text = totalSales.ToString("0.##");
-            TotalReturnsText.Text = totalReturns.ToString("0.##");
-            TotalTaxText.Text = totalTax.ToString("0.##");
-            TotalDiscountText.Text = totalDiscount.ToString("0.##");
-            TotalCogsText.Text = totalCogs.ToString("0.##");
-            GrossProfitText.Text = grossProfit.ToString("0.##");
+            TotalSalesText.Text = totalSales.ToString("0.00000");
+            TotalReturnsText.Text = totalReturns.ToString("0.00000");
+            TotalTaxText.Text = totalTax.ToString("0.00000");
+            TotalDiscountText.Text = totalDiscount.ToString("0.00000");
+            TotalCogsText.Text = totalCogs.ToString("0.00000");
+            GrossProfitText.Text = grossProfit.ToString("0.00000");
         }
 
         private void ClearSummary()

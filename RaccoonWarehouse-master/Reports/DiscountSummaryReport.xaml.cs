@@ -48,7 +48,7 @@ namespace RaccoonWarehouse.Reports
         {
             DiscountSummaryGrid.ItemsSource = rows;
             TotalLinesText.Text = rows.Count.ToString();
-            TotalDiscountText.Text = rows.Sum(x => x.TotalDiscount).ToString("0.000");
+            TotalDiscountText.Text = rows.Sum(x => x.TotalDiscount).ToString("0.00000");
         }
 
         private void BackBtn_Click(object sender, RoutedEventArgs e)

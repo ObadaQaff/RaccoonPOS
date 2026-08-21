@@ -1,4 +1,4 @@
-﻿using RaccoonWarehouse.Core.EntityAndDtoStructure;
+using RaccoonWarehouse.Core.EntityAndDtoStructure;
 using RaccoonWarehouse.Domain.Cashiers;
 using RaccoonWarehouse.Domain.Cashiers.DTOs;
 using RaccoonWarehouse.Domain.Checks;
@@ -32,6 +32,7 @@ namespace RaccoonWarehouse.Domain.Invoices.DTOs
         public CashierSessionReadDto? CashierSession { get; set; }
         public int? CashierSessionId { get; set; }
         public decimal TotalAmount { get; set; }
+        public string? Notes { get; set; }
         public ICollection<InvoiceLineReadDto>? InvoiceLines { get; set; } = new List<InvoiceLineReadDto>();
         public ICollection<CheckReadDto>? Checks { get; set; } = new List<CheckReadDto>();
         public DateTime CreatedDate { get; set; }

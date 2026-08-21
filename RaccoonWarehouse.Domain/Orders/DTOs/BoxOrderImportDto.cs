@@ -18,6 +18,7 @@ namespace RaccoonWarehouse.Domain.Orders.DTOs
         public string? ShopName { get; set; }
         public DateTime CreatedDate { get; set; }
         public decimal TotalPrice { get; set; }
+        public string? Note { get; set; }
         public List<BoxOrderExportItemDto> Items { get; set; } = new();
     }
 
