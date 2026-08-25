@@ -15,7 +15,7 @@ namespace RaccoonWarehouse.Navigation
         // ==========================
         // NORMAL WINDOWS (HIDE / SHOW)
         // ==========================
-        private static readonly Dictionary<Type, Window> _windows = new();
+        private static readonly Dictionary<Type, (Window window, IServiceScope scope)> _windows = new();
 
         public static void Show<T>(
             WindowSizeType size = WindowSizeType.MediumRectangle,
@@ -23,8 +23,11 @@ namespace RaccoonWarehouse.Navigation
             where T : Window
         {
             // 🔁 If already created
-            if (_windows.TryGetValue(typeof(T), out var existing))
+            if (_windows.TryGetValue(typeof(T), out var entry))
             {
+                var existing = entry.window;
+                init?.Invoke((T)existing);
+
                 if (!existing.IsVisible)
                     existing.Show();
 
@@ -38,8 +41,9 @@ namespace RaccoonWarehouse.Navigation
             }
 
             // 🆕 Create new window
-            var window = ((RaccoonWarehouse.App)System.Windows.Application.Current)
-                .ServiceProvider.GetRequiredService<T>();
+            var app = (RaccoonWarehouse.App)System.Windows.Application.Current;
+            var scope = app.ServiceProvider.CreateScope();
+            var window = scope.ServiceProvider.GetRequiredService<T>();
 
             ApplySize(window, size);
             init?.Invoke(window);
@@ -48,9 +52,10 @@ namespace RaccoonWarehouse.Navigation
             window.Closed += (_, __) =>
             {
                 _windows.Remove(typeof(T));
+                scope.Dispose();
             };
 
-            _windows[typeof(T)] = window;
+            _windows[typeof(T)] = (window, scope);
 
             window.Show();
         }

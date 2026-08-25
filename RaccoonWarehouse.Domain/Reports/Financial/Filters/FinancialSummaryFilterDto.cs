@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using RaccoonWarehouse.Domain.Enums;
 
 namespace RaccoonWarehouse.Domain.Reports.Financial.Filters
 {
@@ -15,6 +16,7 @@ namespace RaccoonWarehouse.Domain.Reports.Financial.Filters
         public int? BranchId { get; set; }
         public int? CustomerId { get; set; }
         public int? CashierId { get; set; }
+        public PaymentType? PaymentType { get; set; }
         public bool IncludeReturns { get; set; } = true;
     }
 }

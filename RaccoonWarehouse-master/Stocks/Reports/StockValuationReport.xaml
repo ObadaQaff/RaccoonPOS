@@ -197,7 +197,8 @@
                     Padding="14">
                 <DataGrid x:Name="ValuationGrid"
                           AutoGenerateColumns="False"
-                          Style="{StaticResource ReportDataGridStyle}">
+                          Style="{StaticResource ReportDataGridStyle}"
+                          MouseDoubleClick="ValuationGrid_MouseDoubleClick">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="كود الصنف" Binding="{Binding ITEMCODE}" Width="140"/>
                         <DataGridTextColumn Header="اسم الصنف" Binding="{Binding ProductName}" Width="280"/>

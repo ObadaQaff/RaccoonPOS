@@ -18,6 +18,11 @@ namespace RaccoonWarehouse.Domain.ProductUnits.DTOs
         public decimal SalePrice { get; set; }
         public decimal UnTaxedPrice { get; set; }
         public decimal PurchasePrice { get; set; }
+        public decimal AverageCostIncludingTax { get; set; }
+        public decimal AverageCostWithoutTax { get; set; }
+        public decimal LastCostIncludingTax { get; set; }
+        public decimal LastCostWithoutTax { get; set; }
+        public decimal CostWithoutTax { get; set; }
         public decimal QuantityPerUnit { get; set; }
         public ProductWriteDto? Product { get; set; }
         public int ProductId { get; set; }

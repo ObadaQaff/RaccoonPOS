@@ -40,6 +40,7 @@ namespace RaccoonWarehouse.Products
         private bool _isNavigatingUnits;
         private string _unitSearchText = string.Empty;
         public string? InitialItemCode { get; set; }
+        public int? CreatedProductId { get; private set; }
 
         public CreateProduct(
             IProductService productService,
@@ -371,6 +372,9 @@ namespace RaccoonWarehouse.Products
             if (units.Any(u => u.QuantityPerUnit <= 0))
                 return UiText.T("الكمية لكل وحدة يجب أن تكون أكبر من صفر.", "Quantity per unit must be greater than zero.");
 
+            if (units.Any(u => u.SalePrice <= 0))
+                return UiText.T("سعر البيع يجب أن يكون أكبر من صفر لكل وحدة.", "Sale price must be greater than zero for every unit.");
+
             if (units.GroupBy(u => u.UnitId).Any(g => g.Count() > 1))
                 return UiText.T("لا يمكن تكرار نفس الوحدة أكثر من مرة.", "The same unit cannot be repeated more than once.");
 
@@ -434,12 +438,22 @@ namespace RaccoonWarehouse.Products
                     unit.ProductId = productId;
                     unit.CreatedDate = DateTime.Now;
                     unit.UpdatedDate = DateTime.Now;
-                    await _productUnitService.CreateAsync(unit);
+                    var unitResult = await _productUnitService.CreateAsync(unit);
+                    if (!unitResult.Success)
+                    {
+                        MessageBox.Show(
+                            $"{UiText.T("فشل إنشاء وحدة المنتج", "Failed to create the product unit")}: {unitResult.Message}",
+                            UiText.T("خطأ", "Error"),
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Error);
+                        return;
+                    }
                 }
 
                 MessageBox.Show(UiText.T("تم إنشاء المنتج والوحدات بنجاح!", "The product and units were created successfully!"), UiText.T("نجاح", "Success"), MessageBoxButton.OK, MessageBoxImage.Information);
                 CatalogRefreshNotifier.NotifyCatalogChanged();
-                ClearForm();
+                CreatedProductId = productId;
+                Close();
             }
             catch (Exception ex)
             {

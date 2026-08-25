@@ -3,58 +3,55 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:fa="http://schemas.fontawesome.io/icons/"
         Title="سجل القيود"
-        Height="920"
-        Width="1520"
+        Height="780"
+        Width="1280"
         WindowStartupLocation="CenterScreen"
         FlowDirection="RightToLeft"
         Background="{StaticResource AppPageBackgroundBrush}">
     <Grid Background="{StaticResource AppPageBackgroundBrush}">
         <Grid.RowDefinitions>
-            <RowDefinition Height="128"/>
+            <RowDefinition Height="78"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
         <Border Grid.Row="0" CornerRadius="0,0,24,24" Background="{StaticResource AppDashboardHeroBrush}">
-            <Grid Margin="28,12,28,22">
+            <Grid Margin="20,6,20,10">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <StackPanel VerticalAlignment="Center">
-                    <TextBlock Text="سجل القيود" FontSize="34" FontWeight="Bold" Foreground="White"/>
+                    <TextBlock Text="سجل القيود" FontSize="27" FontWeight="Bold" Foreground="White"/>
                     <TextBlock Text="مراجعة القيود المرحلة، تتبع مراجعها، وعكس القيد بشكل آمن مع سبب واضح."
-                               Margin="0,4,0,0"
-                               FontSize="13"
+                               Margin="0,2,0,0"
+                               FontSize="11"
                                Foreground="#D6E7E2"/>
                 </StackPanel>
-                <Border Grid.Column="1" Padding="14,8" CornerRadius="16" Background="#1FFFFFFF" VerticalAlignment="Center">
+                <Border Grid.Column="1" Padding="10,5" CornerRadius="12" Background="#1FFFFFFF" VerticalAlignment="Center">
                     <StackPanel>
-                        <TextBlock Text="المراجعة" FontSize="12" Foreground="#CFE8E3" HorizontalAlignment="Center"/>
-                        <TextBlock Text="القيود" Margin="0,4,0,0" FontSize="18" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center"/>
+                        <TextBlock Text="المراجعة" FontSize="10" Foreground="#CFE8E3" HorizontalAlignment="Center"/>
+                        <TextBlock Text="القيود" Margin="0,2,0,0" FontSize="14" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center"/>
                     </StackPanel>
                 </Border>
             </Grid>
         </Border>
 
-        <ScrollViewer Grid.Row="1"
-                      Margin="24,-30,24,24"
-                      VerticalScrollBarVisibility="Auto"
-                      HorizontalScrollBarVisibility="Disabled">
-        <Grid>
+        <Grid Grid.Row="1" Margin="18,-24,18,18">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="1.1*"/>
+                <RowDefinition Height="0.9*"/>
             </Grid.RowDefinitions>
 
             <Border Grid.Row="0" Style="{StaticResource AppCardBorderStyle}" Padding="14,10">
                 <Grid>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="220"/>
-                        <ColumnDefinition Width="220"/>
-                        <ColumnDefinition Width="220"/>
-                        <ColumnDefinition Width="220"/>
+                        <ColumnDefinition Width="170"/>
+                        <ColumnDefinition Width="170"/>
+                        <ColumnDefinition Width="160"/>
+                        <ColumnDefinition Width="190"/>
+                        <ColumnDefinition Width="190"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
@@ -78,12 +75,18 @@
                         </ComboBox>
                     </StackPanel>
 
-                    <StackPanel Grid.Column="3" Margin="0,0,16,0">
-                        <TextBlock Text="نوع المرجع" FontWeight="SemiBold"/>
-                        <TextBox x:Name="ReferenceTypeTextBox" Margin="0,4,0,0" Height="36" Padding="10,6"/>
+                    <StackPanel Grid.Column="3" Margin="0,0,12,0">
+                        <TextBlock Text="الحساب" FontWeight="SemiBold"/>
+                        <TextBox x:Name="AccountSearchTextBox" Margin="0,4,0,0" Height="36" Padding="10,6" KeyDown="SearchBox_KeyDown"/>
                     </StackPanel>
 
-                    <StackPanel Grid.Column="4" Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Bottom">
+                    <StackPanel Grid.Column="4" Margin="0,0,12,0">
+                        <TextBlock Text="المرجع أو الوصف" FontWeight="SemiBold"/>
+                        <TextBox x:Name="ReferenceSearchTextBox" Margin="0,4,0,0" Height="36" Padding="10,6" KeyDown="SearchBox_KeyDown"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="5" Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Bottom">
+                        <TextBlock x:Name="ResultCountText" VerticalAlignment="Center" Margin="0,0,12,0" Foreground="#6B7280"/>
                         <Button Width="160" Height="40" Style="{StaticResource AppHeroButtonStyle}" Click="LoadBtn_Click">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                 <fa:ImageAwesome Icon="Search" Width="15" Height="15" Margin="0,0,8,0"
@@ -131,31 +134,29 @@
                           AutoGenerateColumns="False"
                           IsReadOnly="True"
                           MouseDoubleClick="JournalEntriesGrid_MouseDoubleClick"
-                          MinHeight="260"
-                          MaxHeight="420"
+                          MinHeight="220"
                           ScrollViewer.VerticalScrollBarVisibility="Auto"
                           ScrollViewer.HorizontalScrollBarVisibility="Auto"
                           SelectionChanged="JournalEntriesGrid_SelectionChanged">
                     <DataGrid.Columns>
-                        <DataGridTextColumn Header="التاريخ" Binding="{Binding EntryDate, StringFormat=yyyy-MM-dd}" Width="130"/>
-                        <DataGridTextColumn Header="رقم القيد" Binding="{Binding EntryNumber}" Width="170"/>
+                        <DataGridTextColumn Header="التاريخ" Binding="{Binding EntryDate, StringFormat=yyyy-MM-dd}" Width="*"/>
+                        <DataGridTextColumn Header="رقم القيد" Binding="{Binding EntryNumber}" Width="*"/>
                         <DataGridTextColumn Header="الوصف" Binding="{Binding Description}" Width="*"/>
-                        <DataGridTextColumn Header="الحالة" Binding="{Binding StatusLabel}" Width="120"/>
-                        <DataGridTextColumn Header="نوع المرجع" Binding="{Binding ReferenceType}" Width="150"/>
-                        <DataGridTextColumn Header="رقم المرجع" Binding="{Binding ReferenceId}" Width="120"/>
-                        <DataGridTextColumn Header="إجمالي المدين" Binding="{Binding TotalDebit, StringFormat=N2}" Width="140"/>
-                        <DataGridTextColumn Header="إجمالي الدائن" Binding="{Binding TotalCredit, StringFormat=N2}" Width="140"/>
+                        <DataGridTextColumn Header="الحالة" Binding="{Binding StatusLabel}" Width="*"/>
+                        <DataGridTextColumn Header="المرجع" Binding="{Binding ReferenceLabel}" Width="*"/>
+                        <DataGridTextColumn Header="إجمالي المدين" Binding="{Binding TotalDebit, StringFormat=N2}" Width="*"/>
+                        <DataGridTextColumn Header="إجمالي الدائن" Binding="{Binding TotalCredit, StringFormat=N2}" Width="*"/>
                     </DataGrid.Columns>
                 </DataGrid>
             </Border>
 
-            <Grid Grid.Row="3" Margin="0,18,0,0" MinHeight="320">
+            <Grid Grid.Row="3" Margin="0,14,0,0" MinHeight="220">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="1.2*"/>
                     <ColumnDefinition Width="1.5*"/>
                 </Grid.ColumnDefinitions>
 
-                <Border Grid.Column="0" Style="{StaticResource AppCardBorderStyle}" Padding="20" Margin="0,0,18,0" MinHeight="300">
+                <Border Grid.Column="0" Style="{StaticResource AppCardBorderStyle}" Padding="14" Margin="0,0,14,0" MinHeight="220">
                     <StackPanel>
                         <TextBlock Text="عكس القيد المحدد" FontSize="22" FontWeight="Bold" Foreground="#183C36"/>
                         <TextBlock Margin="0,8,0,0"
@@ -180,26 +181,24 @@
                     </StackPanel>
                 </Border>
 
-                <Border Grid.Column="1" Style="{StaticResource AppCardBorderStyle}" Padding="16" MinHeight="300">
+                <Border Grid.Column="1" Style="{StaticResource AppCardBorderStyle}" Padding="12" MinHeight="220">
                     <DataGrid x:Name="JournalLinesGrid"
                               Style="{StaticResource AppModernDataGridStyle}"
                               AutoGenerateColumns="False"
                               IsReadOnly="True"
-                              MinHeight="260"
-                              MaxHeight="300"
+                              MinHeight="190"
                               ScrollViewer.VerticalScrollBarVisibility="Auto"
                               ScrollViewer.HorizontalScrollBarVisibility="Auto">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="الحساب" Binding="{Binding AccountCode}" Width="110"/>
+                            <DataGridTextColumn Header="الحساب" Binding="{Binding AccountCode}" Width="*"/>
                             <DataGridTextColumn Header="اسم الحساب" Binding="{Binding AccountName}" Width="*"/>
-                            <DataGridTextColumn Header="الوصف" Binding="{Binding Description}" Width="220"/>
-                            <DataGridTextColumn Header="مدين" Binding="{Binding Debit, StringFormat=N2}" Width="110"/>
-                            <DataGridTextColumn Header="دائن" Binding="{Binding Credit, StringFormat=N2}" Width="110"/>
+                            <DataGridTextColumn Header="الوصف" Binding="{Binding Description}" Width="*"/>
+                            <DataGridTextColumn Header="مدين" Binding="{Binding Debit, StringFormat=N2}" Width="*"/>
+                            <DataGridTextColumn Header="دائن" Binding="{Binding Credit, StringFormat=N2}" Width="*"/>
                         </DataGrid.Columns>
                     </DataGrid>
                 </Border>
             </Grid>
         </Grid>
-        </ScrollViewer>
     </Grid>
 </Window>

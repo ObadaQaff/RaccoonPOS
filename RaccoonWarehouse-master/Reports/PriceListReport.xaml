@@ -85,6 +85,7 @@
                           IsReadOnly="True"
                           HeadersVisibility="Column"
                           GridLinesVisibility="Horizontal"
+                          MouseDoubleClick="PriceListGrid_MouseDoubleClick"
                           RowBackground="#FFFFFF"
                           AlternatingRowBackground="#F6F9FC"
                           BorderThickness="0">

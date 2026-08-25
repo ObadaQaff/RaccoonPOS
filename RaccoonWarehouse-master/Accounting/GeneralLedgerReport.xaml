@@ -112,8 +112,7 @@
                         <DataGridTextColumn Header="التاريخ" Binding="{Binding EntryDate, StringFormat=yyyy-MM-dd}" Width="130"/>
                         <DataGridTextColumn Header="رقم القيد" Binding="{Binding EntryNumber}" Width="170"/>
                         <DataGridTextColumn Header="البيان" Binding="{Binding Description}" Width="*"/>
-                        <DataGridTextColumn Header="المرجع" Binding="{Binding ReferenceType}" Width="150"/>
-                        <DataGridTextColumn Header="رقم المرجع" Binding="{Binding ReferenceId}" Width="120"/>
+                        <DataGridTextColumn Header="المرجع" Binding="{Binding ReferenceLabel}" Width="190"/>
                         <DataGridTextColumn Header="مدين" Binding="{Binding Debit, StringFormat=N2}" Width="130"/>
                         <DataGridTextColumn Header="دائن" Binding="{Binding Credit, StringFormat=N2}" Width="130"/>
                         <DataGridTextColumn Header="الرصيد الجاري" Binding="{Binding RunningBalance, StringFormat=N2}" Width="160"/>

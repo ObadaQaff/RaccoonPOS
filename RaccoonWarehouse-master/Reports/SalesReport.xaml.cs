@@ -8,6 +8,7 @@ using RaccoonWarehouse.Domain.Users.DTOs;
 using RaccoonWarehouse.Helpers.Localization;
 using RaccoonWarehouse.Helpers.Pdf;
 using RaccoonWarehouse.Helpers.Pdf.Reports;
+using RaccoonWarehouse.Navigation;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -21,6 +22,7 @@ namespace RaccoonWarehouse.Reports
         private readonly IInvoiceService _invoiceService;   // ✅ real invoices query
         private readonly IUserService _userService;
         private readonly ILoadingService _loadingService;
+        private readonly SourceDocumentNavigationService _sourceDocumentNavigationService;
 
         private List<UserReadDto> _customers = new();
         private List<UserReadDto> _cashiers = new();
@@ -29,7 +31,8 @@ namespace RaccoonWarehouse.Reports
         public SalesReport(
             IInvoiceService invoiceService,
             IUserService userService,
-            ILoadingService loadingService)
+            ILoadingService loadingService,
+            SourceDocumentNavigationService sourceDocumentNavigationService)
         {
             InitializeComponent();
             UiText.ApplyWindow(this);
@@ -37,8 +40,17 @@ namespace RaccoonWarehouse.Reports
             _invoiceService = invoiceService;
             _userService = userService;
             _loadingService = loadingService;
+            _sourceDocumentNavigationService = sourceDocumentNavigationService;
 
             Loaded += SalesReport_Loaded;
+        }
+
+        private async void SalesReportGrid_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (SalesReportGrid.SelectedItem is not SalesReportRowDto row || row.InvoiceId <= 0)
+                return;
+
+            await _sourceDocumentNavigationService.OpenSourceDocument("Invoice", row.InvoiceId);
         }
 
         private async void SalesReport_Loaded(object sender, RoutedEventArgs e)
@@ -61,6 +73,17 @@ namespace RaccoonWarehouse.Reports
                 PosFilterComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("فواتير POS فقط", "POS invoices only"), Tag = true });
                 PosFilterComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("فواتير غير POS", "Non-POS invoices"), Tag = false });
                 PosFilterComboBox.SelectedIndex = 0;
+
+                PaymentMethodComboBox.Items.Clear();
+                PaymentMethodComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("الكل", "All"), Tag = null });
+                PaymentMethodComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("نقدي", "Cash"), Tag = PaymentType.Cash });
+                PaymentMethodComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("آجل", "Credit"), Tag = PaymentType.Credit });
+                PaymentMethodComboBox.Items.Add(new ComboBoxItem { Content = "Debit", Tag = PaymentType.Debit });
+                PaymentMethodComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("شيك", "Check"), Tag = PaymentType.Check });
+                PaymentMethodComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("موبايل", "Mobile"), Tag = PaymentType.MobilePayment });
+                PaymentMethodComboBox.Items.Add(new ComboBoxItem { Content = "MasterCard", Tag = PaymentType.Master });
+                PaymentMethodComboBox.Items.Add(new ComboBoxItem { Content = "Visa", Tag = PaymentType.Visa });
+                PaymentMethodComboBox.SelectedIndex = 0;
 
                 var rangeResult = await _invoiceService.GetSalesReportDateRangeAsync();
                 if (!rangeResult.Success)
@@ -163,12 +186,17 @@ namespace RaccoonWarehouse.Reports
                 if (PosFilterComboBox.SelectedItem is ComboBoxItem posItem && posItem.Tag != null)
                     isPOS = (bool)posItem.Tag;
 
+                PaymentType? paymentType = null;
+                if (PaymentMethodComboBox.SelectedItem is ComboBoxItem paymentItem && paymentItem.Tag is PaymentType selectedPaymentType)
+                    paymentType = selectedPaymentType;
+
                 var filter = new FinancialSummaryFilterDto
                 {
                     From = from,
                     To = to,
                     CustomerId = customerId,
                     CashierId = cashierId,
+                    PaymentType = paymentType,
                     IncludeReturns = true
                 };
 
@@ -230,6 +258,18 @@ namespace RaccoonWarehouse.Reports
             decimal netSales = (totalSales - totalReturns) - totalDiscount;
             decimal grossProfit = netSales - totalCogs;
 
+            decimal PaymentTotal(PaymentType paymentType) => data
+                .Where(x => string.Equals(x.PaymentMethod, paymentType.ToString(), StringComparison.OrdinalIgnoreCase))
+                .Sum(x => x.Total);
+
+            CashTotalText.Text = PaymentTotal(PaymentType.Cash).ToString("0.00000");
+            VisaTotalText.Text = PaymentTotal(PaymentType.Visa).ToString("0.00000");
+            MasterTotalText.Text = PaymentTotal(PaymentType.Master).ToString("0.00000");
+            DebitTotalText.Text = PaymentTotal(PaymentType.Debit).ToString("0.00000");
+            CheckTotalText.Text = PaymentTotal(PaymentType.Check).ToString("0.00000");
+            MobileTotalText.Text = PaymentTotal(PaymentType.MobilePayment).ToString("0.00000");
+            CreditTotalText.Text = PaymentTotal(PaymentType.Credit).ToString("0.00000");
+
             TotalSalesText.Text = totalSales.ToString("0.00000");
             TotalReturnsText.Text = totalReturns.ToString("0.00000");
             TotalTaxText.Text = totalTax.ToString("0.00000");
@@ -246,6 +286,13 @@ namespace RaccoonWarehouse.Reports
             TotalDiscountText.Text = "0";
             TotalCogsText.Text = "0";
             GrossProfitText.Text = "0";
+            CashTotalText.Text = "0";
+            VisaTotalText.Text = "0";
+            MasterTotalText.Text = "0";
+            DebitTotalText.Text = "0";
+            CheckTotalText.Text = "0";
+            MobileTotalText.Text = "0";
+            CreditTotalText.Text = "0";
         }
 
         private void BackBtn_Click(object sender, RoutedEventArgs e)

@@ -55,7 +55,8 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                 return Result.Ok();
 
             var currentBalance = await GetCurrentBalanceAsync(userId);
-            var projectedBalance = currentBalance + additionalAmount;
+            var currentDebt = Math.Max(0m, -currentBalance);
+            var projectedBalance = currentDebt + additionalAmount;
 
             if (projectedBalance > limit)
             {
@@ -81,7 +82,6 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                 return Result<UserStatementReportDto>.Fail("User was not found.");
 
             var statementRole = filter.Role ?? user.Role;
-            var isCreditNature = statementRole == UserRole.Supplier;
             var customerControlAccountId = await GetPartyControlAccountIdAsync(UserRole.Customer);
             var supplierControlAccountId = await GetPartyControlAccountIdAsync(UserRole.Supplier);
 
@@ -90,29 +90,44 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                 .Include(x => x.JournalEntry)
                 .Where(x => x.JournalEntry.Status == Domain.Accounting.Enums.JournalEntryStatus.Posted);
 
-            baseQuery = baseQuery.Where(x =>
-                x.CustomerId == filter.UserId ||
-                x.SupplierId == filter.UserId ||
-                x.PartyUserId == filter.UserId ||
-                (
-                    x.CustomerId == null && x.SupplierId == null && x.PartyUserId == null &&
-                    x.JournalEntry.ReferenceType == "Invoice" &&
-                    x.JournalEntry.ReferenceId.HasValue &&
-                    ((x.AccountId == customerControlAccountId &&
-                      _context.Set<Invoice>().Any(invoice =>
-                          invoice.Id == x.JournalEntry.ReferenceId.Value &&
-                          invoice.PaymentType == PaymentType.Credit &&
-                          invoice.CustomerId == filter.UserId)) ||
-                     (x.AccountId == supplierControlAccountId &&
-                      _context.Set<Invoice>().Any(invoice =>
-                          invoice.Id == x.JournalEntry.ReferenceId.Value &&
-                          invoice.PaymentType == PaymentType.Credit &&
-                          invoice.SupplierId == filter.UserId)))
-                ));
+            baseQuery = baseQuery.Where(x => filter.IncludeAllPartyRelationships
+                ? x.CustomerId == filter.UserId || x.SupplierId == filter.UserId || x.PartyUserId == filter.UserId ||
+                  (x.CustomerId == null && x.SupplierId == null && x.PartyUserId == null &&
+                   x.JournalEntry.ReferenceType == "Invoice" &&
+                   x.JournalEntry.ReferenceId.HasValue &&
+                   ((x.AccountId == customerControlAccountId &&
+                     _context.Set<Invoice>().Any(invoice =>
+                         invoice.Id == x.JournalEntry.ReferenceId.Value &&
+                         invoice.PaymentType == PaymentType.Credit &&
+                         invoice.CustomerId == filter.UserId)) ||
+                    (x.AccountId == supplierControlAccountId &&
+                     _context.Set<Invoice>().Any(invoice =>
+                         invoice.Id == x.JournalEntry.ReferenceId.Value &&
+                         invoice.PaymentType == PaymentType.Credit &&
+                         invoice.SupplierId == filter.UserId))))
+                : statementRole == UserRole.Customer
+                ? x.CustomerId == filter.UserId || x.PartyUserId == filter.UserId ||
+                  (x.CustomerId == null && x.SupplierId == null && x.PartyUserId == null &&
+                   x.AccountId == customerControlAccountId &&
+                   x.JournalEntry.ReferenceType == "Invoice" &&
+                   x.JournalEntry.ReferenceId.HasValue &&
+                   _context.Set<Invoice>().Any(invoice =>
+                       invoice.Id == x.JournalEntry.ReferenceId.Value &&
+                       invoice.PaymentType == PaymentType.Credit &&
+                       invoice.CustomerId == filter.UserId))
+                : x.SupplierId == filter.UserId || x.PartyUserId == filter.UserId ||
+                  (x.CustomerId == null && x.SupplierId == null && x.PartyUserId == null &&
+                   x.AccountId == supplierControlAccountId &&
+                   x.JournalEntry.ReferenceType == "Invoice" &&
+                   x.JournalEntry.ReferenceId.HasValue &&
+                   _context.Set<Invoice>().Any(invoice =>
+                       invoice.Id == x.JournalEntry.ReferenceId.Value &&
+                       invoice.PaymentType == PaymentType.Credit &&
+                       invoice.SupplierId == filter.UserId)));
 
             var openingBalance = await baseQuery
                 .Where(x => x.JournalEntry.EntryDate < filter.From)
-                .SumAsync(x => isCreditNature ? (x.Credit - x.Debit) : (x.Debit - x.Credit));
+                .SumAsync(x => x.Credit - x.Debit);
 
             var rows = await baseQuery
                 .Where(x => x.JournalEntry.EntryDate >= filter.From && x.JournalEntry.EntryDate <= filter.To)
@@ -141,9 +156,7 @@ namespace RaccoonWarehouse.Application.Service.Accounting
 
             foreach (var row in rows)
             {
-                var movement = isCreditNature
-                    ? (row.Credit - row.Debit)
-                    : (row.Debit - row.Credit);
+                var movement = row.Credit - row.Debit;
 
                 runningBalance += movement;
                 totalDebit += row.Debit;
@@ -153,12 +166,10 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                 {
                     EntryDate = row.EntryDate,
                     EntryNumber = row.EntryNumber,
-                    Description = string.IsNullOrWhiteSpace(row.LineDescription) ? row.EntryDescription : row.LineDescription!,
+                    Description = AccountingTextLocalizer.ToArabic(string.IsNullOrWhiteSpace(row.LineDescription) ? row.EntryDescription : row.LineDescription!),
                     Reference = string.IsNullOrWhiteSpace(row.ReferenceNumber)
-                        ? (!string.IsNullOrWhiteSpace(row.ReferenceType)
-                            ? $"{row.ReferenceType} #{row.ReferenceId?.ToString() ?? "-"}"
-                            : row.EntryNumber)
-                        : row.ReferenceNumber,
+                        ? AccountingTextLocalizer.ReferenceLabel(row.ReferenceType, row.ReferenceId)
+                        : AccountingTextLocalizer.ToArabic(row.ReferenceNumber),
                     ReferenceType = row.ReferenceType,
                     ReferenceId = row.ReferenceId,
                     Debit = row.Debit,

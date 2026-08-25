@@ -39,6 +39,8 @@ namespace RaccoonWarehouse.Domain.Products.DTOs
         public decimal CurrentStockQuantity { get; set; }
         public decimal CurrentSalePrice { get; set; }
         public decimal CurrentPurchasePrice { get; set; }
+        public decimal LastCostIncludingTax { get; set; }
+        public decimal AverageCostIncludingTax { get; set; }
         public DateTime? CurrentExpiryDate { get; set; }
         public decimal BaseQuantityPerUnit => BaseUnit?.QuantityPerUnit ?? 0m;
         public DateTime CreatedDate { get; set; }

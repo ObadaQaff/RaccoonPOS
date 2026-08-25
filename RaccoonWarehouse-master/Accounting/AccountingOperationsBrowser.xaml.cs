@@ -31,6 +31,7 @@ public partial class AccountingOperationsBrowser : Window
         UiText.ApplyWindow(this);
         OperationsGrid.ItemsSource = Operations;
         ApplyLabels();
+        DeleteFailedText.Text = UiText.T("حذف الفاشل", "Delete failed");
         _refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
         _refreshTimer.Tick += async (_, _) => await RefreshSilentlyAsync();
         Loaded += AccountingOperationsBrowser_Loaded;
@@ -209,6 +210,58 @@ public partial class AccountingOperationsBrowser : Window
         }
     }
 
+    private async void DeleteFailedBtn_Click(object sender, RoutedEventArgs e)
+    {
+        if (OperationsGrid.SelectedItem is not AccountingOperationRow selected)
+        {
+            MessageBox.Show(
+                UiText.T("يرجى اختيار عملية فاشلة أولاً.", "Please select a failed operation first."),
+                UiText.T("تنبيه", "Notice"));
+            return;
+        }
+
+        if (selected.Status != AccountingOperationStatus.Failed)
+        {
+            MessageBox.Show(
+                UiText.T("يمكن حذف العمليات الفاشلة فقط.", "Only failed operations can be deleted."),
+                UiText.T("تنبيه", "Notice"));
+            return;
+        }
+
+        if (MessageBox.Show(
+                UiText.T($"هل تريد حذف العملية الفاشلة #{selected.Id}؟", $"Delete failed operation #{selected.Id}?"),
+                UiText.T("تأكيد", "Confirm"),
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning) != MessageBoxResult.Yes)
+            return;
+
+        try
+        {
+            _loadingService.Show();
+            using var scope = _scopeFactory.CreateScope();
+            var deleted = await scope.ServiceProvider
+                .GetRequiredService<IAccountingOperationService>()
+                .DeleteFailedAsync(selected.Id);
+
+            await LoadAsync();
+            _loadingService.Hide();
+            MessageBox.Show(
+                deleted
+                    ? UiText.T("تم حذف العملية الفاشلة.", "The failed operation was deleted.")
+                    : UiText.T("تعذر حذف العملية؛ ربما تغيرت حالتها.", "The operation could not be deleted; its status may have changed."),
+                UiText.T("عمليات المحاسبة", "Accounting Operations"));
+        }
+        catch (Exception ex)
+        {
+            _loadingService.Hide();
+            MessageBox.Show(ex.Message, UiText.T("تعذر حذف العملية", "Could not delete operation"), MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            _loadingService.Hide();
+        }
+    }
+
     private void CloseBtn_Click(object sender, RoutedEventArgs e) => Close();
 
     private async Task<List<AccountingOperation>> GetOperationsAsync()
@@ -260,5 +313,8 @@ public partial class AccountingOperationsBrowser : Window
             AccountingOperationStatus.Failed => UiText.T("فاشل", "Failed"),
             _ => Status.ToString()
         };
+
+        public string OperationTypeLabel => AccountingTextLocalizer.ToArabic(OperationType);
+        public string ReferenceLabel => $"مرجع #{ReferenceId}";
     }
 }

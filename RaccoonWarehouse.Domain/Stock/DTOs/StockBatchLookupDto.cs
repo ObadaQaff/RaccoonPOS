@@ -13,6 +13,7 @@ namespace RaccoonWarehouse.Domain.Stock.DTOs
         public decimal RemainingQuantity { get; set; }
         public decimal PurchasePrice { get; set; }
         public decimal SalePrice { get; set; }
+        public DateTime CreatedDate { get; set; }
         public DateTime? ExpiryDate { get; set; }
         public BatchStatus Status { get; set; }
         public bool IsUsed { get; set; }

@@ -8,6 +8,7 @@ using RaccoonWarehouse.Navigation;
 using System;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Threading;
 
 namespace RaccoonWarehouse
 {
@@ -18,6 +19,7 @@ namespace RaccoonWarehouse
         private readonly SourceDocumentNavigationService _sourceDocumentNavigationService;
         private int _userId;
         private UserRole? _statementRole;
+        private bool _includeAllPartyRelationships;
         private bool _isInitialized;
 
         public UserStatementWindow(
@@ -44,6 +46,14 @@ namespace RaccoonWarehouse
         {
             _userId = userId;
             _statementRole = role;
+            _isInitialized = true;
+        }
+
+        public void InitializeCombined(int userId)
+        {
+            _userId = userId;
+            _statementRole = null;
+            _includeAllPartyRelationships = true;
             _isInitialized = true;
         }
 
@@ -78,10 +88,12 @@ namespace RaccoonWarehouse
                 }
 
                 _loadingService.Show();
+                await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Render);
                 var result = await _statementService.GetAsync(new UserStatementFilterDto
                 {
                     UserId = _userId,
                     Role = _statementRole,
+                    IncludeAllPartyRelationships = _includeAllPartyRelationships,
                     From = FromDatePicker.SelectedDate.Value.Date,
                     To = ToDatePicker.SelectedDate.Value.Date.AddDays(1).AddTicks(-1)
                 });
@@ -100,6 +112,9 @@ namespace RaccoonWarehouse
                 DebitText.Text = report.TotalDebit.ToString("N2");
                 CreditText.Text = report.TotalCredit.ToString("N2");
                 ClosingText.Text = report.ClosingBalance.ToString("N2");
+                StatementGrid.UpdateLayout();
+                await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Render);
+                await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
             }
             catch (Exception ex)
             {

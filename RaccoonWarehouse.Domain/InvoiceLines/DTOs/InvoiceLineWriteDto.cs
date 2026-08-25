@@ -61,6 +61,33 @@ namespace RaccoonWarehouse.Domain.InvoiceLines.DTOs
                 }
             }
         }
+        private decimal _lineDiscountAmount;
+        public decimal LineDiscountAmount
+        {
+            get => _lineDiscountAmount;
+            set
+            {
+                if (_lineDiscountAmount != value)
+                {
+                    _lineDiscountAmount = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(LineTotal));
+                }
+            }
+        }
+        private decimal _freeQuantity;
+        public decimal FreeQuantity
+        {
+            get => _freeQuantity;
+            set
+            {
+                if (_freeQuantity != value)
+                {
+                    _freeQuantity = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
         public string? ProductName { get; set; }
         private string? _unitName;
         public string? UnitName
@@ -75,7 +102,12 @@ namespace RaccoonWarehouse.Domain.InvoiceLines.DTOs
                 }
             }
         }
-        public decimal LineTotal => Quantity * UnitPrice;
+        public decimal LineTotal => Math.Max(0m, Quantity * UnitPrice - LineDiscountAmount);
+        public void RefreshCalculatedProperties()
+        {
+            OnPropertyChanged(nameof(LineTotal));
+            OnPropertyChanged(nameof(CostTotal));
+        }
         public DateTime ExpiryDate { get; set; }   // ✅ تمت إضافته
 
         public DateTime CreatedDate { get; set; }
@@ -86,7 +118,19 @@ namespace RaccoonWarehouse.Domain.InvoiceLines.DTOs
 
         public bool TaxExempt { get; set; }
         public decimal TaxRate { get; set; }           // snapshot from product وقت البيع
-        public decimal TaxAmount { get; set; }         // الضريبة لهذا السطر
+        private decimal _taxAmount;
+        public decimal TaxAmount
+        {
+            get => _taxAmount;
+            set
+            {
+                if (_taxAmount != value)
+                {
+                    _taxAmount = value;
+                    OnPropertyChanged();
+                }
+            }
+        }         // Tax for this line
         public decimal LineSubTotal { get; set; }      // Quantity * UnitPrice قبل الضريبة
         public decimal Profit { get; set; }        // (LineSubTotal - Tax? عادة لا) - CostTotal
         public decimal ProfitBeforeTax { get; set; } // (LineSubTotal) - CostTotal

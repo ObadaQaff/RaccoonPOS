@@ -5,6 +5,7 @@ using RaccoonWarehouse.Domain.Reports.Accounting.Filters;
 using RaccoonWarehouse.Helpers.Localization;
 using System;
 using System.Windows;
+using System.Windows.Threading;
 
 namespace RaccoonWarehouse.Accounting
 {
@@ -48,6 +49,7 @@ namespace RaccoonWarehouse.Accounting
                 }
 
                 _loadingService.Show();
+                await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Render);
                 var result = await _accountingService.GetTrialBalanceAsync(new TrialBalanceFilterDto
                 {
                     From = FromDatePicker.SelectedDate.Value.Date,
@@ -65,6 +67,9 @@ namespace RaccoonWarehouse.Accounting
                 TotalDebitText.Text = result.Data.summary.TotalClosingDebit.ToString("N2");
                 TotalCreditText.Text = result.Data.summary.TotalClosingCredit.ToString("N2");
                 BalancedText.Text = result.Data.summary.IsBalanced ? UiText.T("متوازن", "Balanced") : UiText.T("غير متوازن", "Unbalanced");
+                TrialBalanceGrid.UpdateLayout();
+                await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Render);
+                await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
             }
             catch (Exception ex)
             {

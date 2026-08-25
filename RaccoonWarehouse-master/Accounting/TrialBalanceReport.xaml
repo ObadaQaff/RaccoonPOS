@@ -97,7 +97,7 @@
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="الرمز" Binding="{Binding AccountCode}" Width="120"/>
                         <DataGridTextColumn Header="الحساب" Binding="{Binding AccountName}" Width="260"/>
-                        <DataGridTextColumn Header="النوع" Binding="{Binding AccountType}" Width="140"/>
+                        <DataGridTextColumn Header="النوع" Binding="{Binding AccountTypeLabel}" Width="140"/>
                         <DataGridTextColumn Header="رصيد افتتاحي" Binding="{Binding OpeningBalance, StringFormat=N2}" Width="150"/>
                         <DataGridTextColumn Header="مدين الفترة" Binding="{Binding Debit, StringFormat=N2}" Width="150"/>
                         <DataGridTextColumn Header="دائن الفترة" Binding="{Binding Credit, StringFormat=N2}" Width="150"/>

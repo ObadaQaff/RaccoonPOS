@@ -90,17 +90,12 @@
                         <Button x:Name="NextPageBtn" Width="120" Height="50" Margin="0,0,12,12" Style="{StaticResource AppSecondaryButtonStyle}" Content="التالي" Click="NextPageBtn_Click"/>
                     </WrapPanel>
 
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,2,0,0">
-                        <TextBlock x:Name="PageInfoTextBlock"
-                                   FontSize="13"
-                                   FontWeight="SemiBold"
-                                   Foreground="{StaticResource AppMutedTextBrush}"/>
-                        <TextBlock x:Name="FilterInfoTextBlock"
-                                   Margin="20,0,0,0"
-                                   FontSize="13"
-                                   FontWeight="SemiBold"
-                                   Foreground="{StaticResource AppMutedTextBrush}"/>
-                    </StackPanel>
+                    <TextBlock x:Name="PageInfoTextBlock"
+                               HorizontalAlignment="Center"
+                               FontSize="13"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource AppMutedTextBrush}"
+                               Margin="0,2,0,0"/>
                 </StackPanel>
             </Border>
 

@@ -242,6 +242,7 @@
                         <ColumnDefinition Width="200"/>
                         <!-- التاريخ -->
                         <ColumnDefinition Width="250"/>
+                        <ColumnDefinition Width="220"/>
                         <!-- اسم المورد -->
                     </Grid.ColumnDefinitions>
 
@@ -249,6 +250,20 @@
                     <StackPanel Margin="6" Grid.Column="0">
                         <TextBlock Text="رقم السند" Style="{StaticResource HeaderText}" FontSize="14"/>
                         <TextBox x:Name="VoucherNumberTxt" Style="{StaticResource InputBoxStyle}" Width="200"/>
+                    </StackPanel>
+
+                    <StackPanel Margin="6" Grid.Column="3">
+                        <TextBlock Text="رقم فاتورة فالكون / Falcon Invoice No."
+                                   Style="{StaticResource HeaderText}"
+                                   FontSize="14"
+                                   TextWrapping="Wrap"
+                                   TextAlignment="Right"
+                                   Height="38"/>
+                        <TextBox x:Name="FalconInvoiceNumberTextBox"
+                                 Style="{StaticResource InputBoxStyle}"
+                                 Width="210"
+                                 MaxLength="6"
+                                 TextAlignment="Left"/>
                     </StackPanel>
 
                     <!-- التاريخ -->
@@ -447,6 +462,8 @@
                           AutoGenerateColumns="False"
                           CanUserAddRows="False"
                           IsReadOnly="True"
+                          HorizontalScrollBarVisibility="Auto"
+                          MinColumnWidth="90"
                           Style="{StaticResource MinimalDataGrid}"
                           Margin="0,0,0,10">    
 
@@ -464,13 +481,34 @@
                             <DataGridTextColumn Header="الكمية" Width="70"
                             Binding="{Binding Quantity}" />
 
+                            <DataGridTemplateColumn Header="Discount" Width="110">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBox Text="{Binding LineDiscountAmount, UpdateSourceTrigger=PropertyChanged, StringFormat={}{0:0.00000}}"
+                                                 TextChanged="StockLineValue_TextChanged"
+                                                 LostFocus="StockLineValue_LostFocus"
+                                                 HorizontalContentAlignment="Center" Padding="4"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <DataGridTemplateColumn Header="Free Qty" Width="100">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBox Text="{Binding FreeQuantity, UpdateSourceTrigger=PropertyChanged, StringFormat={}{0:0.000}}"
+                                                 TextChanged="StockLineValue_TextChanged"
+                                                 LostFocus="StockLineValue_LostFocus"
+                                                 HorizontalContentAlignment="Center" Padding="4"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <DataGridTextColumn Header="Line Total" Width="130"
+                                                Binding="{Binding LineTotal, StringFormat={}{0:0.00000}}" />
+
                             <!-- Purchase Price -->
                             <DataGridTextColumn Header="سعر الشراء" Width="100"
                             Binding="{Binding PurchasePrice, StringFormat={}{0:0.00000}}" />
-
-                            <!-- Sale Price -->
-                            <DataGridTextColumn Header="سعر البيع" Width="100"
-                            Binding="{Binding SalePrice, StringFormat={}{0:0.00000}}" />
 
                             <!-- Expiry -->
                             <DataGridTextColumn Header="تاريخ الانتهاء" Width="150"

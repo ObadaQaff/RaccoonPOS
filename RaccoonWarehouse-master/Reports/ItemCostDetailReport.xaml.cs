@@ -4,6 +4,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
+using RaccoonWarehouse.Navigation;
+using RaccoonWarehouse.Products;
 
 namespace RaccoonWarehouse.Reports
 {
@@ -37,6 +39,12 @@ namespace RaccoonWarehouse.Reports
             ItemCostDetailGrid.ItemsSource = rows;
             TotalItemsText.Text = rows.Count.ToString();
             TotalValueText.Text = rows.Sum(x => x.Total).ToString("0.00000");
+        }
+
+        private void ItemCostDetailGrid_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (ItemCostDetailGrid.SelectedItem is ItemCostDetailRowDto row && row.ProductId > 0)
+                WindowManager.ShowDialog<UpdateProduct>(WindowSizeType.MediumRectangle, window => window.Initialize(row.ProductId));
         }
 
         private void BackBtn_Click(object sender, RoutedEventArgs e)

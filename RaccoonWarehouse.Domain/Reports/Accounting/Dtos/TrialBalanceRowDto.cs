@@ -8,6 +8,15 @@ namespace RaccoonWarehouse.Domain.Reports.Accounting.Dtos
         public string AccountCode { get; set; } = string.Empty;
         public string AccountName { get; set; } = string.Empty;
         public AccountType AccountType { get; set; }
+        public string AccountTypeLabel => AccountType switch
+        {
+            AccountType.Asset => "أصول",
+            AccountType.Liability => "خصوم",
+            AccountType.Equity => "حقوق ملكية",
+            AccountType.Revenue => "إيرادات",
+            AccountType.Expense => "مصروفات",
+            _ => AccountType.ToString()
+        };
         public decimal OpeningBalance { get; set; }
         public decimal Debit { get; set; }
         public decimal Credit { get; set; }

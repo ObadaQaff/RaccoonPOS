@@ -1,4 +1,4 @@
-﻿using AutoMapper;
+using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using PdfSharpCore.Fonts;
@@ -910,7 +910,11 @@ END;";
             services.AddScoped<IProductUnitService, ProductUnitService>();
             services.AddScoped<IWarehouseService, WarehouseService>();
             services.AddScoped<IInvoiceLineService, InvoiceLineService>();
-            services.AddScoped<IInvoiceService, InvoiceService>();
+            services.AddScoped<IInvoiceService>(sp => new InvoiceService(
+                sp.GetRequiredService<ApplicationDbContext>(),
+                sp.GetRequiredService<IUOW>(),
+                sp.GetRequiredService<IMapper>(),
+                sp.GetRequiredService<IAccountingService>()));
             services.AddScoped<ISaleCheckoutService, SaleCheckoutService>();
             // Temporary Box API integration. Remove this registration with the isolated service when retired.
             services.AddSingleton<IBoxCartApiService, BoxCartApiService>();
@@ -919,10 +923,22 @@ END;";
             services.AddScoped<IPandaOrderProcessor, PandaOrderProcessor>();
             services.AddSingleton<IPandaOrderSyncService, PandaOrderSyncService>();
             services.AddScoped<IUnitService, UnitService>();
-            services.AddScoped<IVoucherService, VoucherService>();
-            services.AddScoped<IStockService, StockService>();
+            services.AddScoped<IVoucherService>(sp => new VoucherService(
+                sp.GetRequiredService<ApplicationDbContext>(),
+                sp.GetRequiredService<IUOW>(),
+                sp.GetRequiredService<IMapper>(),
+                sp.GetRequiredService<IAccountingService>()));
+            services.AddScoped<IStockService>(sp => new StockService(
+                sp.GetRequiredService<ApplicationDbContext>(),
+                sp.GetRequiredService<IUOW>(),
+                sp.GetRequiredService<IMapper>(),
+                sp.GetRequiredService<IAccountingService>()));
             services.AddScoped<IStockTransactionService, StockTransactionService>();
-            services.AddScoped<IStockDocumentService, StockDocumentService>();
+            services.AddScoped<IStockDocumentService>(sp => new StockDocumentService(
+                sp.GetRequiredService<ApplicationDbContext>(),
+                sp.GetRequiredService<IUOW>(),
+                sp.GetRequiredService<IMapper>(),
+                sp.GetRequiredService<IAccountingService>()));
             services.AddScoped<IFalconStockImportService, FalconStockImportService>();
             services.AddScoped<IStockReportService, StockReportService>();
             services.AddScoped<ICheckService, CheckService>();

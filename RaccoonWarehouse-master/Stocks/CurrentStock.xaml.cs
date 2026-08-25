@@ -3,12 +3,17 @@ using RaccoonWarehouse.Application.Service.Stocks;
 using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Domain.Stock.DTOs;
 using RaccoonWarehouse.Helpers.Localization;
+using RaccoonWarehouse.Navigation;
+using RaccoonWarehouse.Products;
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 
 namespace RaccoonWarehouse.Stocks
 {
@@ -24,6 +29,8 @@ namespace RaccoonWarehouse.Stocks
         private int _searchVersion;
 
         public ObservableCollection<CurrentStockDto> CurrentStockItems { get; set; }
+            = new ObservableCollection<CurrentStockDto>();
+        public ObservableCollection<CurrentStockDto> FilteredStockItems { get; set; }
             = new ObservableCollection<CurrentStockDto>();
 
         public CurrentStock(
@@ -66,6 +73,8 @@ namespace RaccoonWarehouse.Stocks
 
                 foreach (var item in data)
                     CurrentStockItems.Add(item);
+
+                ApplyQuantityFilter();
             }
             catch (Exception ex)
             {
@@ -145,6 +154,11 @@ namespace RaccoonWarehouse.Stocks
             }
         }
 
+        private void StockGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+        {
+            if (StockGrid.SelectedItem is CurrentStockDto selected && selected.ProductId > 0)
+                WindowManager.ShowDialog<UpdateProduct>(WindowSizeType.MediumRectangle, window => window.Initialize(selected.ProductId));
+        }
         private void CopyBarcode_Click(object sender, RoutedEventArgs e)
         {
             if (sender is not FrameworkElement { DataContext: CurrentStockDto item })
@@ -170,14 +184,14 @@ namespace RaccoonWarehouse.Stocks
                 var dlg = new Microsoft.Win32.SaveFileDialog
                 {
                     Filter = "Excel File (*.xlsx)|*.xlsx",
-                    FileName = "CurrentStock.xlsx"
+                    FileName = "InventoryReport.xlsx"
                 };
 
                 if (dlg.ShowDialog() != true)
                     return;
 
                 using var workbook = new ClosedXML.Excel.XLWorkbook();
-                var ws = workbook.Worksheets.Add(UiText.T("Ø§Ù„Ù…Ø®Ø²ÙˆÙ† Ø§Ù„Ø­Ø§Ù„ÙŠ", "Current Stock"));
+                var ws = workbook.Worksheets.Add(UiText.T("Ø§Ù„Ù…Ø®Ø²ÙˆÙ† Ø§Ù„Ø­Ø§Ù„ÙŠ", "Inventory Report"));
 
                 ws.Cell(1, 1).Value = UiText.T("Ø§Ù„Ø¨Ø§Ø±ÙƒÙˆØ¯", "Barcode");
                 ws.Cell(1, 2).Value = UiText.T("Ø§Ù„Ù…Ù†ØªØ¬", "Product");
@@ -193,7 +207,7 @@ namespace RaccoonWarehouse.Stocks
                 ws.Row(1).Style.Fill.BackgroundColor = ClosedXML.Excel.XLColor.LightGray;
 
                 int row = 2;
-                foreach (var item in CurrentStockItems)
+                foreach (var item in FilteredStockItems)
                 {
                     ws.Cell(row, 1).Value = item.ITEMCODE;
                     ws.Cell(row, 2).Value = item.ProductName;
@@ -226,6 +240,28 @@ namespace RaccoonWarehouse.Stocks
             }
         }
 
+        private void QuantityFilterComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (IsInitialized)
+                ApplyQuantityFilter();
+        }
+
+        private void ApplyQuantityFilter()
+        {
+            var filter = (QuantityFilterComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "all";
+            var filtered = filter switch
+            {
+                "greater" => CurrentStockItems.Where(item => item.Quantity > 0),
+                "equal" => CurrentStockItems.Where(item => item.Quantity == 0),
+                "less" => CurrentStockItems.Where(item => item.Quantity < 0),
+                _ => CurrentStockItems
+            };
+
+            FilteredStockItems.Clear();
+            foreach (var item in filtered)
+                FilteredStockItems.Add(item);
+            DisplayedQuantityTotalTextBlock.Text = FilteredStockItems.Sum(item => item.Quantity).ToString("N5");
+        }
         private string? GetSearchText()
         {
             var searchText = SearchText.Text?.Trim();

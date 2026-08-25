@@ -2,6 +2,7 @@ using RaccoonWarehouse.Application.Service.FinancialTransactions;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Domain.Users.DTOs;
 using RaccoonWarehouse.Helpers.Localization;
+using RaccoonWarehouse.Navigation;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -14,14 +15,24 @@ namespace RaccoonWarehouse.Reports
     {
         private readonly IFinancialTransactionService _financialTransactionService;
         private readonly IUserService _userService;
+        private readonly SourceDocumentNavigationService _sourceDocumentNavigationService;
 
-        public CreditSalesReport(IFinancialTransactionService financialTransactionService, IUserService userService)
+        public CreditSalesReport(IFinancialTransactionService financialTransactionService, IUserService userService, SourceDocumentNavigationService sourceDocumentNavigationService)
         {
             _financialTransactionService = financialTransactionService;
             _userService = userService;
+            _sourceDocumentNavigationService = sourceDocumentNavigationService;
             InitializeComponent();
             UiText.ApplyWindow(this);
             Loaded += CreditSalesReport_Loaded;
+        }
+
+        private async void CreditSalesReportGrid_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (CreditSalesReportGrid.SelectedItem is not RaccoonWarehouse.Domain.Reports.Financial.Dtos.CreditSalesReportRowDto row || row.InvoiceId <= 0)
+                return;
+
+            await _sourceDocumentNavigationService.OpenSourceDocument("Invoice", row.InvoiceId);
         }
 
         private async void CreditSalesReport_Loaded(object sender, RoutedEventArgs e)

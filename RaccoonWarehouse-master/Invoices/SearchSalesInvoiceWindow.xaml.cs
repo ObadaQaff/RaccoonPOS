@@ -18,11 +18,12 @@ namespace RaccoonWarehouse.Invoices
         private bool _isFilteringUsers;
         private bool _isNavigatingUserChoices;
         private readonly bool? _isSal = true;
+        private readonly bool? _isPOS;
         private readonly ILoadingService _loadingService = new LoadingService();
         private bool _isBusy;
         public InvoiceReadDto? Result { get; private set; }
 
-        public SearchSalesInvoiceWindow(IInvoiceService invoiceService, IEnumerable<UserReadDto> users, bool? isSal)
+        public SearchSalesInvoiceWindow(IInvoiceService invoiceService, IEnumerable<UserReadDto> users, bool? isSal, bool? isPOS = null)
         {
             InitializeComponent();
             UiText.ApplyWindow(this);
@@ -30,6 +31,7 @@ namespace RaccoonWarehouse.Invoices
             _allUsers = users?.GroupBy(x => x.Id).Select(x => x.First()).ToList() ?? new();
             CustomerTxt.ItemsSource = _allUsers;
             _isSal = isSal;
+            _isPOS = isPOS;
         }
         private void CustomerTxt_Loaded(object sender, RoutedEventArgs e)
         {
@@ -141,7 +143,8 @@ namespace RaccoonWarehouse.Invoices
                 CustomerTxt.Text,
                 DateFrom.SelectedDate,
                 DateTo.SelectedDate,
-                _isSal
+                _isSal,
+                _isPOS
             );
 
             if (result.Success)

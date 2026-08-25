@@ -25,7 +25,7 @@ namespace RaccoonWarehouse.Navigation.Modules
                                 new ModuleActionDefinition("Invoices.Purchase", "فاتورة مشتريات")
                             }),
                         new ModuleGroupDefinition(
-                            UiText.T("التحصيل والدفع", "Receipts and Payments"),
+                            UiText.T("المدفوعات والمقبوضات", "Payments and Receipts"),
                             new[]
                             {
                                 new ModuleActionDefinition("Vouchers.Receipt", "سند قبض"),

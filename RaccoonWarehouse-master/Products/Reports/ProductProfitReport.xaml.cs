@@ -4,6 +4,7 @@ using RaccoonWarehouse.Domain.Products.DTOs;
 using RaccoonWarehouse.Domain.Reports.Products.Dtos;
 using RaccoonWarehouse.Domain.Reports.Products.Filters;
 using RaccoonWarehouse.Helpers.Localization;
+using RaccoonWarehouse.Navigation;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -23,6 +24,12 @@ namespace RaccoonWarehouse.Products.Reports
             _productService = productService;
             UiText.ApplyWindow(this);
             Loaded += ProductProfitReport_Loaded;
+        }
+
+        private void ProductProfitGrid_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (ProductProfitGrid.SelectedItem is ProductProfitRowDto row && row.ProductId > 0)
+                WindowManager.ShowDialog<UpdateProduct>(WindowSizeType.MediumRectangle, window => window.Initialize(row.ProductId));
         }
 
         private async void ProductProfitReport_Loaded(object sender, RoutedEventArgs e)

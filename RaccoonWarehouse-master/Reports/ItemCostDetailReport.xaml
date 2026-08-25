@@ -84,6 +84,7 @@
                           IsReadOnly="True"
                           HeadersVisibility="Column"
                           GridLinesVisibility="Horizontal"
+                          MouseDoubleClick="ItemCostDetailGrid_MouseDoubleClick"
                           RowBackground="#FFFFFF"
                           AlternatingRowBackground="#F6F9FC"
                           BorderThickness="0">

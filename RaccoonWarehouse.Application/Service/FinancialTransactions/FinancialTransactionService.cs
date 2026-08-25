@@ -558,6 +558,7 @@ namespace RaccoonWarehouse.Application.Service.FinancialTransactions
             var invoicesQ = invoiceRepo.GetAllAsQueryable()
                 .Include(x => x.User)
                 .Where(x => x.CreatedDate >= fromDate && x.CreatedDate <= toDate)
+                .Where(x => x.Status == InvoiceStatus.Completed || x.Status == InvoiceStatus.Posted)
                 .Where(x => x.InvoiceType == InvoiceType.Sale && x.PaymentType == PaymentType.Credit);
 
             if (customerId.HasValue)

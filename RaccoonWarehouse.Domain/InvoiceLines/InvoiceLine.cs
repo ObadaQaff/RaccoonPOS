@@ -24,11 +24,13 @@ namespace RaccoonWarehouse.Domain.InvoiceLines
         public int ProductUnitId { get; set; }
         public ProductUnit? ProductUnit { get; set; }
         public decimal Quantity { get; set; }
+        public decimal LineDiscountAmount { get; set; }
+        public decimal FreeQuantity { get; set; }
         public decimal QuantityPerUnitSnapshot { get; set; } = 1m;
         public decimal BaseQuantity { get; set; }
         public decimal UnitPrice { get; set; }
 
-        public decimal LineTotal => Quantity * UnitPrice;
+        public decimal LineTotal => Math.Max(0m, Quantity * UnitPrice - LineDiscountAmount);
         public DateTime ExpiryDate { get; set; }   // ✅ تمت إضافته
         public decimal UnitCost { get; set; }          // PurchasePrice at time of invoice
         public decimal CostTotal => Quantity * UnitCost; // optional computed

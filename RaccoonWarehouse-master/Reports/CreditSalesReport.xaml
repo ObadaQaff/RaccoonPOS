@@ -178,7 +178,7 @@
             </Border>
 
             <Border Grid.Row="1" Background="White" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" CornerRadius="24" Padding="14">
-                <DataGrid x:Name="CreditSalesReportGrid" AutoGenerateColumns="False" Style="{StaticResource ReportDataGridStyle}">
+                <DataGrid x:Name="CreditSalesReportGrid" AutoGenerateColumns="False" Style="{StaticResource ReportDataGridStyle}" MouseDoubleClick="CreditSalesReportGrid_MouseDoubleClick">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="رقم الفاتورة" Binding="{Binding InvoiceNumber}" Width="140"/>
                         <DataGridTextColumn Header="تاريخ الفاتورة" Binding="{Binding Date, StringFormat=yyyy-MM-dd}" Width="140"/>

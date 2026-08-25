@@ -7,5 +7,6 @@ namespace RaccoonWarehouse.Domain.Reports.Accounting.Filters
         public DateTime From { get; set; }
         public DateTime To { get; set; }
         public bool IncludePostedOnly { get; set; } = true;
+        public bool IncludeAllPartyRelationships { get; set; }
     }
 }

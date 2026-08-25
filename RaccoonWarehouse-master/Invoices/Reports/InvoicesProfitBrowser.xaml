@@ -181,7 +181,8 @@
                               Grid.Row="1"
                               AutoGenerateColumns="False"
                               Style="{StaticResource MinimalDataGrid}"
-                              SelectionChanged="InvoicesGrid_SelectionChanged">
+                              SelectionChanged="InvoicesGrid_SelectionChanged"
+                              MouseDoubleClick="InvoicesGrid_MouseDoubleClick">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="رقم" Binding="{Binding InvoiceNumber}" Width="170"/>
                             <DataGridTextColumn Header="التاريخ" Binding="{Binding Date, StringFormat=yyyy-MM-dd HH:mm}" Width="160"/>
@@ -268,7 +269,8 @@
                         Padding="10">
                     <DataGrid x:Name="LinesGrid"
                               AutoGenerateColumns="False"
-                              Style="{StaticResource MinimalDataGrid}">
+                              Style="{StaticResource MinimalDataGrid}"
+                              MouseDoubleClick="LinesGrid_MouseDoubleClick">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="الصنف" Binding="{Binding ProductName}" Width="220"/>
                             <DataGridTextColumn Header="الوحدة" Binding="{Binding UnitName}" Width="120"/>

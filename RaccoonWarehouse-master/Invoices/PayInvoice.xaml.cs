@@ -66,6 +66,7 @@ namespace RaccoonWarehouse.Invoices
         private bool _isRestoringProductSearchText;
         private readonly System.Threading.SemaphoreSlim _productSelectionSemaphore = new(1, 1);
         private int? _currentInvoiceId = null;   // لتحديث الفاتورة بعد الحفظ الأول
+        private bool _originalCostPriceIncludesTax;
 
         public PayInvoice(
             IStockService stockService,
@@ -195,13 +196,20 @@ namespace RaccoonWarehouse.Invoices
         {
             var existingProductIds = Products.Select(product => product.Id).ToHashSet();
 
-            WindowManager.ShowDialog<CreateProduct>();
+            CreateProduct? createWindow = null;
+            WindowManager.ShowDialog<CreateProduct>(WindowSizeType.LargeRectangle, window => createWindow = window);
 
             await LoadProductsAsync();
 
             var createdProduct = Products.FirstOrDefault(product => !existingProductIds.Contains(product.Id));
             if (createdProduct != null)
                 ProductBox.SelectedItem = createdProduct;
+
+            if (createWindow?.CreatedProductId is int createdProductId)
+            {
+                ProductBox.SelectedValue = createdProductId;
+                await QueueProductSelectionAsync(createdProductId);
+            }
         }
 
         private async void CatalogRefreshNotifier_CatalogChanged(object? sender, EventArgs e)
@@ -241,6 +249,35 @@ namespace RaccoonWarehouse.Invoices
             return false;
         }
 
+        private bool CostPriceIncludesTax => CostPriceIncludesTaxCheckBox.IsChecked == true;
+
+        private static decimal GetEffectivePurchaseCost(InvoiceLineWriteDto line, bool includesTax)
+        {
+            if (!includesTax || line.TaxExempt || line.TaxRate <= 0m)
+                return line.UnitCost;
+
+            return Math.Round(line.UnitCost / (1m + line.TaxRate / 100m), 3);
+        }
+
+        private void PreparePurchasePricesForSave()
+        {
+            if (CostPriceIncludesTax)
+                return;
+
+            foreach (var line in InvoiceLines)
+            {
+                if (line.TaxExempt || line.TaxRate <= 0m)
+                    continue;
+
+                var factor = 1m + line.TaxRate / 100m;
+                line.UnitPrice = Math.Round(line.UnitPrice * factor, 3);
+                line.UnitCost = Math.Round(line.UnitCost * factor, 3);
+                line.LineDiscountAmount = Math.Round(line.LineDiscountAmount * factor, 3);
+            }
+
+            CostPriceIncludesTaxCheckBox.IsChecked = true;
+        }
+
         private IEnumerable<StockMovementPostDto> BuildInvoiceStockMovements(
             IEnumerable<InvoiceLineWriteDto> lines,
             TransactionType transactionType,
@@ -248,35 +285,65 @@ namespace RaccoonWarehouse.Invoices
             int? cashierId,
             int? cashierSessionId,
             string notes,
-            decimal multiplier)
+            decimal multiplier,
+            bool costPriceIncludesTax = false)
         {
             return lines
-                .Where(line => line.ProductId > 0 && line.ProductUnitId > 0 && line.Quantity != 0)
-                .Select(line =>
+                .Where(line => line.ProductId > 0 && line.ProductUnitId > 0 && (line.Quantity != 0 || line.FreeQuantity != 0))
+                .SelectMany(line =>
                 {
                     var quantityPerUnit = line.QuantityPerUnitSnapshot > 0 ? line.QuantityPerUnitSnapshot : 1m;
-                    var baseQuantity = line.BaseQuantity != 0 ? line.BaseQuantity : line.Quantity * quantityPerUnit;
+                    var paidBaseQuantity = line.BaseQuantity != 0 ? line.BaseQuantity : line.Quantity * quantityPerUnit;
                     var profileSalePrice = GetProductUnitSalePrice(line.ProductId, line.ProductUnitId);
+                    var movements = new List<StockMovementPostDto>();
 
-                    return new StockMovementPostDto
+                    if (line.Quantity != 0)
                     {
-                        ProductId = line.ProductId,
-                        ProductUnitId = line.ProductUnitId,
-                        Quantity = line.Quantity * multiplier,
-                        QuantityPerUnitSnapshot = quantityPerUnit,
-                        BaseQuantity = baseQuantity * multiplier,
-                        UnitPrice = line.UnitPrice,
-                        PurchasePrice = line.UnitPrice,
-                        SalePrice = profileSalePrice,
-                        ExpiryDate = line.ExpiryDate,
-                        TransactionType = transactionType,
-                        UpdateCatalogAverageCost = _userSession.CurrentUser?.Role == UserRole.Admin,
-                        InvoiceId = invoiceId,
-                        CasherId = cashierId,
-                        CashierSessionId = cashierSessionId,
-                        TransactionDate = DateTime.Now,
-                        Notes = notes
-                    };
+                        movements.Add(new StockMovementPostDto
+                        {
+                            ProductId = line.ProductId,
+                            ProductUnitId = line.ProductUnitId,
+                            Quantity = line.Quantity * multiplier,
+                            QuantityPerUnitSnapshot = quantityPerUnit,
+                            BaseQuantity = paidBaseQuantity * multiplier,
+                            UnitPrice = line.UnitPrice,
+                            PurchasePrice = GetEffectivePurchaseCost(line, costPriceIncludesTax),
+                            SalePrice = profileSalePrice,
+                            ExpiryDate = line.ExpiryDate,
+                            TransactionType = transactionType,
+                            UpdateCatalogAverageCost = true,
+                            InvoiceId = invoiceId,
+                            CasherId = cashierId,
+                            CashierSessionId = cashierSessionId,
+                            TransactionDate = DateTime.Now,
+                            Notes = notes
+                        });
+                    }
+
+                    if (line.FreeQuantity > 0)
+                    {
+                        movements.Add(new StockMovementPostDto
+                        {
+                            ProductId = line.ProductId,
+                            ProductUnitId = line.ProductUnitId,
+                            Quantity = line.FreeQuantity * multiplier,
+                            QuantityPerUnitSnapshot = quantityPerUnit,
+                            BaseQuantity = line.FreeQuantity * quantityPerUnit * multiplier,
+                            UnitPrice = 0m,
+                            PurchasePrice = 0m,
+                            SalePrice = profileSalePrice,
+                            ExpiryDate = line.ExpiryDate,
+                            TransactionType = transactionType,
+                            UpdateCatalogAverageCost = false,
+                            InvoiceId = invoiceId,
+                            CasherId = cashierId,
+                            CashierSessionId = cashierSessionId,
+                            TransactionDate = DateTime.Now,
+                            Notes = notes + " (free quantity / كمية مجانية)"
+                        });
+                    }
+
+                    return movements;
                 });
         }
 
@@ -618,6 +685,30 @@ namespace RaccoonWarehouse.Invoices
                         line.UnitCost = price;
                     }
                 }
+                else if (header.Contains("Discount", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!TryParseDecimalInput(textBox.Text, out var discount) || discount < 0)
+                    {
+                        MessageBox.Show(UiText.T("خصم السطر يجب أن يكون رقماً غير سالب.", "Line discount must be a non-negative number."), UiText.T("تنبيه", "Notice"));
+                        line.LineDiscountAmount = 0m;
+                    }
+                    else
+                    {
+                        line.LineDiscountAmount = discount;
+                    }
+                }
+                else if (header.Contains("Free", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!TryParseDecimalInput(textBox.Text, out var freeQuantity) || freeQuantity < 0)
+                    {
+                        MessageBox.Show(UiText.T("الكمية المجانية يجب أن تكون رقماً غير سالب.", "Free quantity must be a non-negative number."), UiText.T("تنبيه", "Notice"));
+                        line.FreeQuantity = 0m;
+                    }
+                    else
+                    {
+                        line.FreeQuantity = freeQuantity;
+                    }
+                }
             }
 
             UpdateTotal();
@@ -634,22 +725,47 @@ namespace RaccoonWarehouse.Invoices
         private (decimal Subtotal, decimal Tax, decimal Discount, decimal Total) CalculatePurchaseTotals()
         {
             decimal subtotal = 0m;
-            decimal tax = 0m;
             foreach (var line in InvoiceLines)
             {
-                line.LineSubTotal = Math.Round(line.Quantity * line.UnitPrice, 3);
-                line.TaxAmount = line.TaxExempt || line.TaxRate <= 0m
-                    ? 0m
-                    : Math.Round(line.LineSubTotal * line.TaxRate / 100m, 3);
+                var grossLineTotal = Math.Max(0m, line.Quantity * line.UnitPrice);
+                line.LineDiscountAmount = Math.Clamp(line.LineDiscountAmount, 0m, grossLineTotal);
+                line.FreeQuantity = Math.Max(0m, line.FreeQuantity);
+                var lineTotal = Math.Round(grossLineTotal - line.LineDiscountAmount, 3);
+                var divisor = CostPriceIncludesTax && !line.TaxExempt && line.TaxRate > 0m
+                    ? 1m + line.TaxRate / 100m
+                    : 1m;
+                line.LineSubTotal = Math.Round(lineTotal / divisor, 3);
                 subtotal += line.LineSubTotal;
-                tax += line.TaxAmount;
             }
 
             subtotal = Math.Round(subtotal, 3);
-            tax = Math.Round(tax, 3);
             decimal.TryParse(DiscountTextBox.Text, out var discount);
-            discount = Math.Clamp(discount, 0m, subtotal + tax);
-            return (subtotal, tax, discount, Math.Round(subtotal + tax - discount, 3));
+            discount = Math.Clamp(discount, 0m, subtotal);
+            var taxableRatio = subtotal > 0m ? (subtotal - discount) / subtotal : 0m;
+            decimal tax = 0m;
+            foreach (var line in InvoiceLines)
+            {
+                var extractedTax = CostPriceIncludesTax && !line.TaxExempt && line.TaxRate > 0m
+                    ? Math.Round((line.LineSubTotal * line.TaxRate / 100m), 3)
+                    : 0m;
+                line.TaxAmount = line.TaxExempt || line.TaxRate <= 0m
+                    ? 0m
+                    : Math.Round((CostPriceIncludesTax ? extractedTax : line.LineSubTotal * line.TaxRate / 100m) * taxableRatio, 3);
+                line.RefreshCalculatedProperties();
+                tax += line.TaxAmount;
+            }
+
+            tax = Math.Round(tax, 3);
+            return (subtotal, tax, discount, Math.Round(subtotal - discount + tax, 3));
+        }
+
+        private void CostPriceIncludesTaxCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            if (IsLoaded)
+            {
+                UpdateTotal();
+                ProductsGrid.Items.Refresh();
+            }
         }
 
         private void UpdateTotal()
@@ -770,11 +886,14 @@ namespace RaccoonWarehouse.Invoices
                 {
                     Id = _currentInvoiceId ?? 0,
                     InvoiceNumber = InvoiceNumberTextBox.Text,
+                    FalconInvoiceNumber = FalconInvoiceNumberTextBox.Text.Trim(),
                     SupplierId = supplier?.Id,
                     InvoiceType = InvoiceType.Purchase,   // 👈 مشتريات
                     TotalAmount = totalAmount,
                                         SubTotal = purchaseTotals.Subtotal,
                     TotalTax = purchaseTotals.Tax,
+                    DiscountAmount = purchaseTotals.Discount,
+                    CostPriceIncludesTax = CostPriceIncludesTax,
 CreatedDate = InvoiceDatePicker.SelectedDate.Value,
                     UpdatedDate = DateTime.Now,
                     InvoiceLines = InvoiceLines.ToList()
@@ -812,7 +931,8 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
                             session.CashierId,
                             session.Id,
                             $"Purchase invoice #{invoiceDto.InvoiceNumber}",
-                            1m));
+                            1m,
+                            CostPriceIncludesTax));
                     if (!movementResult.Success)
                     {
                         MessageBox.Show(movementResult.Message ?? "فشل تحديث المخزون.", "خطأ");
@@ -872,9 +992,19 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
                     return;
                 }
 
+                if (MessageBox.Show(
+                        UiText.T("هل تريد حفظ فاتورة المشتريات؟", "Do you want to save the purchase invoice?"),
+                        UiText.T("تأكيد الحفظ", "Confirm save"),
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Question) != MessageBoxResult.Yes)
+                    return;
+
                 var supplier = SupplierComboBox.SelectedItem as UserReadDto; // أو UserReadDto للمورد
                 var purchaseTotals = CalculatePurchaseTotals();
                 decimal totalAmount = purchaseTotals.Total;
+                PreparePurchasePricesForSave();
+                purchaseTotals = CalculatePurchaseTotals();
+                totalAmount = purchaseTotals.Total;
                 if (!TryGetActiveCashierSession(out var session))
                     return;
 
@@ -928,6 +1058,7 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
                 {
                     Id = _currentInvoiceId ?? 0,
                     InvoiceNumber = InvoiceNumberTextBox.Text,
+                    FalconInvoiceNumber = FalconInvoiceNumberTextBox.Text.Trim(),
                     SupplierId = supplier?.Id,
                     InvoiceType = InvoiceType.Purchase, // مهم
                     PaymentType = selectedPaymentType,
@@ -936,6 +1067,7 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
                     DiscountAmount = purchaseTotals.Discount,
                     SubTotal = purchaseTotals.Subtotal,
                     TotalTax = purchaseTotals.Tax,
+                    CostPriceIncludesTax = CostPriceIncludesTax,
 CreatedDate = InvoiceDatePicker.SelectedDate.Value,
                     UpdatedDate = DateTime.Now,
                     InvoiceLines = InvoiceLines.ToList(),
@@ -967,7 +1099,8 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
                             session.CashierId,
                             session.Id,
                             $"Purchase invoice #{invoiceDto.InvoiceNumber}",
-                            1m));
+                            1m,
+                            CostPriceIncludesTax));
                     if (!movementResult.Success)
                     {
                         HideLoadingIfShown();
@@ -1039,14 +1172,17 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
                                 QuantityPerUnitSnapshot = line.QuantityPerUnitSnapshot,
                                 BaseQuantity = line.BaseQuantity,
                                 UnitPrice = line.UnitPrice,
-                                UnitCost = line.UnitCost
+                                UnitCost = line.UnitCost,
+                                TaxExempt = line.TaxExempt,
+                                TaxRate = line.TaxRate
                             }),
                             TransactionType.Purchase,
                             savedInvoiceId,
                             session.CashierId,
                             session.Id,
                             $"Reverse purchase invoice #{invoiceDto.InvoiceNumber}",
-                            -1m));
+                            -1m,
+                            _originalCostPriceIncludesTax));
                     if (!reverseResult.Success)
                     {
                         HideLoadingIfShown();
@@ -1064,7 +1200,8 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
                             session.CashierId,
                             session.Id,
                             $"Update purchase invoice #{invoiceDto.InvoiceNumber}",
-                            1m));
+                            1m,
+                            CostPriceIncludesTax));
                     if (!applyResult.Success)
                     {
                         HideLoadingIfShown();
@@ -1254,15 +1391,18 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
             if (invoice == null) return;
 
             _currentInvoiceId = invoice.Id;
+            _originalCostPriceIncludesTax = invoice.CostPriceIncludesTax;
 
             _originalLines = invoice.InvoiceLines.ToList();   // 🔥 مهم جداً
 
             InvoiceNumberTextBox.Text = invoice.InvoiceNumber;
+            FalconInvoiceNumberTextBox.Text = invoice.FalconInvoiceNumber ?? string.Empty;
             InvoiceDatePicker.SelectedDate = invoice.CreatedDate;
 
             SupplierComboBox.SelectedItem =
                 _allSuppliers.FirstOrDefault(c => c.Id == invoice.SupplierId);
             DiscountTextBox.Text = (invoice.DiscountAmount ?? 0m).ToString("0.00000");
+            CostPriceIncludesTaxCheckBox.IsChecked = invoice.CostPriceIncludesTax;
             if (invoice.PaymentType.HasValue)
                 SetSelectedPaymentType(invoice.PaymentType.Value);
             _currentChecks = CloneChecks(invoice.Checks);
@@ -1284,7 +1424,11 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
                     UnitName = line.ProductUnit?.Unit?.Name,
                     Quantity = line.Quantity,
                     UnitPrice = line.UnitPrice,
-                    UnitCost = line.UnitPrice,
+                    UnitCost = line.UnitCost,
+                    LineDiscountAmount = line.LineDiscountAmount,
+                    FreeQuantity = line.FreeQuantity,
+                    TaxExempt = line.TaxExempt,
+                    TaxRate = line.TaxRate,
                     ExpiryDate = line.ExpiryDate,
                     CreatedDate = line.CreatedDate,
                     UpdatedDate = line.UpdatedDate
@@ -1303,11 +1447,13 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
         {
             _currentInvoiceId = null;
             _originalLines.Clear();
+            _originalCostPriceIncludesTax = false;
 
             InvoiceLines.Clear();
             ProductsGrid.Items.Refresh();
 
             InvoiceNumberTextBox.Text = GenerateInvoiceNumber();
+            FalconInvoiceNumberTextBox.Clear();
             SupplierComboBox.SelectedIndex = -1;
             InvoiceDatePicker.SelectedDate = DateTime.Now;
             _currentChecks.Clear();
@@ -1318,6 +1464,7 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
             TaxAmountTextBox.Text = "0";
             TotalAmountTextBox.Text = "0";
             DiscountTextBox.Text = "0";
+            CostPriceIncludesTaxCheckBox.IsChecked = false;
             ProductBox.Text = "";
             ClearProductInputs();
             PrintBtn.Visibility = Visibility.Collapsed;
@@ -1383,13 +1530,21 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
 
         private async Task CreateProductFromSearchAsync(string searchText)
         {
+            CreateProduct? createWindow = null;
             WindowManager.ShowDialog<CreateProduct>(WindowSizeType.LargeRectangle, window =>
             {
+                createWindow = window;
                 if (long.TryParse(searchText, out var barcode))
                     window.InitialItemCode = barcode.ToString();
             });
 
             await LoadProductsAsync();
+
+            if (createWindow?.CreatedProductId is int createdProductId)
+            {
+                ProductBox.SelectedValue = createdProductId;
+                await QueueProductSelectionAsync(createdProductId);
+            }
         }
         private void FilterProducts(string? searchText = null)
         {

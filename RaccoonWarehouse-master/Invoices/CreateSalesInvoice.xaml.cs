@@ -1406,6 +1406,13 @@ namespace RaccoonWarehouse.Invoices
                     return;
                 }
 
+                if (MessageBox.Show(
+                        UiText.T("هل تريد حفظ فاتورة البيع؟", "Do you want to save the sales invoice?"),
+                        UiText.T("تأكيد الحفظ", "Confirm save"),
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Question) != MessageBoxResult.Yes)
+                    return;
+
                 _loadingService.Show();
                 loadingShown = true;
 
@@ -1506,6 +1513,7 @@ namespace RaccoonWarehouse.Invoices
                 {
                     Id = _currentInvoiceId ?? 0,
                     InvoiceNumber = InvoiceNumberTextBox.Text,
+                    FalconInvoiceNumber = FalconInvoiceNumberTextBox.Text.Trim(),
                     CustomerId = customer?.Id,
                     DelegateId = DelegateComboBox.SelectedValue is int delegateId ? delegateId : null,
                     InvoiceType = InvoiceType.Sale,
@@ -2000,6 +2008,7 @@ namespace RaccoonWarehouse.Invoices
             _originalLines = invoice.InvoiceLines.ToList();   // 🔥 مهم جداً
 
             InvoiceNumberTextBox.Text = invoice.InvoiceNumber;
+            FalconInvoiceNumberTextBox.Text = invoice.FalconInvoiceNumber ?? string.Empty;
             InvoiceDatePicker.SelectedDate = invoice.CreatedDate;
 
             CustomerComboBox.SelectedItem =
@@ -2057,6 +2066,7 @@ namespace RaccoonWarehouse.Invoices
             ProductsGrid.Items.Refresh();
 
             InvoiceNumberTextBox.Text = GenerateInvoiceNumber();
+            FalconInvoiceNumberTextBox.Clear();
             CustomerComboBox.SelectedIndex = -1;
             DelegateComboBox.SelectedIndex = -1;
             InvoiceDatePicker.SelectedDate = DateTime.Now;

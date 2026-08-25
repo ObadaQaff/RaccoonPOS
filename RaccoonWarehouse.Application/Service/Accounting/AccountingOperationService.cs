@@ -17,6 +17,7 @@ public interface IAccountingOperationService
     Task<List<AccountingOperation>> GetFailedAsync();
     Task<bool> RetryAsync(int operationId);
     Task<int> RetryFailedAsync();
+    Task<bool> DeleteFailedAsync(int operationId);
 }
 
 public sealed class AccountingOperationService : IAccountingOperationService
@@ -148,6 +149,20 @@ public sealed class AccountingOperationService : IAccountingOperationService
         await _uow.CommitAsync();
         return operations.Count;
     }
+
+    public async Task<bool> DeleteFailedAsync(int operationId)
+    {
+        var repository = _uow.GetRepository<AccountingOperation>();
+        var operation = await repository.GetAllAsQueryable()
+            .FirstOrDefaultAsync(item => item.Id == operationId);
+
+        if (operation == null || operation.Status != AccountingOperationStatus.Failed)
+            return false;
+
+        await repository.DeleteAsync(operationId);
+        await _uow.CommitAsync();
+        return true;
+    }
 }
 
 public sealed class AccountingOperationProcessor
@@ -247,7 +262,7 @@ public sealed class AccountingOperationProcessor
 
         if (operation == null)
             return null;
-
+       
         operation.Status = AccountingOperationStatus.Processing;
         operation.LastAttemptDate = DateTime.Now;
         operation.UpdatedDate = DateTime.Now;

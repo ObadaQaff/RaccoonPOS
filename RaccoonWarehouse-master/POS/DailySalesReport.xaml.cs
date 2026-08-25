@@ -326,6 +326,7 @@ namespace RaccoonWarehouse.POS
                     ? financialResult.Data
                         .Where(t => t.TransactionDate >= from && t.TransactionDate <= to)
                         .Where(t => MatchesCashierScope(t.CashierSessionId, t.CashierId, selectedCashier.Id, sessionIds, isSpecificSession))
+                        .Where(t => !IsInvoicePostingFinancialSource(t.SourceType))
                         .OrderBy(t => t.TransactionDate)
                         .ToList()
                     : new List<RaccoonWarehouse.Domain.FinancialTransactions.DTOs.FinancialTransactionReadDto>();
@@ -430,6 +431,13 @@ namespace RaccoonWarehouse.POS
                 Date = invoice.ClosedAt ?? invoice.CreatedDate,
                 DocumentTypeText = invoice.InvoiceType == InvoiceType.Sale ? "فاتورة بيع" : invoice.InvoiceType.ToString(),
                 DocumentNumber = invoice.InvoiceNumber,
+                FalconInvoiceNumber = invoice.FalconInvoiceNumber,
+                SearchText = string.Join(" ", new[]
+                {
+                    invoice.InvoiceNumber,
+                    invoice.FalconInvoiceNumber,
+                    invoice.Customer?.Name
+                }.Where(value => !string.IsNullOrWhiteSpace(value))),
                 CustomerName = invoice.Customer?.Name,
                 ReferenceText = referenceText,
                 DirectionText = isReturn ? "صادر" : "وارد",
@@ -453,8 +461,7 @@ namespace RaccoonWarehouse.POS
             {
                 filteredRows = _allTransactionRows.Where(row =>
                     row.IsInvoice &&
-                    ((row.DocumentNumber?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false) ||
-                     (row.CustomerName?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false)));
+                    (row.SearchText?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false));
             }
 
             _vm.Transactions.Clear();
@@ -480,6 +487,18 @@ namespace RaccoonWarehouse.POS
 
             if (!string.IsNullOrWhiteSpace(row.DocumentNumber))
                 Clipboard.SetText(row.DocumentNumber);
+        }
+
+        private void CopyFalconInvoiceNumber_Click(object sender, RoutedEventArgs e)
+        {
+            if ((sender as Button)?.Tag is not SessionTransactionRowDto row ||
+                !row.IsInvoice ||
+                string.IsNullOrWhiteSpace(row.FalconInvoiceNumber))
+            {
+                return;
+            }
+
+            Clipboard.SetText(row.FalconInvoiceNumber);
         }
 
         private async void PrintInvoice_Click(object sender, RoutedEventArgs e)
@@ -571,6 +590,13 @@ namespace RaccoonWarehouse.POS
 
         private static bool IsIncoming(SessionTransactionRowDto row)
             => string.Equals(row.DirectionText, "وارد", StringComparison.OrdinalIgnoreCase);
+
+        private static bool IsInvoicePostingFinancialSource(FinancialSourceType sourceType)
+            => sourceType is FinancialSourceType.PosSaleInvoice
+                or FinancialSourceType.SaleInvoice
+                or FinancialSourceType.SaleReturn
+                or FinancialSourceType.PurchaseInvoice
+                or FinancialSourceType.PurchaseReturn;
 
         private static string? ResolveFinancialReferenceType(FinancialSourceType sourceType)
         {

@@ -46,10 +46,12 @@ namespace RaccoonWarehouse.Data.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<decimal>("Credit")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<decimal>("Debit")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<int>("FiscalYearId")
                         .HasColumnType("int");
@@ -236,7 +238,8 @@ namespace RaccoonWarehouse.Data.Migrations
                         .HasColumnType("int");
 
                     b.Property<decimal>("ClosingBalance")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
@@ -245,7 +248,8 @@ namespace RaccoonWarehouse.Data.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<decimal>("OpeningBalance")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<DateTime>("StatementDate")
                         .HasColumnType("datetime2");
@@ -269,7 +273,8 @@ namespace RaccoonWarehouse.Data.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<decimal>("Amount")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<int>("BankStatementId")
                         .HasColumnType("int");
@@ -420,7 +425,8 @@ namespace RaccoonWarehouse.Data.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<decimal>("Credit")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<int?>("CurrencyId")
                         .HasColumnType("int");
@@ -429,19 +435,22 @@ namespace RaccoonWarehouse.Data.Migrations
                         .HasColumnType("int");
 
                     b.Property<decimal>("Debit")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<string>("Description")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<decimal?>("ExchangeRate")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<int?>("FinancialTransactionId")
                         .HasColumnType("int");
 
                     b.Property<decimal?>("ForeignAmount")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<int?>("InvoiceId")
                         .HasColumnType("int");
@@ -468,7 +477,8 @@ namespace RaccoonWarehouse.Data.Migrations
                         .HasColumnType("int");
 
                     b.Property<decimal?>("TaxAmount")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<int?>("TaxRateId")
                         .HasColumnType("int");
@@ -721,10 +731,12 @@ namespace RaccoonWarehouse.Data.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<decimal>("CreditAmount")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<decimal>("DebitAmount")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<string>("Description")
                         .HasColumnType("nvarchar(max)");
@@ -765,7 +777,8 @@ namespace RaccoonWarehouse.Data.Migrations
                         .HasColumnType("nvarchar(450)");
 
                     b.Property<decimal>("Rate")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<int>("TaxAccountId")
                         .HasColumnType("int");
@@ -886,13 +899,16 @@ namespace RaccoonWarehouse.Data.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<decimal?>("DifferenceAmount")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<decimal>("EndingBalance")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<decimal?>("ExpectedClosingBalance")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<DateTime>("OpenedAt")
                         .HasColumnType("datetime2");
@@ -901,7 +917,8 @@ namespace RaccoonWarehouse.Data.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<decimal>("StatrBalance")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<int>("Status")
                         .HasColumnType("int");
@@ -957,7 +974,8 @@ namespace RaccoonWarehouse.Data.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<decimal>("Amount")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<string>("BankName")
                         .IsRequired()
@@ -1080,7 +1098,8 @@ namespace RaccoonWarehouse.Data.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<decimal>("ExchangeRate")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
@@ -1127,7 +1146,8 @@ namespace RaccoonWarehouse.Data.Migrations
                         .HasColumnType("int");
 
                     b.Property<decimal>("Rate")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<int>("ToCurrencyId")
                         .HasColumnType("int");
@@ -1229,7 +1249,8 @@ namespace RaccoonWarehouse.Data.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<decimal?>("BasicSalary")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<int?>("BranchId")
                         .HasColumnType("int");
@@ -1325,7 +1346,8 @@ namespace RaccoonWarehouse.Data.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<decimal>("Amount")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<int?>("BranchId")
                         .HasColumnType("int");
@@ -1350,7 +1372,8 @@ namespace RaccoonWarehouse.Data.Migrations
                         .HasColumnType("int");
 
                     b.Property<decimal>("ExchangeRate")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<int?>("InvoiceId")
                         .HasColumnType("int");
@@ -1497,7 +1520,8 @@ namespace RaccoonWarehouse.Data.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<decimal>("BaseQuantity")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
@@ -1505,11 +1529,20 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Property<DateTime>("ExpiryDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<decimal>("FreeQuantity")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
                     b.Property<int>("InvoiceId")
                         .HasColumnType("int");
 
+                    b.Property<decimal>("LineDiscountAmount")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
                     b.Property<decimal>("LineSubTotal")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<string>("OriginalInvoiceId")
                         .HasColumnType("nvarchar(max)");
@@ -1521,31 +1554,39 @@ namespace RaccoonWarehouse.Data.Migrations
                         .HasColumnType("int");
 
                     b.Property<decimal>("Profit")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<decimal>("ProfitBeforeTax")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<decimal>("Quantity")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<decimal>("QuantityPerUnitSnapshot")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<decimal>("TaxAmount")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<bool>("TaxExempt")
                         .HasColumnType("bit");
 
                     b.Property<decimal>("TaxRate")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<decimal>("UnitCost")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<decimal>("UnitPrice")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<DateTime>("UpdatedDate")
                         .HasColumnType("datetime2");
@@ -1597,7 +1638,8 @@ namespace RaccoonWarehouse.Data.Migrations
                         .HasColumnType("int");
 
                     b.Property<decimal?>("DiscountAmount")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<DateTime?>("DocumentDate")
                         .HasColumnType("datetime2");
@@ -1606,10 +1648,18 @@ namespace RaccoonWarehouse.Data.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<decimal>("ExchangeRate")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<string>("FalconInvoiceNumber")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<decimal>("GrossProfit")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<string>("HeldColor")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("InvoiceNumber")
                         .IsRequired()
@@ -1622,7 +1672,8 @@ namespace RaccoonWarehouse.Data.Migrations
                         .HasColumnType("bit");
 
                     b.Property<decimal>("NetSales")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<string>("Notes")
                         .HasColumnType("nvarchar(max)");
@@ -1646,19 +1697,23 @@ namespace RaccoonWarehouse.Data.Migrations
                         .HasColumnType("int");
 
                     b.Property<decimal>("SubTotal")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<int?>("SupplierId")
                         .HasColumnType("int");
 
                     b.Property<decimal>("TotalAmount")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<decimal>("TotalCOGS")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<decimal>("TotalTax")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<int?>("UpdatedBy")
                         .HasColumnType("int");
@@ -1837,16 +1892,20 @@ namespace RaccoonWarehouse.Data.Migrations
                         .HasColumnType("int");
 
                     b.Property<decimal>("PurchasePrice")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<decimal>("QuantityPerUnit")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<decimal>("SalePrice")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<decimal>("UnTaxedPrice")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<int>("UnitId")
                         .HasColumnType("int");
@@ -1901,7 +1960,8 @@ namespace RaccoonWarehouse.Data.Migrations
                         .HasColumnType("bit");
 
                     b.Property<decimal?>("MiniQuantity")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<string>("Name")
                         .HasColumnType("nvarchar(max)");
@@ -1916,7 +1976,8 @@ namespace RaccoonWarehouse.Data.Migrations
                         .HasColumnType("bit");
 
                     b.Property<decimal?>("TaxRate")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<DateTime>("UpdatedDate")
                         .HasColumnType("datetime2");
@@ -2012,13 +2073,16 @@ namespace RaccoonWarehouse.Data.Migrations
                         .HasColumnType("int");
 
                     b.Property<decimal>("PurchasePrice")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<decimal>("Quantity")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<decimal>("SalePrice")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<DateTime>("UpdatedDate")
                         .HasColumnType("datetime2");
@@ -2052,7 +2116,8 @@ namespace RaccoonWarehouse.Data.Migrations
                         .HasColumnType("int");
 
                     b.Property<decimal>("BaseQuantityDelta")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
@@ -2070,13 +2135,16 @@ namespace RaccoonWarehouse.Data.Migrations
                         .HasColumnType("int");
 
                     b.Property<decimal?>("PurchasePrice")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<decimal>("QuantityDelta")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<decimal>("QuantityPerUnitSnapshot")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<string>("Reason")
                         .IsRequired()
@@ -2086,7 +2154,8 @@ namespace RaccoonWarehouse.Data.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<decimal?>("SalePrice")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<int>("StockLotId")
                         .HasColumnType("int");
@@ -2130,7 +2199,8 @@ namespace RaccoonWarehouse.Data.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<decimal?>("DiscountAmount")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<DateTime?>("DocumentDate")
                         .HasColumnType("datetime2");
@@ -2138,6 +2208,9 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Property<string>("DocumentNumber")
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("FalconInvoiceNumber")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Notes")
                         .HasColumnType("nvarchar(max)");
@@ -2185,13 +2258,22 @@ namespace RaccoonWarehouse.Data.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<decimal>("BaseQuantity")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
 
                     b.Property<DateTime?>("ExpiryDate")
                         .HasColumnType("datetime2");
+
+                    b.Property<decimal>("FreeQuantity")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<decimal>("LineDiscountAmount")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<int>("LineNumber")
                         .HasColumnType("int");
@@ -2203,16 +2285,20 @@ namespace RaccoonWarehouse.Data.Migrations
                         .HasColumnType("int");
 
                     b.Property<decimal>("PurchasePrice")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<decimal>("Quantity")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<decimal>("QuantityPerUnitSnapshot")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<decimal>("SalePrice")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<int>("StockDocumentId")
                         .HasColumnType("int")
@@ -2244,7 +2330,8 @@ namespace RaccoonWarehouse.Data.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<decimal>("BaseQuantity")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<int?>("ClosedByUserId")
                         .HasColumnType("int");
@@ -2271,19 +2358,24 @@ namespace RaccoonWarehouse.Data.Migrations
                         .HasColumnType("int");
 
                     b.Property<decimal>("PurchasePrice")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<decimal>("Quantity")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<decimal>("QuantityPerUnitSnapshot")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<decimal>("RemainingBaseQuantity")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<decimal>("RemainingQuantity")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<int?>("ReplacedByStockLotId")
                         .HasColumnType("int");
@@ -2292,7 +2384,8 @@ namespace RaccoonWarehouse.Data.Migrations
                         .HasColumnType("int");
 
                     b.Property<decimal>("SalePrice")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<int>("Status")
                         .HasColumnType("int");
@@ -2322,7 +2415,8 @@ namespace RaccoonWarehouse.Data.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<decimal>("BaseQuantity")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<int?>("BranchId")
                         .HasColumnType("int");
@@ -2358,10 +2452,12 @@ namespace RaccoonWarehouse.Data.Migrations
                         .HasColumnType("int");
 
                     b.Property<decimal>("Quantity")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<decimal>("QuantityPerUnitSnapshot")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<string>("ReferenceNumber")
                         .HasColumnType("nvarchar(max)");
@@ -2391,7 +2487,8 @@ namespace RaccoonWarehouse.Data.Migrations
                         .HasColumnType("int");
 
                     b.Property<decimal>("UnitPrice")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<DateTime>("UpdatedDate")
                         .HasColumnType("datetime2");
@@ -2484,7 +2581,8 @@ namespace RaccoonWarehouse.Data.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<decimal>("Rate")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<DateTime>("UpdatedDate")
                         .HasColumnType("datetime2");
@@ -2544,13 +2642,15 @@ namespace RaccoonWarehouse.Data.Migrations
                         .HasColumnType("int");
 
                     b.Property<decimal>("CreditLimit")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<int>("CreditStatus")
                         .HasColumnType("int");
 
                     b.Property<decimal>("CurrentBalance")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<DateTime?>("LastPaymentDate")
                         .HasColumnType("datetime2");
@@ -2560,7 +2660,8 @@ namespace RaccoonWarehouse.Data.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<decimal>("OpeningBalance")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<string>("Password")
                         .IsRequired()
@@ -2589,7 +2690,8 @@ namespace RaccoonWarehouse.Data.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<decimal>("Amount")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<int?>("BranchId")
                         .HasColumnType("int");
@@ -2613,7 +2715,8 @@ namespace RaccoonWarehouse.Data.Migrations
                         .HasColumnType("int");
 
                     b.Property<decimal>("ExchangeRate")
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<string>("Notes")
                         .HasColumnType("nvarchar(max)");

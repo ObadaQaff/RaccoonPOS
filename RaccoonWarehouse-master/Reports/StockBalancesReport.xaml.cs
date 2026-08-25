@@ -30,6 +30,7 @@ namespace RaccoonWarehouse.Reports
                 var rows = await _stockReportService.GetStockVarianceAsync();
                 StockBalancesGrid.ItemsSource = rows;
                 VarianceCountTextBlock.Text = rows.Count(x => x.VarianceQuantity != 0).ToString();
+                DisplayedQuantityTotalTextBlock.Text = rows.Sum(x => x.CurrentQuantity).ToString("N5");
             }
             catch (Exception ex)
             {

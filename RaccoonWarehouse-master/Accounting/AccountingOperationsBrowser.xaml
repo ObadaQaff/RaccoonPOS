@@ -17,8 +17,8 @@
         <Border Grid.Row="0" CornerRadius="0,0,24,24" Background="{StaticResource AppDashboardHeroBrush}">
             <Grid Margin="28,12,28,22">
                 <StackPanel VerticalAlignment="Center">
-                    <TextBlock x:Name="TitleText" Text="Accounting Operations" FontSize="34" FontWeight="Bold" Foreground="White"/>
-                    <TextBlock x:Name="SubtitleText" Margin="0,4,0,0" FontSize="13" Foreground="#D6E7E2" Text="Monitor accounting work created by sales and retry failures safely."/>
+                    <TextBlock x:Name="TitleText" Text="عمليات المحاسبة" FontSize="34" FontWeight="Bold" Foreground="White"/>
+                    <TextBlock x:Name="SubtitleText" Margin="0,4,0,0" FontSize="13" Foreground="#D6E7E2" Text="متابعة عمليات المحاسبة وإعادة محاولة العمليات الفاشلة بأمان."/>
                 </StackPanel>
             </Grid>
         </Border>
@@ -35,13 +35,13 @@
                         <Button Width="130" Height="40" Style="{StaticResource AppHeroButtonStyle}" Click="RefreshBtn_Click">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                 <fa:ImageAwesome Icon="Refresh" Width="15" Height="15" Margin="0,0,8,0" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
-                                <TextBlock x:Name="RefreshText" Text="Refresh"/>
+                                <TextBlock x:Name="RefreshText" Text="تحديث"/>
                             </StackPanel>
                         </Button>
                         <Button Width="145" Height="40" Margin="10,0,0,0" Style="{StaticResource AppHeroButtonStyle}" Click="ProcessNowBtn_Click">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                 <fa:ImageAwesome Icon="Play" Width="15" Height="15" Margin="0,0,8,0" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
-                                <TextBlock x:Name="ProcessNowText" Text="Process now"/>
+                                <TextBlock x:Name="ProcessNowText" Text="تنفيذ الآن"/>
                             </StackPanel>
                         </Button>
                         <Button Width="155" Height="40" Margin="10,0,0,0" Style="{StaticResource AppHeroButtonStyle}" Click="ApplyBatchBtn_Click">
@@ -51,13 +51,16 @@
                             </StackPanel>
                         </Button>
                         <Button Width="150" Height="40" Margin="10,0,0,0" Style="{StaticResource AppSecondaryButtonStyle}" Click="RetrySelectedBtn_Click">
-                            <TextBlock x:Name="RetrySelectedText" Text="Retry selected"/>
+                            <TextBlock x:Name="RetrySelectedText" Text="إعادة المحدد"/>
                         </Button>
                         <Button Width="150" Height="40" Margin="10,0,0,0" Style="{StaticResource AppSecondaryButtonStyle}" Click="RetryFailedBtn_Click">
-                            <TextBlock x:Name="RetryFailedText" Text="Retry failed"/>
+                            <TextBlock x:Name="RetryFailedText" Text="إعادة الفاشل"/>
+                        </Button>
+                        <Button Width="155" Height="40" Margin="10,0,0,0" Style="{StaticResource AppSecondaryButtonStyle}" Click="DeleteFailedBtn_Click">
+                            <TextBlock x:Name="DeleteFailedText" Text="Delete failed"/>
                         </Button>
                         <Button Width="110" Height="40" Margin="10,0,0,0" Style="{StaticResource AppSecondaryButtonStyle}" Click="CloseBtn_Click">
-                            <TextBlock x:Name="CloseText" Text="Close"/>
+                            <TextBlock x:Name="CloseText" Text="إغلاق"/>
                         </Button>
                     </StackPanel>
                     <TextBlock x:Name="SummaryText" VerticalAlignment="Center" FontSize="16" FontWeight="SemiBold"/>
@@ -73,14 +76,14 @@
                           ScrollViewer.VerticalScrollBarVisibility="Auto"
                           ScrollViewer.HorizontalScrollBarVisibility="Auto">
                     <DataGrid.Columns>
-                        <DataGridTextColumn Header="Status" Binding="{Binding StatusLabel}" Width="130"/>
-                        <DataGridTextColumn Header="Reference" Binding="{Binding ReferenceNumber}" Width="190"/>
-                        <DataGridTextColumn Header="Type" Binding="{Binding OperationType}" Width="230"/>
-                        <DataGridTextColumn Header="Reference ID" Binding="{Binding ReferenceId}" Width="110"/>
-                        <DataGridTextColumn Header="Retries" Binding="{Binding RetryCount}" Width="80"/>
-                        <DataGridTextColumn Header="Last attempt" Binding="{Binding LastAttemptDate, StringFormat=yyyy-MM-dd HH:mm:ss}" Width="170"/>
-                        <DataGridTextColumn Header="Updated" Binding="{Binding UpdatedDate, StringFormat=yyyy-MM-dd HH:mm:ss}" Width="170"/>
-                        <DataGridTextColumn Header="Error" Binding="{Binding LastError}" Width="*"/>
+                        <DataGridTextColumn Header="الحالة" Binding="{Binding StatusLabel}" Width="130"/>
+                        <DataGridTextColumn Header="المرجع" Binding="{Binding ReferenceNumber}" Width="190"/>
+                        <DataGridTextColumn Header="النوع" Binding="{Binding OperationTypeLabel}" Width="230"/>
+                        <DataGridTextColumn Header="رقم المرجع" Binding="{Binding ReferenceLabel}" Width="150"/>
+                        <DataGridTextColumn Header="المحاولات" Binding="{Binding RetryCount}" Width="80"/>
+                        <DataGridTextColumn Header="آخر محاولة" Binding="{Binding LastAttemptDate, StringFormat=yyyy-MM-dd HH:mm:ss}" Width="170"/>
+                        <DataGridTextColumn Header="التحديث" Binding="{Binding UpdatedDate, StringFormat=yyyy-MM-dd HH:mm:ss}" Width="170"/>
+                        <DataGridTextColumn Header="الخطأ" Binding="{Binding LastError}" Width="*"/>
                     </DataGrid.Columns>
                 </DataGrid>
             </Border>

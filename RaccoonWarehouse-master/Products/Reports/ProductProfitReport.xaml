@@ -242,7 +242,8 @@
                     Padding="10">
 
                 <DataGrid x:Name="ProductProfitGrid"
-                          Style="{StaticResource MinimalDataGrid}">
+                          Style="{StaticResource MinimalDataGrid}"
+                          MouseDoubleClick="ProductProfitGrid_MouseDoubleClick">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="كود" Binding="{Binding ITEMCODE}" Width="110"/>
                         <DataGridTextColumn Header="الصنف" Binding="{Binding ProductName}" Width="260"/>

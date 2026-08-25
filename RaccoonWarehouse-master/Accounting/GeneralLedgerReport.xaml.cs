@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Threading;
 
 namespace RaccoonWarehouse.Accounting
 {
@@ -55,6 +56,9 @@ namespace RaccoonWarehouse.Accounting
 
         private async Task LoadAccountsAsync()
         {
+            _loadingService.Show();
+            try
+            {
             var result = await _accountingService.GetAccountsAsync(activeOnly: true);
             if (!result.Success)
             {
@@ -65,6 +69,11 @@ namespace RaccoonWarehouse.Accounting
             Accounts.Clear();
             foreach (var account in result.Data.Where(x => x.IsPosting))
                 Accounts.Add(account);
+            }
+            finally
+            {
+                _loadingService.Hide();
+            }
         }
 
         private async void GenerateBtn_Click(object sender, RoutedEventArgs e)
@@ -100,6 +109,7 @@ namespace RaccoonWarehouse.Accounting
                 }
 
                 _loadingService.Show();
+                await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Render);
                 var accountId = AccountComboBox.SelectedValue is int selectedAccountId ? selectedAccountId : (int?)null;
                 var result = await _accountingService.GetGeneralLedgerAsync(new GeneralLedgerFilterDto
                 {
@@ -121,6 +131,9 @@ namespace RaccoonWarehouse.Accounting
                 OpeningText.Text = ledger?.OpeningBalance.ToString("N2") ?? "0.00";
                 ClosingText.Text = ledger?.ClosingBalance.ToString("N2") ?? "0.00";
                 LedgerGrid.ItemsSource = ledger?.Rows;
+                LedgerGrid.UpdateLayout();
+                await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Render);
+                await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
             }
             catch (Exception ex)
             {

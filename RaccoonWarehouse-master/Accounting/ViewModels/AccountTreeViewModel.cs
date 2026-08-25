@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
 using RaccoonWarehouse.Accounting.Services;
 using RaccoonWarehouse.Application.Service.Accounting;
+using RaccoonWarehouse.Common.Loading;
 using System;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -16,6 +17,7 @@ namespace RaccoonWarehouse.Accounting.ViewModels
         private readonly AccountService _accountService;
         private readonly IDialogService _dialogService;
         private readonly IServiceProvider _serviceProvider;
+        private readonly ILoadingService _loadingService;
 
         [ObservableProperty]
         private ObservableCollection<AccountTreeNode> rootAccounts = new();
@@ -29,11 +31,12 @@ namespace RaccoonWarehouse.Accounting.ViewModels
         [ObservableProperty]
         private string? selectedBalanceText;
 
-        public AccountTreeViewModel(AccountService accountService, IDialogService dialogService, IServiceProvider serviceProvider)
+        public AccountTreeViewModel(AccountService accountService, IDialogService dialogService, IServiceProvider serviceProvider, ILoadingService loadingService)
         {
             _accountService = accountService;
             _dialogService = dialogService;
             _serviceProvider = serviceProvider;
+            _loadingService = loadingService;
         }
 
         [RelayCommand]
@@ -203,12 +206,17 @@ namespace RaccoonWarehouse.Accounting.ViewModels
 
             try
             {
+                _loadingService.Show();
                 var balance = await _accountService.GetBalanceAsync(target.Id);
                 SelectedBalanceText = $"Debit: {balance.DebitBalance:N2} | Credit: {balance.CreditBalance:N2} | Net: {balance.NetBalance:N2}";
             }
             catch (System.Exception ex)
             {
                 MessageBox.Show($"Failed to load balance: {ex.Message}", "Error");
+            }
+            finally
+            {
+                _loadingService.Hide();
             }
         }
 

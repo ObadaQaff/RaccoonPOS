@@ -356,6 +356,16 @@ namespace RaccoonWarehouse.Application.Service.Stocks
 
             if (filter.ProductId.HasValue)
                 linesQ = linesQ.Where(l => l.ProductId == filter.ProductId.Value);
+            // Profit must be based on financially valid documents only.
+            // Draft, held, cancelled, unknown, and in-process documents must not affect P&L.
+            linesQ = linesQ.Where(l =>
+                l.Invoice!.InvoiceType != InvoiceType.EndpointOrder
+                    ? (l.Invoice.Status == null ||
+                       l.Invoice.Status == InvoiceStatus.Completed ||
+                       l.Invoice.Status == InvoiceStatus.Posted ||
+                       l.Invoice.Status == InvoiceStatus.Returned)
+                    : (l.Invoice.Status == InvoiceStatus.Completed ||
+                       l.Invoice.Status == InvoiceStatus.Posted));
 
             if (!filter.IncludeReturns)
                 linesQ = linesQ.Where(l => l.Invoice!.InvoiceType == InvoiceType.Sale);
@@ -674,7 +684,7 @@ namespace RaccoonWarehouse.Application.Service.Stocks
             var today = DateTime.Today;
             var lots = await lotRepo.GetAllAsQueryable()
                 .Where(l => l.RemainingQuantity > 0 &&
-                            (!l.ExpiryDate.HasValue || l.ExpiryDate.Value >= today))
+                            (!l.ExpiryDate.HasValue || l.ExpiryDate.Value <= DateTime.MinValue.AddDays(1) || l.ExpiryDate.Value >= today))
                 .ToListAsync();
 
             return lots
@@ -693,7 +703,7 @@ namespace RaccoonWarehouse.Application.Service.Stocks
             var today = DateTime.Today;
             var lots = await lotRepo.GetAllAsQueryable()
                 .Where(l => l.RemainingQuantity > 0 &&
-                            (!l.ExpiryDate.HasValue || l.ExpiryDate.Value >= today))
+                            (!l.ExpiryDate.HasValue || l.ExpiryDate.Value <= DateTime.MinValue.AddDays(1) || l.ExpiryDate.Value >= today))
                 .ToListAsync();
 
             return lots

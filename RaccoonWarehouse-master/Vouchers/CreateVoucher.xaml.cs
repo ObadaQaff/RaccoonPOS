@@ -294,6 +294,13 @@ namespace RaccoonWarehouse.Vouchers
                     return;
                 }
 
+                if (MessageBox.Show(
+                        UiText.T("هل تريد حفظ سند القبض؟", "Do you want to save the receipt voucher?"),
+                        UiText.T("تأكيد الحفظ", "Confirm save"),
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Question) != MessageBoxResult.Yes)
+                    return;
+
                 // Commit edits for checks
                 ChecksGrid.CommitEdit(DataGridEditingUnit.Cell, true);
                 ChecksGrid.CommitEdit(DataGridEditingUnit.Row, true);
@@ -471,6 +478,9 @@ namespace RaccoonWarehouse.Vouchers
 
         private void ClearFields()
         {
+            _currentVoucherId = null;
+            _originalChecks.Clear();
+
             // Reset voucher fields
             ReceiptNumber.Text = GenerateDocumentNumber();
             Amount.Text = string.Empty;
@@ -500,6 +510,12 @@ namespace RaccoonWarehouse.Vouchers
             ChecksGrid.Visibility = Visibility.Collapsed;
             AddCheckButton.Visibility = Visibility.Collapsed;
             UiText.ApplyTranslations(this);
+
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                Amount.Focus();
+                Amount.SelectAll();
+            }), System.Windows.Threading.DispatcherPriority.Input);
         }
 
 

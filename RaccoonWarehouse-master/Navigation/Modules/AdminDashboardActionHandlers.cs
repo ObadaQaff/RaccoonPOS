@@ -159,7 +159,8 @@ namespace RaccoonWarehouse.Navigation.Modules
                 "Accounting.GeneralLedger" or
                 "Accounting.BalanceSheet" or
                 "Accounting.CustomerDebts" or
-                "Accounting.SupplierPayables";
+                "Accounting.SupplierPayables" or
+                "Accounting.PartyBalances";
         }
 
         public Task ExecuteAsync(string actionKey, DashboardActionContext context)
@@ -195,6 +196,9 @@ namespace RaccoonWarehouse.Navigation.Modules
                     break;
                 case "Accounting.SupplierPayables":
                     context.OpenReportWindow(() => WindowManager.Show<PartyBalanceReport>(WindowSizeType.LargeRectangle, window => window.Initialize(RaccoonWarehouse.Domain.Enums.UserRole.Supplier)));
+                    break;
+                case "Accounting.PartyBalances":
+                    context.OpenReportWindow(() => WindowManager.Show<PartyBalanceReport>(WindowSizeType.LargeRectangle, window => window.InitializeCombined()));
                     break;
             }
 

@@ -48,7 +48,7 @@ namespace RaccoonWarehouse.Navigation.Modules
                                 new ModuleActionDefinition("Products.ItemCostDetails", UiText.T("تفاصيل تكلفة الأصناف", "Item Cost Details")),
                                 new ModuleActionDefinition("Products.ProfitReport", "أرباح الأصناف"),
                                 new ModuleActionDefinition("Products.InactiveReport", "اصناف لم تتحرك منذ مدة"),
-                                new ModuleActionDefinition("Stocks.BalancesReport", "الجرد والفرق"),
+                                new ModuleActionDefinition("Stocks.BalancesReport", "تقرير الجرد"),
                                 new ModuleActionDefinition("Stocks.LowStockReport", "بضائع تحت الحد الأدنى"),
                                 new ModuleActionDefinition("Stocks.MaterialMovementsReport", "التسويات المخزنية")
                             })

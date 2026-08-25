@@ -8,5 +8,6 @@ namespace RaccoonWarehouse.Domain.Reports.Accounting.Filters
         public DateTime AsOfDate { get; set; }
         public string? Search { get; set; }
         public bool OutstandingOnly { get; set; } = true;
+        public string BalanceFilter { get; set; } = "all";
     }
 }

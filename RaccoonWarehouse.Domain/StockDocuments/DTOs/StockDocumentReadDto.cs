@@ -17,6 +17,7 @@ namespace RaccoonWarehouse.Domain.StockDocuments.DTOs
     {
         public int Id { get; set; }
         public string DocumentNumber { get; set; } = string.Empty;
+        public string? FalconInvoiceNumber { get; set; }
         public StockVoucherType Type { get; set; }
         public int? SupplierId { get; set; }
         public int? WarehouseId { get; set; }

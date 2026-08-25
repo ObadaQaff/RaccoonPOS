@@ -98,6 +98,18 @@ namespace RaccoonWarehouse.Stocks
         {
             await LoadDataAsync();
         }
+
+
+
+
+        private void StockOut_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key != Key.F1)
+                return;
+
+            SaveStockOutBtn_Click(SaveStockOutBtn, new RoutedEventArgs());
+            e.Handled = true;
+        }
         private async Task LoadDataAsync()
         {
             var loadingShown = false;

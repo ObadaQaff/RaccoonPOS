@@ -11,6 +11,7 @@ using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 
 namespace RaccoonWarehouse.Accounting
 {
@@ -51,6 +52,29 @@ namespace RaccoonWarehouse.Accounting
             await LoadEntriesAsync();
         }
 
+        private async void SearchBox_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter)
+            {
+                e.Handled = true;
+                await LoadEntriesAsync();
+                return;
+            }
+
+            if (e.Key == Key.Down && Entries.Count > 0)
+            {
+                e.Handled = true;
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    JournalEntriesGrid.Focus();
+                    JournalEntriesGrid.SelectedItem = Entries[0];
+                    JournalEntriesGrid.CurrentCell = new DataGridCellInfo(Entries[0], JournalEntriesGrid.Columns[0]);
+                    JournalEntriesGrid.ScrollIntoView(Entries[0]);
+                    JournalEntriesGrid.UpdateLayout();
+                }), System.Windows.Threading.DispatcherPriority.Input);
+            }
+        }
+
         private async Task LoadEntriesAsync()
         {
             try
@@ -68,7 +92,8 @@ namespace RaccoonWarehouse.Accounting
                     From = FromDatePicker.SelectedDate?.Date,
                     To = ToDatePicker.SelectedDate?.Date.AddDays(1).AddTicks(-1),
                     Status = ParseStatus(StatusComboBox.SelectedItem as ComboBoxItem),
-                    ReferenceType = string.IsNullOrWhiteSpace(ReferenceTypeTextBox.Text) ? null : ReferenceTypeTextBox.Text.Trim()
+                    ReferenceSearch = string.IsNullOrWhiteSpace(ReferenceSearchTextBox.Text) ? null : ReferenceSearchTextBox.Text.Trim(),
+                    AccountSearch = string.IsNullOrWhiteSpace(AccountSearchTextBox.Text) ? null : AccountSearchTextBox.Text.Trim()
                 });
 
                 if (!result.Success)
@@ -80,6 +105,10 @@ namespace RaccoonWarehouse.Accounting
                 Entries.Clear();
                 foreach (var entry in result.Data)
                     Entries.Add(new JournalEntryListItem(entry));
+
+                ResultCountText.Text = string.Format(
+                    UiText.T("عدد النتائج: {0}", "Results: {0}"),
+                    Entries.Count);
 
                 if (Entries.Count == 0)
                 {
@@ -215,16 +244,20 @@ namespace RaccoonWarehouse.Accounting
                 Id = source.Id;
                 EntryNumber = source.EntryNumber;
                 EntryDate = source.EntryDate;
-                Description = source.Description;
+                Description = AccountingTextLocalizer.ToArabic(source.Description);
                 Status = source.Status;
                 ReferenceType = source.ReferenceType;
                 ReferenceId = source.ReferenceId;
                 TotalDebit = source.TotalDebit;
                 TotalCredit = source.TotalCredit;
+                foreach (var line in source.Lines)
+                    line.Description = AccountingTextLocalizer.ToArabic(line.Description);
                 Lines = source.Lines;
                 CreatedDate = source.CreatedDate;
                 UpdatedDate = source.UpdatedDate;
             }
+
+            public string ReferenceLabel => AccountingTextLocalizer.ReferenceLabel(ReferenceType, ReferenceId);
 
             public string StatusLabel => Status switch
             {

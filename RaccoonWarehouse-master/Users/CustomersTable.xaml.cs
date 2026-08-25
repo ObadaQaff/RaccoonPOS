@@ -1,5 +1,6 @@
 using RaccoonWarehouse.Application.Service.Permissions;
 using RaccoonWarehouse.Application.Service.Users;
+using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Users.DTOs;
 using RaccoonWarehouse.Helpers.Localization;
@@ -13,6 +14,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
+using System.Windows.Threading;
 
 namespace RaccoonWarehouse
 {
@@ -27,16 +29,18 @@ namespace RaccoonWarehouse
         private readonly IUserService _userService;
         private readonly IUserSession _userSession;
         private readonly IPermissionService _permissionService;
+        private readonly ILoadingService _loadingService;
         private bool _isLoaded;
         private readonly List<UserReadDto> _customers = new();
         private ICollectionView? _customersView;
         private UserReadDto? _selectedCustomer;
 
-        public CustomersTable(IUserService userService, IUserSession userSession, IPermissionService permissionService)
+        public CustomersTable(IUserService userService, IUserSession userSession, IPermissionService permissionService, ILoadingService loadingService)
         {
             _userService = userService;
             _userSession = userSession;
             _permissionService = permissionService;
+            _loadingService = loadingService;
 
             InitializeComponent();
             UiText.ApplyWindow(this);
@@ -90,6 +94,11 @@ namespace RaccoonWarehouse
 
         private async void LoadCustomers()
         {
+            try
+            {
+                _loadingService.Show();
+                await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Render);
+
             var role = _userSession.CurrentUser?.Role;
             if (!role.HasValue || !await _permissionService.HasPermissionAsync(role.Value, "Users.View"))
             {
@@ -111,6 +120,14 @@ namespace RaccoonWarehouse
                 CustomersGrid.SelectedIndex = 0;
             UpdateSelectedCustomerDetails(CustomersGrid.SelectedItem as UserReadDto);
             UpdateCounters();
+            CustomersGrid.UpdateLayout();
+            await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Render);
+            await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
+            }
+            finally
+            {
+                _loadingService.Hide();
+            }
         }
 
         private async void CreateCustomerBtn_Click(object sender, RoutedEventArgs e)

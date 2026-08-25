@@ -153,7 +153,6 @@ namespace RaccoonWarehouse.SubCategories
             var productsTable = ((App)System.Windows.Application.Current)
                 .ServiceProvider.GetRequiredService<ProductsTable>();
             productsTable.Owner = this;
-            productsTable.ApplySubCategoryFilter(selectedSubCategory.Id, selectedSubCategory.Name);
             productsTable.Show();
         }
 

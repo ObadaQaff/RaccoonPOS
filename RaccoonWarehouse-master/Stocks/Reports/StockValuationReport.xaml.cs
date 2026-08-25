@@ -1,5 +1,7 @@
 using RaccoonWarehouse.Application.Service.Stocks;
 using RaccoonWarehouse.Helpers.Localization;
+using RaccoonWarehouse.Navigation;
+using RaccoonWarehouse.Products;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
@@ -40,6 +42,12 @@ namespace RaccoonWarehouse.Stocks.Reports
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
             }
+        }
+
+        private void ValuationGrid_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (ValuationGrid.SelectedItem is RaccoonWarehouse.Domain.Reports.Stocks.Dtos.StockValuationRowDto row && row.ProductId > 0)
+                WindowManager.ShowDialog<UpdateProduct>(WindowSizeType.MediumRectangle, window => window.Initialize(row.ProductId));
         }
 
         private async void RefreshBtn_Click(object sender, RoutedEventArgs e)

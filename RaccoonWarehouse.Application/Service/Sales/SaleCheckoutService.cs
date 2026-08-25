@@ -12,6 +12,7 @@ using RaccoonWarehouse.Domain.StockTransactions.DTOs;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace RaccoonWarehouse.Application.Service.Sales
@@ -65,6 +66,35 @@ namespace RaccoonWarehouse.Application.Service.Sales
             await using var transaction = await _uow.BeginTransactionAsync();
             try
             {
+                // POS can retain an invoice id after a draft/held invoice was deleted or
+                // rolled back. Do not try to update a row that no longer exists.
+                if (request.Invoice.Id > 0)
+                {
+                    var existingInvoiceResult = await _invoiceService.GetAllWriteDtoWithFilteringAndIncludeAsync(
+                        invoice => invoice.Id == request.Invoice.Id);
+                    if (!existingInvoiceResult.Success || existingInvoiceResult.Data?.Any() != true)
+                        request.Invoice.Id = 0;
+                }
+
+                // A failed checkout can leave an unfinished draft inside the current transaction
+                // boundary. Reuse that draft on retry instead of attempting to create the same
+                // invoice number again. Completed/posted invoices are never reused here.
+                if (request.Invoice.Id <= 0
+                    && request.Invoice.IsPOS == true
+                    && !string.IsNullOrWhiteSpace(request.Invoice.InvoiceNumber))
+                {
+                    var draftResult = await _invoiceService.GetAllWriteDtoWithFilteringAndIncludeAsync(
+                        invoice => invoice.InvoiceNumber == request.Invoice.InvoiceNumber
+                            && invoice.IsPOS == true
+                            && invoice.CasherId == request.Invoice.CasherId
+                            && invoice.CashierSessionId == request.Invoice.CashierSessionId
+                            && (invoice.Status == InvoiceStatus.Draft || invoice.Status == InvoiceStatus.OnHold));
+
+                    var existingDraft = draftResult.Success ? draftResult.Data?.FirstOrDefault() : null;
+                    if (existingDraft != null)
+                        request.Invoice.Id = existingDraft.Id;
+                }
+
                 var invoiceResult = request.Invoice.Id > 0
                     ? await _invoiceService.UpdateAsync(request.Invoice)
                     : await _invoiceService.CreateAsync(request.Invoice);
@@ -145,7 +175,7 @@ namespace RaccoonWarehouse.Application.Service.Sales
         private static TransactionDirection ResolveDirection(InvoiceType invoiceType, decimal totalAmount)
         {
             if (invoiceType == InvoiceType.Return)
-                return TransactionDirection.Out;
+                return totalAmount >= 0 ? TransactionDirection.In : TransactionDirection.Out;
 
             if (invoiceType == InvoiceType.PurchaseReturn)
                 return TransactionDirection.In;

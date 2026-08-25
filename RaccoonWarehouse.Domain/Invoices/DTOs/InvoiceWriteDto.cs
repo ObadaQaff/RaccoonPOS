@@ -19,6 +19,7 @@ namespace RaccoonWarehouse.Domain.Invoices.DTOs
     {
         public int Id { get; set; }
         public string InvoiceNumber { get; set; }
+        public string? FalconInvoiceNumber { get; set; }
         public string? OriginalInvoiceId { get; set; }
         public InvoiceType InvoiceType { get; set; }
         public PaymentType? PaymentType { get; set; }
@@ -43,7 +44,9 @@ namespace RaccoonWarehouse.Domain.Invoices.DTOs
         public bool? IsPOS { get; set; }
         public DateTime? OpenedAt { get; set; }
         public DateTime? ClosedAt { get; set; }
+        public string? HeldColor { get; set; }
         public decimal? DiscountAmount { get; set; }
+        public bool CostPriceIncludesTax { get; set; } = true;
         public decimal SubTotal { get; set; }          // مجموع السطور قبل الخصم/الضريبة
         public decimal TotalTax { get; set; }          // إجمالي الضريبة
         public decimal? NetTotal => SubTotal - DiscountAmount + TotalTax; // optional (computed)

@@ -37,6 +37,8 @@ namespace RaccoonWarehouse.Products
         private readonly IStockService _stockService;
 
         private int _productId;
+        private bool _isInitializing;
+        private bool _isSaving;
         private List<ProductUnitWriteDto> _productUnits = new();
         private List<UnitLookupItem> _unitLookupItems = new();
         public ObservableCollection<ProductMovementRow> ProductMovements { get; } = new();
@@ -73,7 +75,25 @@ namespace RaccoonWarehouse.Products
         public async Task Initialize(int id)
         {
             _productId = id;
-            await LoadDataAsync();
+            _isInitializing = true;
+            SetEditorEnabled(false);
+            try
+            {
+                await LoadDataAsync();
+            }
+            finally
+            {
+                _isInitializing = false;
+                SetEditorEnabled(true);
+            }
+        }
+
+        private void SetEditorEnabled(bool enabled)
+        {
+            if (UpdateButton != null)
+                UpdateButton.IsEnabled = enabled && !_isSaving;
+            if (AddUnitButton != null)
+                AddUnitButton.IsEnabled = enabled && !_isSaving;
         }
 
         private async Task LoadDataAsync()
@@ -117,6 +137,7 @@ namespace RaccoonWarehouse.Products
                 var units = await _productUnitService.GetAllWriteDtoWithFilteringAndIncludeAsync(pu => pu.ProductId == _productId, pu => pu.Unit);
                 _productUnits = units.Data?.ToList() ?? new List<ProductUnitWriteDto>();
                 NormalizeUnitFlags(_productUnits);
+                await LoadUnitCostDisplaysAsync(product.Data.TaxExempt, product.Data.TaxRate);
                 RebuildUnitsPanel();
                 await LoadCurrentStockSummaryAsync();
                 await LoadProductMovementsAsync();
@@ -263,11 +284,71 @@ namespace RaccoonWarehouse.Products
 
         private void RebuildUnitsPanel()
         {
+            UnitCostSummaryStackPanel.Children.Clear();
             UnitsStackPanel.Children.Clear();
+            AddProductCostSummary();
             foreach (var unit in _productUnits)
                 AddUnitRow(unit);
 
+            UiText.ApplyTranslations(UnitCostSummaryStackPanel);
             UiText.ApplyTranslations(UnitsStackPanel);
+        }
+
+        private void AddProductCostSummary()
+        {
+            var costUnit = _productUnits.FirstOrDefault(unit => unit.IsDefaultPurchaseUnit)
+                ?? _productUnits.FirstOrDefault(unit => unit.IsBaseUnit)
+                ?? _productUnits.FirstOrDefault();
+            var saleUnit = _productUnits.FirstOrDefault(unit => unit.IsDefaultSaleUnit)
+                ?? costUnit;
+
+            if (costUnit == null)
+                return;
+
+            var row = new WrapPanel
+            {
+                Margin = new Thickness(0, 0, 0, 8),
+                FlowDirection = UiText.CurrentFlowDirection
+            };
+
+            row.Children.Add(CreateReadOnlyUnitPanel(UiText.T("آخر تكلفة بدون ضريبة", "Last cost without tax"), costUnit.LastCostWithoutTax.ToString("0.000"), 160));
+            row.Children.Add(CreateReadOnlyUnitPanel(UiText.T("متوسط التكلفة بدون ضريبة", "Average cost without tax"), costUnit.AverageCostWithoutTax.ToString("0.000"), 170));
+            row.Children.Add(CreateReadOnlyUnitPanel(UiText.T("متوسط التكلفة شامل الضريبة", "Average cost incl. tax"), costUnit.AverageCostIncludingTax.ToString("0.000"), 170));
+            row.Children.Add(CreateReadOnlyUnitPanel(UiText.T("سعر البيع الحالي", "Current sale price"), (saleUnit?.SalePrice ?? 0m).ToString("0.000"), 150));
+
+            UnitCostSummaryStackPanel.Children.Add(row);
+        }
+
+        private async Task LoadUnitCostDisplaysAsync(bool? taxExempt, decimal? taxRate)
+        {
+            var batchesResult = await _stockService.GetBatchLookupAsync(_productId);
+            var latestCostByUnit = (batchesResult.Data ?? new List<StockBatchLookupDto>())
+                .Where(batch => batch.PurchasePrice > 0)
+                .GroupBy(batch => batch.ProductUnitId)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group.OrderByDescending(batch => batch.CreatedDate).First().PurchasePrice);
+
+            foreach (var unit in _productUnits)
+            {
+                unit.AverageCostWithoutTax = Math.Round(Math.Max(unit.PurchasePrice, 0m), 3);
+                unit.CostWithoutTax = unit.AverageCostWithoutTax;
+                unit.AverageCostIncludingTax = ToTaxInclusiveCost(unit.PurchasePrice, taxExempt, taxRate);
+                unit.LastCostIncludingTax = latestCostByUnit.TryGetValue(unit.Id, out var lastCost)
+                    ? ToTaxInclusiveCost(lastCost, taxExempt, taxRate)
+                    : 0m;
+                unit.LastCostWithoutTax = latestCostByUnit.TryGetValue(unit.Id, out lastCost)
+                    ? Math.Round(Math.Max(lastCost, 0m), 3)
+                    : 0m;
+            }
+        }
+
+        private static decimal ToTaxInclusiveCost(decimal cost, bool? taxExempt, decimal? taxRate)
+        {
+            if (cost <= 0 || taxExempt == true)
+                return Math.Round(Math.Max(cost, 0m), 3);
+
+            return Math.Round(Math.Max(cost, 0m) * (1m + taxRate.GetValueOrDefault() / 100m), 3);
         }
 
         private void AddUnitRow(ProductUnitWriteDto unit)
@@ -406,6 +487,9 @@ namespace RaccoonWarehouse.Products
 
         private async void AddUnit_Click(object sender, RoutedEventArgs e)
         {
+            if (_isInitializing || _isSaving)
+                return;
+
             if (!decimal.TryParse(SalePriceTextBox.Text, out var salePrice) ||
                 !decimal.TryParse(PurchasePriceTextBox.Text, out var purchasePrice) ||
                 !decimal.TryParse(QuantityPerUnitTextBox.Text, out var qty) ||
@@ -458,6 +542,11 @@ namespace RaccoonWarehouse.Products
 
         private async void Update_Click(object sender, RoutedEventArgs e)
         {
+            if (_isInitializing || _isSaving)
+                return;
+
+            _isSaving = true;
+            SetEditorEnabled(false);
             try
             {
                 var productDto = new ProductWriteDto
@@ -493,6 +582,11 @@ namespace RaccoonWarehouse.Products
             {
                 MessageBox.Show($"{UiText.T("خطأ", "Error")}: {ex.Message}");
             }
+            finally
+            {
+                _isSaving = false;
+                SetEditorEnabled(!_isInitializing);
+            }
         }
 
         private List<ProductUnitWriteDto> CollectUnitsFromUI()
@@ -527,6 +621,8 @@ namespace RaccoonWarehouse.Products
 
                 unit.SalePrice = sale;
                 unit.PurchasePrice = purchase;
+                unit.AverageCostWithoutTax = Math.Round(Math.Max(purchase, 0m), 3);
+                unit.CostWithoutTax = Math.Round(Math.Max(purchase, 0m), 3);
                 unit.QuantityPerUnit = qty;
                 unit.AlternateBarcode = string.IsNullOrWhiteSpace(alternateBarcodeBox.Text) ? null : alternateBarcodeBox.Text.Trim();
                 unit.IsBaseUnit = baseCheck.IsChecked == true;

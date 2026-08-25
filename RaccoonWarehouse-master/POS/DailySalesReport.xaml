@@ -220,6 +220,22 @@
                     <DataGridTextColumn Header="التاريخ" Binding="{Binding Date}" Width="190"/>
                     <DataGridTextColumn Header="النوع" Binding="{Binding DocumentTypeText}" Width="150"/>
                     <DataGridTextColumn Header="رقم المستند" Binding="{Binding DocumentNumber}" Width="170"/>
+                    <DataGridTemplateColumn Header="Falcon No. / رقم فالكون" Width="190">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                    <TextBlock Text="{Binding FalconInvoiceNumber}"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,8,0"/>
+                                    <Button Content="Copy"
+                                            Padding="8,2"
+                                            Tag="{Binding}"
+                                            Click="CopyFalconInvoiceNumber_Click"
+                                            IsEnabled="{Binding HasFalconInvoiceNumber}"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
                     <DataGridTextColumn Header="Customer" Binding="{Binding CustomerName}" Width="170"/>
                     <DataGridTemplateColumn Header="Copy" Width="85">
                         <DataGridTemplateColumn.CellTemplate>

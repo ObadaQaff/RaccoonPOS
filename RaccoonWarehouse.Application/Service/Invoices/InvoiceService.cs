@@ -82,6 +82,9 @@ namespace RaccoonWarehouse.Application.Service.Invoices
 
                 if (dto.InvoiceLines == null || !dto.InvoiceLines.Any())
                     return Result<InvoiceWriteDto>.Fail("Invoice must contain at least one line.");
+                if (dto.InvoiceType == InvoiceType.PurchaseReturn
+                    && !dto.InvoiceLines.Any(line => line.ProductId > 0 && line.ProductUnitId > 0 && line.Quantity < 0))
+                    return Result<InvoiceWriteDto>.Fail("Purchase return must contain at least one returned quantity.");
                 if (dto.InvoiceType == InvoiceType.Purchase && dto.InvoiceLines.Any(line => line.ExpiryDate == default))
                     return Result<InvoiceWriteDto>.Fail("Expiry date is required for every purchase invoice line.");
                 var partyValidation = ValidateCreditParty(dto);
@@ -97,28 +100,42 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 // 1) احسب قيم السطور (Tax/Cost/Profit) قبل الحفظ
                 foreach (var l in dto.InvoiceLines)
                 {
-                    var lineTotal = l.Quantity * l.UnitPrice;
+                    var grossLineTotal = GetGrossLineTotal(dto.InvoiceType, l.Quantity, l.UnitPrice);
+                    l.LineDiscountAmount = Math.Clamp(l.LineDiscountAmount, 0m, grossLineTotal);
+                    l.FreeQuantity = Math.Max(0m, l.FreeQuantity);
+                    var lineTotal = grossLineTotal - l.LineDiscountAmount;
                     var taxRate = l.TaxExempt ? 0m : l.TaxRate;
-                    var divisor = 1m + (taxRate / 100m);
+                    var isPurchaseInvoice = dto.InvoiceType is InvoiceType.Purchase or InvoiceType.PurchaseReturn;
+                    var includesTax = isPurchaseInvoice && dto.CostPriceIncludesTax;
+                    var divisor = includesTax ? 1m + (taxRate / 100m) : 1m;
 
                     l.LineSubTotal = l.TaxExempt || divisor <= 0m
                         ? lineTotal
                         : Math.Round(lineTotal / divisor, 3);
-                    l.TaxAmount = Math.Round(lineTotal - l.LineSubTotal, 3);
+                    l.TaxAmount = includesTax ? Math.Round(lineTotal - l.LineSubTotal, 3) : 0m;
 
-                    var costTotal = l.Quantity * l.UnitCost;
+                    var costTotal = l.Quantity * CalculateEffectivePurchaseCost(l.UnitCost, l.TaxRate, l.TaxExempt, includesTax);
                     var profitBeforeTax = l.LineSubTotal - costTotal;
 
                     l.ProfitBeforeTax = profitBeforeTax;
                     l.Profit = profitBeforeTax;
                 }
 
+                if (dto.InvoiceType is InvoiceType.Purchase or InvoiceType.PurchaseReturn)
+                    ApplyPurchaseDiscountAndTax(dto.InvoiceLines, dto.DiscountAmount, dto.CostPriceIncludesTax);
+
                 // 2) احسب قيم الفاتورة
                 var grossSales = dto.InvoiceLines.Sum(x => x.Quantity * x.UnitPrice);
                 dto.SubTotal = dto.InvoiceLines.Sum(x => x.LineSubTotal);
                 dto.TotalTax = dto.InvoiceLines.Sum(x => x.TaxAmount);
-                dto.TotalAmount = grossSales - (dto.DiscountAmount ?? 0m);
-                dto.TotalCOGS = dto.InvoiceLines.Sum(x => x.CostTotal);
+                dto.TotalAmount = dto.InvoiceType is InvoiceType.Purchase or InvoiceType.PurchaseReturn
+                    ? dto.SubTotal - (dto.DiscountAmount ?? 0m) + dto.TotalTax
+                    : grossSales - (dto.DiscountAmount ?? 0m);
+                dto.TotalCOGS = dto.InvoiceLines.Sum(x => x.Quantity * CalculateEffectivePurchaseCost(
+                    x.UnitCost,
+                    x.TaxRate,
+                    x.TaxExempt,
+                    (dto.InvoiceType is InvoiceType.Purchase or InvoiceType.PurchaseReturn) && dto.CostPriceIncludesTax));
                 dto.NetSales = dto.SubTotal - (dto.DiscountAmount ?? 0m); // قبل الضريبة
                 dto.GrossProfit = dto.NetSales - dto.TotalCOGS;
                 LogInvoiceTiming("invoice line normalization and totals", totalTiming, stepTiming);
@@ -203,6 +220,9 @@ namespace RaccoonWarehouse.Application.Service.Invoices
 
                 if (dto.InvoiceLines == null || !dto.InvoiceLines.Any())
                     return Result<InvoiceWriteDto>.Fail("Invoice must contain at least one line.");
+                if (dto.InvoiceType == InvoiceType.PurchaseReturn
+                    && !dto.InvoiceLines.Any(line => line.ProductId > 0 && line.ProductUnitId > 0 && line.Quantity < 0))
+                    return Result<InvoiceWriteDto>.Fail("Purchase return must contain at least one returned quantity.");
                 if (dto.InvoiceType == InvoiceType.Purchase && dto.InvoiceLines.Any(line => line.ExpiryDate == default))
                     return Result<InvoiceWriteDto>.Fail("Expiry date is required for every purchase invoice line.");
                 var partyValidation = ValidateCreditParty(dto);
@@ -218,6 +238,16 @@ namespace RaccoonWarehouse.Application.Service.Invoices
 
                 if (existingInvoice == null)
                     return Result<InvoiceWriteDto>.Fail("Invoice not found.");
+
+                if (!int.TryParse(dto.InvoiceNumber, out var invoiceNumber) || invoiceNumber < 100 || invoiceNumber > 99999)
+                    return Result<InvoiceWriteDto>.Fail("Invoice number must contain 3 to 5 digits / رقم الفاتورة يجب أن يتكون من 3 إلى 5 أرقام.");
+
+                // Invoice numbers are global because all invoice types share the Invoice table.
+                // Updating an invoice must not allow it to take another invoice's number.
+                var invoiceNumberUsedByAnotherInvoice = await invoiceRepo.GetAllAsQueryable()
+                    .AnyAsync(invoice => invoice.InvoiceNumber == dto.InvoiceNumber && invoice.Id != dto.Id);
+                if (invoiceNumberUsedByAnotherInvoice)
+                    return Result<InvoiceWriteDto>.Fail("Invoice number already exists / رقم الفاتورة موجود مسبقاً.");
 
                 var returnPaymentValidation = await ValidateReturnPaymentTermsAsync(dto, invoiceRepo);
                 if (returnPaymentValidation != null)
@@ -403,6 +433,8 @@ namespace RaccoonWarehouse.Application.Service.Invoices
 
                 line.QuantityPerUnitSnapshot = factor;
                 line.BaseQuantity = line.Quantity * factor;
+                line.FreeQuantity = Math.Max(0m, line.FreeQuantity);
+                line.LineDiscountAmount = Math.Max(0m, line.LineDiscountAmount);
             }
         }
 
@@ -410,25 +442,39 @@ namespace RaccoonWarehouse.Application.Service.Invoices
         {
             foreach (var l in dto.InvoiceLines!)
             {
-                var lineTotal = l.Quantity * l.UnitPrice;
+                var grossLineTotal = GetGrossLineTotal(dto.InvoiceType, l.Quantity, l.UnitPrice);
+                l.LineDiscountAmount = Math.Clamp(l.LineDiscountAmount, 0m, grossLineTotal);
+                l.FreeQuantity = Math.Max(0m, l.FreeQuantity);
+                var lineTotal = grossLineTotal - l.LineDiscountAmount;
                 var taxRate = l.TaxExempt ? 0m : l.TaxRate;
-                var divisor = 1m + (taxRate / 100m);
+                var isPurchaseInvoice = dto.InvoiceType is InvoiceType.Purchase or InvoiceType.PurchaseReturn;
+                var includesTax = isPurchaseInvoice && dto.CostPriceIncludesTax;
+                var divisor = includesTax ? 1m + (taxRate / 100m) : 1m;
 
                 l.LineSubTotal = l.TaxExempt || divisor <= 0m
                     ? lineTotal
                     : Math.Round(lineTotal / divisor, 3);
-                l.TaxAmount = Math.Round(lineTotal - l.LineSubTotal, 3);
+                l.TaxAmount = includesTax ? Math.Round(lineTotal - l.LineSubTotal, 3) : 0m;
 
-                var costTotal = l.Quantity * l.UnitCost;
+                var costTotal = l.Quantity * CalculateEffectivePurchaseCost(l.UnitCost, l.TaxRate, l.TaxExempt, includesTax);
                 l.ProfitBeforeTax = l.LineSubTotal - costTotal;
                 l.Profit = l.ProfitBeforeTax;
             }
 
+            if (dto.InvoiceType is InvoiceType.Purchase or InvoiceType.PurchaseReturn)
+                ApplyPurchaseDiscountAndTax(dto.InvoiceLines!, dto.DiscountAmount, dto.CostPriceIncludesTax);
+
             var grossSales = dto.InvoiceLines.Sum(x => x.Quantity * x.UnitPrice);
             dto.SubTotal = dto.InvoiceLines.Sum(x => x.LineSubTotal);
             dto.TotalTax = dto.InvoiceLines.Sum(x => x.TaxAmount);
-            dto.TotalAmount = grossSales - (dto.DiscountAmount ?? 0m);
-            dto.TotalCOGS = dto.InvoiceLines.Sum(x => x.CostTotal);
+            dto.TotalAmount = dto.InvoiceType is InvoiceType.Purchase or InvoiceType.PurchaseReturn
+                ? dto.SubTotal - (dto.DiscountAmount ?? 0m) + dto.TotalTax
+                : grossSales - (dto.DiscountAmount ?? 0m);
+            dto.TotalCOGS = dto.InvoiceLines.Sum(x => x.Quantity * CalculateEffectivePurchaseCost(
+                x.UnitCost,
+                x.TaxRate,
+                x.TaxExempt,
+                (dto.InvoiceType is InvoiceType.Purchase or InvoiceType.PurchaseReturn) && dto.CostPriceIncludesTax));
             dto.NetSales = dto.SubTotal - (dto.DiscountAmount ?? 0m);
             dto.GrossProfit = dto.NetSales - dto.TotalCOGS;
             dto.CreatedDate = originalCreatedDate == default ? DateTime.Now : originalCreatedDate;
@@ -446,18 +492,26 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 var factor = line.QuantityPerUnitSnapshot > 0 ? line.QuantityPerUnitSnapshot : 1m;
                 line.QuantityPerUnitSnapshot = factor;
                 line.BaseQuantity = line.Quantity * factor;
-                var lineTotal = line.Quantity * line.UnitPrice;
+                var grossLineTotal = GetGrossLineTotal(invoice.InvoiceType, line.Quantity, line.UnitPrice);
+                line.LineDiscountAmount = Math.Clamp(line.LineDiscountAmount, 0m, grossLineTotal);
+                line.FreeQuantity = Math.Max(0m, line.FreeQuantity);
+                var lineTotal = grossLineTotal - line.LineDiscountAmount;
                 var rate = line.TaxExempt ? 0m : line.TaxRate;
-                var divisor = 1m + (rate / 100m);
+                var isPurchaseInvoice = invoice.InvoiceType is InvoiceType.Purchase or InvoiceType.PurchaseReturn;
+                var includesTax = isPurchaseInvoice && invoice.CostPriceIncludesTax;
+                var divisor = includesTax ? 1m + (rate / 100m) : 1m;
                 line.LineSubTotal = line.TaxExempt || divisor <= 0m
                     ? lineTotal
                     : Math.Round(lineTotal / divisor, 3);
-                line.TaxAmount = Math.Round(lineTotal - line.LineSubTotal, 3);
+                line.TaxAmount = includesTax ? Math.Round(lineTotal - line.LineSubTotal, 3) : 0m;
 
-                var costTotal = line.Quantity * line.UnitCost;
+                var costTotal = line.Quantity * CalculateEffectivePurchaseCost(line.UnitCost, line.TaxRate, line.TaxExempt, includesTax);
                 line.ProfitBeforeTax = line.LineSubTotal - costTotal;
                 line.Profit = line.ProfitBeforeTax;
             }
+
+            if (invoice.InvoiceType is InvoiceType.Purchase or InvoiceType.PurchaseReturn)
+                ApplyPurchaseDiscountAndTax(invoice.InvoiceLines, invoice.DiscountAmount, invoice.CostPriceIncludesTax);
 
             // 2) Invoice totals
             var grossSales = invoice.InvoiceLines.Sum(l => l.Quantity * l.UnitPrice);
@@ -466,13 +520,65 @@ namespace RaccoonWarehouse.Application.Service.Invoices
 
             var discount = invoice.DiscountAmount ?? 0m;
 
-            invoice.TotalCOGS = invoice.InvoiceLines.Sum(l => l.Quantity * l.UnitCost);
+            invoice.TotalCOGS = invoice.InvoiceLines.Sum(l => l.Quantity * CalculateEffectivePurchaseCost(l.UnitCost, l.TaxRate, l.TaxExempt, (invoice.InvoiceType is InvoiceType.Purchase or InvoiceType.PurchaseReturn) && invoice.CostPriceIncludesTax));
 
             invoice.NetSales = invoice.SubTotal - discount;             // قبل الضريبة
             invoice.GrossProfit = invoice.NetSales - invoice.TotalCOGS; // الربح
 
-            invoice.TotalAmount = grossSales - discount;  // النهائي شامل الضريبة
+            invoice.TotalAmount = invoice.InvoiceType is InvoiceType.Purchase or InvoiceType.PurchaseReturn
+                ? invoice.SubTotal - discount + invoice.TotalTax
+                : grossSales - discount;  // النهائي شامل الضريبة
         }
+        private static void ApplyPurchaseDiscountAndTax(ICollection<InvoiceLineWriteDto> lines, decimal? discountAmount, bool costPriceIncludesTax)
+        {
+            var subtotal = Math.Round(lines.Sum(line => line.LineSubTotal), 3);
+            var discount = Math.Clamp(discountAmount ?? 0m, 0m, subtotal);
+            var taxableRatio = subtotal > 0m ? (subtotal - discount) / subtotal : 0m;
+
+            foreach (var line in lines)
+            {
+                var taxBeforeInvoiceDiscount = costPriceIncludesTax
+                    ? line.TaxAmount
+                    : line.LineSubTotal * line.TaxRate / 100m;
+                line.TaxAmount = line.TaxExempt || line.TaxRate <= 0m
+                    ? 0m
+                    : Math.Round(taxBeforeInvoiceDiscount * taxableRatio, 3);
+            }
+        }
+
+        private static void ApplyPurchaseDiscountAndTax(ICollection<InvoiceLine> lines, decimal? discountAmount, bool costPriceIncludesTax)
+        {
+            var subtotal = Math.Round(lines.Sum(line => line.LineSubTotal), 3);
+            var discount = Math.Clamp(discountAmount ?? 0m, 0m, subtotal);
+            var taxableRatio = subtotal > 0m ? (subtotal - discount) / subtotal : 0m;
+
+            foreach (var line in lines)
+            {
+                var taxBeforeInvoiceDiscount = costPriceIncludesTax
+                    ? line.TaxAmount
+                    : line.LineSubTotal * line.TaxRate / 100m;
+                line.TaxAmount = line.TaxExempt || line.TaxRate <= 0m
+                    ? 0m
+                    : Math.Round(taxBeforeInvoiceDiscount * taxableRatio, 3);
+            }
+        }
+
+        private static decimal GetGrossLineTotal(InvoiceType invoiceType, decimal quantity, decimal unitPrice)
+        {
+            var gross = quantity * unitPrice;
+            return invoiceType == InvoiceType.PurchaseReturn
+                ? Math.Abs(gross)
+                : Math.Max(0m, gross);
+        }
+
+        private static decimal CalculateEffectivePurchaseCost(decimal unitCost, decimal taxRate, bool taxExempt, bool costPriceIncludesTax)
+        {
+            if (!costPriceIncludesTax || taxExempt || taxRate <= 0m)
+                return unitCost;
+
+            return Math.Round(unitCost / (1m + taxRate / 100m), 3);
+        }
+
         public async Task<InvoiceReadDto?> GetFullInvoiceByIdAsync(int id)
         {
             var query = _uow.Invoices.GetAllAsQueryable()
@@ -604,6 +710,9 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                     .GetAllAsQueryable()
                     .Include(i => i.InvoiceLines)
                         .ThenInclude(l => l.Product)
+                    .Include(i => i.InvoiceLines)
+                        .ThenInclude(l => l.ProductUnit)
+                            .ThenInclude(pu => pu.Unit)
                     .Include(i => i.User)
                     .Where(i =>
                         i.IsPOS == true &&
@@ -643,6 +752,9 @@ namespace RaccoonWarehouse.Application.Service.Invoices
             if (filter.CashierId.HasValue)
                 invoicesQ = invoicesQ.Where(x => x.CasherId == filter.CashierId.Value);
 
+            if (filter.PaymentType.HasValue)
+                invoicesQ = invoicesQ.Where(x => x.PaymentType == filter.PaymentType.Value);
+
             if (type.HasValue)
                 invoicesQ = invoicesQ.Where(x => x.InvoiceType == type.Value);
             else if (filter.IncludeReturns)
@@ -657,6 +769,11 @@ namespace RaccoonWarehouse.Application.Service.Invoices
 
             if (isPOS.HasValue)
                 invoicesQ = invoicesQ.Where(x => x.IsPOS == isPOS.Value);
+
+            // Sales reports must contain only finalized invoices.
+            invoicesQ = invoicesQ.Where(x =>
+                x.Status == InvoiceStatus.Completed ||
+                x.Status == InvoiceStatus.Posted);
 
             // ✅ rows
             var invoiceIds = await invoicesQ.Select(x => x.Id).ToListAsync();

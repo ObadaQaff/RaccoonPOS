@@ -66,10 +66,6 @@ using System.Windows.Markup;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 #endregion
-
-
-
-
 namespace RaccoonWarehouse.Invoices
 {
     public partial class POS : Window
@@ -107,7 +103,9 @@ namespace RaccoonWarehouse.Invoices
             }
 
             public decimal ReturnableQuantity { get; set; }
-            public new decimal LineTotal => ReturnedQuantity * UnitPrice;
+            // Return quantities are entered as positive user input, but the
+            // displayed line amount must clearly represent an outgoing return.
+            public new decimal LineTotal => -(ReturnedQuantity * UnitPrice);
 
             public static ReturnInvoiceLine FromSnapshot(InvoiceLineWriteDto snapshot, decimal originalQuantity, decimal returnableQuantity)
             {
@@ -132,8 +130,18 @@ namespace RaccoonWarehouse.Invoices
                     ReturnableQuantity = returnableQuantity
                 };
 
-                line.baseQuantityForReturn = 0m;
+                // Keep the original invoice quantity visible, but require the
+                // user to enter the quantity that should actually be returned.
+                var baseLine = (InvoiceLineWriteDto)line;
+                baseLine.Quantity = originalQuantity;
+                baseLine.LineSubTotal = 0m;
+                baseLine.TaxAmount = 0m;
+                baseLine.ProfitBeforeTax = 0m;
+                baseLine.Profit = 0m;
+                line.baseQuantityForReturn = originalQuantity *
+                    (line.QuantityPerUnitSnapshot > 0 ? line.QuantityPerUnitSnapshot : 1m);
                 line.Quantity = originalQuantity;
+                line.ReturnedQuantity = 0m;
                 return line;
             }
 
@@ -232,6 +240,12 @@ namespace RaccoonWarehouse.Invoices
         {
             Dispatcher.BeginInvoke(() =>
             {
+                if (_currentInvoice.InvoiceType is InvoiceType.Return or InvoiceType.PurchaseReturn)
+                {
+                    FocusFirstReturnQuantityCell();
+                    return;
+                }
+
                 var barcodeColumn = GetBarcodeColumn(InvoiceGrid);
                 if (barcodeColumn == null)
                     return;
@@ -239,6 +253,29 @@ namespace RaccoonWarehouse.Invoices
                 var emptyLine = EnsureEmptyBarcodeLine();
                 MoveGridFocusToCell(InvoiceGrid, emptyLine, barcodeColumn);
             }, System.Windows.Threading.DispatcherPriority.Input);
+        }
+
+        private void RefreshInvoiceGridAfterEdit()
+        {
+            Dispatcher.BeginInvoke(() =>
+            {
+                try
+                {
+                    if (InvoiceGrid.Items is IEditableCollectionView editableView &&
+                        (editableView.IsAddingNew || editableView.IsEditingItem))
+                    {
+                        return;
+                    }
+
+                    InvoiceGrid.Items.Refresh();
+                }
+                catch (InvalidOperationException)
+                {
+                    // The collection can still be completing an AddNew/EditItem
+                    // transaction after the product-search callback returns.
+                    // The collection change is already visible, so no refresh is required.
+                }
+            }, DispatcherPriority.ContextIdle);
         }
 
         private void AddEmptyBarcodeLineAndFocus(DataGrid grid)
@@ -271,6 +308,8 @@ namespace RaccoonWarehouse.Invoices
 
         private InvoiceWriteDto _currentInvoice;
         private ObservableCollection<UserReadDto> _allCustomers;
+        private bool _isFilteringCustomers;
+        private bool _isNavigatingCustomerChoices;
         private List<ProductWriteDto> _invoiceProducts;
         private readonly ILoadingService _loading;
         private ObservableCollection<ProductReadDto> Products { get; set; }
@@ -286,10 +325,12 @@ namespace RaccoonWarehouse.Invoices
         private bool _browseIsLoading;
         private bool _pendingBrowseReload;
         private CancellationTokenSource? _browseLoadCts;
+        private readonly SemaphoreSlim _posDataOperationSemaphore = new(1, 1);
         private readonly DispatcherTimer _browseSearchDebounceTimer = new() { Interval = TimeSpan.FromMilliseconds(280) };
         private InvoiceLineWriteDto? _pendingFefoEditedLine;
         private bool _hasPendingFefoSplit;
         private bool _isProcessingPendingFefoSplit;
+        private int _posResetVersion;
         private readonly HashSet<int> _loadedProductIds = new();
         private readonly Dictionary<(int ProductId, int ProductUnitId), StockReadDto> _stockLookup = new();
         private readonly Dictionary<int, List<ProductUnitReadDto>> _hydratedProductUnits = new();
@@ -303,6 +344,8 @@ namespace RaccoonWarehouse.Invoices
         private int _comboSearchVersion;
         private int _popupSearchVersion;
         private bool _suppressUnitSelectionChanged;
+        private bool _isLoadingHeldInvoice;
+        private bool _isLoadingReturnInvoice;
         private ObservableCollection<InvoiceLineWriteDto> _invoiceLines
             = new ObservableCollection<InvoiceLineWriteDto>();
 
@@ -454,9 +497,8 @@ namespace RaccoonWarehouse.Invoices
             if (!IsLoaded)
                 return;
 
-            _ = LoadBrowseSubCategoriesAsync();
+            await LoadBrowseSubCategoriesAsync();
             RequestBrowseReload();
-            await Task.CompletedTask;
         }
 
         private void POS_Closed(object? sender, EventArgs e)
@@ -490,6 +532,7 @@ namespace RaccoonWarehouse.Invoices
             _currentInvoice = new InvoiceWriteDto
             {
                 InvoiceNumber = GenerateInvoiceNumber(),
+                FalconInvoiceNumber = string.Empty,
                 InvoiceType = invoiceType,
                 OriginalInvoiceId = originalInvoiceNumber,
                 OpenedAt = DateTime.Now,
@@ -522,9 +565,25 @@ namespace RaccoonWarehouse.Invoices
             foreach (var column in InvoiceGrid.Columns)
             {
                 if (column == returnColumn)
+                {
                     column.IsReadOnly = !returnMode;
-                else if (returnMode)
+                    continue;
+                }
+
+                if (!returnMode)
+                {
+                    // Restore the normal sale grid after leaving return/exchange mode.
+                    // These calculated/display-only columns remain read-only.
+                    column.IsReadOnly = HeaderMatches(column, "الصنف") ||
+                                        HeaderMatches(column, "المتوفر") ||
+                                        HeaderMatches(column, "الإجمالي");
+                    continue;
+                }
+
+                if (returnMode)
+                {
                     column.IsReadOnly = true;
+                }
             }
 
             InvoiceGrid.CanUserDeleteRows = !returnMode;
@@ -536,6 +595,21 @@ namespace RaccoonWarehouse.Invoices
             var line = _invoiceLines.OfType<ReturnInvoiceLine>().FirstOrDefault();
             if (column != null && line != null)
                 MoveGridFocusToCell(InvoiceGrid, line, column);
+        }
+
+        private void PrepareGridForReturnLoad()
+        {
+            // A return replaces the current draft. Cancel only the active grid edit
+            // so the existing normal-sale edit/save flow is not changed.
+            try
+            {
+                InvoiceGrid.CancelEdit(DataGridEditingUnit.Cell);
+                InvoiceGrid.CancelEdit(DataGridEditingUnit.Row);
+            }
+            catch (InvalidOperationException)
+            {
+                // The grid may already be outside an edit transaction.
+            }
         }
 
         private void HandleReturnGridKey(DataGrid grid, KeyEventArgs e)
@@ -572,6 +646,12 @@ namespace RaccoonWarehouse.Invoices
         #region useabellty 
         private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
         {
+            if (_isLoadingHeldInvoice)
+            {
+                e.Handled = true;
+                return;
+            }
+
             if (e.Key == Key.F1)
             {
                 FinishSaleBtn_Click(sender, new RoutedEventArgs());
@@ -1043,6 +1123,7 @@ namespace RaccoonWarehouse.Invoices
 
         private async Task LoadBrowseSubCategoriesAsync()
         {
+            await _posDataOperationSemaphore.WaitAsync();
             try
             {
                 var result = await _stockService.GetPosBrowseSubCategoriesAsync();
@@ -1058,6 +1139,10 @@ namespace RaccoonWarehouse.Invoices
             catch
             {
                 // Keep POS usable even if subcategory loading fails.
+            }
+            finally
+            {
+                _posDataOperationSemaphore.Release();
             }
         }
 
@@ -1088,6 +1173,7 @@ namespace RaccoonWarehouse.Invoices
 
             _browseIsLoading = true;
             var loadingShown = false;
+            await _posDataOperationSemaphore.WaitAsync();
 
             _browseLoadCts?.Cancel();
             _browseLoadCts?.Dispose();
@@ -1133,7 +1219,9 @@ namespace RaccoonWarehouse.Invoices
                         TaxExempt = item.TaxExempt,
                         TaxRate = item.TaxRate,
                         CurrentStockQuantity = item.AvailableQuantity,
-                        CurrentSalePrice = item.CurrentSalePrice
+                        CurrentSalePrice = item.CurrentSalePrice,
+                        LastCostIncludingTax = item.LastCostIncludingTax,
+                        AverageCostIncludingTax = item.AverageCostIncludingTax
                     };
 
                     Products.Add(product);
@@ -1160,6 +1248,8 @@ namespace RaccoonWarehouse.Invoices
 
                 if (_pendingBrowseReload && !_browseIsLoading)
                     _ = ReloadBrowseAsync();
+
+                _posDataOperationSemaphore.Release();
             }
         }
 
@@ -1255,7 +1345,9 @@ namespace RaccoonWarehouse.Invoices
                     TaxExempt = item.TaxExempt,
                     TaxRate = item.TaxRate,
                     CurrentStockQuantity = item.AvailableQuantity,
-                    CurrentSalePrice = item.CurrentSalePrice
+                    CurrentSalePrice = item.CurrentSalePrice,
+                    LastCostIncludingTax = item.LastCostIncludingTax,
+                    AverageCostIncludingTax = item.AverageCostIncludingTax
                 };
 
                 Products.Add(product);
@@ -1275,10 +1367,39 @@ namespace RaccoonWarehouse.Invoices
         }
         private void RecalculateTotals()
         {
-            var grossSales = _invoiceLines.Sum(l => l.Quantity * l.UnitPrice);
-            _currentInvoice.SubTotal = _invoiceLines.Sum(l => l.LineSubTotal);
-            _currentInvoice.TotalTax = _invoiceLines.Sum(l => l.TaxAmount);
-            _currentInvoice.TotalCOGS = _invoiceLines.Sum(l => l.Quantity * l.UnitCost);
+            var isReturnInvoice = _currentInvoice.InvoiceType is InvoiceType.Return or InvoiceType.PurchaseReturn;
+
+            decimal GetSignedLineTotal(InvoiceLineWriteDto line)
+                => line is ReturnInvoiceLine returnLine
+                    ? -(returnLine.ReturnedQuantity * line.UnitPrice)
+                    : line.Quantity * line.UnitPrice;
+
+            decimal GetSignedLineSubtotal(InvoiceLineWriteDto line)
+            {
+                if (line is not ReturnInvoiceLine returnLine)
+                    return line.LineSubTotal;
+
+                var signedTotal = -(returnLine.ReturnedQuantity * line.UnitPrice);
+                var divisor = line.TaxExempt ? 1m : 1m + Math.Max(0m, line.TaxRate) / 100m;
+                return line.TaxExempt || divisor <= 0m
+                    ? signedTotal
+                    : Math.Round(signedTotal / divisor, 3);
+            }
+
+            var grossSales = isReturnInvoice
+                ? _invoiceLines.Sum(GetSignedLineTotal)
+                : _invoiceLines.Sum(l => l.Quantity * l.UnitPrice);
+            _currentInvoice.SubTotal = isReturnInvoice
+                ? _invoiceLines.Sum(GetSignedLineSubtotal)
+                : _invoiceLines.Sum(l => l.LineSubTotal);
+            _currentInvoice.TotalTax = isReturnInvoice
+                ? _invoiceLines.Sum(line => GetSignedLineTotal(line) - GetSignedLineSubtotal(line))
+                : _invoiceLines.Sum(l => l.TaxAmount);
+            _currentInvoice.TotalCOGS = isReturnInvoice
+                ? _invoiceLines.Sum(line => line is ReturnInvoiceLine returnLine
+                    ? -(returnLine.ReturnedQuantity * line.UnitCost)
+                    : line.Quantity * line.UnitCost)
+                : _invoiceLines.Sum(l => l.Quantity * l.UnitCost);
             var discount = grossSales > 0m
                 ? Math.Clamp(_currentInvoice.DiscountAmount ?? 0m, 0m, grossSales)
                 : 0m;
@@ -1542,12 +1663,19 @@ namespace RaccoonWarehouse.Invoices
 
             var lineTotal = line.Quantity * line.UnitPrice;
             var costTotal = line.Quantity * line.UnitCost;
+            var product = FindProductForLine(line);
+            var taxExempt = product?.TaxExempt ?? line.TaxExempt;
+            var taxRate = taxExempt ? 0m : Math.Max(0m, product?.TaxRate ?? line.TaxRate);
+            var divisor = 1m + taxRate / 100m;
+            var lineSubTotal = taxExempt || divisor <= 0m
+                ? lineTotal
+                : Math.Round(lineTotal / divisor, 3);
 
-            line.TaxExempt = true;
-            line.TaxRate = 0m;
-            line.LineSubTotal = lineTotal;
-            line.TaxAmount = 0m;
-            line.ProfitBeforeTax = lineTotal - costTotal;
+            line.TaxExempt = taxExempt;
+            line.TaxRate = taxRate;
+            line.LineSubTotal = lineSubTotal;
+            line.TaxAmount = Math.Round(lineTotal - lineSubTotal, 3);
+            line.ProfitBeforeTax = lineSubTotal - costTotal;
             line.Profit = line.ProfitBeforeTax;
             line.BaseQuantity = line.Quantity * (line.QuantityPerUnitSnapshot > 0 ? line.QuantityPerUnitSnapshot : 1m);
         }
@@ -1601,6 +1729,12 @@ namespace RaccoonWarehouse.Invoices
             var lineTotal = line.Quantity * unitPrice;
             var unitCost = stock?.PurchasePrice ?? selectedUnit.PurchasePrice;
             var costTotal = line.Quantity * unitCost;
+            var taxExempt = product.TaxExempt ?? false;
+            var taxRate = taxExempt ? 0m : Math.Max(0m, product.TaxRate ?? 0m);
+            var divisor = 1m + taxRate / 100m;
+            var lineSubTotal = taxExempt || divisor <= 0m
+                ? lineTotal
+                : Math.Round(lineTotal / divisor, 3);
 
             line.SelectedProduct = product;
             line.ProductId = product.Id;
@@ -1611,11 +1745,11 @@ namespace RaccoonWarehouse.Invoices
             line.BaseQuantity = line.Quantity * line.QuantityPerUnitSnapshot;
             line.UnitPrice = unitPrice;
             line.UnitCost = unitCost;
-            line.TaxExempt = true;
-            line.TaxRate = 0m;
-            line.LineSubTotal = lineTotal;
-            line.TaxAmount = 0m;
-            line.ProfitBeforeTax = lineTotal - costTotal;
+            line.TaxExempt = taxExempt;
+            line.TaxRate = taxRate;
+            line.LineSubTotal = lineSubTotal;
+            line.TaxAmount = Math.Round(lineTotal - lineSubTotal, 3);
+            line.ProfitBeforeTax = lineSubTotal - costTotal;
             line.Profit = line.ProfitBeforeTax;
             line.AvailableQuantitySnapshot = product.CurrentStockQuantity;
             line.UnitNameSnapshot = selectedUnit.Unit?.Name;
@@ -1749,6 +1883,7 @@ namespace RaccoonWarehouse.Invoices
                 return null;
 
             var pendingLine = _pendingFefoEditedLine;
+            var resetVersion = _posResetVersion;
             _pendingFefoEditedLine = null;
             _hasPendingFefoSplit = false;
             _isProcessingPendingFefoSplit = true;
@@ -1760,6 +1895,9 @@ namespace RaccoonWarehouse.Invoices
                     InvoiceGrid.CommitEdit(DataGridEditingUnit.Cell, true);
                     InvoiceGrid.CommitEdit(DataGridEditingUnit.Row, true);
                 }, DispatcherPriority.Background);
+
+                if (resetVersion != _posResetVersion)
+                    return null;
 
                 return await SplitEditedLineByFefoAsync(pendingLine);
             }
@@ -2013,6 +2151,9 @@ namespace RaccoonWarehouse.Invoices
                     MessageBox.Show(UiText.T("الكمية يجب أن تكون أكبر من صفر.", "Quantity must be greater than zero."), UiText.T("تنبيه", "Notice"));
                 return false;
             }
+
+            if (_currentInvoice.InvoiceType is InvoiceType.Return or InvoiceType.PurchaseReturn)
+                return await AddProductToReturnInvoiceCoreAsync(product, preferredUnitId, quantity);
 
             var timing = System.Diagnostics.Stopwatch.StartNew();
             var stepTiming = System.Diagnostics.Stopwatch.StartNew();
@@ -2318,6 +2459,17 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
             };
         }
 
+        private static TransactionType MapStockTransactionType(InvoiceType invoiceType, decimal quantity)
+        {
+            if (invoiceType == InvoiceType.Return)
+                return quantity < 0 ? TransactionType.Return : TransactionType.Sale;
+
+            if (invoiceType == InvoiceType.Exchange)
+                return quantity < 0 ? TransactionType.Return : TransactionType.Sale;
+
+            return MapStockTransactionType(invoiceType);
+        }
+
         private IEnumerable<StockMovementPostDto> BuildPosStockMovements(IEnumerable<InvoiceLineWriteDto> lines, int invoiceId, CashierSessionReadDto session)
         {
             return lines
@@ -2342,7 +2494,7 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
                         PurchasePrice = line.UnitCost,
                         SalePrice = line.UnitPrice,
                         ExpiryDate = line.ExpiryDate,
-                        TransactionType = MapStockTransactionType(_currentInvoice.InvoiceType),
+                        TransactionType = MapStockTransactionType(_currentInvoice.InvoiceType, line.Quantity),
                         InvoiceId = invoiceId,
                         CustomerId = _currentInvoice.CustomerId,
                         CasherId = session.CashierId,
@@ -2675,6 +2827,150 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
             return true;
         }
 
+        private async Task<bool> AddProductToReturnInvoiceCoreAsync(
+            ProductReadDto product,
+            int? preferredUnitId,
+            decimal quantity)
+        {
+            var resolvedProduct = await ResolveProductWithUnitsAsync(product);
+            var productUnits = resolvedProduct.ProductUnits?.ToList() ?? new List<ProductUnitReadDto>();
+            var selectedUnit = (preferredUnitId.HasValue
+                    ? productUnits.FirstOrDefault(unit => unit.Id == preferredUnitId.Value)
+                    : null)
+                ?? ProductUnitSelector.GetDefaultSaleUnit(productUnits)
+                ?? productUnits.FirstOrDefault();
+
+            if (selectedUnit == null)
+            {
+                MessageBox.Show(
+                    UiText.T(
+                        "الصنف موجود في النظام لكن لا توجد له وحدات معرفة.",
+                        "The item exists in the system, but no units are defined for it."),
+                    UiText.T("تنبيه", "Notice"));
+                return false;
+            }
+
+            var originalInvoice = await LoadOriginalInvoiceForReturnOrExchangeAsync(_currentInvoice.OriginalInvoiceId);
+            var matchingOriginalLines = originalInvoice?.InvoiceLines?
+                .Where(line => line.ProductId == resolvedProduct.Id && line.ProductUnitId == selectedUnit.Id)
+                .ToList() ?? new List<InvoiceLineWriteDto>();
+
+            if (matchingOriginalLines.Count == 0)
+            {
+                if (_currentInvoice.InvoiceType == InvoiceType.PurchaseReturn)
+                {
+                    MessageBox.Show(
+                        UiText.T(
+                            $"لا يمكن إرجاع الصنف {resolvedProduct.Name} لأنه غير موجود في الفاتورة الأصلية.",
+                            $"Item {resolvedProduct.Name} cannot be returned because it is not in the original invoice."),
+                        UiText.T("تنبيه", "Notice"));
+                    return false;
+                }
+
+                var newSaleLine = _invoiceLines.FirstOrDefault(line =>
+                    line is not ReturnInvoiceLine &&
+                    line.ProductId == resolvedProduct.Id &&
+                    line.ProductUnitId == selectedUnit.Id);
+
+                if (newSaleLine == null)
+                {
+                    newSaleLine = new InvoiceLineWriteDto
+                    {
+                        ProductId = resolvedProduct.Id,
+                        ProductName = resolvedProduct.Name,
+                        ProductUnitId = selectedUnit.Id,
+                        Quantity = quantity,
+                        SelectedProduct = resolvedProduct
+                    };
+
+                    if (!await ApplyLinePricingFromProductAsync(newSaleLine, resolvedProduct, selectedUnit.Id))
+                    {
+                        MessageBox.Show(
+                            UiText.T("لا توجد وحدات معرفة لهذا الصنف.", "There are no units defined for this item."),
+                            UiText.T("تنبيه", "Notice"));
+                        return false;
+                    }
+
+                    _invoiceLines.Add(newSaleLine);
+                }
+                else
+                {
+                    newSaleLine.Quantity += quantity;
+                }
+
+                var availableAfterAllocation = await SplitDraftLinesByFefoAsync(
+                    resolvedProduct.Id,
+                    selectedUnit.Id);
+
+                foreach (var saleLine in _invoiceLines.Where(line =>
+                             line is not ReturnInvoiceLine &&
+                             line.ProductId == resolvedProduct.Id &&
+                             line.ProductUnitId == selectedUnit.Id))
+                {
+                    saleLine.AvailableQuantitySnapshot = availableAfterAllocation
+                        ?? await GetAvailableQuantityForProductUnitAsync(resolvedProduct.Id, selectedUnit.Id);
+                    saleLine.UnitNameSnapshot = selectedUnit.Unit?.Name
+                        ?? saleLine.UnitNameSnapshot
+                        ?? saleLine.ProductUnit?.Unit?.Name;
+                }
+
+                RecalculateTotals();
+                RefreshInvoiceGridAfterEdit();
+                FocusBarcodeGridCellDeferred();
+                return true;
+            }
+
+            var existingLine = _invoiceLines.OfType<ReturnInvoiceLine>()
+                .FirstOrDefault(line => line.ProductId == resolvedProduct.Id && line.ProductUnitId == selectedUnit.Id);
+
+            var originalQuantity = matchingOriginalLines.Sum(line => Math.Abs(line.Quantity));
+            var previouslyReturned = existingLine == null
+                ? (await LoadPreviouslyReturnedQuantitiesAsync(_currentInvoice.OriginalInvoiceId))
+                    .GetValueOrDefault((resolvedProduct.Id, selectedUnit.Id))
+                : 0m;
+            var returnableQuantity = existingLine?.ReturnableQuantity
+                ?? Math.Max(0m, originalQuantity - previouslyReturned);
+            var currentRequestedQuantity = existingLine?.ReturnedQuantity ?? 0m;
+
+            if (currentRequestedQuantity + quantity > returnableQuantity)
+            {
+                MessageBox.Show(
+                    UiText.T(
+                        $"الكمية المرتجعة للصنف {resolvedProduct.Name} أكبر من الكمية المتاحة للإرجاع.",
+                        $"The requested return quantity for {resolvedProduct.Name} exceeds the remaining returnable quantity."),
+                    UiText.T("تنبيه", "Notice"));
+                return false;
+            }
+
+            if (existingLine != null)
+            {
+                existingLine.ReturnedQuantity += quantity;
+            }
+            else
+            {
+                var sourceLine = matchingOriginalLines.First();
+                var snapshot = CloneLineSnapshot(sourceLine, 0m, _currentInvoice.OriginalInvoiceId);
+                snapshot.ProductName = resolvedProduct.Name;
+                snapshot.SelectedProduct = resolvedProduct;
+                snapshot.ProductUnitId = selectedUnit.Id;
+                snapshot.ProductUnit = MapProductUnit(selectedUnit);
+                snapshot.UnitName = selectedUnit.Unit?.Name;
+                snapshot.UnitNameSnapshot = selectedUnit.Unit?.Name;
+
+                var newReturnLine = ReturnInvoiceLine.FromSnapshot(
+                    snapshot,
+                    originalQuantity,
+                    returnableQuantity);
+                newReturnLine.ReturnedQuantity = quantity;
+                _invoiceLines.Add(newReturnLine);
+            }
+
+            RecalculateTotals();
+            RefreshInvoiceGridAfterEdit();
+            FocusFirstReturnQuantityCell();
+            return true;
+        }
+
         private void ApplyOriginalCreditTerms(InvoiceWriteDto originalInvoice)
         {
             if (originalInvoice.PaymentType != PaymentType.Credit)
@@ -2709,12 +3005,18 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
             else if (string.IsNullOrWhiteSpace(CustomerComboBox.Text))
                 _currentInvoice.CustomerId = null;
             _currentInvoice.IsPOS = true;
+            _currentInvoice.FalconInvoiceNumber = FalconInvoiceNumberTextBox.Text.Trim();
             _currentInvoice.Status = InvoiceStatus.Completed;
             _currentInvoice.ClosedAt = DateTime.Now;
             RecalculateTotals();
         }
         private void ResetPOS()
         {
+            Interlocked.Increment(ref _posResetVersion);
+            _pendingFefoEditedLine = null;
+            _hasPendingFefoSplit = false;
+            _isProcessingPendingFefoSplit = false;
+
             _invoiceLines.Clear();
             InvoiceGrid.SelectedItem = null;
             InvoiceGrid.SelectedCells.Clear();
@@ -2730,6 +3032,7 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
             CustomerComboBox.SelectedIndex = -1;
             CustomerComboBox.SelectedItem = null;
             CustomerComboBox.Text = string.Empty;
+            FalconInvoiceNumberTextBox.Clear();
             _lastSavedInvoice = null;
 
             CreateNewInvoice();
@@ -2783,6 +3086,7 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
                 case Key.Enter:
                     e.Handled = true;
                     var selectedCustomer = combo.SelectedItem as UserReadDto
+                        ?? combo.Items.OfType<UserReadDto>().FirstOrDefault()
                         ?? _allCustomers?.FirstOrDefault(customer =>
                             string.Equals(customer.Name, combo.Text?.Trim(), StringComparison.CurrentCultureIgnoreCase));
                     if (selectedCustomer != null)
@@ -2800,8 +3104,28 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
                     break;
 
                 case Key.Down:
+                case Key.Up:
                     if (!combo.IsDropDownOpen)
                         combo.IsDropDownOpen = true;
+
+                    var typedCustomerText = combo.Text ?? string.Empty;
+                    var nextIndex = combo.SelectedIndex;
+                    nextIndex = e.Key == Key.Down
+                        ? Math.Min(nextIndex + 1, combo.Items.Count - 1)
+                        : Math.Max(nextIndex - 1, 0);
+
+                    if (combo.Items.Count > 0)
+                    {
+                        _isNavigatingCustomerChoices = true;
+                        try { combo.SelectedIndex = nextIndex; }
+                        finally { _isNavigatingCustomerChoices = false; }
+
+                        combo.Text = typedCustomerText;
+                        if (combo.Template.FindName("PART_EditableTextBox", combo) is TextBox editableTextBox)
+                            editableTextBox.CaretIndex = editableTextBox.Text.Length;
+                    }
+
+                    e.Handled = true;
                     break;
             }
         }
@@ -2812,6 +3136,62 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
                 return;
 
             combo.IsDropDownOpen = true;
+        }
+
+        private void CustomerComboBox_PreviewTextInput(object sender, TextCompositionEventArgs e)
+        {
+            CustomerComboBox.SelectedItem = null;
+            Dispatcher.BeginInvoke(new Action(() => FilterCustomerList(CustomerComboBox.Text)),
+                System.Windows.Threading.DispatcherPriority.Input);
+        }
+
+        private void CustomerComboBox_KeyUp(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Back || e.Key == Key.Delete)
+            {
+                CustomerComboBox.SelectedItem = null;
+                FilterCustomerList(CustomerComboBox.Text);
+            }
+        }
+
+        private void FilterCustomerList(string? text)
+        {
+            var searchText = text ?? string.Empty;
+            var filtered = string.IsNullOrWhiteSpace(searchText)
+                ? _allCustomers?.ToList() ?? new List<UserReadDto>()
+                : _allCustomers?
+                    .Where(customer => (customer.Name ?? string.Empty)
+                        .Contains(searchText, StringComparison.CurrentCultureIgnoreCase))
+                    .ToList() ?? new List<UserReadDto>();
+
+            _isFilteringCustomers = true;
+            try
+            {
+                CustomerComboBox.ItemsSource = filtered;
+                CustomerComboBox.SelectedItem = null;
+                CustomerComboBox.SelectedValue = null;
+                CustomerComboBox.SelectedIndex = -1;
+                CustomerComboBox.Text = searchText;
+                CustomerComboBox.IsDropDownOpen = filtered.Count > 0;
+                if (CustomerComboBox.Template.FindName("PART_EditableTextBox", CustomerComboBox) is TextBox textBox)
+                    textBox.CaretIndex = textBox.Text.Length;
+            }
+            finally
+            {
+                _isFilteringCustomers = false;
+            }
+        }
+
+        private void CustomerComboBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (_isFilteringCustomers || _isNavigatingCustomerChoices)
+                return;
+
+            var textBox = e.OriginalSource as TextBox ?? Keyboard.FocusedElement as TextBox;
+            if (textBox == null || !textBox.IsKeyboardFocusWithin)
+                return;
+
+            FilterCustomerList(textBox.Text);
         }
 
         private async void AddCustomerBtn_Click(object sender, RoutedEventArgs e)
@@ -2846,6 +3226,238 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
             }
         }
 
+        private async void ChangePaymentMethodBtn_Click(object sender, RoutedEventArgs e)
+        {
+            var loadingShown = false;
+            void HideLoadingForDialog()
+            {
+                if (loadingShown)
+                {
+                    _loading.Hide();
+                    loadingShown = false;
+                }
+            }
+            try
+            {
+                if (!TryGetActiveCashierSession(out var session))
+                    return;
+
+                var searchWindow = new SearchSalesInvoiceWindow(
+                    _invoiceService,
+                    _allCustomers ?? Enumerable.Empty<UserReadDto>(),
+                    null,
+                    true)
+                {
+                    Owner = this
+                };
+
+                if (searchWindow.ShowDialog() != true || searchWindow.Result == null)
+                    return;
+
+                var invoice = searchWindow.Result;
+                if (invoice.Status is InvoiceStatus.Draft or InvoiceStatus.OnHold or InvoiceStatus.Cancelled)
+                {
+                    MessageBox.Show(UiText.T("لا يمكن تغيير طريقة دفع فاتورة غير مرحّلة.", "Only posted invoices can change payment method."), UiText.T("تنبيه", "Notice"));
+                    return;
+                }
+
+                var paymentWindow = new ChangeInvoicePaymentWindow(
+                    invoice.PaymentType,
+                    _allCustomers ?? Enumerable.Empty<UserReadDto>(),
+                    invoice.CustomerId)
+                { Owner = this };
+                if (paymentWindow.ShowDialog() != true || paymentWindow.SelectedPaymentType is not PaymentType newPaymentType)
+                    return;
+                if (invoice.PaymentType == newPaymentType)
+                    return;
+
+                var oldPaymentType = invoice.PaymentType ?? PaymentType.Cash;
+                var oldInvoice = BuildPaymentChangeInvoice(invoice);
+                var updatedInvoice = BuildPaymentChangeInvoice(invoice);
+                updatedInvoice.PaymentType = newPaymentType;
+
+                if (newPaymentType == PaymentType.Credit)
+                {
+                    updatedInvoice.CustomerId = paymentWindow.SelectedCustomerId;
+                }
+
+                if (newPaymentType == PaymentType.Check)
+                {
+                    var checkWindow = new CheckDetailsWindow(Math.Abs(invoice.TotalAmount)) { Owner = this };
+                    if (checkWindow.ShowDialog() != true)
+                        return;
+                    updatedInvoice.Checks = checkWindow.ResultChecks.ToList();
+                }
+                else
+                {
+                    updatedInvoice.Checks = new List<CheckWriteDto>();
+                }
+
+                if (MessageBox.Show(
+                        UiText.T($"هل تريد تغيير طريقة دفع الفاتورة {invoice.InvoiceNumber}؟", $"Change payment method for invoice {invoice.InvoiceNumber}?"),
+                        UiText.T("تأكيد", "Confirm"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+                    return;
+
+                _loading.Show();
+                loadingShown = true;
+                var updateResult = await _invoiceService.UpdateAsync(updatedInvoice);
+                if (!updateResult.Success)
+                {
+                    HideLoadingForDialog();
+                    MessageBox.Show(updateResult.Message ?? UiText.T("فشل تحديث الفاتورة.", "Invoice update failed."), UiText.T("خطأ", "Error"));
+                    return;
+                }
+
+                var sourceType = GetPaymentChangeSourceType(invoice.InvoiceType);
+                if (oldPaymentType != PaymentType.Credit)
+                {
+                    var voidResult = await _financialService.VoidBySourceAsync(sourceType, invoice.Id, $"Payment method changed from {oldPaymentType} to {newPaymentType}");
+                    if (!voidResult.Success)
+                    {
+                        await _invoiceService.UpdateAsync(oldInvoice);
+                        HideLoadingForDialog();
+                        MessageBox.Show(voidResult.Message ?? UiText.T("فشل إلغاء الحركة المالية القديمة.", "Could not void the old financial transaction."), UiText.T("خطأ", "Error"));
+                        return;
+                    }
+                }
+
+                if (newPaymentType != PaymentType.Credit)
+                {
+                    var postResult = await _financialService.PostAsync(BuildPaymentChangeFinancialPost(invoice, newPaymentType, sourceType, session, "POS payment method changed"));
+                    if (!postResult.Success)
+                    {
+                        await _invoiceService.UpdateAsync(oldInvoice);
+                        if (oldPaymentType != PaymentType.Credit)
+                            await _financialService.PostAsync(BuildPaymentChangeFinancialPost(invoice, oldPaymentType, sourceType, session, "Restored original POS payment method"));
+                        HideLoadingForDialog();
+                        MessageBox.Show(postResult.Message ?? UiText.T("فشل تسجيل طريقة الدفع الجديدة.", "Could not post the new payment transaction."), UiText.T("خطأ", "Error"));
+                        return;
+                    }
+                }
+
+                MessageBox.Show(UiText.T("تم تغيير طريقة الدفع وتحديث الحسابات المرتبطة بنجاح.", "Payment method and related accounts were updated successfully."), UiText.T("تم", "Done"));
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"{UiText.T("تعذر تغيير طريقة الدفع", "Could not change payment method")}: {ex.Message}", UiText.T("خطأ", "Error"));
+            }
+            finally
+            {
+                HideLoadingForDialog();
+                FocusBarcodeInput();
+            }
+        }
+
+        private static InvoiceWriteDto BuildPaymentChangeInvoice(InvoiceReadDto invoice)
+        {
+            return new InvoiceWriteDto
+            {
+                Id = invoice.Id,
+                InvoiceNumber = invoice.InvoiceNumber,
+                FalconInvoiceNumber = invoice.FalconInvoiceNumber,
+                OriginalInvoiceId = invoice.OriginalInvoiceId,
+                InvoiceType = invoice.InvoiceType,
+                PaymentType = invoice.PaymentType,
+                CasherId = invoice.CasherId,
+                SupplierId = invoice.SupplierId,
+                CustomerId = invoice.CustomerId,
+                DelegateId = invoice.DelegateId,
+                DelegateName = invoice.DelegateName,
+                VoucherId = invoice.VoucherId,
+                TotalAmount = invoice.TotalAmount,
+                Notes = invoice.Notes,
+                Status = invoice.Status,
+                IsPOS = invoice.IsPOS,
+                OpenedAt = invoice.OpenedAt,
+                ClosedAt = invoice.ClosedAt,
+                HeldColor = invoice.HeldColor,
+                DiscountAmount = invoice.DiscountAmount,
+                SubTotal = invoice.SubTotal,
+                TotalTax = invoice.TotalTax,
+                TotalCOGS = invoice.TotalCOGS,
+                GrossProfit = invoice.GrossProfit,
+                NetSales = invoice.NetSales,
+                CreatedDate = invoice.CreatedDate,
+                UpdatedDate = DateTime.Now,
+                InvoiceLines = (invoice.InvoiceLines ?? Array.Empty<InvoiceLineReadDto>()).Select(line => new InvoiceLineWriteDto
+                {
+                    Id = 0,
+                    ProductId = line.ProductId,
+                    ProductName = line.ProductName,
+                    ProductUnitId = line.ProductUnitId,
+                    Quantity = line.Quantity,
+                    QuantityPerUnitSnapshot = line.QuantityPerUnitSnapshot,
+                    BaseQuantity = line.BaseQuantity,
+                    UnitPrice = line.UnitPrice,
+                    UnitCost = line.UnitCost,
+                    TaxExempt = line.TaxExempt,
+                    TaxRate = line.TaxRate,
+                    TaxAmount = line.TaxAmount,
+                    LineSubTotal = line.LineSubTotal,
+                    ProfitBeforeTax = line.ProfitBeforeTax,
+                    Profit = line.Profit,
+                    ExpiryDate = line.ExpiryDate,
+                    OriginalInvoiceId = line.OriginalInvoiceId,
+                    CreatedDate = line.CreatedDate,
+                    UpdatedDate = DateTime.Now
+                }).ToList(),
+                Checks = (invoice.Checks ?? Array.Empty<CheckReadDto>()).Select(check => new CheckWriteDto
+                {
+                    Id = check.Id,
+                    CheckNumber = check.CheckNumber,
+                    BankName = check.BankName,
+                    DueDate = check.DueDate,
+                    Amount = check.Amount,
+                    Status = check.Status,
+                    Notes = check.Notes,
+                    CreatedDate = check.CreatedDate,
+                    UpdatedDate = DateTime.Now
+                }).ToList()
+            };
+        }
+
+        private static FinancialSourceType GetPaymentChangeSourceType(InvoiceType invoiceType) => invoiceType switch
+        {
+            InvoiceType.Return => FinancialSourceType.SaleReturn,
+            InvoiceType.PurchaseReturn => FinancialSourceType.PurchaseReturn,
+            _ => FinancialSourceType.PosSaleInvoice
+        };
+
+        private static TransactionDirection GetPaymentChangeDirection(InvoiceType invoiceType) =>
+            invoiceType == InvoiceType.Return ? TransactionDirection.Out : TransactionDirection.In;
+
+        private static PaymentMethod GetPaymentChangeMethod(PaymentType paymentType) => paymentType switch
+        {
+            PaymentType.Visa => PaymentMethod.Visa,
+            PaymentType.Master => PaymentMethod.Master,
+            PaymentType.Debit => PaymentMethod.BankTransfer,
+            PaymentType.Check => PaymentMethod.Check,
+            PaymentType.MobilePayment => PaymentMethod.MobilePayment,
+            PaymentType.Credit => PaymentMethod.Credit,
+            _ => PaymentMethod.Cash
+        };
+
+        private static FinancialPostDto BuildPaymentChangeFinancialPost(
+            InvoiceReadDto invoice,
+            PaymentType paymentType,
+            FinancialSourceType sourceType,
+            CashierSessionReadDto session,
+            string notes)
+        {
+            return new FinancialPostDto
+            {
+                Direction = GetPaymentChangeDirection(invoice.InvoiceType),
+                Method = GetPaymentChangeMethod(paymentType),
+                Amount = Math.Abs(invoice.TotalAmount),
+                TransactionDate = DateTime.Now,
+                SourceType = sourceType,
+                SourceId = invoice.Id,
+                CashierSessionId = session.Id,
+                CashierId = session.CashierId,
+                Notes = notes
+            };
+        }
+
         private void DailyReportBtn_Click(object sender, RoutedEventArgs e)
         {
             try
@@ -2869,17 +3481,41 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
         #region OnHold
         private async void HoldSaleBtn_Click(object sender, RoutedEventArgs e)
         {
-            if (_invoiceLines.Count == 0)
+            var linesToHold = _invoiceLines
+                .Where(line => line.ProductId > 0 && line.ProductUnitId > 0 && line.Quantity > 0)
+                .ToList();
+
+            if (linesToHold.Count == 0)
             {
                 MessageBox.Show(UiText.T("لا توجد مواد لحفظها", "There are no items to hold."), UiText.T("تنبيه", "Notice"));
                 return;
             }
 
+            await _posDataOperationSemaphore.WaitAsync();
             try
             {
+                var heldInvoicesResult = await _invoiceService.GetHeldPOSInvoicesAsync();
+                if (!heldInvoicesResult.Success)
+                {
+                    MessageBox.Show(
+                        heldInvoicesResult.Message ?? UiText.T("تعذر تحميل ألوان الفواتير المعلقة.", "Could not load held-invoice colors."),
+                        UiText.T("خطأ", "Error"));
+                    return;
+                }
+
+                var heldColor = ResumeHeldInvoiceWindow.ChooseAvailableColor(
+                    this,
+                    heldInvoicesResult.Data ?? new List<InvoiceReadDto>(),
+                    _currentInvoice.Id);
+                if (string.IsNullOrWhiteSpace(heldColor))
+                    return;
+
+                _currentInvoice.InvoiceLines = linesToHold;
                 _currentInvoice.Status = InvoiceStatus.OnHold;
                 _currentInvoice.IsPOS = true;
+                _currentInvoice.FalconInvoiceNumber = FalconInvoiceNumberTextBox.Text.Trim();
                 _currentInvoice.ClosedAt = null;
+                _currentInvoice.HeldColor = heldColor;
                 RecalculateTotals();
                 
                 var result = _currentInvoice.Id > 0
@@ -2911,6 +3547,7 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
             }
             finally
             {
+                _posDataOperationSemaphore.Release();
                 FocusBarcodeInput();
             }
         }
@@ -2933,8 +3570,26 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
                     return;
                 }
 
-                await LoadInvoiceIntoPOSAsync(win.SelectedInvoice);
-                FocusBarcodeInput();
+                await _posDataOperationSemaphore.WaitAsync();
+                try
+                {
+                    _isLoadingHeldInvoice = true;
+                    _loading.Show();
+                    try
+                    {
+                        await LoadInvoiceIntoPOSAsync(win.SelectedInvoice);
+                        FocusBarcodeInput();
+                    }
+                    finally
+                    {
+                        _loading.Hide();
+                        _isLoadingHeldInvoice = false;
+                    }
+                }
+                finally
+                {
+                    _posDataOperationSemaphore.Release();
+                }
             }
             catch (Exception ex)
             {
@@ -2946,16 +3601,40 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
         {
             _invoiceLines.Clear();
 
-            foreach (var line in invoice.InvoiceLines)
+            var heldLines = (invoice.InvoiceLines ?? Enumerable.Empty<InvoiceLineReadDto>()).ToList();
+            var availabilityResult = await _stockService.GetAvailableQuantitiesInUnitsAsync(
+                heldLines
+                    .Where(line => line.ProductId > 0 && line.ProductUnitId > 0)
+                    .Select(line => new StockAllocationRequestDto
+                    {
+                        ProductId = line.ProductId,
+                        ProductUnitId = line.ProductUnitId,
+                        Quantity = line.Quantity
+                    }));
+            var availabilityByKey = (availabilityResult.Data ?? new List<StockAvailabilityDto>())
+                .ToDictionary(item => (item.ProductId, item.ProductUnitId), item => item.AvailableQuantity);
+
+            foreach (var line in heldLines)
             {
-                var availableQuantity = await GetAvailableQuantityForProductUnitAsync(line.ProductId, line.ProductUnitId);
-                _invoiceLines.Add(new InvoiceLineWriteDto
+                var restoredProduct = await ResolveProductForUnitsAsync(line.ProductId);
+                var restoredUnit = restoredProduct?.ProductUnits?
+                    .FirstOrDefault(unit => unit.Id == line.ProductUnitId);
+                var availableQuantity = availabilityByKey.TryGetValue(
+                    (line.ProductId, line.ProductUnitId),
+                    out var available)
+                    ? available
+                    : 0m;
+                var restoredLine = new InvoiceLineWriteDto
                 {
                     ProductId = line.ProductId,
-                    ProductName = line.ProductName,
+                    ProductName = string.IsNullOrWhiteSpace(line.ProductName)
+                        ? restoredProduct?.Name ?? $"#{line.ProductId}"
+                        : line.ProductName,
+                    SelectedProduct = restoredProduct,
                     Quantity = line.Quantity,
                     UnitPrice = line.UnitPrice,
                     ProductUnitId = line.ProductUnitId,
+                    ProductUnit = restoredUnit == null ? null : MapProductUnit(restoredUnit),
                     QuantityPerUnitSnapshot = line.QuantityPerUnitSnapshot,
                     BaseQuantity = line.BaseQuantity,
                     UnitCost = line.UnitCost,
@@ -2966,21 +3645,37 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
                     ProfitBeforeTax = line.ProfitBeforeTax,
                     Profit = line.Profit,
                     AvailableQuantitySnapshot = availableQuantity,
-                    UnitNameSnapshot = line.ProductUnit?.Unit?.Name,
+                    UnitNameSnapshot = line.ProductUnit?.Unit?.Name ?? restoredUnit?.Unit?.Name,
                     OriginalInvoiceId = line.OriginalInvoiceId
-                });
+                };
+
+                // Rebuild calculated values from the restored quantity/price/tax data.
+                // Held invoices created by older versions may contain stale or zero totals.
+                RecalculateLineFromCurrentValues(restoredLine);
+                _invoiceLines.Add(restoredLine);
+                restoredLine.RefreshCalculatedProperties();
             }
 
             _currentInvoice = new InvoiceWriteDto
             {
                 Id = invoice.Id,              // 👈 VERY IMPORTANT
                 InvoiceNumber = invoice.InvoiceNumber,
+                FalconInvoiceNumber = invoice.FalconInvoiceNumber,
                 Status = InvoiceStatus.Draft,
                 IsPOS = true,
-                OpenedAt = invoice.OpenedAt
+                OpenedAt = invoice.OpenedAt,
+                CustomerId = invoice.CustomerId,
+                SupplierId = invoice.SupplierId,
+                PaymentType = invoice.PaymentType,
+                DiscountAmount = invoice.DiscountAmount ?? 0m,
+                InvoiceType = invoice.InvoiceType,
+                HeldColor = invoice.HeldColor
             };
+            FalconInvoiceNumberTextBox.Text = invoice.FalconInvoiceNumber ?? string.Empty;
+            _currentInvoice.InvoiceLines = _invoiceLines;
 
             InvoiceGrid.Items.Refresh();
+            InvoiceGrid.UpdateLayout();
             RecalculateTotals();
         }
 
@@ -3142,9 +3837,15 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
         //returns 
         private async void ReturnItemBtn_Click(object sender, RoutedEventArgs e)
         {
+            if (_isLoadingReturnInvoice)
+                return;
+
+            _isLoadingReturnInvoice = true;
             var loadingShown = false;
             try
             {
+                PrepareGridForReturnLoad();
+
                 var win = new ReturnInvoiceWindow(_invoiceService);
                 if (win.ShowDialog() != true)
                     return;
@@ -3209,6 +3910,8 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
                     : InvoiceType.Return;
 
                 // Create a new linked return invoice; the original invoice remains unchanged.
+                PrepareGridForReturnLoad();
+                await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.DataBind);
                 CreateNewInvoice(returnType, win.OriginalInvoiceId);
                 _invoiceLines.Clear();
 
@@ -3280,6 +3983,7 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
             {
                 if (loadingShown)
                     _loading.Hide();
+                _isLoadingReturnInvoice = false;
                 if (_currentInvoice.InvoiceType is not (InvoiceType.Return or InvoiceType.PurchaseReturn))
                     FocusBarcodeInput();
             }
@@ -3391,6 +4095,8 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
                     return;
                 }
 
+                // Never allow a stale loading overlay to cover the confirmation dialog.
+                _loading.Hide();
                 var confirm = MessageBox.Show(
                     UiText.T("هل تريد إلغاء الفاتورة الحالية؟", "Do you want to cancel the current invoice?"),
                     UiText.T("إلغاء", "Cancel"),
@@ -3405,6 +4111,9 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
                 // If invoice was saved before (Held)
                 if (_currentInvoice.Id > 0)
                 {
+                    _currentInvoice.InvoiceLines = _invoiceLines
+                        .Where(line => line.ProductId > 0 && line.ProductUnitId > 0 && line.Quantity != 0)
+                        .ToList();
                     _currentInvoice.Status = InvoiceStatus.Cancelled;
                     _currentInvoice.ClosedAt = DateTime.Now;
 
@@ -3512,6 +4221,27 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
                 _currentInvoice.DiscountAmount = Math.Max(0m, discount);
 
             RecalculateTotals();
+        }
+
+        private void InvoiceGrid_LoadingRow(object? sender, DataGridRowEventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(_currentInvoice?.HeldColor))
+            {
+                e.Row.ClearValue(Control.BackgroundProperty);
+                e.Row.ClearValue(Control.ForegroundProperty);
+                return;
+            }
+
+            try
+            {
+                e.Row.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(_currentInvoice.HeldColor)!);
+                e.Row.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(ResumeHeldInvoiceWindow.GetTextColor(_currentInvoice.HeldColor))!);
+            }
+            catch
+            {
+                e.Row.ClearValue(Control.BackgroundProperty);
+                e.Row.ClearValue(Control.ForegroundProperty);
+            }
         }
         private void SaveSalesInvoicePdf(InvoiceReadDto invoice)
         {
@@ -4624,6 +5354,14 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
                     StopForValidationMessage();
                     return;
                 }
+
+                StopForValidationMessage();
+                if (MessageBox.Show(
+                        UiText.T("هل تريد حفظ فاتورة البيع؟", "Do you want to save the sales invoice?"),
+                        UiText.T("تأكيد الحفظ", "Confirm save"),
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Question) != MessageBoxResult.Yes)
+                    return;
 
                 ShowLoadingForWork();
                 if (!await ValidateReturnOrExchangeAgainstOriginalInvoiceAsync())

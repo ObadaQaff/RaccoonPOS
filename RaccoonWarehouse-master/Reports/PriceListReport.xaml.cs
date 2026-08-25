@@ -1,6 +1,8 @@
 using RaccoonWarehouse.Application.Service.Stocks;
 using RaccoonWarehouse.Domain.Reports.Stocks.Dtos;
 using RaccoonWarehouse.Helpers.Localization;
+using RaccoonWarehouse.Navigation;
+using RaccoonWarehouse.Products;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -39,6 +41,12 @@ namespace RaccoonWarehouse.Reports
             PriceListGrid.ItemsSource = rows;
             TotalItemsText.Text = rows.Count.ToString();
             TotalProductsText.Text = rows.Select(x => x.ProductId).Distinct().Count().ToString();
+        }
+
+        private void PriceListGrid_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (PriceListGrid.SelectedItem is PriceListRowDto row && row.ProductId > 0)
+                WindowManager.ShowDialog<UpdateProduct>(WindowSizeType.MediumRectangle, window => window.Initialize(row.ProductId));
         }
 
         private void BackBtn_Click(object sender, RoutedEventArgs e)

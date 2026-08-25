@@ -26,6 +26,7 @@ namespace RaccoonWarehouse.Domain.StockTransactions.DTOs
         public ProductUnitWriteDto ProductUnit { get; set; }
         public int ProductUnitId { get; set; }
         public int? StockId { get; set; }
+        public int? StockDocumentId { get; set; }
         public StockWriteDto? Stock { get; set; }
         public decimal Quantity { get; set; }
         public decimal QuantityPerUnitSnapshot { get; set; }
@@ -42,6 +43,7 @@ namespace RaccoonWarehouse.Domain.StockTransactions.DTOs
         public int? CashierSessionId { get; set; }
         public UserWriteDto? Customer { get; set; }
         public int? CustomerId { get; set; }
+        public string? ReferenceNumber { get; set; }
         public DateTime TransactionDate { get; set; }
         public string? Notes { get; set; }
         public DateTime CreatedDate { get; set; }

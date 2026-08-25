@@ -42,7 +42,8 @@ namespace RaccoonWarehouse.Application.Service.StockDocuments
                     return Result<StockDocumentWriteDto>.Fail("A user/account is required for credit stock-in / الذمة تتطلب اختيار حساب.");
                 if (dto.Type == StockVoucherType.In && dto.PaymentType == PaymentType.Check)
                 {
-                    var expected = Math.Round(dto.Items.Sum(item => item.Quantity * item.PurchasePrice) - Math.Clamp(dto.DiscountAmount ?? 0m, 0m, dto.Items.Sum(item => item.Quantity * item.PurchasePrice)), 3);
+                    var gross = dto.Items.Sum(item => Math.Max(0m, item.Quantity * item.PurchasePrice - item.LineDiscountAmount));
+                    var expected = Math.Round(gross - Math.Clamp(dto.DiscountAmount ?? 0m, 0m, gross), 3);
                     var checksTotal = Math.Round((dto.Checks ?? new List<RaccoonWarehouse.Domain.Checks.DTOs.CheckWriteDto>()).Sum(check => check.Amount), 3);
                     if (checksTotal != expected)
                         return Result<StockDocumentWriteDto>.Fail($"Check total ({checksTotal:0.###}) must equal stock-in total ({expected:0.###}) / مجموع الشيكات يجب أن يساوي إجمالي سند الإدخال.");
@@ -269,6 +270,8 @@ namespace RaccoonWarehouse.Application.Service.StockDocuments
             var factor = item.QuantityPerUnitSnapshot > 0 ? item.QuantityPerUnitSnapshot : 1m;
             item.QuantityPerUnitSnapshot = factor;
             item.BaseQuantity = item.BaseQuantity > 0 ? item.BaseQuantity : item.Quantity * factor;
+            item.LineDiscountAmount = Math.Clamp(item.LineDiscountAmount, 0m, Math.Max(0m, item.Quantity * item.PurchasePrice));
+            item.FreeQuantity = Math.Max(0m, item.FreeQuantity);
             item.CreatedDate = item.CreatedDate == default ? createdDate : item.CreatedDate;
             item.UpdatedDate = updatedDate;
             item.Id = 0;

@@ -515,6 +515,19 @@
                                 <TextBlock Grid.Column="2" Text="ملخص الشفت" Style="{StaticResource SidebarButtonText}"/>
                             </Grid>
                         </Button>
+                        <Button Style="{StaticResource SidebarActionBtn}"
+                                Click="ChangePaymentMethodBtn_Click"
+                                ToolTip="تغيير طريقة الدفع">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="8"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <iconPacks:PackIconMaterial Kind="SwapHorizontal" Width="18" Height="18" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="2" Text="تغيير الدفع" Style="{StaticResource SidebarButtonText}"/>
+                            </Grid>
+                        </Button>
                         <Button Style="{StaticResource SidebarDangerBtn}"
                                 Click="CancelInvoiceBtn_Click" ToolTip="إلغاء (Esc)">
                             <Grid>
@@ -565,6 +578,7 @@
                         <ColumnDefinition Width="200"/>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
 
                     <!-- Cashier -->
@@ -599,7 +613,10 @@
                                       Height="34" DisplayMemberPath="Name"
                                       Style="{StaticResource AppComboBoxStyle}"
                                       IsEditable="True"
+                                      IsTextSearchEnabled="False"
                                       PreviewKeyDown="CustomerComboBox_PreviewKeyDown"
+                                      PreviewTextInput="CustomerComboBox_PreviewTextInput"
+                                      KeyUp="CustomerComboBox_KeyUp"
                                       GotKeyboardFocus="CustomerComboBox_GotKeyboardFocus"/>
                             <Button Grid.Column="1"
                                     Width="34"
@@ -643,7 +660,25 @@
                     </StackPanel>
 
                     <!-- Invoice # badge -->
-                    <Border Grid.Column="4" Margin="16,0,0,0" Padding="12,6"
+                    <StackPanel Grid.Column="4" Margin="0,0,12,0" VerticalAlignment="Center">
+                        <TextBlock Text="رقم فاتورة فالكون / Falcon Invoice No."
+                                   Width="150"
+                                   FontSize="10"
+                                   Foreground="{StaticResource AppMutedTextBrush}"
+                                   Margin="0,0,0,4"
+                                   TextWrapping="Wrap"
+                                   TextAlignment="Right"/>
+                        <TextBox x:Name="FalconInvoiceNumberTextBox"
+                                 Height="34"
+                                 Width="150"
+                                 MaxLength="6"
+                                 Padding="8,0"
+                                 VerticalContentAlignment="Center"
+                                 TextAlignment="Left"
+                                 Style="{StaticResource AppSearchTextBoxStyle}"/>
+                    </StackPanel>
+
+                    <Border Grid.Column="5" Margin="16,0,0,0" Padding="12,6"
                             CornerRadius="10" Background="#EEF7EF"
                             VerticalAlignment="Center">
                         <StackPanel>
@@ -753,6 +788,8 @@
                                                 <RowDefinition Height="*"/>
                                                 <RowDefinition Height="Auto"/>
                                                 <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
                                             </Grid.RowDefinitions>
 
                                             <!-- icon placeholder -->
@@ -781,6 +818,18 @@
                                                        FontSize="11"
                                                        Foreground="{StaticResource AppPrimaryDarkBrush}"
                                                        FontWeight="Bold"
+                                                       HorizontalAlignment="Center"/>
+
+                                            <TextBlock Grid.Row="3"
+                                                       Text="{Binding LastCostIncludingTax, StringFormat=Last: {0:N3}}"
+                                                       FontSize="9"
+                                                       Foreground="{StaticResource AppTextBrush}"
+                                                       HorizontalAlignment="Center"/>
+
+                                            <TextBlock Grid.Row="4"
+                                                       Text="{Binding AverageCostIncludingTax, StringFormat=Avg: {0:N3}}"
+                                                       FontSize="9"
+                                                       Foreground="{StaticResource AppTextBrush}"
                                                        HorizontalAlignment="Center"/>
                                         </Grid>
                                     </Button>
@@ -868,6 +917,7 @@
                               SelectionUnit="CellOrRowHeader" SelectionMode="Single"
                               IsReadOnly="False" CanUserAddRows="False"
                               CanUserDeleteRows="True"
+                              LoadingRow="InvoiceGrid_LoadingRow"
                               KeyboardNavigation.TabNavigation="Continue"
                               PreviewKeyDown="InvoiceGrid_PreviewKeyDown"
                               PreparingCellForEdit="InvoiceGrid_PreparingCellForEdit"

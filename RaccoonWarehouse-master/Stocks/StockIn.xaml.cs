@@ -110,6 +110,13 @@ namespace RaccoonWarehouse.Stocks
 
         private void StockIn_PreviewKeyDown(object sender, KeyEventArgs e)
         {
+            if (e.Key == Key.F1)
+            {
+                SaveStockInBtn_Click(SaveStockInBtn, new RoutedEventArgs());
+                e.Handled = true;
+                return;
+            }
+
             if (e.Key != Key.F2)
                 return;
 
@@ -137,6 +144,7 @@ namespace RaccoonWarehouse.Stocks
                 loadingShown = true;
 
                 VoucherNumberTxt.Text = GenerateDocumentNumber();
+                FalconInvoiceNumberTextBox.Clear();
                 DatePickerInvoice.SelectedDate = DateTime.Now;
                 var warehouses = await _warehouseService.GetAllAsync();
                 WarehouseComboBox.ItemsSource = warehouses.Data;
@@ -206,6 +214,8 @@ namespace RaccoonWarehouse.Stocks
                 Quantity = 0,
                 PurchasePrice = 0,
                 SalePrice = 0,
+                LineDiscountAmount = 0,
+                FreeQuantity = 0,
                 ExpiryDate = DateTime.Now.AddMonths(6),
                 CreatedDate = DateTime.Now,
                 UpdatedDate = DateTime.Now
@@ -249,6 +259,13 @@ namespace RaccoonWarehouse.Stocks
                     return;
                 }
 
+                if (MessageBox.Show(
+                        UiText.T("هل تريد حفظ سند إدخال البضاعة؟", "Do you want to save the stock-in document?"),
+                        UiText.T("تأكيد الحفظ", "Confirm save"),
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Question) != MessageBoxResult.Yes)
+                    return;
+
                 _loadingService.Show();
                 loadingShown = true;
 
@@ -269,6 +286,20 @@ namespace RaccoonWarehouse.Stocks
                     {
                         HideLoadingIfShown();
                         MessageBox.Show(UiText.T($"الكمية غير صحيحة للمنتج {item.ProductName ?? "غير معروف"}.", $"The quantity is invalid for product {item.ProductName ?? "Unknown"}."), UiText.T("تنبيه", "Notice"));
+                        return;
+                    }
+
+                    if (item.LineDiscountAmount < 0 || item.LineDiscountAmount > item.Quantity * item.PurchasePrice)
+                    {
+                        HideLoadingIfShown();
+                        MessageBox.Show(UiText.T("خصم السطر غير صحيح.", "The row discount is invalid."), UiText.T("تنبيه", "Notice"));
+                        return;
+                    }
+
+                    if (item.FreeQuantity < 0)
+                    {
+                        HideLoadingIfShown();
+                        MessageBox.Show(UiText.T("الكمية المجانية لا يمكن أن تكون سالبة.", "Free quantity cannot be negative."), UiText.T("تنبيه", "Notice"));
                         return;
                     }
 
@@ -297,7 +328,7 @@ namespace RaccoonWarehouse.Stocks
                 bool isUpdate = _currentDocumentId != null;
 
                 var paymentType = GetSelectedPaymentType();
-                var stockTotal = Math.Round(Items.Sum(item => item.Quantity * item.PurchasePrice) - GetDiscountAmount(), 3);
+                var stockTotal = Math.Round(Items.Sum(GetPaidLineTotal) - GetDiscountAmount(), 3);
                 var selectedUserId = SupplierComboBox.SelectedValue is int userId ? userId : 0;
                 if (paymentType == PaymentType.Credit && selectedUserId <= 0)
                 {
@@ -332,6 +363,7 @@ namespace RaccoonWarehouse.Stocks
                 {
                     Id = _currentDocumentId ?? 0,
                     DocumentNumber = VoucherNumberTxt.Text,
+                    FalconInvoiceNumber = FalconInvoiceNumberTextBox.Text.Trim(),
                     Type = StockVoucherType.In,
                     SupplierId = SupplierComboBox.SelectedValue is int supplierId && supplierId > 0 ? supplierId : null,
                     PaymentType = paymentType,
@@ -348,21 +380,25 @@ namespace RaccoonWarehouse.Stocks
                 {
                     // ============= CREATE =============
                     var result = await _stockDocumentService.CreateAsync(documentDto);
-                    if (result.Success)
+
+                    if (!result.Success)
                     {
-                        var movementResult = await _stockService.PostMovementsAsync(
-                            BuildStockMovements(Items, TransactionType.Purchase, $"Stock in document #{documentDto.DocumentNumber}"));
-
-                        if (!movementResult.Success)
-                        {
-                            HideLoadingIfShown();
-                            MessageBox.Show(movementResult.Message ?? UiText.T("فشل تحديث المخزون.", "Failed to update stock."), UiText.T("خطأ", "Error"));
-                            return;
-                        }
-
-                        _currentDocumentId = result.Data?.Id;
+                        HideLoadingIfShown();
+                        MessageBox.Show(result.Message ?? UiText.T("تعذر حفظ سند الإدخال.", "The stock-in document could not be saved."), UiText.T("خطأ", "Error"), MessageBoxButton.OK, MessageBoxImage.Error);
+                        return;
                     }
-                   
+
+                    var movementResult = await _stockService.PostMovementsAsync(
+                        BuildStockMovements(Items, TransactionType.Purchase, $"Stock in document #{documentDto.DocumentNumber}"));
+
+                    if (!movementResult.Success)
+                    {
+                        HideLoadingIfShown();
+                        MessageBox.Show(movementResult.Message ?? UiText.T("فشل تحديث المخزون.", "Failed to update stock."), UiText.T("خطأ", "Error"));
+                        return;
+                    }
+
+                    _currentDocumentId = result.Data?.Id;
 
                     HideLoadingIfShown();
                     MessageBox.Show(UiText.T("تم إنشاء السند بنجاح.", "The document was created successfully."), UiText.T("نجاح", "Success"),
@@ -415,14 +451,19 @@ namespace RaccoonWarehouse.Stocks
 
         private decimal GetDiscountAmount()
         {
-            var subtotal = Items.Sum(item => item.Quantity * item.PurchasePrice);
+            var subtotal = Items.Sum(GetPaidLineTotal);
             decimal.TryParse(DiscountTextBox.Text, out var discount);
             return Math.Clamp(discount, 0m, subtotal);
         }
 
+        private static decimal GetPaidLineTotal(StockItemWriteDto item)
+        {
+            return Math.Max(0m, item.Quantity * item.PurchasePrice - item.LineDiscountAmount);
+        }
+
         private void UpdateStockTotals()
         {
-            var subtotal = Items.Sum(item => item.Quantity * item.PurchasePrice);
+            var subtotal = Items.Sum(GetPaidLineTotal);
             var discount = GetDiscountAmount();
             SubtotalAmountTextBox.Text = subtotal.ToString("0.00000");
             DiscountTextBox.Text = discount.ToString("0.00000");
@@ -433,6 +474,18 @@ namespace RaccoonWarehouse.Stocks
         {
             if (IsLoaded)
                 UpdateStockTotals();
+        }
+
+        private void StockLineValue_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (IsLoaded)
+                UpdateStockTotals();
+        }
+
+        private void StockLineValue_LostFocus(object sender, RoutedEventArgs e)
+        {
+            if (IsLoaded)
+                ProductsGrid.Items.Refresh();
         }
         private string GenerateDocumentNumber()
         {
@@ -476,10 +529,31 @@ namespace RaccoonWarehouse.Stocks
                     SalePrice = item.SalePrice,
                     ExpiryDate = item.ExpiryDate,
                     TransactionType = transactionType,
-                    UpdateCatalogAverageCost = _userSession.CurrentUser?.Role == UserRole.Admin,
+                    UpdateCatalogAverageCost = true,
                     TransactionDate = DateTime.Now,
-                    Notes = notes
+                    Notes = notes + (item.LineDiscountAmount > 0 ? $" | Row discount: {item.LineDiscountAmount:0.###}" : string.Empty)
                 };
+
+                if (item.FreeQuantity > 0)
+                {
+                    var freeBaseQuantity = item.FreeQuantity * (item.QuantityPerUnitSnapshot > 0 ? item.QuantityPerUnitSnapshot : 1m);
+                    yield return new StockMovementPostDto
+                    {
+                        ProductId = item.ProductId,
+                        ProductUnitId = item.ProductUnitId,
+                        Quantity = reverseSign ? -item.FreeQuantity : item.FreeQuantity,
+                        QuantityPerUnitSnapshot = item.QuantityPerUnitSnapshot > 0 ? item.QuantityPerUnitSnapshot : 1m,
+                        BaseQuantity = reverseSign ? -freeBaseQuantity : freeBaseQuantity,
+                        UnitPrice = 0,
+                        PurchasePrice = 0,
+                        SalePrice = item.SalePrice,
+                        ExpiryDate = item.ExpiryDate,
+                        TransactionType = transactionType,
+                        UpdateCatalogAverageCost = false,
+                        TransactionDate = DateTime.Now,
+                        Notes = notes + " | Free quantity"
+                    };
+                }
             }
         }
 
@@ -510,6 +584,26 @@ namespace RaccoonWarehouse.Stocks
                     TransactionDate = DateTime.Now,
                     Notes = notes
                 };
+
+                if (item.FreeQuantity > 0)
+                {
+                    var freeBaseQuantity = item.FreeQuantity * quantityPerUnit;
+                    yield return new StockMovementPostDto
+                    {
+                        ProductId = item.ProductId,
+                        ProductUnitId = item.ProductUnitId,
+                        Quantity = reverseSign ? -item.FreeQuantity : item.FreeQuantity,
+                        QuantityPerUnitSnapshot = quantityPerUnit,
+                        BaseQuantity = reverseSign ? -freeBaseQuantity : freeBaseQuantity,
+                        UnitPrice = 0,
+                        PurchasePrice = 0,
+                        SalePrice = item.SalePrice,
+                        ExpiryDate = item.ExpiryDate,
+                        TransactionType = transactionType,
+                        TransactionDate = DateTime.Now,
+                        Notes = notes + " | Free quantity"
+                    };
+                }
             }
         }
         private async void Product_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -594,15 +688,27 @@ namespace RaccoonWarehouse.Stocks
 
         private async void SearchProductBtn_Click(object sender, RoutedEventArgs e)
         {
-            var searchWindow = new PurchaseProductSearchWindow(
-                _productService,
-                AddProductFromSearchAsync,
-                CreateProductFromSearchAsync)
+            try
             {
-                Owner = this
-            };
+                var searchWindow = new PurchaseProductSearchWindow(
+                    _productService,
+                    async row => await AddProductFromSearchAsync(row),
+                    async search => await CreateProductFromSearchAsync(search))
+                {
+                    Owner = this
+                };
 
-            searchWindow.ShowDialog();
+                searchWindow.ShowDialog();
+                ProductBox.Focus();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"{UiText.T("Product search could not be opened", "Could not open the product search window")}: {ex.Message}",
+                    UiText.T("Error", "Error"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
         }
 
         private async Task CreateProductFromSearchAsync(string searchText)
@@ -618,13 +724,22 @@ namespace RaccoonWarehouse.Stocks
 
         private Task<bool> AddProductFromSearchAsync(PurchaseProductSearchWindow.PurchaseProductSearchRow row)
         {
-            if (row.SelectedUnit == null || row.ProductUnitId <= 0)
+            if (row.ProductUnitId <= 0)
             {
                 MessageBox.Show(UiText.T("لا توجد وحدة شراء معرفة لهذا المنتج.", "No purchase unit is defined for this product."), UiText.T("تنبيه", "Notice"));
                 return Task.FromResult(false);
             }
 
-            if (row.Quantity <= 0 || row.PurchasePrice <= 0)
+            var unit = row.Product.ProductUnits?.FirstOrDefault(x => x.Id == row.ProductUnitId);
+            if (unit == null)
+            {
+                MessageBox.Show(UiText.T("The product unit could not be loaded.", "The product unit could not be loaded."), UiText.T("Notice", "Notice"));
+                return Task.FromResult(false);
+            }
+
+            var quantityPerUnit = unit.QuantityPerUnit > 0m ? unit.QuantityPerUnit : 1m;
+            var purchasePrice = row.PurchasePrice > 0m ? row.PurchasePrice : unit.PurchasePrice;
+            if (row.Quantity <= 0 || purchasePrice <= 0)
             {
                 MessageBox.Show(UiText.T("الكمية وسعر الشراء يجب أن يكونا أكبر من صفر.", "Quantity and purchase price must be greater than zero."), UiText.T("تنبيه", "Notice"));
                 return Task.FromResult(false);
@@ -635,10 +750,10 @@ namespace RaccoonWarehouse.Stocks
                 ProductId = row.Product.Id,
                 ProductUnitId = row.ProductUnitId,
                 Quantity = row.Quantity,
-                QuantityPerUnitSnapshot = row.QuantityPerUnit,
-                BaseQuantity = row.Quantity * row.QuantityPerUnit,
-                PurchasePrice = row.PurchasePrice,
-                SalePrice = row.SelectedUnit.SalePrice,
+                QuantityPerUnitSnapshot = quantityPerUnit,
+                BaseQuantity = row.Quantity * quantityPerUnit,
+                PurchasePrice = purchasePrice,
+                SalePrice = unit.SalePrice,
                 ExpiryDate = row.ExpiryDate,
                 CreatedDate = DateTime.Now,
                 UpdatedDate = DateTime.Now,
@@ -1200,6 +1315,7 @@ namespace RaccoonWarehouse.Stocks
             UpdateChecksButtonVisibility();
 
             VoucherNumberTxt.Text = doc.DocumentNumber;
+            FalconInvoiceNumberTextBox.Text = doc.FalconInvoiceNumber ?? string.Empty;
             DatePickerInvoice.SelectedDate = doc.CreatedDate;
             NotesTxt.Text = doc.Notes;
             DiscountTextBox.Text = (doc.DiscountAmount ?? 0m).ToString("0.00000");
@@ -1229,6 +1345,7 @@ namespace RaccoonWarehouse.Stocks
             }
 
             ProductsGrid.Items.Refresh();
+            UpdateStockTotals();
             PrintBtn.Visibility = Visibility.Visible;
             NewStockInBtn.Visibility = Visibility.Visible;
         }

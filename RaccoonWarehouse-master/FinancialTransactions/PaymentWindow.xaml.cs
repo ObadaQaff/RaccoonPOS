@@ -1,6 +1,7 @@
 using RaccoonWarehouse.Application.Service.FinancialTransactions;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.FinancialTransactions.DTOs;
+using RaccoonWarehouse.Helpers.Localization;
 using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
@@ -88,6 +89,13 @@ namespace RaccoonWarehouse.FinancialTransactions
                     MessageBox.Show("يرجى اختيار طريقة الدفع");
                     return;
                 }
+
+                if (MessageBox.Show(
+                        UiText.T("هل تريد حفظ سند الدفع؟", "Do you want to save the payment transaction?"),
+                        UiText.T("تأكيد الحفظ", "Confirm save"),
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Question) != MessageBoxResult.Yes)
+                    return;
 
                 _dto.Amount = amount;
                 _dto.Method = (PaymentMethod)PaymentMethodCombo.SelectedItem;

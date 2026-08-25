@@ -58,8 +58,12 @@ namespace RaccoonWarehouse.Accounting
             try
             {
                 _loadingService.Show();
+                await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Render);
                 await LoadAccountsAsync();
                 await LoadUsersAsync();
+                UpdateLayout();
+                await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Render);
+                await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
             }
             finally
             {

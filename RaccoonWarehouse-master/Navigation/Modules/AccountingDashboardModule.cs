@@ -35,7 +35,8 @@ namespace RaccoonWarehouse.Navigation.Modules
                             new[]
                             {
                                 new ModuleActionDefinition("Accounting.CustomerDebts", UiText.T("ذمم العملاء", "Customer Debts")),
-                                new ModuleActionDefinition("Accounting.SupplierPayables", UiText.T("ذمم الموردين", "Supplier Payables"))
+                                new ModuleActionDefinition("Accounting.SupplierPayables", UiText.T("ذمم الموردين", "Supplier Payables")),
+                                new ModuleActionDefinition("Accounting.PartyBalances", UiText.T("أرصدة العملاء والموردين", "Customer and Supplier Balances"))
                             })
                     }));
         }

@@ -177,6 +177,13 @@ namespace RaccoonWarehouse.Vouchers
                     return;
                 }
 
+                if (MessageBox.Show(
+                        UiText.T("هل تريد حفظ سند الدفع؟", "Do you want to save the payment voucher?"),
+                        UiText.T("تأكيد الحفظ", "Confirm save"),
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Question) != MessageBoxResult.Yes)
+                    return;
+
                 if (!TryGetActiveCashierSession(out var session))
                     return;
                 _loadingService.Show();
@@ -368,6 +375,9 @@ namespace RaccoonWarehouse.Vouchers
 
         private void ClearFields()
         {
+            _currentVoucherId = null;
+            _originalChecks.Clear();
+
             // Reset voucher fields
             ReceiptNumber.Text = GenerateDocumentNumber();
             Amount.Text = string.Empty;
@@ -394,6 +404,12 @@ namespace RaccoonWarehouse.Vouchers
             ChecksGrid.Visibility = Visibility.Collapsed;
             AddCheckButton.Visibility = Visibility.Collapsed;
             UiText.ApplyTranslations(this);
+
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                Amount.Focus();
+                Amount.SelectAll();
+            }), System.Windows.Threading.DispatcherPriority.Input);
         }
 
 
@@ -1296,7 +1312,10 @@ namespace RaccoonWarehouse.Vouchers
             Amount.Text = dto.Amount.ToString();
             ReceiptDescription.Text = dto.Notes;
 
-            AccountComboBox.SelectedValue = dto.SupplierId;
+            var accountId = dto.SupplierId ?? dto.CustomerId;
+            AccountComboBox.SelectedValue = accountId;
+            if (accountId.HasValue)
+                AccountComboBox.SelectedItem = _allAccountUsers.FirstOrDefault(user => user.Id == accountId.Value);
             WarehouseComboBox.SelectedValue = dto.WarehouseId;
 
             PaymentTypeCombo.SelectedIndex = (int)dto.PaymentType - 1;

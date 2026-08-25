@@ -27,7 +27,6 @@ namespace RaccoonWarehouse.POS
 
             OriginalInvoiceId = invoiceNumber;
             DialogResult = true;
-            Close();
         }
 
         private void Cancel_Click(object sender, RoutedEventArgs e)

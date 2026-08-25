@@ -10,6 +10,7 @@ namespace RaccoonWarehouse.Domain.StockDocuments
     public class StockDocument : BaseEntity
     {
         public string DocumentNumber { get; set; } = string.Empty;
+        public string? FalconInvoiceNumber { get; set; }
         public StockVoucherType Type { get; set; }
         public DateTime? DocumentDate { get; set; }
         public string? ReferenceNumber { get; set; }

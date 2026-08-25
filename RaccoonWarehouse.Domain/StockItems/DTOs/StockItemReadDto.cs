@@ -41,6 +41,8 @@ namespace RaccoonWarehouse.Domain.StockItems.DTOs
         public decimal BaseQuantity { get; set; }
         public decimal PurchasePrice { get; set; }
         public decimal SalePrice { get; set; }
+        public decimal LineDiscountAmount { get; set; }
+        public decimal FreeQuantity { get; set; }
         public DateTime? ExpiryDate { get; set; }
 
 

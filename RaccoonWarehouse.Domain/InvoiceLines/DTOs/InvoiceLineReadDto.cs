@@ -25,12 +25,14 @@ namespace RaccoonWarehouse.Domain.InvoiceLines.DTOs
         public int ProductUnitId { get; set; }
         public ProductUnitReadDto? ProductUnit { get; set; }
         public decimal Quantity { get; set; }
+        public decimal LineDiscountAmount { get; set; }
+        public decimal FreeQuantity { get; set; }
         public decimal QuantityPerUnitSnapshot { get; set; } = 1m;
         public decimal BaseQuantity { get; set; }
         public decimal UnitPrice { get; set; }
         public string ProductName { get; set; } 
 
-        public decimal LineTotal => Quantity * UnitPrice;
+        public decimal LineTotal => Math.Max(0m, Quantity * UnitPrice - LineDiscountAmount);
         public DateTime CreatedDate { get; set; }
         public DateTime UpdatedDate { get; set; }
         public DateTime ExpiryDate { get; set; }

@@ -75,6 +75,13 @@ namespace RaccoonWarehouse.Data
             }
         }
 
+        protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+        {
+            configurationBuilder
+                .Properties<decimal>()
+                .HavePrecision(18, 6);
+        }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);

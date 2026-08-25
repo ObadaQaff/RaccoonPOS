@@ -123,17 +123,15 @@ namespace RaccoonWarehouse.Invoices
         {
             if (e.Key == Key.Down && _products.Count > 0)
             {
+                ProductsGrid.Focus();
                 ProductsGrid.SelectedIndex = 0;
                 ProductsGrid.CurrentCell = new DataGridCellInfo(_products[0], ProductsGrid.Columns[1]);
-                ProductsGrid.Focus();
                 ProductsGrid.BeginEdit();
-                ProductsGrid.ScrollIntoView(ProductsGrid.SelectedItem);
                 e.Handled = true;
             }
             else if (e.Key == Key.Enter)
             {
-                var row = ProductsGrid.SelectedItem as ProductSearchRow ?? _products.FirstOrDefault();
-                if (row != null)
+                if (ProductsGrid.SelectedItem is ProductSearchRow row)
                     await AddProductAsync(row);
                 e.Handled = true;
             }
@@ -155,86 +153,37 @@ namespace RaccoonWarehouse.Invoices
 
         private async Task HandleProductsGridKeyAsync(KeyEventArgs e)
         {
-            if (ProductsGrid.SelectedItem is not ProductSearchRow row)
+            if (ProductsGrid.CurrentItem is not ProductSearchRow row)
                 return;
-
-            if (e.Key is Key.Enter or Key.Left or Key.Right or Key.Up or Key.Down)
-                e.Handled = true;
-
-            var visibleColumns = ProductsGrid.Columns
-                .Where(column => column.Visibility == Visibility.Visible)
-                .OrderBy(column => column.DisplayIndex)
-                .ToList();
 
             if (e.Key == Key.Enter)
             {
-                var currentColumn = ProductsGrid.CurrentCell.Column;
-
                 ProductsGrid.CommitEdit(DataGridEditingUnit.Cell, true);
                 ProductsGrid.CommitEdit(DataGridEditingUnit.Row, true);
+                var currentColumn = ProductsGrid.CurrentCell.Column;
+                var nextColumn = ProductsGrid.Columns
+                    .Where(column => column.Visibility == Visibility.Visible)
+                    .OrderBy(column => column.DisplayIndex)
+                    .FirstOrDefault(column => currentColumn != null && column.DisplayIndex > currentColumn.DisplayIndex);
 
-                var currentColumnIndex = currentColumn == null
-                    ? -1
-                    : visibleColumns.IndexOf(currentColumn);
-
-                if (currentColumnIndex < 0 || currentColumnIndex == visibleColumns.Count - 1)
+                if (nextColumn == null)
                 {
                     await AddProductAsync(row);
                 }
                 else
                 {
-                    var nextColumn = visibleColumns[currentColumnIndex + 1];
                     ProductsGrid.CurrentCell = new DataGridCellInfo(row, nextColumn);
-                    ProductsGrid.SelectedIndex = _products.IndexOf(row);
-                    ProductsGrid.ScrollIntoView(row, nextColumn);
-                    ProductsGrid.Focus();
                     ProductsGrid.BeginEdit();
                 }
+                e.Handled = true;
                 return;
             }
-            else if (e.Key is Key.Left or Key.Right)
-            {
-                ProductsGrid.CommitEdit(DataGridEditingUnit.Cell, true);
-                ProductsGrid.CommitEdit(DataGridEditingUnit.Row, true);
 
-                var currentColumn = ProductsGrid.CurrentCell.Column ?? visibleColumns.FirstOrDefault();
-                var currentIndex = currentColumn == null ? -1 : visibleColumns.IndexOf(currentColumn);
-                var direction = e.Key == Key.Left ? 1 : -1;
-                var nextIndex = currentIndex + direction;
-
-                if (currentIndex >= 0 && nextIndex >= 0 && nextIndex < visibleColumns.Count)
-                {
-                    var nextColumn = visibleColumns[nextIndex];
-                    ProductsGrid.CurrentCell = new DataGridCellInfo(row, nextColumn);
-                    ProductsGrid.SelectedIndex = _products.IndexOf(row);
-                    ProductsGrid.ScrollIntoView(row, nextColumn);
-                    ProductsGrid.Focus();
-                    ProductsGrid.BeginEdit();
-                }
-            }
-            else if (e.Key == Key.Down && ProductsGrid.SelectedIndex < _products.Count - 1)
+            if (e.Key == Key.Up && ProductsGrid.SelectedIndex == 0)
             {
-                var currentColumn = ProductsGrid.CurrentCell.Column ?? visibleColumns.FirstOrDefault();
-                ProductsGrid.SelectedIndex++;
-                if (ProductsGrid.SelectedItem is ProductSearchRow nextRow && currentColumn != null)
-                    ProductsGrid.CurrentCell = new DataGridCellInfo(nextRow, currentColumn);
-                ProductsGrid.ScrollIntoView(ProductsGrid.SelectedItem);
-            }
-            else if (e.Key == Key.Up)
-            {
-                if (ProductsGrid.SelectedIndex <= 0)
-                {
-                    SearchTextBox.Focus();
-                    SearchTextBox.SelectAll();
-                }
-                else
-                {
-                    var currentColumn = ProductsGrid.CurrentCell.Column ?? visibleColumns.FirstOrDefault();
-                    ProductsGrid.SelectedIndex--;
-                    if (ProductsGrid.SelectedItem is ProductSearchRow previousRow && currentColumn != null)
-                        ProductsGrid.CurrentCell = new DataGridCellInfo(previousRow, currentColumn);
-                    ProductsGrid.ScrollIntoView(ProductsGrid.SelectedItem);
-                }
+                SearchTextBox.Focus();
+                SearchTextBox.SelectAll();
+                e.Handled = true;
             }
         }
         private async Task AddProductAsync(ProductSearchRow row)
@@ -262,6 +211,14 @@ namespace RaccoonWarehouse.Invoices
                 SearchTextBox.Focus();
                 Keyboard.Focus(SearchTextBox);
                 SearchTextBox.SelectAll();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"{UiText.T("تعذر إضافة الصنف إلى الفاتورة", "Could not add the product to the invoice")}: {ex.Message}",
+                    UiText.T("خطأ", "Error"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
             }
             finally
             {
@@ -297,9 +254,10 @@ namespace RaccoonWarehouse.Invoices
                     s =>
                         s.Quantity > 0 &&
                         s.Product != null &&
-                        (s.Product.Name.Contains(text) ||
+                        (s.Product.Name != null && s.Product.Name.Contains(text) ||
                          s.Product.ITEMCODE.ToString().Contains(text) ||
-                         s.Product.ProductUnits!.Any(unit => unit.AlternateBarcode!.Contains(text))),
+                         s.Product.ProductUnits != null &&
+                         s.Product.ProductUnits.Any(unit => unit.AlternateBarcode != null && unit.AlternateBarcode.Contains(text))),
                     new Expression<Func<Stock, object>>[]
                     {
                         s => s.Product,
@@ -362,6 +320,13 @@ namespace RaccoonWarehouse.Invoices
                     if (searchRow.SelectedUnit == null)
                         searchRow.SalePrice = item.Product.CurrentSalePrice;
                     _products.Add(searchRow);
+                }
+
+                if (_products.Count > 0)
+                {
+                    ProductsGrid.SelectedIndex = 0;
+                    ProductsGrid.CurrentCell = new DataGridCellInfo(_products[0], ProductsGrid.Columns[0]);
+                    ProductsGrid.ScrollIntoView(_products[0]);
                 }
 
                 ProductsGrid.Items.Refresh();

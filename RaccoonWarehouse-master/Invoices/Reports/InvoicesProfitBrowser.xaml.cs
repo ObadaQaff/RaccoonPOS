@@ -6,6 +6,8 @@ using RaccoonWarehouse.Domain.InvoiceLines.DTOs;
 using RaccoonWarehouse.Domain.Invoices.DTOs;
 using RaccoonWarehouse.Domain.Users.DTOs;
 using RaccoonWarehouse.Helpers.Localization;
+using RaccoonWarehouse.Navigation;
+using RaccoonWarehouse.Products;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -31,6 +33,7 @@ namespace RaccoonWarehouse.Invoices.Reports
         private readonly IInvoiceService _invoiceService;
         private readonly IUserService _userService;
         private readonly ILoadingService _loadingService;
+        private readonly SourceDocumentNavigationService _sourceDocumentNavigationService;
 
         private readonly ObservableCollection<UserReadDto> _customers = new();
         private readonly ObservableCollection<InvoiceHeaderVm> _invoices = new();
@@ -39,11 +42,13 @@ namespace RaccoonWarehouse.Invoices.Reports
         public InvoicesProfitBrowser(
             IInvoiceService invoiceService,
             IUserService userService,
-            ILoadingService loadingService)
+            ILoadingService loadingService,
+            SourceDocumentNavigationService sourceDocumentNavigationService)
         {
             _invoiceService = invoiceService;
             _userService = userService;
             _loadingService = loadingService;
+            _sourceDocumentNavigationService = sourceDocumentNavigationService;
 
             InitializeComponent();
             UiText.ApplyWindow(this);
@@ -52,6 +57,22 @@ namespace RaccoonWarehouse.Invoices.Reports
             LinesGrid.ItemsSource = _lines;
 
             Loaded += InvoicesProfitBrowser_Loaded;
+        }
+
+        private async void InvoicesGrid_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (InvoicesGrid.SelectedItem is not InvoiceHeaderVm invoice || invoice.Id <= 0)
+                return;
+
+            await _sourceDocumentNavigationService.OpenSourceDocument("Invoice", invoice.Id);
+        }
+
+        private void LinesGrid_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (LinesGrid.SelectedItem is not InvoiceLineVm line || line.ProductId <= 0)
+                return;
+
+            WindowManager.ShowDialog<UpdateProduct>(WindowSizeType.MediumRectangle, window => window.Initialize(line.ProductId));
         }
 
         private async void InvoicesProfitBrowser_Loaded(object sender, RoutedEventArgs e)
@@ -129,6 +150,7 @@ namespace RaccoonWarehouse.Invoices.Reports
 
                 var result = await _invoiceService.GetAllWithFilteringAndIncludeAsync(
                     invoice => invoice.CreatedDate >= from && invoice.CreatedDate <= to
+                        && (invoice.Status == InvoiceStatus.Completed || invoice.Status == InvoiceStatus.Posted)
                         && (!customerId.HasValue || invoice.CustomerId == customerId.Value)
                         && (
                             !invoiceType.HasValue
@@ -216,6 +238,7 @@ namespace RaccoonWarehouse.Invoices.Reports
 
                     _lines.Add(new InvoiceLineVm
                     {
+                        ProductId = line.ProductId,
                         ProductName = line.Product?.Name ?? line.ProductName ?? "-",
                         UnitName = line.ProductUnit?.Unit?.Name ?? "-",
                         Quantity = quantity,
@@ -317,6 +340,7 @@ namespace RaccoonWarehouse.Invoices.Reports
 
         public class InvoiceLineVm
         {
+            public int ProductId { get; set; }
             public string ProductName { get; set; }
             public string UnitName { get; set; }
             public decimal Quantity { get; set; }

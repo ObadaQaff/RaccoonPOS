@@ -217,7 +217,7 @@
 
         <!-- CONTENT -->
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-            <StackPanel Width="850"
+                    <StackPanel Width="1250"
                         HorizontalAlignment="Center"
                         Margin="0,20,0,20"
                         FlowDirection="RightToLeft">
@@ -225,15 +225,30 @@
                 <!-- معلومات الفاتورة والمورد -->
                 <Grid Margin="0,0,0,10">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="220"/>
-                        <ColumnDefinition Width="220"/>
-                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="250"/>
+                        <ColumnDefinition Width="250"/>
+                        <ColumnDefinition Width="250"/>
+                        <ColumnDefinition Width="250"/>
+                        <ColumnDefinition Width="250"/>
                     </Grid.ColumnDefinitions>
 
                     <!-- رقم الفاتورة -->
                     <StackPanel Margin="6" Grid.Column="0">
                         <TextBlock Text="رقم الفاتورة" FontSize="14" FontWeight="SemiBold"/>
                         <TextBox x:Name="InvoiceNumberTextBox" Style="{StaticResource InputBoxStyle}"/>
+                    </StackPanel>
+
+                    <StackPanel Margin="6" Grid.Column="3">
+                        <TextBlock Text="رقم فاتورة فالكون / Falcon Invoice No."
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   TextWrapping="Wrap"
+                                   TextAlignment="Right"
+                                   Height="38"/>
+                        <TextBox x:Name="FalconInvoiceNumberTextBox"
+                                 MaxLength="6"
+                                 TextAlignment="Left"
+                                 Style="{StaticResource InputBoxStyle}"/>
                     </StackPanel>
 
                     <!-- التاريخ -->
@@ -255,12 +270,17 @@
 
                 <!-- طريقة الدفع + المجموع -->
                 <Grid Margin="0,0,0,10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="220"/>
-                        <ColumnDefinition Width="220"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="250"/>
+                        <ColumnDefinition Width="250"/>
+                        <ColumnDefinition Width="250"/>
+                        <ColumnDefinition Width="250"/>
+                        <ColumnDefinition Width="250"/>
+                        <ColumnDefinition Width="250"/>
                     </Grid.ColumnDefinitions>
 
                     <!-- طريقة الدفع -->
@@ -295,6 +315,16 @@
                                  Style="{StaticResource InputBoxStyle}"
                                  Text="0"
                                  TextChanged="DiscountTextBox_TextChanged"/>
+                    </StackPanel>
+                    <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="6"
+                                Margin="6,2,6,0"
+                                HorizontalAlignment="Left">
+                        <CheckBox x:Name="CostPriceIncludesTaxCheckBox"
+                                  Content="Cost includes tax"
+                                  Checked="CostPriceIncludesTaxCheckBox_Changed"
+                                  Unchecked="CostPriceIncludesTaxCheckBox_Changed"
+                                  FontSize="14"
+                                  VerticalContentAlignment="Center"/>
                     </StackPanel>
                 </Grid>
 
@@ -438,15 +468,19 @@
                         Click="SearchProductBtn_Click"/>
 
                 <!-- GRID للمنتجات -->
-                <StackPanel Margin="10">
+                <StackPanel Width="1100"
+                            Margin="10"
+                            HorizontalAlignment="Center">
                     <TextBlock Text="تفاصيل المنتجات"
                                FontSize="16"
-                               FontWeight="SemiBold"/>
+                               FontWeight="SemiBold"
+                               HorizontalAlignment="Center"/>
 
                     <DataGrid x:Name="ProductsGrid"
                               AutoGenerateColumns="False"
                               CanUserAddRows="False" IsReadOnly="False" CellEditEnding="ProductsGrid_CellEditEnding"
                               Style="{StaticResource MinimalDataGrid}"
+                              HorizontalAlignment="Stretch"
                               Margin="0,10,0,0">
 
                         <DataGrid.Columns>
@@ -461,6 +495,19 @@
                             <DataGridTextColumn Header="الكمية"
                                                 Binding="{Binding Quantity, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                                                 Width="80"/>
+
+                            <DataGridTextColumn Header="Discount"
+                                                Binding="{Binding LineDiscountAmount, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                Width="100"/>
+
+                            <DataGridTextColumn Header="Free"
+                                                Binding="{Binding FreeQuantity, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                Width="80"/>
+
+                            <DataGridTextColumn Header="Tax"
+                                                Binding="{Binding TaxAmount, Mode=OneWay}"
+                                                IsReadOnly="True"
+                                                Width="90"/>
 
                             <DataGridTextColumn Header="سعر الوحدة"
                                                 Binding="{Binding UnitPrice, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"

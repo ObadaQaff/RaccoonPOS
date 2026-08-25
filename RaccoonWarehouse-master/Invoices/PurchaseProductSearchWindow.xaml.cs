@@ -55,7 +55,7 @@ namespace RaccoonWarehouse.Invoices
             {
                 Product = product;
                 Units = new ObservableCollection<ProductUnitReadDto>((product.ProductUnits ?? Array.Empty<ProductUnitReadDto>()).ToList());
-                SelectedUnit = Units.FirstOrDefault();
+                SelectedUnit = ProductUnitSelector.GetDefaultPurchaseUnit(Units) ?? Units.FirstOrDefault();
             }
         }
 
@@ -93,6 +93,8 @@ namespace RaccoonWarehouse.Invoices
             if (_isSelecting) return;
             var search = SearchTextBox.Text.Trim(); var version = ++_searchVersion;
             if (search.Length < 1) { Products.Clear(); return; }
+            var searchTerms = search.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            var databaseSearchTerm = searchTerms[0];
             await _searchLock.WaitAsync();
             try
             {
@@ -100,17 +102,32 @@ namespace RaccoonWarehouse.Invoices
                     query => query
                         .Include(p => p.ProductUnits!)
                         .ThenInclude(productUnit => productUnit.Unit),
-                    p => (p.Name ?? string.Empty).Contains(search) ||
-                         p.ITEMCODE.ToString().Contains(search) ||
-                         p.ProductUnits!.Any(unit => unit.AlternateBarcode == search));
+                    p => (p.Name ?? string.Empty).Contains(databaseSearchTerm) ||
+                         p.ITEMCODE.ToString().Contains(databaseSearchTerm) ||
+                         p.ProductUnits!.Any(unit => unit.AlternateBarcode == databaseSearchTerm));
                 if (version != _searchVersion) return;
                 Products.Clear();
-                foreach (var product in (result?.Data ?? new System.Collections.Generic.List<ProductReadDto>()).Where(p => p.DefaultPurchaseUnit != null).OrderBy(p => p.Name)) Products.Add(new(product));
+                foreach (var product in (result?.Data ?? new System.Collections.Generic.List<ProductReadDto>())
+                    .Where(p => p.DefaultPurchaseUnit != null && MatchesSearch(p, searchTerms))
+                    .OrderBy(p => p.Name)) Products.Add(new(product));
                 CreateProductBtn.Visibility = Products.Count == 0 && _onCreateProduct != null ? Visibility.Visible : Visibility.Collapsed;
                 if (Products.Count > 0) { ProductsGrid.SelectedIndex = 0; ProductsGrid.CurrentCell = new DataGridCellInfo(Products[0], ProductsGrid.Columns[0]); ProductsGrid.ScrollIntoView(Products[0]); }
             }
             catch (Exception ex) { MessageBox.Show($"{UiText.T("تعذر البحث عن الصنف", "Could not search for the product")}: {ex.Message}", UiText.T("خطأ", "Error")); }
             finally { _searchLock.Release(); }
+        }
+        private static bool MatchesSearch(ProductReadDto product, string[] searchTerms)
+        {
+            var name = product.Name ?? string.Empty;
+            var itemCode = product.ITEMCODE.ToString();
+            var alternateBarcodes = product.ProductUnits?.Where(unit => !string.IsNullOrWhiteSpace(unit.AlternateBarcode))
+                .Select(unit => unit.AlternateBarcode!)
+                .ToArray() ?? Array.Empty<string>();
+
+            return searchTerms.All(term =>
+                name.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                itemCode.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                alternateBarcodes.Any(barcode => barcode.Contains(term, StringComparison.OrdinalIgnoreCase)));
         }
         private async void SearchTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
         {

@@ -5,10 +5,13 @@ using RaccoonWarehouse.Application.Service.Products;
 using RaccoonWarehouse.Application.Service.ProductUnits;
 using RaccoonWarehouse.Application.Service.SubCategories;
 using RaccoonWarehouse.Application.Service.Units;
+using RaccoonWarehouse.Common;
+using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Domain.Products;
 using RaccoonWarehouse.Domain.Products.DTOs;
 using RaccoonWarehouse.Helpers.Localization;
 using RaccoonWarehouse.Navigation;
+using Microsoft.EntityFrameworkCore;
 using System;
 using System.Linq;
 using System.Linq.Expressions;
@@ -22,11 +25,12 @@ namespace RaccoonWarehouse.Products
 {
     public partial class ProductsTable : Window
     {
-        private const int SearchDelayMs = 300;
+        private const int SearchDelayMs = 250;
         private readonly ISubCategoryService _subCategoryService;
         private readonly IBrandService _brandService;
         private readonly IUnitService _unitService;
         private readonly IProductUnitService _productUnitService;
+        private readonly ILoadingService _loadingService;
 
         private int _currentPage = 1;
         private int _totalPages = 1;
@@ -34,9 +38,6 @@ namespace RaccoonWarehouse.Products
 
         private string _currentNameSearch = string.Empty;
         private string _currentBarcodeSearch = string.Empty;
-        private int? _selectedSubCategoryId;
-        private string? _selectedSubCategoryName;
-
         private int _searchVersion;
         private readonly SemaphoreSlim _loadSemaphore = new(1, 1);
 
@@ -44,27 +45,28 @@ namespace RaccoonWarehouse.Products
             ISubCategoryService subCategoryService,
             IBrandService brandService,
             IUnitService unitService,
-            IProductUnitService productUnitService)
+            IProductUnitService productUnitService,
+            ILoadingService loadingService)
         {
             _subCategoryService = subCategoryService;
             _brandService = brandService;
             _unitService = unitService;
             _productUnitService = productUnitService;
+            _loadingService = loadingService;
 
             InitializeComponent();
             UiText.ApplyWindow(this);
-            UpdateFilterInfoText();
             Loaded += async (_, _) => await LoadPageAsync(1);
+            CatalogRefreshNotifier.CatalogChanged += CatalogRefreshNotifier_CatalogChanged;
+            Closed += (_, _) => CatalogRefreshNotifier.CatalogChanged -= CatalogRefreshNotifier_CatalogChanged;
         }
 
-        public void ApplySubCategoryFilter(int subCategoryId, string? subCategoryName = null)
+        private async void CatalogRefreshNotifier_CatalogChanged(object? sender, EventArgs e)
         {
-            _selectedSubCategoryId = subCategoryId;
-            _selectedSubCategoryName = subCategoryName;
-            UpdateFilterInfoText();
+            if (!IsLoaded)
+                return;
 
-            if (IsLoaded)
-                _ = LoadPageAsync(1);
+            await LoadPageAsync(1);
         }
 
         private async void PrevPageBtn_Click(object sender, RoutedEventArgs e)
@@ -166,33 +168,109 @@ namespace RaccoonWarehouse.Products
         private async Task LoadPageAsync(int pageNumber, int? searchVersion = null)
         {
             await _loadSemaphore.WaitAsync();
+            var loadingShown = false;
             try
             {
                 if (searchVersion.HasValue && searchVersion.Value != _searchVersion)
                     return;
 
+                _loadingService.Show();
+                loadingShown = true;
+
                 using var scope = ((App)System.Windows.Application.Current).ServiceProvider.CreateScope();
                 var productService = scope.ServiceProvider.GetRequiredService<IProductService>();
 
-                var subCategoryId = _selectedSubCategoryId;
-                var nameSearch = _currentNameSearch;
+                var nameSearchTerms = _currentNameSearch
+                    .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                var barcodeSearchTerms = _currentBarcodeSearch
+                    .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+                // Match the purchase product search behavior: use a lightweight database
+                // predicate first, then apply the culture-safe multi-term matcher across
+                // names, item codes, and alternate barcodes.
+                if (nameSearchTerms.Length > 0 || barcodeSearchTerms.Length > 0)
+                {
+                    var databaseSearchTerm = nameSearchTerms.FirstOrDefault()
+                        ?? barcodeSearchTerms.First();
+
+                    var searchResult = await productService.GetAllWithAdvancedIncludeAsync(
+                        query => query
+                            .Include(product => product.Brand)
+                            .Include(product => product.ProductUnits!)
+                            .ThenInclude(productUnit => productUnit.Unit),
+                        product => (product.Name ?? string.Empty).Contains(databaseSearchTerm) ||
+                                   product.ITEMCODE.ToString().Contains(databaseSearchTerm) ||
+                                   product.ProductUnits!.Any(unit => unit.AlternateBarcode == databaseSearchTerm));
+
+                    if (searchVersion.HasValue && searchVersion.Value != _searchVersion)
+                        return;
+
+                    var filteredItems = (searchResult.Data ?? new List<ProductReadDto>())
+                        .Where(product => MatchesSearch(product, nameSearchTerms))
+                        .Where(product => MatchesSearch(product, barcodeSearchTerms))
+                        .OrderByDescending(product => product.CreatedDate)
+                        .ThenBy(product => product.Name)
+                        .ToList();
+
+                    var totalCount = filteredItems.Count;
+                    ProductsTable1.ItemsSource = filteredItems
+                        .Skip((pageNumber - 1) * PageSize)
+                        .Take(PageSize)
+                        .ToList();
+
+                    _currentPage = pageNumber;
+                    _totalPages = Math.Max(1, (int)Math.Ceiling((double)totalCount / PageSize));
+                    PageInfoTextBlock.Text = UiText.IsEnglish
+                        ? $"Page {_currentPage} of {_totalPages}"
+                        : $"Ø§Ù„ØµÙØ­Ø© {_currentPage} Ù…Ù† {_totalPages}";
+                    PrevPageBtn.IsEnabled = _currentPage > 1;
+                    NextPageBtn.IsEnabled = _currentPage < _totalPages;
+                    UiText.ApplyTranslations(this);
+                    return;
+                }
+
                 long? barcode = null;
                 if (!string.IsNullOrWhiteSpace(_currentBarcodeSearch) && long.TryParse(_currentBarcodeSearch, out var parsedBarcode))
                     barcode = parsedBarcode;
 
-                Expression<Func<Product, bool>> filter = product =>
-                    (!subCategoryId.HasValue || product.SubCategoryId == subCategoryId.Value) &&
-                    (string.IsNullOrEmpty(nameSearch) || (product.Name != null && product.Name.Contains(nameSearch))) &&
-                    (!barcode.HasValue || product.ITEMCODE == barcode.Value);
+                var parameter = System.Linq.Expressions.Expression.Parameter(typeof(Product), "product");
+                System.Linq.Expressions.Expression filterBody = System.Linq.Expressions.Expression.Constant(true);
+
+                var nameProperty = System.Linq.Expressions.Expression.Property(parameter, nameof(Product.Name));
+                foreach (var term in nameSearchTerms)
+                {
+                    var containsTerm = System.Linq.Expressions.Expression.Call(
+                        nameProperty,
+                        nameof(string.Contains),
+                        Type.EmptyTypes,
+                        System.Linq.Expressions.Expression.Constant(term));
+                    filterBody = System.Linq.Expressions.Expression.AndAlso(
+                        filterBody,
+                        System.Linq.Expressions.Expression.AndAlso(
+                            System.Linq.Expressions.Expression.NotEqual(nameProperty, System.Linq.Expressions.Expression.Constant(null, typeof(string))),
+                            containsTerm));
+                }
+
+                if (barcode.HasValue)
+                {
+                    filterBody = System.Linq.Expressions.Expression.AndAlso(
+                        filterBody,
+                        System.Linq.Expressions.Expression.Equal(
+                            System.Linq.Expressions.Expression.Property(parameter, nameof(Product.ITEMCODE)),
+                            System.Linq.Expressions.Expression.Constant(barcode.Value)));
+                }
+
+                Expression<Func<Product, bool>> filter = System.Linq.Expressions.Expression.Lambda<Func<Product, bool>>(filterBody, parameter);
 
                 var result = await productService.GetReadDtoPagedListAsync(
                     pageNumber: pageNumber,
                     pageSize: PageSize,
                     filter: filter,
-                    orderBy: query => query.OrderBy(product => product.Name),
+                    orderBy: query => query
+                        .OrderByDescending(product => product.CreatedDate)
+                        .ThenBy(product => product.Name),
                     includes: new System.Linq.Expressions.Expression<Func<Product, object>>[]
                     {
-                        product => product.SubCategory,
                         product => product.ProductUnits,
                         product => product.Brand
                     });
@@ -211,13 +289,29 @@ namespace RaccoonWarehouse.Products
 
                 PrevPageBtn.IsEnabled = _currentPage > 1;
                 NextPageBtn.IsEnabled = _currentPage < _totalPages;
-                UpdateFilterInfoText();
                 UiText.ApplyTranslations(this);
             }
             finally
             {
+                if (loadingShown)
+                    _loadingService.Hide();
                 _loadSemaphore.Release();
             }
+        }
+
+        private static bool MatchesSearch(ProductReadDto product, string[] searchTerms)
+        {
+            var name = product.Name ?? string.Empty;
+            var itemCode = product.ITEMCODE.ToString();
+            var alternateBarcodes = product.ProductUnits?
+                .Where(unit => !string.IsNullOrWhiteSpace(unit.AlternateBarcode))
+                .Select(unit => unit.AlternateBarcode!)
+                .ToArray() ?? Array.Empty<string>();
+
+            return searchTerms.All(term =>
+                name.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                itemCode.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                alternateBarcodes.Any(barcode => barcode.Contains(term, StringComparison.OrdinalIgnoreCase)));
         }
 
         private void BackBtn_Click(object sender, RoutedEventArgs e)
@@ -229,8 +323,6 @@ namespace RaccoonWarehouse.Products
         {
             WindowManager.ShowDialog<CreateProduct>(WindowSizeType.MediumRectangle, window =>
             {
-                if (_selectedSubCategoryId.HasValue)
-                    window.InitializeForSubCategory(_selectedSubCategoryId.Value, _selectedSubCategoryName);
             });
 
             await LoadPageAsync(_currentPage);
@@ -279,17 +371,6 @@ namespace RaccoonWarehouse.Products
             {
                 window.Initialize(selectedProduct.Id);
             });
-        }
-        private void UpdateFilterInfoText()
-        {
-            if (FilterInfoTextBlock == null)
-                return;
-
-            FilterInfoTextBlock.Text = _selectedSubCategoryId.HasValue && !string.IsNullOrWhiteSpace(_selectedSubCategoryName)
-                ? UiText.T(
-                    $"عرض الأصناف التابعة للفئة الفرعية: {_selectedSubCategoryName}",
-                    $"Showing products for subcategory: {_selectedSubCategoryName}")
-                : UiText.T("جميع الأصناف", "Showing all products");
         }
     }
 }

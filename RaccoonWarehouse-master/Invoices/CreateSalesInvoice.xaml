@@ -233,9 +233,10 @@
                 <!-- ================== معلومات الفاتورة والعميل ================== -->
                 <Grid Margin="0,0,0,10">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="220"/>
-                        <ColumnDefinition Width="220"/>
-                        <ColumnDefinition Width="260"/>
+                        <ColumnDefinition Width="180"/>
+                        <ColumnDefinition Width="180"/>
+                        <ColumnDefinition Width="180"/>
+                        <ColumnDefinition Width="180"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
@@ -245,13 +246,18 @@
                         <TextBox x:Name="InvoiceNumberTextBox" Style="{StaticResource InputBoxStyle}"/>
                     </StackPanel>
 
-                    <!-- التاريخ -->
                     <StackPanel Margin="6" Grid.Column="1">
+                        <TextBlock Text="Falcon invoice number / رقم فاتورة فالكون" FontSize="14" FontWeight="SemiBold"/>
+                        <TextBox x:Name="FalconInvoiceNumberTextBox" Style="{StaticResource InputBoxStyle}"/>
+                    </StackPanel>
+
+                    <!-- التاريخ -->
+                    <StackPanel Margin="6" Grid.Column="2">
                         <TextBlock Text="التاريخ" FontSize="14" FontWeight="SemiBold"/>
                         <DatePicker x:Name="InvoiceDatePicker" Height="32" FontSize="14"/>
                     </StackPanel>
 
-                    <StackPanel x:Name="DelegatePanel" Margin="6" Grid.Column="2" Visibility="Collapsed">
+                    <StackPanel x:Name="DelegatePanel" Margin="6" Grid.Column="3" Visibility="Collapsed">
                         <TextBlock Text="المندوب" FontSize="14" FontWeight="SemiBold"/>
                         <ComboBox x:Name="DelegateComboBox"
                                   Style="{StaticResource ComboBoxStyleModern}"
@@ -260,7 +266,7 @@
                     </StackPanel>
 
                     <!-- اسم الزبون -->
-                    <StackPanel Margin="6" Grid.Column="3">
+                    <StackPanel Margin="6" Grid.Column="4">
                         <TextBlock Text="اسم الزبون" FontSize="14" FontWeight="SemiBold"/>
                         <Grid>
                             <Grid.ColumnDefinitions>

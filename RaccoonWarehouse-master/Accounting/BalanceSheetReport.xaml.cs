@@ -5,6 +5,7 @@ using RaccoonWarehouse.Domain.Reports.Accounting.Filters;
 using RaccoonWarehouse.Helpers.Localization;
 using System;
 using System.Windows;
+using System.Windows.Threading;
 
 namespace RaccoonWarehouse.Accounting
 {
@@ -47,6 +48,7 @@ namespace RaccoonWarehouse.Accounting
                 }
 
                 _loadingService.Show();
+                await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Render);
                 var result = await _accountingService.GetBalanceSheetAsync(new BalanceSheetFilterDto
                 {
                     AsOfDate = AsOfDatePicker.SelectedDate.Value.Date.AddDays(1).AddTicks(-1),
@@ -66,6 +68,11 @@ namespace RaccoonWarehouse.Accounting
                 LiabilitiesTotalText.Text = result.Data.Liabilities.Total.ToString("N2");
                 EquityTotalText.Text = result.Data.Equity.Total.ToString("N2");
                 LiabilitiesAndEquityText.Text = result.Data.TotalLiabilitiesAndEquity.ToString("N2");
+                AssetsGrid.UpdateLayout();
+                LiabilitiesGrid.UpdateLayout();
+                EquityGrid.UpdateLayout();
+                await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Render);
+                await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
             }
             catch (Exception ex)
             {

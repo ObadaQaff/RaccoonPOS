@@ -35,6 +35,9 @@ public class StockItemWriteDto : IBaseDto
     public decimal BaseQuantity { get; set; }
     public decimal PurchasePrice { get; set; }
     public decimal SalePrice { get; set; }
+    public decimal LineDiscountAmount { get; set; }
+    public decimal FreeQuantity { get; set; }
+    public decimal LineTotal => Math.Max(0m, Quantity * PurchasePrice - LineDiscountAmount);
     public DateTime? ExpiryDate { get; set; }
     public ObservableCollection<ProductUnitWriteDto> Units { get; set; } = new();
     public string? ProductSearchText { get; set; } = string.Empty;

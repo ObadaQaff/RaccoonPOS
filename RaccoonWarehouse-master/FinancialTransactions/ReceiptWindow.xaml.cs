@@ -74,6 +74,13 @@ namespace RaccoonWarehouse.FinancialTransactions
                 return;
             }
 
+            if (MessageBox.Show(
+                    UiText.T("هل تريد حفظ سند القبض؟", "Do you want to save the receipt transaction?"),
+                    UiText.T("تأكيد الحفظ", "Confirm save"),
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question) != MessageBoxResult.Yes)
+                return;
+
             _dto.Amount = amount;
             _dto.Method = (PaymentMethod)PaymentMethodCombo.SelectedItem;
             _dto.UpdatedDate = DateTime.Now;

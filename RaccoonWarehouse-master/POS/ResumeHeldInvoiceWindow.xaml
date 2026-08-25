@@ -38,7 +38,8 @@
                       IsReadOnly="True"
                       FlowDirection="RightToLeft"
                       Style="{StaticResource MinimalDataGrid}"
-                      MouseDoubleClick="Grid_DoubleClick">
+                      SelectionMode="Single"
+                      PreviewMouseDoubleClick="Grid_PreviewDoubleClick">
 
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="رقم الفاتورة"
@@ -63,12 +64,21 @@
 
         <!-- FOOTER -->
         <Border Background="#E3EAF0" Grid.Row="2">
-            <TextBlock Text="انقر مرتين لاستئناف الفاتورة"
-                       VerticalAlignment="Center"
-                       HorizontalAlignment="Center"
-                       Foreground="#2D8DCF"
-                       FontSize="16"
-                       FontWeight="SemiBold"/>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <TextBlock Text="انقر مرتين لاستئناف الفاتورة"
+                           VerticalAlignment="Center"
+                           Foreground="#2D8DCF"
+                           FontSize="16"
+                           FontWeight="SemiBold"
+                           Margin="0,0,20,0"/>
+                <Button x:Name="DeleteHeldInvoiceButton"
+                        Click="DeleteHeldInvoiceButton_Click"
+                        Padding="18,8"
+                        Background="#A83245"
+                        Foreground="White"
+                        BorderThickness="0"
+                        FontWeight="SemiBold"/>
+            </StackPanel>
         </Border>
     </Grid>
 </Window>

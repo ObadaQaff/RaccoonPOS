@@ -187,7 +187,7 @@ namespace RaccoonWarehouse.Application.Service.Accounting
             {
                 EntryNumber = string.IsNullOrWhiteSpace(dto.EntryNumber) ? GenerateEntryNumber(now) : dto.EntryNumber,
                 EntryDate = entryDate,
-                Description = dto.Description,
+                Description = AccountingTextLocalizer.ToArabic(dto.Description),
                 Status = JournalEntryStatus.Posted,
                 ReferenceType = dto.ReferenceType,
                 ReferenceId = dto.ReferenceId,
@@ -229,7 +229,7 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                     CurrencyId = line.CurrencyId,
                     ForeignAmount = foreignAmount,
                     ExchangeRate = fxRate,
-                    Description = line.Description,
+                    Description = AccountingTextLocalizer.ToArabic(line.Description),
                     CreatedDate = now,
                     UpdatedDate = now
                 });
@@ -438,7 +438,7 @@ namespace RaccoonWarehouse.Application.Service.Accounting
             switch (invoice.InvoiceType)
             {
                 case InvoiceType.Sale:
-                    AddDebit(lines, settlementAccountId, invoice.TotalAmount, $"Invoice #{invoice.InvoiceNumber} settlement",
+                    AddDebit(lines, settlementAccountId, invoice.TotalAmount, $"Invoice #{invoice.InvoiceNumber} collection",
                         customerId: invoice.PaymentType == PaymentType.Credit ? invoice.CustomerId : null);
                     if ((invoice.DiscountAmount ?? 0m) > 0)
                         AddDebit(lines, salesDiscountId, invoice.DiscountAmount!.Value, $"Invoice #{invoice.InvoiceNumber} discount");
@@ -453,16 +453,43 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                     break;
 
                 case InvoiceType.Return:
-                    var returnNetSales = Math.Abs(invoice.NetSales);
-                    var returnTax = Math.Abs(invoice.TotalTax);
-                    var returnTotal = Math.Abs(invoice.TotalAmount);
-                    var returnCogs = Math.Abs(invoice.TotalCOGS);
+                    var mixedLines = invoice.InvoiceLines?.ToList() ?? new List<InvoiceLineWriteDto>();
+                    var saleLines = mixedLines.Where(line => line.Quantity > 0).ToList();
+                    var returnLines = mixedLines.Where(line => line.Quantity < 0).ToList();
 
-                    AddDebit(lines, salesReturnsId, returnNetSales, $"Sales return #{invoice.InvoiceNumber}");
+                    var saleSubtotal = saleLines.Sum(line => line.LineSubTotal);
+                    var saleTax = saleLines.Sum(line => line.TaxAmount);
+                    var saleTotal = saleLines.Sum(line => line.Quantity * line.UnitPrice);
+                    var saleCogs = saleLines.Sum(line => line.Quantity * line.UnitCost);
+
+                    var returnSubtotal = Math.Abs(returnLines.Sum(line => line.LineSubTotal));
+                    var returnTax = Math.Abs(returnLines.Sum(line => line.TaxAmount));
+                    var returnTotal = Math.Abs(returnLines.Sum(line => line.Quantity * line.UnitPrice));
+                    var returnCogs = Math.Abs(returnLines.Sum(line => line.Quantity * line.UnitCost));
+
+                    var discount = Math.Max(0m, invoice.DiscountAmount ?? 0m);
+                    saleSubtotal = Math.Max(0m, saleSubtotal - discount);
+                    saleTotal = Math.Max(0m, saleTotal - discount);
+
+                    if (saleTotal > 0)
+                        AddDebit(lines, settlementAccountId, saleTotal, $"Return invoice #{invoice.InvoiceNumber} new item sale collection");
+                    if (saleSubtotal > 0)
+                        AddCredit(lines, salesRevenueId, saleSubtotal, $"Return invoice #{invoice.InvoiceNumber} new item sales");
+                    if (saleTax > 0)
+                        AddCredit(lines, outputTaxId, saleTax, $"Return invoice #{invoice.InvoiceNumber} new item sales tax");
+                    if (saleCogs > 0)
+                    {
+                        AddDebit(lines, cogsId, saleCogs, $"Return invoice #{invoice.InvoiceNumber} new item cost of goods sold");
+                        AddCredit(lines, inventoryId, saleCogs, $"Return invoice #{invoice.InvoiceNumber} new item inventory release");
+                    }
+
+                    if (returnSubtotal > 0)
+                        AddDebit(lines, salesReturnsId, returnSubtotal, $"Sales return #{invoice.InvoiceNumber}");
                     if (returnTax > 0)
                         AddDebit(lines, outputTaxId, returnTax, $"Sales return #{invoice.InvoiceNumber} tax reversal");
-                    AddCredit(lines, settlementAccountId, returnTotal, $"Sales return #{invoice.InvoiceNumber} settlement",
-                        customerId: invoice.PaymentType == PaymentType.Credit ? invoice.CustomerId : null);
+                    if (returnTotal > 0)
+                        AddCredit(lines, settlementAccountId, returnTotal, $"Sales return #{invoice.InvoiceNumber} refund",
+                            customerId: invoice.PaymentType == PaymentType.Credit ? invoice.CustomerId : null);
                     if (returnCogs > 0)
                     {
                         AddDebit(lines, inventoryId, returnCogs, $"Sales return #{invoice.InvoiceNumber} inventory recovery");
@@ -485,7 +512,7 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                     var exchangeReturnsTotal = Math.Abs(exchangeReturnLines.Sum(line => line.Quantity * line.UnitPrice));
                     var exchangeReturnsCogs = Math.Abs(exchangeReturnLines.Sum(line => line.Quantity * line.UnitCost));
 
-                    AddDebit(lines, settlementAccountId, exchangeSalesTotal, $"Exchange #{invoice.InvoiceNumber} sale settlement");
+                    AddDebit(lines, settlementAccountId, exchangeSalesTotal, $"Exchange #{invoice.InvoiceNumber} sale collection");
                     AddCredit(lines, salesRevenueId, exchangeSalesSubTotal, $"Exchange #{invoice.InvoiceNumber} sales");
                     if (exchangeSalesTax > 0)
                         AddCredit(lines, outputTaxId, exchangeSalesTax, $"Exchange #{invoice.InvoiceNumber} sales tax");
@@ -498,7 +525,7 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                     AddDebit(lines, salesReturnsId, exchangeReturnsSubTotal, $"Exchange #{invoice.InvoiceNumber} return");
                     if (exchangeReturnsTax > 0)
                         AddDebit(lines, outputTaxId, exchangeReturnsTax, $"Exchange #{invoice.InvoiceNumber} return tax reversal");
-                    AddCredit(lines, settlementAccountId, exchangeReturnsTotal, $"Exchange #{invoice.InvoiceNumber} return settlement");
+                    AddCredit(lines, settlementAccountId, exchangeReturnsTotal, $"Exchange #{invoice.InvoiceNumber} return refund");
                     if (exchangeReturnsCogs > 0)
                     {
                         AddDebit(lines, inventoryId, exchangeReturnsCogs, $"Exchange #{invoice.InvoiceNumber} inventory recovery");
@@ -512,7 +539,7 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                         AddDebit(lines, inputTaxId, invoice.TotalTax, $"Purchase invoice #{invoice.InvoiceNumber} input tax");
                     if ((invoice.DiscountAmount ?? 0m) > 0)
                         AddCredit(lines, purchaseDiscountId, invoice.DiscountAmount!.Value, $"Purchase invoice #{invoice.InvoiceNumber} discount");
-                    AddCredit(lines, settlementAccountId, invoice.TotalAmount, $"Purchase invoice #{invoice.InvoiceNumber} settlement",
+                    AddCredit(lines, settlementAccountId, invoice.TotalAmount, $"Purchase invoice #{invoice.InvoiceNumber} payment",
                         supplierId: invoice.PaymentType == PaymentType.Credit ? invoice.SupplierId : null);
                     break;
 
@@ -521,7 +548,7 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                     var purchaseReturnTotal = Math.Abs(invoice.TotalAmount);
                     var purchaseReturnNetSales = Math.Abs(invoice.NetSales);
 
-                    AddDebit(lines, settlementAccountId, purchaseReturnTotal, $"Purchase return #{invoice.InvoiceNumber} settlement",
+                    AddDebit(lines, settlementAccountId, purchaseReturnTotal, $"Purchase return #{invoice.InvoiceNumber} refund",
                         supplierId: invoice.PaymentType == PaymentType.Credit ? invoice.SupplierId : null);
                     if (purchaseReturnTax > 0)
                         AddCredit(lines, inputTaxId, purchaseReturnTax, $"Purchase return #{invoice.InvoiceNumber} input tax reversal");
@@ -607,7 +634,7 @@ namespace RaccoonWarehouse.Application.Service.Accounting
             if (document.Items == null || document.Items.Count == 0)
                 return Result<JournalEntryReadDto>.Ok(new JournalEntryReadDto(), "Stock document has no items to post.");
 
-            var grossAmount = document.Items.Sum(x => x.Quantity * x.PurchasePrice);
+            var grossAmount = document.Items.Sum(x => Math.Max(0m, x.Quantity * x.PurchasePrice - x.LineDiscountAmount));
             var discount = Math.Clamp(document.DiscountAmount ?? 0m, 0m, Math.Max(grossAmount, 0m));
             var totalAmount = grossAmount - discount;
             if (totalAmount <= 0)
@@ -862,7 +889,7 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                     {
                         EntryDate = line.EntryDate,
                         EntryNumber = line.EntryNumber,
-                        Description = string.IsNullOrWhiteSpace(line.LineDescription) ? line.EntryDescription : line.LineDescription!,
+                        Description = AccountingTextLocalizer.ToArabic(string.IsNullOrWhiteSpace(line.LineDescription) ? line.EntryDescription : line.LineDescription!),
                         ReferenceType = line.ReferenceType,
                         ReferenceId = line.ReferenceId,
                         Debit = line.Debit,
@@ -942,7 +969,7 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                     {
                         EntryDate = line.EntryDate,
                         EntryNumber = line.EntryNumber,
-                        Description = string.IsNullOrWhiteSpace(line.LineDescription) ? line.EntryDescription : line.LineDescription!,
+                        Description = AccountingTextLocalizer.ToArabic(string.IsNullOrWhiteSpace(line.LineDescription) ? line.EntryDescription : line.LineDescription!),
                         ReferenceType = line.ReferenceType,
                         ReferenceId = line.ReferenceId,
                         Debit = line.Debit,
@@ -1046,6 +1073,42 @@ namespace RaccoonWarehouse.Application.Service.Accounting
             if (!string.IsNullOrWhiteSpace(filter.ReferenceType))
             {
                 query = query.Where(x => x.ReferenceType == filter.ReferenceType);
+            }
+
+            if (!string.IsNullOrWhiteSpace(filter.ReferenceSearch))
+            {
+                var referenceSearch = filter.ReferenceSearch.Trim();
+                if (int.TryParse(referenceSearch, out var referenceId))
+                {
+                    query = query.Where(x =>
+                        (x.ReferenceType != null && x.ReferenceType.Contains(referenceSearch)) ||
+                        (x.ReferenceNumber != null && x.ReferenceNumber.Contains(referenceSearch)) ||
+                        x.ReferenceId == referenceId ||
+                        (x.Description != null && x.Description.Contains(referenceSearch)));
+                }
+                else
+                {
+                    query = query.Where(x =>
+                        (x.ReferenceType != null && x.ReferenceType.Contains(referenceSearch)) ||
+                        (x.ReferenceNumber != null && x.ReferenceNumber.Contains(referenceSearch)) ||
+                        (x.Description != null && x.Description.Contains(referenceSearch)));
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(filter.AccountSearch))
+            {
+                var accountSearch = filter.AccountSearch.Trim();
+                var matchingAccountIds = await _uow.Accounts.GetAllAsQueryable()
+                    .Where(account => account.Code.Contains(accountSearch) ||
+                                      (account.ArabicName != null && account.ArabicName.Contains(accountSearch)) ||
+                                      (account.EnglishName != null && account.EnglishName.Contains(accountSearch)) ||
+                                      account.Name.Contains(accountSearch))
+                    .Select(account => account.Id)
+                    .ToListAsync();
+
+                query = matchingAccountIds.Count == 0
+                    ? query.Where(_ => false)
+                    : query.Where(x => x.Lines.Any(line => matchingAccountIds.Contains(line.AccountId)));
             }
 
             var entries = await query
@@ -1160,7 +1223,11 @@ namespace RaccoonWarehouse.Application.Service.Accounting
 
             var entry = await _context.JournalEntries
                 .AsNoTracking()
-                .FirstOrDefaultAsync(x => x.ReferenceType == referenceType && x.ReferenceId == referenceId);
+                .Where(x => x.ReferenceType == referenceType
+                    && x.ReferenceId == referenceId
+                    && x.Status == JournalEntryStatus.Posted)
+                .OrderByDescending(x => x.Id)
+                .FirstOrDefaultAsync();
 
             if (entry == null)
                 return Result<JournalEntryReadDto>.Ok(new JournalEntryReadDto(), "No journal entry found for this reference.");
