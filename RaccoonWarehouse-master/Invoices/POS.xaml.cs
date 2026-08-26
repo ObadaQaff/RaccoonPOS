@@ -385,7 +385,6 @@ namespace RaccoonWarehouse.Invoices
             _browseSearchDebounceTimer.Tick += BrowseSearchDebounceTimer_Tick;
             Loaded += POS_Loaded;
             Closed += POS_Closed;
-            CatalogRefreshNotifier.CatalogChanged += CatalogRefreshNotifier_CatalogChanged;
         }
 
 
@@ -409,9 +408,8 @@ namespace RaccoonWarehouse.Invoices
                 InvoiceGrid.ItemsSource = _invoiceLines;
                 CashierName.Text = CurrentCasherName.ToString();
 
-                //InvoiceDatePicker.SelectedDate = DateTime.Now;
-                await LoadBrowseSubCategoriesAsync();
-                await ReloadBrowseAsync();
+                // The product-card/category browse area is hidden. Products for
+                // the invoice selector are loaded lazily when its dropdown opens.
             }
             catch (Exception ex)
             {
@@ -492,20 +490,10 @@ namespace RaccoonWarehouse.Invoices
             return true;
         }
 
-        private async void CatalogRefreshNotifier_CatalogChanged(object? sender, EventArgs e)
-        {
-            if (!IsLoaded)
-                return;
-
-            await LoadBrowseSubCategoriesAsync();
-            RequestBrowseReload();
-        }
-
         private void POS_Closed(object? sender, EventArgs e)
         {
             _productSearchResetTimer.Tick -= ProductSearchResetTimer_Tick;
             _browseSearchDebounceTimer.Tick -= BrowseSearchDebounceTimer_Tick;
-            CatalogRefreshNotifier.CatalogChanged -= CatalogRefreshNotifier_CatalogChanged;
             _browseLoadCts?.Cancel();
             _browseLoadCts?.Dispose();
         }
