@@ -39,6 +39,7 @@
                       FlowDirection="RightToLeft"
                       Style="{StaticResource MinimalDataGrid}"
                       SelectionMode="Single"
+                      PreviewKeyDown="HeldInvoicesGrid_PreviewKeyDown"
                       PreviewMouseDoubleClick="Grid_PreviewDoubleClick">
 
                 <DataGrid.Columns>
@@ -65,12 +66,20 @@
         <!-- FOOTER -->
         <Border Background="#E3EAF0" Grid.Row="2">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                <TextBlock Text="انقر مرتين لاستئناف الفاتورة"
+                <TextBlock Text="حدد الفاتورة ثم اضغط استئناف"
                            VerticalAlignment="Center"
                            Foreground="#2D8DCF"
                            FontSize="16"
                            FontWeight="SemiBold"
                            Margin="0,0,20,0"/>
+                <Button x:Name="ResumeHeldInvoiceButton"
+                        Click="ResumeHeldInvoiceButton_Click"
+                        Padding="18,8"
+                        Background="#146C94"
+                        Foreground="White"
+                        BorderThickness="0"
+                        FontWeight="SemiBold"
+                        Margin="0,0,10,0"/>
                 <Button x:Name="DeleteHeldInvoiceButton"
                         Click="DeleteHeldInvoiceButton_Click"
                         Padding="18,8"

@@ -131,7 +131,7 @@
                     </StackPanel>
 
                     <StackPanel Grid.Column="4" Margin="8,0">
-                        <TextBlock Text="مصدر الحركة" FontWeight="SemiBold" Foreground="#333" Margin="0,0,0,3"/>
+                        <TextBlock Text="نوع السند" FontWeight="SemiBold" Foreground="#333" Margin="0,0,0,3"/>
                         <ComboBox x:Name="SourceTypeComboBox" Style="{StaticResource ComboStyle}"/>
                         <CheckBox x:Name="IncludeVoidedCheckBox"
                                   Content="إظهار الملغاة / Include voided"
@@ -214,7 +214,9 @@
             <Border Grid.Row="2" Background="White" CornerRadius="12"
                     BorderBrush="#D0D7DD" BorderThickness="1" Padding="10">
 
-                <DataGrid x:Name="CashFlowGrid" Style="{StaticResource MinimalDataGrid}">
+                <DataGrid x:Name="CashFlowGrid"
+                          Style="{StaticResource MinimalDataGrid}"
+                          MouseDoubleClick="CashFlowGrid_MouseDoubleClick">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="التاريخ" Binding="{Binding Date, StringFormat=yyyy-MM-dd HH:mm}" Width="180"/>
                         <DataGridTextColumn Header="الاتجاه" Binding="{Binding Direction}" Width="110"/>
@@ -225,7 +227,7 @@
                         <DataGridTextColumn Header="صافي" Binding="{Binding Net}" Width="120"/>
 
                         <DataGridTextColumn Header="المصدر" Binding="{Binding SourceType}" Width="180"/>
-                        <DataGridTextColumn Header="رقم المصدر" Binding="{Binding SourceId}" Width="120"/>
+                        <DataGridTextColumn Header="رقم السند" Binding="{Binding DocumentNumber}" Width="140"/>
                         <DataGridTextColumn Header="الكاشير" Binding="{Binding CashierName}" Width="160"/>
                         <DataGridTextColumn Header="الحالة" Binding="{Binding StatusText}" Width="110"/>
                         <DataGridTextColumn Header="ملاحظات" Binding="{Binding Notes}" Width="*"/>

@@ -139,7 +139,7 @@ namespace RaccoonWarehouse.Invoices
         private async void SearchBtn_Click(object sender, RoutedEventArgs e)
         {
             var result = await _invoiceService.SearchSalesInvoicesAsync(
-                InvoiceNumberTxt.Text,
+                InvoiceNumberTxt.Text?.Trim(),
                 CustomerTxt.Text,
                 DateFrom.SelectedDate,
                 DateTo.SelectedDate,

@@ -1747,6 +1747,37 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.ToTable("Invoice");
                 });
 
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Invoices.InvoicePayment", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("InvoiceId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("PaymentType")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InvoiceId");
+
+                    b.ToTable("InvoicePayments");
+                });
+
             modelBuilder.Entity("RaccoonWarehouse.Domain.Permissions.PermissionDefinition", b =>
                 {
                     b.Property<int>("Id")
@@ -2215,6 +2246,9 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Property<string>("Notes")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int>("OperationType")
+                        .HasColumnType("int");
+
                     b.Property<int?>("PaymentType")
                         .HasColumnType("int");
 
@@ -2223,6 +2257,12 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.Property<string>("ReferenceNumber")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("SourceDocumentId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("CustomerId")
+                        .HasColumnType("int");
 
                     b.Property<int?>("SupplierId")
                         .HasColumnType("int");
@@ -2245,6 +2285,8 @@ namespace RaccoonWarehouse.Data.Migrations
                         .IsUnique();
 
                     b.HasIndex("SupplierId");
+
+                    b.HasIndex("CustomerId");
 
                     b.ToTable("StockDocument");
                 });
@@ -3124,6 +3166,17 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Navigation("Voucher");
                 });
 
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Invoices.InvoicePayment", b =>
+                {
+                    b.HasOne("RaccoonWarehouse.Domain.Invoices.Invoice", "Invoice")
+                        .WithMany("Payments")
+                        .HasForeignKey("InvoiceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Invoice");
+                });
+
             modelBuilder.Entity("RaccoonWarehouse.Domain.ProductUnits.ProductUnit", b =>
                 {
                     b.HasOne("RaccoonWarehouse.Domain.Products.Product", "Product")
@@ -3244,11 +3297,16 @@ namespace RaccoonWarehouse.Data.Migrations
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.StockDocuments.StockDocument", b =>
                 {
+                    b.HasOne("RaccoonWarehouse.Domain.Users.User", "Customer")
+                        .WithMany()
+                        .HasForeignKey("CustomerId");
+
                     b.HasOne("RaccoonWarehouse.Domain.Users.User", "Supplier")
                         .WithMany()
                         .HasForeignKey("SupplierId");
 
                     b.Navigation("Supplier");
+                    b.Navigation("Customer");
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.StockItems.StockItem", b =>
@@ -3459,6 +3517,8 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Navigation("Checks");
 
                     b.Navigation("InvoiceLines");
+
+                    b.Navigation("Payments");
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Products.Product", b =>

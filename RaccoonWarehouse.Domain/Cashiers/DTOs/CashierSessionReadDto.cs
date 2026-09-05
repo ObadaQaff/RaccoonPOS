@@ -20,6 +20,7 @@ namespace RaccoonWarehouse.Domain.Cashiers.DTOs
         public DateTime? ClosedAt { get; set; }
         public decimal StatrBalance { get; set; }
         public decimal EndingBalance { get; set; }
+        public decimal CurrentNet { get; set; }
         public SessionStatus Status { get; set; }
         public DateTime CreatedDate { get; set; }
         public DateTime UpdatedDate { get; set; }

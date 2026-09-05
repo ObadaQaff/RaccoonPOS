@@ -20,6 +20,7 @@ using RaccoonWarehouse.Domain.Reports.Accounting.Filters;
 using RaccoonWarehouse.Domain.Reports.Financial.Filters;
 using RaccoonWarehouse.Domain.Settings;
 using RaccoonWarehouse.Domain.StockAdjustments.DTOs;
+using RaccoonWarehouse.Domain.Vouchers.DTOs;
 using Xunit;
 
 namespace RaccoonWarehouse.Tests;
@@ -35,7 +36,8 @@ public class AccountingServiceReportTests
         context = new ApplicationDbContext(options);
         var mapper = new MapperConfiguration(cfg => cfg.AddProfile<MappingProfile>()).CreateMapper();
         var uow = new UOW(context, mapper);
-        return new AccountingService(context, uow, mapper);
+        var currencyService = new CurrencyService(context);
+        return new AccountingService(context, uow, mapper, currencyService);
     }
 
     [Fact]
@@ -192,7 +194,8 @@ public class AccountingServiceReportTests
             Id = 101,
             InvoiceNumber = "S-101",
             InvoiceType = InvoiceType.Sale,
-            PaymentType = PaymentType.Cash,
+            PaymentType = PaymentType.Credit,
+            CustomerId = 77,
             Status = InvoiceStatus.Posted,
             CreatedDate = new DateTime(2026, 3, 27),
             SubTotal = 100m,
@@ -209,7 +212,70 @@ public class AccountingServiceReportTests
 
         Assert.True(result.Success);
         Assert.NotNull(entry);
-        Assert.Equal(5, entry!.Lines.Count);
+        Assert.Equal(6, entry!.Lines.Count);
+        var taggedLine = Assert.Single(entry.Lines, x => x.CustomerId == 77);
+        Assert.Equal(111m, taggedLine.Debit);
+        Assert.All(entry.Lines.Where(x => x.Id != taggedLine.Id), x => Assert.Null(x.CustomerId));
+    }
+
+    [Fact]
+    public async Task PostInvoiceEntryAsync_CreditPurchase_ShouldCreditPayablesAndTagSupplier()
+    {
+        var service = CreateService(nameof(PostInvoiceEntryAsync_CreditPurchase_ShouldCreditPayablesAndTagSupplier), out var context);
+        await service.EnsureDefaultAccountsAsync();
+
+        var result = await service.PostInvoiceEntryAsync(new InvoiceWriteDto
+        {
+            Id = 202,
+            InvoiceNumber = "PI-202",
+            InvoiceType = InvoiceType.Purchase,
+            PaymentType = PaymentType.Credit,
+            SupplierId = 88,
+            NetSales = 900m,
+            TotalAmount = 900m,
+            CreatedDate = new DateTime(2026, 8, 4)
+        });
+
+        var entry = await context.Set<JournalEntry>()
+            .Include(x => x.Lines)
+            .FirstOrDefaultAsync(x => x.ReferenceType == "Invoice" && x.ReferenceId == 202);
+
+        Assert.True(result.Success);
+        Assert.NotNull(entry);
+        Assert.Equal(2, entry!.Lines.Count);
+        var supplierLine = Assert.Single(entry.Lines, x => x.SupplierId == 88);
+        Assert.Equal(900m, supplierLine.Credit);
+        Assert.Equal("2110000000", supplierLine.Account.Code);
+        Assert.Single(entry.Lines, x => x.Debit == 900m && x.SupplierId == null);
+    }
+
+    [Fact]
+    public async Task PostInvoiceEntryAsync_CheckPurchase_ShouldCreditIssuedChecksPayable()
+    {
+        var service = CreateService(nameof(PostInvoiceEntryAsync_CheckPurchase_ShouldCreditIssuedChecksPayable), out var context);
+        await service.EnsureDefaultAccountsAsync();
+
+        var result = await service.PostInvoiceEntryAsync(new InvoiceWriteDto
+        {
+            Id = 203,
+            InvoiceNumber = "PI-203",
+            InvoiceType = InvoiceType.Purchase,
+            PaymentType = PaymentType.Check,
+            SupplierId = 88,
+            NetSales = 600m,
+            TotalAmount = 600m,
+            CreatedDate = new DateTime(2026, 8, 4)
+        });
+
+        var entry = await context.Set<JournalEntry>()
+            .Include(x => x.Lines)
+            .FirstOrDefaultAsync(x => x.ReferenceType == "Invoice" && x.ReferenceId == 203);
+
+        Assert.True(result.Success);
+        Assert.NotNull(entry);
+        var settlementLine = Assert.Single(entry!.Lines, x => x.Credit == 600m);
+        Assert.Equal("2140000000", settlementLine.Account.Code);
+        Assert.Null(settlementLine.SupplierId);
     }
 
     [Fact]
@@ -235,6 +301,66 @@ public class AccountingServiceReportTests
         Assert.True(result.Success);
         Assert.NotNull(entry);
         Assert.Equal(2, entry!.Lines.Count);
+    }
+
+    [Fact]
+    public async Task PostVoucherEntryAsync_CustomerReceipt_ShouldCreditReceivablesAndTagCustomer()
+    {
+        var service = CreateService(nameof(PostVoucherEntryAsync_CustomerReceipt_ShouldCreditReceivablesAndTagCustomer), out var context);
+        await service.EnsureDefaultAccountsAsync();
+
+        var result = await service.PostVoucherEntryAsync(new VoucherWriteDto
+        {
+            Id = 401,
+            VoucherNumber = "RV-401",
+            VoucherType = VoucherType.Receipt,
+            PaymentType = PaymentType.Cash,
+            CustomerId = 77,
+            Amount = 500m,
+            CreatedDate = new DateTime(2026, 8, 4)
+        });
+
+        var entry = await context.Set<JournalEntry>()
+            .Include(x => x.Lines)
+            .FirstOrDefaultAsync(x => x.ReferenceType == "Voucher" && x.ReferenceId == 401);
+
+        Assert.True(result.Success);
+        Assert.NotNull(entry);
+        Assert.Equal(2, entry!.Lines.Count);
+        var customerLine = Assert.Single(entry.Lines, x => x.CustomerId == 77);
+        Assert.Equal(500m, customerLine.Credit);
+        Assert.Equal("1140000000", customerLine.Account.Code);
+        Assert.Single(entry.Lines, x => x.Debit == 500m && x.CustomerId == null);
+    }
+
+    [Fact]
+    public async Task PostVoucherEntryAsync_SupplierPayment_ShouldDebitPayablesAndTagSupplier()
+    {
+        var service = CreateService(nameof(PostVoucherEntryAsync_SupplierPayment_ShouldDebitPayablesAndTagSupplier), out var context);
+        await service.EnsureDefaultAccountsAsync();
+
+        var result = await service.PostVoucherEntryAsync(new VoucherWriteDto
+        {
+            Id = 402,
+            VoucherNumber = "PV-402",
+            VoucherType = VoucherType.Payment,
+            PaymentType = PaymentType.Cash,
+            SupplierId = 88,
+            Amount = 350m,
+            CreatedDate = new DateTime(2026, 8, 4)
+        });
+
+        var entry = await context.Set<JournalEntry>()
+            .Include(x => x.Lines)
+            .FirstOrDefaultAsync(x => x.ReferenceType == "Voucher" && x.ReferenceId == 402);
+
+        Assert.True(result.Success);
+        Assert.NotNull(entry);
+        Assert.Equal(2, entry!.Lines.Count);
+        var supplierLine = Assert.Single(entry.Lines, x => x.SupplierId == 88);
+        Assert.Equal(350m, supplierLine.Debit);
+        Assert.Equal("2110000000", supplierLine.Account.Code);
+        Assert.Single(entry.Lines, x => x.Credit == 350m && x.SupplierId == null);
     }
 
     [Fact]

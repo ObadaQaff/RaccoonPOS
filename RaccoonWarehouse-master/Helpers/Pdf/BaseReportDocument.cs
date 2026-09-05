@@ -80,12 +80,8 @@ namespace RaccoonWarehouse.Helpers.Pdf
                         // Column widths
                         table.ColumnsDefinition(cols =>
                         {
-                            // 🟦 First column = product name = WIDE
-                            cols.RelativeColumn(4);   // 4x width
-
-                            // 🟩 All other columns = normal size
-                            for (int i = 1; i < TableHeaders.Count; i++)
-                                cols.RelativeColumn(2);
+                            for (var columnIndex = 0; columnIndex < TableHeaders.Count; columnIndex++)
+                                cols.RelativeColumn(GetColumnRelativeWidth(columnIndex));
                         });
 
 
@@ -110,8 +106,8 @@ namespace RaccoonWarehouse.Helpers.Pdf
                             if (fixedRow.Count > TableHeaders.Count)
                                 fixedRow = fixedRow.GetRange(0, TableHeaders.Count);
 
-                            foreach (var cell in fixedRow)
-                                table.Cell().Element(DataCell).Text(UiText.Translate(cell));
+                            for (var columnIndex = 0; columnIndex < fixedRow.Count; columnIndex++)
+                                ComposeDataCell(table.Cell().Element(DataCell), fixedRow[columnIndex], columnIndex);
                         }
                     });
 
@@ -177,5 +173,13 @@ namespace RaccoonWarehouse.Helpers.Pdf
                 .AlignRight()
                 .DefaultTextStyle(t => t.FontSize(14));
         }
+
+        protected virtual void ComposeDataCell(IContainer container, string value, int columnIndex)
+        {
+            container.Text(UiText.Translate(value));
+        }
+
+        protected virtual float GetColumnRelativeWidth(int columnIndex) =>
+            columnIndex == 0 ? 4f : 2f;
     }
 }

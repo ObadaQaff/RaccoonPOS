@@ -51,7 +51,7 @@
             <UniformGrid Columns="4" Margin="0,0,0,10">
 
                 <StackPanel Margin="10">
-                    <TextBlock Text="رقم الفاتورة"/>
+                    <TextBlock Text="رقم الفاتورة / فالكون"/>
                     <TextBox x:Name="InvoiceNumberTxt" Style="{StaticResource InputBoxStyle}" Width="200"/>
                 </StackPanel>
 
@@ -89,6 +89,7 @@
 
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="رقم الفاتورة" Binding="{Binding InvoiceNumber}" Width="150"/>
+                            <DataGridTextColumn Header="رقم فالكون" Binding="{Binding FalconInvoiceNumber}" Width="150"/>
                             <DataGridTextColumn Header="التاريخ" Binding="{Binding CreatedDate,StringFormat=yyyy-MM-dd}" Width="150"/>
                             <DataGridTextColumn Header="الزبون" Binding="{Binding Customer.Name}" Width="200"/>
                             <DataGridTextColumn Header="المندوب" Binding="{Binding DelegateName}" Width="180"/>

@@ -191,9 +191,9 @@ public class ProductWithUnitsCrudTests
     }
 
     [Fact]
-    public async Task ApplyTaxToProductUnits_ShouldRecalculateSalePrice()
+    public async Task ApplyTaxToProductUnits_ShouldPreserveEnteredSalePrice()
     {
-        var service = CreateService(nameof(ApplyTaxToProductUnits_ShouldRecalculateSalePrice), out var context);
+        var service = CreateService(nameof(ApplyTaxToProductUnits_ShouldPreserveEnteredSalePrice), out var context);
 
         var product = new Product
         {
@@ -229,6 +229,7 @@ public class ProductWithUnitsCrudTests
         var updatedUnit = await context.Set<ProductUnit>().FirstAsync(u => u.Id == unit.Id);
 
         Assert.True(result.Success);
-        Assert.Equal(116m, updatedUnit.SalePrice);
+        Assert.Equal(100m, updatedUnit.SalePrice);
+        Assert.Equal(100m, updatedUnit.UnTaxedPrice);
     }
 }

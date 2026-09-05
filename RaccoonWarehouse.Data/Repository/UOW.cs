@@ -70,6 +70,12 @@ namespace RaccoonWarehouse.Data.Repository
 
         public async Task<IUnitOfWorkTransaction> BeginTransactionAsync()
         {
+            // Several application services can be composed inside one workflow.
+            // Reuse the caller's transaction instead of attempting a nested
+            // transaction on the same DbContext connection.
+            if (_context.Database.CurrentTransaction != null)
+                return new UnitOfWorkTransaction(null);
+
             return new UnitOfWorkTransaction(await _context.Database.BeginTransactionAsync());
         }
 
@@ -80,17 +86,17 @@ namespace RaccoonWarehouse.Data.Repository
 
     internal sealed class UnitOfWorkTransaction : IUnitOfWorkTransaction
     {
-        private readonly IDbContextTransaction _transaction;
+        private readonly IDbContextTransaction? _transaction;
 
         public UnitOfWorkTransaction(IDbContextTransaction transaction)
         {
             _transaction = transaction;
         }
 
-        public Task CommitAsync() => _transaction.CommitAsync();
+        public Task CommitAsync() => _transaction?.CommitAsync() ?? Task.CompletedTask;
 
-        public Task RollbackAsync() => _transaction.RollbackAsync();
+        public Task RollbackAsync() => _transaction?.RollbackAsync() ?? Task.CompletedTask;
 
-        public ValueTask DisposeAsync() => _transaction.DisposeAsync();
+        public ValueTask DisposeAsync() => _transaction?.DisposeAsync() ?? ValueTask.CompletedTask;
     }
 }

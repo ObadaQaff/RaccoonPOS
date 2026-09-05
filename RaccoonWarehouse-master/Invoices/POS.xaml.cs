@@ -57,6 +57,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Threading;
 using System.Windows.Data;
 using System.Windows.Documents;
 using System.Windows.Input;
@@ -163,6 +164,7 @@ namespace RaccoonWarehouse.Invoices
         private readonly IFinancialTransactionService _financialService;
         private readonly ISaleCheckoutService _saleCheckoutService;
         private bool _isProcessingPayment;
+        private bool _isHoldingInvoice;
 
         private Popup _currentPopup;
         private TextBox _currentEditingTextBox;
@@ -310,6 +312,9 @@ namespace RaccoonWarehouse.Invoices
         private ObservableCollection<UserReadDto> _allCustomers;
         private bool _isFilteringCustomers;
         private bool _isNavigatingCustomerChoices;
+        private int _falconValidationVersion;
+        private string? _lastFalconDuplicateMessageValue;
+        private readonly SemaphoreSlim _falconValidationGate = new(1, 1);
         private List<ProductWriteDto> _invoiceProducts;
         private readonly ILoadingService _loading;
         private ObservableCollection<ProductReadDto> Products { get; set; }
@@ -496,6 +501,7 @@ namespace RaccoonWarehouse.Invoices
             _browseSearchDebounceTimer.Tick -= BrowseSearchDebounceTimer_Tick;
             _browseLoadCts?.Cancel();
             _browseLoadCts?.Dispose();
+            CancelFalconValidation();
         }
         private string GenerateInvoiceNumber()
         {
@@ -642,7 +648,7 @@ namespace RaccoonWarehouse.Invoices
 
             if (e.Key == Key.F1)
             {
-                FinishSaleBtn_Click(sender, new RoutedEventArgs());
+                SearchProductBtn_Click(sender, new RoutedEventArgs());
                 e.Handled = true;
                 return;
             }
@@ -691,12 +697,12 @@ namespace RaccoonWarehouse.Invoices
             switch (e.Key)
             {
                 case Key.F1:
-                    FinishSaleBtn_Click(this, null);
+                    SearchProductBtn_Click(this, new RoutedEventArgs());
                     e.Handled = true;
                     break;
 
                 case Key.F2:
-                    SearchProductBtn_Click(this, new RoutedEventArgs());
+                    FinishSaleBtn_Click(this, null);
                     e.Handled = true;
                     break;
 
@@ -1425,7 +1431,6 @@ namespace RaccoonWarehouse.Invoices
                     if (productUnit != null)
                     {
                         productUnit.PurchasePrice = stock.PurchasePrice;
-                        productUnit.SalePrice = stock.SalePrice;
                     }
                 }
 
@@ -1433,7 +1438,7 @@ namespace RaccoonWarehouse.Invoices
 
                 if (firstStock?.Product != null)
                 {
-                    firstStock.Product.CurrentSalePrice = firstStock.SalePrice;
+                    firstStock.Product.CurrentSalePrice = firstStock.Product.DefaultSalePrice;
                     firstStock.Product.CurrentPurchasePrice = firstStock.PurchasePrice;
                 }
             }
@@ -1620,14 +1625,16 @@ namespace RaccoonWarehouse.Invoices
 
         private decimal GetDefaultSalePrice(InvoiceLineWriteDto line)
         {
-            if (_stockLookup.TryGetValue((line.ProductId, line.ProductUnitId), out var stock))
-                return stock.SalePrice;
-
             var product = FindProductForLine(line);
             var unit = product?.ProductUnits?.FirstOrDefault(u => u.Id == line.ProductUnitId)
                        ?? ProductUnitSelector.GetDefaultSaleUnit(product?.ProductUnits);
 
-            return unit?.SalePrice ?? line.UnitPrice;
+            if (unit != null)
+                return unit.SalePrice;
+
+            return _stockLookup.TryGetValue((line.ProductId, line.ProductUnitId), out var stock)
+                ? stock.SalePrice
+                : line.UnitPrice;
         }
 
         private void ResetPriceBelowCost(InvoiceLineWriteDto line, decimal enteredPrice, TextBox? editor = null)
@@ -1713,7 +1720,7 @@ namespace RaccoonWarehouse.Invoices
             var stock = stocks.FirstOrDefault(item => item.ProductUnitId == selectedUnit.Id);
 
             var quantityPerUnit = selectedUnit.QuantityPerUnit > 0 ? selectedUnit.QuantityPerUnit : 1m;
-            var unitPrice = stock?.SalePrice ?? selectedUnit.SalePrice;
+            var unitPrice = selectedUnit.SalePrice;
             var lineTotal = line.Quantity * unitPrice;
             var unitCost = stock?.PurchasePrice ?? selectedUnit.PurchasePrice;
             var costTotal = line.Quantity * unitCost;
@@ -2652,6 +2659,15 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
 
         private bool CanSaveInvoice()
         {
+            if (string.IsNullOrWhiteSpace(FalconInvoiceNumberTextBox.Text))
+            {
+                ShowPaymentValidationMessage(
+                    UiText.T("رقم فالكون مطلوب.", "Falcon invoice number is required."),
+                    UiText.T("تنبيه", "Notice"));
+                FalconInvoiceNumberTextBox.Focus();
+                return false;
+            }
+
             if (_currentInvoice.InvoiceType is InvoiceType.Return or InvoiceType.PurchaseReturn)
             {
                 if (!_invoiceLines.OfType<ReturnInvoiceLine>().Any(line => line.ReturnedQuantity > 0))
@@ -2685,6 +2701,125 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
              }*/
 
             return true;
+        }
+
+        private async void FalconInvoiceNumberTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            var validationVersion = ++_falconValidationVersion;
+            var value = FalconInvoiceNumberTextBox.Text?.Trim();
+
+            FalconInvoiceValidationText.Text = string.Empty;
+            FalconInvoiceValidationText.Visibility = Visibility.Collapsed;
+
+            if (string.IsNullOrWhiteSpace(value))
+                return;
+
+            try
+            {
+                await Task.Delay(250);
+                if (validationVersion != _falconValidationVersion ||
+                    !string.Equals(value, FalconInvoiceNumberTextBox.Text?.Trim(), StringComparison.Ordinal))
+                    return;
+
+                await _falconValidationGate.WaitAsync();
+                InvoiceReadDto? duplicate;
+                try
+                {
+                    if (validationVersion != _falconValidationVersion ||
+                        !string.Equals(value, FalconInvoiceNumberTextBox.Text?.Trim(), StringComparison.Ordinal))
+                        return;
+
+                    duplicate = await FindFalconInvoiceForValidationAsync(
+                        value,
+                        _currentInvoice.Id > 0 ? _currentInvoice.Id : null);
+                }
+                finally
+                {
+                    _falconValidationGate.Release();
+                }
+
+                if (validationVersion != _falconValidationVersion || !string.Equals(value, FalconInvoiceNumberTextBox.Text?.Trim(), StringComparison.Ordinal))
+                    return;
+
+                if (duplicate == null)
+                    return;
+
+                FalconInvoiceValidationText.Text = UiText.T(
+                    $"رقم فالكون مستخدم في الفاتورة {duplicate.InvoiceNumber} بتاريخ {duplicate.CreatedDate:yyyy-MM-dd}.",
+                    $"Falcon number is already used by invoice {duplicate.InvoiceNumber} dated {duplicate.CreatedDate:yyyy-MM-dd}.");
+                FalconInvoiceValidationText.Visibility = Visibility.Visible;
+
+                if (!string.Equals(_lastFalconDuplicateMessageValue, value, StringComparison.Ordinal))
+                {
+                    _lastFalconDuplicateMessageValue = value;
+                    MessageBox.Show(
+                        FalconInvoiceValidationText.Text,
+                        UiText.T("تنبيه", "Notice"),
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                }
+            }
+            catch (Exception ex)
+            {
+                if (validationVersion != _falconValidationVersion)
+                    return;
+
+                FalconInvoiceValidationText.Text = UiText.T(
+                    $"تعذر التحقق من رقم فالكون: {ex.Message}",
+                    $"Falcon number validation failed: {ex.Message}");
+                FalconInvoiceValidationText.Visibility = Visibility.Visible;
+            }
+        }
+
+        private async Task<bool> ValidateFalconNumberBeforeSaveAsync()
+        {
+            var value = FalconInvoiceNumberTextBox.Text?.Trim();
+            if (string.IsNullOrWhiteSpace(value))
+                return false;
+
+            // Stop the debounce check and wait for any already-running lookup so the
+            // save-time validation never uses the shared DbContext concurrently.
+            CancelFalconValidation();
+            await _falconValidationGate.WaitAsync();
+            InvoiceReadDto? duplicate;
+            try
+            {
+                duplicate = await FindFalconInvoiceForValidationAsync(
+                    value,
+                    _currentInvoice.Id > 0 ? _currentInvoice.Id : null);
+            }
+            finally
+            {
+                _falconValidationGate.Release();
+            }
+            if (duplicate == null)
+                return true;
+
+            var message = UiText.T(
+                $"رقم فالكون مستخدم في الفاتورة {duplicate.InvoiceNumber} بتاريخ {duplicate.CreatedDate:yyyy-MM-dd}.",
+                $"Falcon number is already used by invoice {duplicate.InvoiceNumber} dated {duplicate.CreatedDate:yyyy-MM-dd}.");
+            FalconInvoiceValidationText.Text = message;
+            FalconInvoiceValidationText.Visibility = Visibility.Visible;
+            ShowPaymentValidationMessage(message, UiText.T("تنبيه", "Notice"));
+            FalconInvoiceNumberTextBox.Focus();
+            return false;
+        }
+
+        private async Task<InvoiceReadDto?> FindFalconInvoiceForValidationAsync(
+            string value,
+            int? excludeInvoiceId)
+        {
+            // Falcon validation is read-only. Use a dedicated scope/context so it
+            // cannot collide with product loading or another POS operation that is
+            // still using the window's shared context.
+            using var scope = _serviceProvider.CreateScope();
+            var invoiceService = scope.ServiceProvider.GetRequiredService<IInvoiceService>();
+            return await invoiceService.FindPOSInvoiceByFalconNumberAsync(value, excludeInvoiceId);
+        }
+
+        private void CancelFalconValidation()
+        {
+            Interlocked.Increment(ref _falconValidationVersion);
         }
 
         private async Task<InvoiceWriteDto?> LoadOriginalInvoiceForReturnOrExchangeAsync(string? invoiceNumber)
@@ -3000,6 +3135,7 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
         }
         private void ResetPOS()
         {
+            CancelFalconValidation();
             Interlocked.Increment(ref _posResetVersion);
             _pendingFefoEditedLine = null;
             _hasPendingFefoSplit = false;
@@ -3022,6 +3158,21 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
             CustomerComboBox.Text = string.Empty;
             FalconInvoiceNumberTextBox.Clear();
             _lastSavedInvoice = null;
+
+            // Drop all state from the held/previous invoice before creating the next one.
+            // This is especially important after updating an existing held invoice: its Id
+            // must not remain attached to the next invoice and cause another update.
+            _currentInvoice = new InvoiceWriteDto
+            {
+                Id = 0,
+                InvoiceNumber = GenerateInvoiceNumber(),
+                FalconInvoiceNumber = string.Empty,
+                InvoiceType = InvoiceType.Sale,
+                Status = InvoiceStatus.Draft,
+                IsPOS = true,
+                InvoiceLines = _invoiceLines,
+                Payments = new List<InvoicePaymentWriteDto>()
+            };
 
             CreateNewInvoice();
 
@@ -3252,26 +3403,38 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
                 var paymentWindow = new ChangeInvoicePaymentWindow(
                     invoice.PaymentType,
                     _allCustomers ?? Enumerable.Empty<UserReadDto>(),
-                    invoice.CustomerId)
+                    invoice.CustomerId,
+                    Math.Abs(invoice.TotalAmount),
+                    invoice.Payments)
                 { Owner = this };
-                if (paymentWindow.ShowDialog() != true || paymentWindow.SelectedPaymentType is not PaymentType newPaymentType)
-                    return;
-                if (invoice.PaymentType == newPaymentType)
+                if (paymentWindow.ShowDialog() != true || paymentWindow.SelectedPayments.Count == 0)
                     return;
 
                 var oldPaymentType = invoice.PaymentType ?? PaymentType.Cash;
+                var oldPayments = invoice.Payments?.Where(payment => payment.Amount > 0m).ToList()
+                    ?? new List<InvoicePaymentReadDto>();
+                if (oldPayments.Count == 0)
+                    oldPayments.Add(new InvoicePaymentReadDto { PaymentType = oldPaymentType, Amount = Math.Abs(invoice.TotalAmount) });
+                var newPayments = paymentWindow.SelectedPayments.ToList();
+                var newPaymentType = newPayments[0].PaymentType;
                 var oldInvoice = BuildPaymentChangeInvoice(invoice);
                 var updatedInvoice = BuildPaymentChangeInvoice(invoice);
                 updatedInvoice.PaymentType = newPaymentType;
+                updatedInvoice.Payments = newPayments.Select(payment => new InvoicePaymentWriteDto
+                {
+                    PaymentType = payment.PaymentType,
+                    Amount = payment.Amount
+                }).ToList();
 
-                if (newPaymentType == PaymentType.Credit)
+                if (newPayments.Any(payment => payment.PaymentType == PaymentType.Credit))
                 {
                     updatedInvoice.CustomerId = paymentWindow.SelectedCustomerId;
                 }
 
-                if (newPaymentType == PaymentType.Check)
+                var checkPayment = newPayments.FirstOrDefault(payment => payment.PaymentType == PaymentType.Check);
+                if (checkPayment != null)
                 {
-                    var checkWindow = new CheckDetailsWindow(Math.Abs(invoice.TotalAmount)) { Owner = this };
+                    var checkWindow = new CheckDetailsWindow(checkPayment.Amount) { Owner = this };
                     if (checkWindow.ShowDialog() != true)
                         return;
                     updatedInvoice.Checks = checkWindow.ResultChecks.ToList();
@@ -3297,7 +3460,7 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
                 }
 
                 var sourceType = GetPaymentChangeSourceType(invoice.InvoiceType);
-                if (oldPaymentType != PaymentType.Credit)
+                if (oldPayments.Any(payment => payment.PaymentType != PaymentType.Credit))
                 {
                     var voidResult = await _financialService.VoidBySourceAsync(sourceType, invoice.Id, $"Payment method changed from {oldPaymentType} to {newPaymentType}");
                     if (!voidResult.Success)
@@ -3309,20 +3472,25 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
                     }
                 }
 
-                if (newPaymentType != PaymentType.Credit)
+                if (newPayments.Any(payment => payment.PaymentType != PaymentType.Credit))
                 {
-                    var postResult = await _financialService.PostAsync(BuildPaymentChangeFinancialPost(invoice, newPaymentType, sourceType, session, "POS payment method changed"));
+                    foreach (var payment in newPayments.Where(payment => payment.PaymentType != PaymentType.Credit))
+                    {
+                        var postResult = await _financialService.PostAsync(BuildPaymentChangeFinancialPost(invoice, payment.PaymentType, payment.Amount, sourceType, session, "POS payment method changed"));
                     if (!postResult.Success)
                     {
                         await _invoiceService.UpdateAsync(oldInvoice);
-                        if (oldPaymentType != PaymentType.Credit)
-                            await _financialService.PostAsync(BuildPaymentChangeFinancialPost(invoice, oldPaymentType, sourceType, session, "Restored original POS payment method"));
+                        if (oldPayments.Any(payment => payment.PaymentType != PaymentType.Credit))
+                            foreach (var oldPayment in oldPayments.Where(payment => payment.PaymentType != PaymentType.Credit))
+                                await _financialService.PostAsync(BuildPaymentChangeFinancialPost(invoice, oldPayment.PaymentType, oldPayment.Amount, sourceType, session, "Restored original POS payment method"));
                         HideLoadingForDialog();
                         MessageBox.Show(postResult.Message ?? UiText.T("فشل تسجيل طريقة الدفع الجديدة.", "Could not post the new payment transaction."), UiText.T("خطأ", "Error"));
                         return;
+                        }
                     }
                 }
 
+                HideLoadingForDialog();
                 MessageBox.Show(UiText.T("تم تغيير طريقة الدفع وتحديث الحسابات المرتبطة بنجاح.", "Payment method and related accounts were updated successfully."), UiText.T("تم", "Done"));
             }
             catch (Exception ex)
@@ -3389,6 +3557,14 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
                     CreatedDate = line.CreatedDate,
                     UpdatedDate = DateTime.Now
                 }).ToList(),
+                Payments = (invoice.Payments ?? Array.Empty<InvoicePaymentReadDto>()).Select(payment => new InvoicePaymentWriteDto
+                {
+                    Id = payment.Id,
+                    PaymentType = payment.PaymentType,
+                    Amount = payment.Amount,
+                    CreatedDate = payment.CreatedDate,
+                    UpdatedDate = DateTime.Now
+                }).ToList(),
                 Checks = (invoice.Checks ?? Array.Empty<CheckReadDto>()).Select(check => new CheckWriteDto
                 {
                     Id = check.Id,
@@ -3428,6 +3604,7 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
         private static FinancialPostDto BuildPaymentChangeFinancialPost(
             InvoiceReadDto invoice,
             PaymentType paymentType,
+            decimal amount,
             FinancialSourceType sourceType,
             CashierSessionReadDto session,
             string notes)
@@ -3436,7 +3613,7 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
             {
                 Direction = GetPaymentChangeDirection(invoice.InvoiceType),
                 Method = GetPaymentChangeMethod(paymentType),
-                Amount = Math.Abs(invoice.TotalAmount),
+                Amount = Math.Abs(amount),
                 TransactionDate = DateTime.Now,
                 SourceType = sourceType,
                 SourceId = invoice.Id,
@@ -3469,6 +3646,9 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
         #region OnHold
         private async void HoldSaleBtn_Click(object sender, RoutedEventArgs e)
         {
+            if (_isHoldingInvoice || _isProcessingPayment || _isLoadingHeldInvoice)
+                return;
+
             var linesToHold = _invoiceLines
                 .Where(line => line.ProductId > 0 && line.ProductUnitId > 0 && line.Quantity > 0)
                 .ToList();
@@ -3479,6 +3659,7 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
                 return;
             }
 
+            _isHoldingInvoice = true;
             await _posDataOperationSemaphore.WaitAsync();
             try
             {
@@ -3504,6 +3685,7 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
                 _currentInvoice.FalconInvoiceNumber = FalconInvoiceNumberTextBox.Text.Trim();
                 _currentInvoice.ClosedAt = null;
                 _currentInvoice.HeldColor = heldColor;
+                _currentInvoice.DeferAccountingPosting = true;
                 RecalculateTotals();
                 
                 var result = _currentInvoice.Id > 0
@@ -3536,6 +3718,7 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
             finally
             {
                 _posDataOperationSemaphore.Release();
+                _isHoldingInvoice = false;
                 FocusBarcodeInput();
             }
         }
@@ -3565,7 +3748,18 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
                     _loading.Show();
                     try
                     {
-                        await LoadInvoiceIntoPOSAsync(win.SelectedInvoice);
+                        var latestHeldInvoice = await _invoiceService.GetFullInvoiceByIdAsync(win.SelectedInvoice.Id);
+                        if (latestHeldInvoice == null || latestHeldInvoice.Status != InvoiceStatus.OnHold)
+                        {
+                            MessageBox.Show(
+                                UiText.T("الفاتورة المعلقة غير موجودة أو تم استئنافها مسبقاً.", "The held invoice no longer exists or has already been resumed."),
+                                UiText.T("تنبيه", "Notice"),
+                                MessageBoxButton.OK,
+                                MessageBoxImage.Warning);
+                            return;
+                        }
+
+                        await LoadInvoiceIntoPOSAsync(latestHeldInvoice);
                         FocusBarcodeInput();
                     }
                     finally
@@ -3655,6 +3849,11 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
                 CustomerId = invoice.CustomerId,
                 SupplierId = invoice.SupplierId,
                 PaymentType = invoice.PaymentType,
+                Payments = invoice.Payments?.Select(payment => new InvoicePaymentWriteDto
+                {
+                    PaymentType = payment.PaymentType,
+                    Amount = payment.Amount
+                }).ToList() ?? new List<InvoicePaymentWriteDto>(),
                 DiscountAmount = invoice.DiscountAmount ?? 0m,
                 InvoiceType = invoice.InvoiceType,
                 HeldColor = invoice.HeldColor
@@ -4015,6 +4214,39 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
         private async void CreditPaymentBtn_Click(object sender, RoutedEventArgs e)
         {
             await ProcessPaymentAsync(PaymentType.Credit);
+        }
+
+        private async void SplitPaymentBtn_Click(object sender, RoutedEventArgs e)
+        {
+            if (_invoiceLines == null || _invoiceLines.Count == 0)
+                return;
+
+            PrepareInvoiceForSave();
+            var total = Math.Abs(_invoiceLines.Sum(line => line.Quantity * line.UnitPrice)
+                - (_currentInvoice.DiscountAmount ?? 0m));
+            var paymentWindow = new ChangeInvoicePaymentWindow(
+                null,
+                _allCustomers ?? Enumerable.Empty<UserReadDto>(),
+                _currentInvoice.CustomerId,
+                total)
+            { Owner = this };
+
+            if (paymentWindow.ShowDialog() != true || paymentWindow.SelectedPayments.Count == 0)
+                return;
+
+            _currentInvoice.Payments = paymentWindow.SelectedPayments.Select(payment => new InvoicePaymentWriteDto
+            {
+                PaymentType = payment.PaymentType,
+                Amount = payment.Amount
+            }).ToList();
+            _currentInvoice.PaymentType = paymentWindow.SelectedPayments[0].PaymentType;
+            if (paymentWindow.SelectedCustomerId.HasValue)
+            {
+                _currentInvoice.CustomerId = paymentWindow.SelectedCustomerId;
+                SelectInvoiceCustomer(paymentWindow.SelectedCustomerId);
+            }
+
+            await ProcessPaymentAsync(_currentInvoice.PaymentType.Value);
         }
 
 
@@ -4397,12 +4629,14 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
                 if (!combo.IsDropDownOpen)
                 {
                     combo.IsDropDownOpen = true;
+                    FocusProductSuggestionGrid(combo, selectFirstWhenInactive: true);
                     e.Handled = true;
                     return;
                 }
 
-                if (combo.IsDropDownOpen && combo.SelectedItem != null)
+                if (combo.IsDropDownOpen)
                 {
+                    FocusProductSuggestionGrid(combo, selectFirstWhenInactive: true);
                     e.Handled = true; // stop DataGrid from moving to new row
                 }
             }
@@ -4469,23 +4703,31 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
         {
             var text = searchText?.Trim();
             var searchVersion = ++_comboSearchVersion;
+            var currentGrid = GetProductSuggestionsGrid(combo);
+            var selectedProductId = (currentGrid?.SelectedItem as ProductReadDto)?.Id
+                ?? (combo.SelectedItem as ProductReadDto)?.Id;
+            var currentColumnIndex = currentGrid?.CurrentCell.Column?.DisplayIndex;
 
             if (string.IsNullOrWhiteSpace(text))
             {
                 ProductSuggestions.Clear();
+                FocusProductComboSearchBox(combo);
                 foreach (var product in Products)
+                {
                     ProductSuggestions.Add(product);
+                    FocusProductComboSearchBox(combo);
+                }
 
                 combo.IsDropDownOpen = ProductSuggestions.Any();
-                if (ProductSuggestions.Any())
-                    combo.SelectedIndex = 0;
+                RestoreProductSuggestionSelection(combo, selectedProductId, currentColumnIndex);
+                FocusProductComboSearchBox(combo);
                 return;
             }
 
             var lockTaken = false;
             try
             {
-                await Task.Delay(180);
+                await Task.Delay(110);
                 if (searchVersion != _comboSearchVersion)
                     return;
 
@@ -4540,12 +4782,16 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
                     return;
 
                 ProductSuggestions.Clear();
+                FocusProductComboSearchBox(combo);
                 foreach (var product in matches.OrderBy(p => p.Name))
+                {
                     ProductSuggestions.Add(product);
+                    FocusProductComboSearchBox(combo);
+                }
 
                 combo.IsDropDownOpen = ProductSuggestions.Any();
-                if (ProductSuggestions.Any())
-                    combo.SelectedIndex = 0;
+                RestoreProductSuggestionSelection(combo, selectedProductId, currentColumnIndex);
+                FocusProductComboSearchBox(combo);
             }
             catch (Exception ex)
             {
@@ -4556,6 +4802,89 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
                 if (lockTaken)
                     _searchLock.Release();
             }
+        }
+
+        private static DataGrid? GetProductSuggestionsGrid(ComboBox combo)
+        {
+            var popup = combo.Template?.FindName("Popup", combo) as Popup;
+            return popup?.Child == null
+                ? null
+                : FindVisualChildren<DataGrid>(popup.Child).FirstOrDefault();
+        }
+
+        private void FocusProductSuggestionGrid(ComboBox combo, bool selectFirstWhenInactive)
+        {
+            Dispatcher.BeginInvoke(() =>
+            {
+                var grid = GetProductSuggestionsGrid(combo);
+                if (grid == null || !ProductSuggestions.Any())
+                    return;
+
+                var hasActiveCell = grid.IsKeyboardFocusWithin &&
+                                    grid.SelectedItem != null &&
+                                    grid.CurrentCell.Column != null;
+
+                if (selectFirstWhenInactive && !hasActiveCell)
+                    grid.SelectedIndex = 0;
+
+                if (grid.SelectedItem is not ProductReadDto selectedProduct)
+                    return;
+
+                var column = grid.CurrentCell.Column ?? grid.Columns.FirstOrDefault();
+                if (column != null)
+                {
+                    grid.CurrentCell = new DataGridCellInfo(selectedProduct, column);
+                    grid.ScrollIntoView(selectedProduct, column);
+                }
+
+                grid.Focus();
+                Keyboard.Focus(grid);
+            }, DispatcherPriority.Input);
+        }
+
+        private void FocusProductComboSearchBox(ComboBox combo)
+        {
+            Dispatcher.BeginInvoke(() =>
+            {
+                var searchBox = combo.Template?.FindName("PART_EditableTextBox", combo) as TextBox;
+                if (searchBox != null)
+                {
+                    searchBox.Focus();
+                    Keyboard.Focus(searchBox);
+                    return;
+                }
+
+                combo.Focus();
+                Keyboard.Focus(combo);
+            }, DispatcherPriority.ContextIdle);
+        }
+
+        private void RestoreProductSuggestionSelection(
+            ComboBox combo,
+            int? selectedProductId,
+            int? currentColumnIndex)
+        {
+            var selectedProduct = selectedProductId.HasValue
+                ? ProductSuggestions.FirstOrDefault(product => product.Id == selectedProductId.Value)
+                : null;
+            selectedProduct ??= ProductSuggestions.FirstOrDefault();
+            if (selectedProduct == null)
+                return;
+
+            combo.SelectedItem = selectedProduct;
+
+            var grid = GetProductSuggestionsGrid(combo);
+            if (grid == null)
+                return;
+
+            grid.SelectedItem = selectedProduct;
+            grid.ScrollIntoView(selectedProduct);
+
+            var column = currentColumnIndex.HasValue
+                ? grid.Columns.FirstOrDefault(item => item.DisplayIndex == currentColumnIndex.Value)
+                : grid.Columns.FirstOrDefault();
+            if (column != null)
+                grid.CurrentCell = new DataGridCellInfo(selectedProduct, column);
         }
 
         private async Task LoadNextProductPageAsync()
@@ -4611,6 +4940,14 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
 
                             if (grid.SelectedItem == null && ProductSuggestions.Any())
                                 grid.SelectedIndex = 0;
+
+                            if (grid.SelectedItem is ProductReadDto selectedProduct && grid.Columns.Count > 0)
+                            {
+                                grid.CurrentCell = new DataGridCellInfo(selectedProduct, grid.Columns[0]);
+                                grid.ScrollIntoView(selectedProduct, grid.Columns[0]);
+                                grid.Focus();
+                                Keyboard.Focus(grid);
+                            }
                         }
                     }
                 }, DispatcherPriority.Loaded);
@@ -5337,6 +5674,12 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
                 LogPosTiming("click to processing indicator", timing, stepTiming);
                 _currentInvoice.PaymentType = paymentType;
 
+                if (!await ValidateFalconNumberBeforeSaveAsync())
+                {
+                    StopForValidationMessage();
+                    return;
+                }
+
                 if (!CanSaveInvoice())
                 {
                     StopForValidationMessage();
@@ -5402,16 +5745,18 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
                 var calculatedTotal = expandedLines.Sum(l => l.Quantity * l.UnitPrice) - (_currentInvoice.DiscountAmount ?? 0m);
                 _currentInvoice.TotalAmount = signlessPurchaseReturn ? Math.Abs(calculatedTotal) : calculatedTotal;
 
-                if (paymentType == PaymentType.Check)
+                var checkAllocation = _currentInvoice.Payments?.FirstOrDefault(payment => payment.PaymentType == PaymentType.Check);
+                if (checkAllocation != null)
                 {
                     HideLoadingForDialog();
-                    if (!await CaptureCheckDetailsAsync(_currentInvoice.TotalAmount))
+                    if (!await CaptureCheckDetailsAsync(checkAllocation.Amount))
                         return;
 
                     ShowLoadingForWork();
                 }
 
-                if (paymentType == PaymentType.Credit)
+                if (paymentType == PaymentType.Credit ||
+                    _currentInvoice.Payments?.Any(payment => payment.PaymentType == PaymentType.Credit && payment.Amount > 0m) == true)
                 {
                     if (CustomerComboBox.SelectedItem is not UserReadDto)
                     {

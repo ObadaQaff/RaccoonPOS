@@ -1736,18 +1736,25 @@ namespace RaccoonWarehouse.Invoices
         }
         private void CreateSalesInvoice_PreviewKeyDown(object sender, KeyEventArgs e)
         {
-            if (e.Key == Key.F2)
+            if (e.Key == Key.F1)
             {
                 e.Handled = true;
                 SearchProductBtn_Click(this, new RoutedEventArgs());
                 return;
             }
 
-            if (e.Key != Key.F1)
+            if (e.Key == Key.F2)
+            {
+                e.Handled = true;
+                SaveReceiptBtn_Click(SaveReceiptBtn, new RoutedEventArgs());
                 return;
+            }
 
-            e.Handled = true;
-            SaveReceiptBtn_Click(SaveReceiptBtn, new RoutedEventArgs());
+            if (e.Key == Key.Delete)
+            {
+                e.Handled = true;
+                DeleteProduct_Click(this, new RoutedEventArgs());
+            }
         }
 
         private PaymentMethod MapPaymentMethod(PaymentType paymentType)

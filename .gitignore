@@ -18,6 +18,13 @@ publish/
 /RaccoonWarehouse-master/build_verify
 **/artifacts/
 **/build_verify/
+**/.build-check*/
+**/build-verify/
+**/_codex-build/
+**/_codex*build/
+**/_codex*/
+**/_codex-report-build/
+/RaccoonWarehouse-master/build/
 /RaccoonWarehouse.Application/RaccoonWarehouse.Tests/
 /RaccoonWarehouse.Core/RaccoonWarehouse.Tests/
 /RaccoonWarehouse.Data/RaccoonWarehouse.Tests/

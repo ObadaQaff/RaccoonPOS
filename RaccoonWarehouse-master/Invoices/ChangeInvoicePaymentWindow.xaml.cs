@@ -1,4 +1,5 @@
 using RaccoonWarehouse.Domain.Enums;
+using RaccoonWarehouse.Domain.Invoices.DTOs;
 using RaccoonWarehouse.Domain.Users.DTOs;
 using RaccoonWarehouse.Helpers.Localization;
 using System.Collections.Generic;
@@ -10,6 +11,24 @@ namespace RaccoonWarehouse.Invoices
 {
     public partial class ChangeInvoicePaymentWindow : Window
     {
+        public sealed class PaymentLine
+        {
+            public PaymentType PaymentType { get; init; }
+            public decimal Amount { get; init; }
+            public string RemoveText => UiText.T("حذف", "Remove");
+            public string DisplayName => UiText.T(PaymentType switch
+            {
+                PaymentType.Cash => "نقدي",
+                PaymentType.Credit => "آجل",
+                PaymentType.Check => "شيك",
+                PaymentType.MobilePayment => "موبايل",
+                PaymentType.Debit => "تحويل",
+                PaymentType.Master => "ماستر",
+                PaymentType.Visa => "فيزا",
+                _ => PaymentType.ToString()
+            }, PaymentType.ToString());
+        }
+
         private sealed record PaymentChoice(PaymentType Value, string Arabic, string English)
         {
             public string DisplayName => UiText.T(Arabic, English);
@@ -29,13 +48,22 @@ namespace RaccoonWarehouse.Invoices
         private List<UserReadDto> _allCustomers = new();
         private bool _isFilteringCustomers;
         private bool _isNavigatingCustomerChoices;
+        private readonly decimal _invoiceTotal;
+        private readonly List<PaymentLine> _payments = new();
+
+        public IReadOnlyList<PaymentLine> SelectedPayments => _payments;
 
         public PaymentType? SelectedPaymentType =>
             (PaymentMethodComboBox.SelectedItem as PaymentChoice)?.Value;
 
         public int? SelectedCustomerId => (CustomerComboBox.SelectedItem as UserReadDto)?.Id;
 
-        public ChangeInvoicePaymentWindow(PaymentType? currentPaymentType, IEnumerable<UserReadDto>? customers = null, int? currentCustomerId = null)
+        public ChangeInvoicePaymentWindow(
+            PaymentType? currentPaymentType,
+            IEnumerable<UserReadDto>? customers = null,
+            int? currentCustomerId = null,
+            decimal invoiceTotal = 0m,
+            IEnumerable<InvoicePaymentReadDto>? payments = null)
         {
             InitializeComponent();
             UiText.ApplyWindow(this);
@@ -54,6 +82,21 @@ namespace RaccoonWarehouse.Invoices
                 .ToList();
             CustomerComboBox.ItemsSource = _allCustomers;
             CustomerComboBox.SelectedItem = _allCustomers.FirstOrDefault(x => x.Id == currentCustomerId);
+            _invoiceTotal = Math.Abs(invoiceTotal);
+            if (payments != null)
+                _payments.AddRange(payments.Where(payment => payment.Amount > 0m).Select(payment => new PaymentLine
+                {
+                    PaymentType = payment.PaymentType,
+                    Amount = payment.Amount
+                }));
+            if (_payments.Count == 0 && currentPaymentType.HasValue && _invoiceTotal > 0m)
+                _payments.Add(new PaymentLine { PaymentType = currentPaymentType.Value, Amount = _invoiceTotal });
+            PaymentsGrid.ItemsSource = _payments;
+            ((DataGridTextColumn)PaymentsGrid.Columns[0]).Header = UiText.T("طريقة", "Payment");
+            ((DataGridTextColumn)PaymentsGrid.Columns[1]).Header = UiText.T("المبلغ", "Amount");
+            PaymentsGrid.Columns[2].Header = UiText.T("حذف", "Remove");
+            AddPaymentButton.Content = UiText.T("إضافة", "Add");
+            PaymentAmountTextBox.Text = "0.000";
             PaymentMethodComboBox.SelectionChanged += PaymentMethodComboBox_SelectionChanged;
             UpdateCustomerVisibility();
         }
@@ -178,10 +221,18 @@ namespace RaccoonWarehouse.Invoices
 
         private void SaveButton_Click(object sender, RoutedEventArgs e)
         {
-            if (SelectedPaymentType == null)
+            if (_payments.Count == 0)
                 return;
 
-            if (SelectedPaymentType == PaymentType.Credit && SelectedCustomerId == null)
+            if (_invoiceTotal > 0m && Math.Round(_payments.Sum(payment => payment.Amount), 3) != Math.Round(_invoiceTotal, 3))
+            {
+                MessageBox.Show(
+                    UiText.T("يجب أن يساوي مجموع الدفعات إجمالي الفاتورة.", "Payment amounts must equal the invoice total."),
+                    UiText.T("تنبيه", "Notice"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            if (_payments.Any(payment => payment.PaymentType == PaymentType.Credit) && SelectedCustomerId == null)
             {
                 MessageBox.Show(
                     UiText.T("يرجى اختيار العميل عند تحويل الفاتورة إلى آجل.", "Please select a customer when changing the invoice to credit."),
@@ -193,6 +244,28 @@ namespace RaccoonWarehouse.Invoices
 
             DialogResult = true;
             Close();
+        }
+
+        private void AddPaymentButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (PaymentMethodComboBox.SelectedItem is not PaymentChoice choice ||
+                !decimal.TryParse(PaymentAmountTextBox.Text, out var amount) || amount <= 0m)
+                return;
+
+            if (_payments.Any(payment => payment.PaymentType == choice.Value))
+                return;
+
+            _payments.Add(new PaymentLine { PaymentType = choice.Value, Amount = amount });
+            PaymentsGrid.Items.Refresh();
+        }
+
+        private void RemovePaymentButton_Click(object sender, RoutedEventArgs e)
+        {
+            if ((sender as Button)?.DataContext is PaymentLine payment)
+            {
+                _payments.Remove(payment);
+                PaymentsGrid.Items.Refresh();
+            }
         }
 
         private void CancelButton_Click(object sender, RoutedEventArgs e)

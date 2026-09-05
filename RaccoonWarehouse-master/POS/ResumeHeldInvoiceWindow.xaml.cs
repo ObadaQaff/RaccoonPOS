@@ -64,6 +64,7 @@ namespace RaccoonWarehouse.POS
             InitializeComponent();
             _invoiceService = invoiceService;
             UiText.ApplyWindow(this);
+            ResumeHeldInvoiceButton.Content = UiText.T("استئناف", "Resume");
             DeleteHeldInvoiceButton.Content = UiText.T("حذف الفاتورة", "Delete invoice");
             Loaded += ResumeHeldInvoiceWindow_Loaded;
             HeldInvoicesGrid.LoadingRow += HeldInvoicesGrid_LoadingRow;
@@ -88,8 +89,40 @@ namespace RaccoonWarehouse.POS
             finally
             {
                 HeldInvoicesGrid.IsEnabled = true;
+                ResumeHeldInvoiceButton.IsEnabled = true;
                 DeleteHeldInvoiceButton.IsEnabled = true;
             }
+        }
+
+        private void ResumeHeldInvoiceButton_Click(object sender, RoutedEventArgs e)
+        {
+            ResumeSelectedInvoice();
+        }
+
+        private void HeldInvoicesGrid_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key != Key.Enter)
+                return;
+
+            e.Handled = true;
+            ResumeSelectedInvoice();
+        }
+
+        private void ResumeSelectedInvoice()
+        {
+            SelectedInvoice = HeldInvoicesGrid.SelectedItem as InvoiceReadDto;
+            if (SelectedInvoice == null)
+            {
+                MessageBox.Show(
+                    UiText.T("يرجى تحديد فاتورة معلقة أولاً.", "Please select a held invoice first."),
+                    UiText.T("تنبيه", "Notice"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
+            DialogResult = true;
+            Close();
         }
 
         private async Task LoadHeldInvoicesAsync()
@@ -163,8 +196,7 @@ namespace RaccoonWarehouse.POS
         private void Grid_PreviewDoubleClick(object sender, MouseButtonEventArgs e)
         {
             var clickedRow = FindVisualParent<DataGridRow>(e.OriginalSource as DependencyObject);
-            SelectedInvoice = clickedRow?.Item as InvoiceReadDto
-                ?? HeldInvoicesGrid.SelectedItem as InvoiceReadDto;
+            SelectedInvoice = clickedRow?.Item as InvoiceReadDto;
 
             if (SelectedInvoice != null)
             {

@@ -21,6 +21,7 @@ namespace RaccoonWarehouse.Domain.Reports.Financial.Dtos
 
         public FinancialSourceType SourceType { get; set; }
         public int? SourceId { get; set; }
+        public string? DocumentNumber { get; set; }
 
         public string? CashierName { get; set; }
         public string? Notes { get; set; }

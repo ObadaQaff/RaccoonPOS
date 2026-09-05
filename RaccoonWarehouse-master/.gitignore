@@ -364,3 +364,13 @@ FodyWeavers.xsd
 
 
 .codex/
+
+# Local Codex/build verification outputs
+.build-check*/
+.codex-build/
+_codex_*/
+.dotnet-cli/
+graphify-out/
+
+# macOS metadata
+.DS_Store

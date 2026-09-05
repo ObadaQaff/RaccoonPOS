@@ -1,12 +1,16 @@
 <Window x:Class="RaccoonWarehouse.Orders.OrderInvoiceDetails"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:RaccoonWarehouse.Orders"
         Title="&#x62A;&#x641;&#x627;&#x635;&#x64A;&#x644; &#x627;&#x644;&#x641;&#x627;&#x62A;&#x648;&#x631;&#x629;"
         Height="800"
         Width="1400"
         WindowStartupLocation="CenterScreen"
         FlowDirection="{DynamicResource CurrentFlowDirection}"
         Background="{StaticResource AppPageBackgroundBrush}">
+    <Window.Resources>
+        <local:Code39BarcodeConverter x:Key="Code39BarcodeConverter" />
+    </Window.Resources>
     <Grid Margin="18">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -133,6 +137,20 @@
                        SelectionChanged="LinesGrid_SelectionChanged">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="&#x631;&#x642;&#x645; &#x627;&#x644;&#x635;&#x646;&#x641;" Binding="{Binding ProductId}" IsReadOnly="True" Width="120"/>
+                    <DataGridTemplateColumn Header="&#x627;&#x644;&#x628;&#x627;&#x631;&#x643;&#x648;&#x62F;" IsReadOnly="True" Width="220">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <StackPanel HorizontalAlignment="Center">
+                                    <Image Height="34"
+                                           Source="{Binding Barcode, Converter={StaticResource Code39BarcodeConverter}}"
+                                           Stretch="Uniform" />
+                                    <TextBlock Text="{Binding Barcode}"
+                                               HorizontalAlignment="Center"
+                                               FontSize="11" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
                     <DataGridTextColumn Header="&#x627;&#x644;&#x635;&#x646;&#x641;" Binding="{Binding ProductName}" IsReadOnly="True" Width="*"/>
                     <DataGridTextColumn Header="&#x627;&#x644;&#x648;&#x62D;&#x62F;&#x629;" Binding="{Binding UnitName}" IsReadOnly="True" Width="150"/>
                     <DataGridTextColumn Header="&#x627;&#x644;&#x643;&#x645;&#x64A;&#x629;" Binding="{Binding Quantity, UpdateSourceTrigger=PropertyChanged}" Width="130"/>
@@ -147,6 +165,20 @@
                     Orientation="Horizontal"
                     HorizontalAlignment="Right"
                     Margin="0,14,0,0">
+            <Button x:Name="ExportPdfButton"
+                    Style="{StaticResource SecondaryButtonStyle}"
+                    MinWidth="150"
+                    Height="42"
+                    Margin="0,0,10,0"
+                    Click="ExportPdf_Click"
+                    Content="تصدير PDF"/>
+            <Button x:Name="PrintInvoiceButton"
+                    Style="{StaticResource SecondaryButtonStyle}"
+                    MinWidth="120"
+                    Height="42"
+                    Margin="0,0,10,0"
+                    Click="PrintInvoice_Click"
+                    Content="طباعة"/>
             <Button x:Name="SaveDetailsButton"
                     Style="{StaticResource PrimaryButtonStyle}"
                     MinWidth="170"

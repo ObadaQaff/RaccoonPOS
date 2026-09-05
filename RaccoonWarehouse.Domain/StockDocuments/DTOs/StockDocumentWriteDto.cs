@@ -20,8 +20,12 @@ using System;
             public int Id { get; set; }
             public string DocumentNumber { get; set; } = string.Empty;
             public string? FalconInvoiceNumber { get; set; }
+            public string? ReferenceNumber { get; set; }
             public StockVoucherType Type { get; set; }
+            public StockOutOperationType OperationType { get; set; } = StockOutOperationType.Damage;
+            public string? SourceDocumentId { get; set; }
             public int? SupplierId { get; set; }
+            public int? CustomerId { get; set; }
             public int? WarehouseId { get; set; }
             public UserWriteDto? Supplier { get; set; }
             public string? Notes { get; set; }

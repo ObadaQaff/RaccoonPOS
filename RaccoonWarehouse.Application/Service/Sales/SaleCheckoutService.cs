@@ -118,10 +118,21 @@ namespace RaccoonWarehouse.Application.Service.Sales
                     return Result<SaleCheckoutResult>.Fail(movementResult.Message ?? "Failed to update stock.");
                 }
 
-                if (savedInvoice.PaymentType != PaymentType.Credit)
+                var paymentAllocations = savedInvoice.Payments?.Where(payment => payment.Amount > 0m).ToList()
+                    ?? new List<InvoicePaymentWriteDto>();
+                if (paymentAllocations.Count == 0 && savedInvoice.PaymentType.HasValue)
+                {
+                    paymentAllocations.Add(new InvoicePaymentWriteDto
+                    {
+                        PaymentType = savedInvoice.PaymentType.Value,
+                        Amount = Math.Abs(savedInvoice.TotalAmount)
+                    });
+                }
+
+                foreach (var payment in paymentAllocations.Where(payment => payment.PaymentType != PaymentType.Credit))
                 {
                     await _accountingOperationService.EnqueueFinancialAsync(
-                        BuildFinancialPost(savedInvoice, savedInvoiceId, request.Session),
+                        BuildFinancialPost(savedInvoice, savedInvoiceId, request.Session, payment.PaymentType, payment.Amount),
                         savedInvoice.InvoiceNumber ?? savedInvoiceId.ToString());
                 }
 
@@ -144,13 +155,18 @@ namespace RaccoonWarehouse.Application.Service.Sales
             }
         }
 
-        private static FinancialPostDto BuildFinancialPost(InvoiceWriteDto invoice, int invoiceId, CashierSessionReadDto session)
+        private static FinancialPostDto BuildFinancialPost(
+            InvoiceWriteDto invoice,
+            int invoiceId,
+            CashierSessionReadDto session,
+            PaymentType paymentType,
+            decimal amount)
         {
             return new FinancialPostDto
             {
                 Direction = ResolveDirection(invoice.InvoiceType, invoice.TotalAmount),
-                Method = MapPaymentMethod(invoice.PaymentType ?? PaymentType.Cash),
-                Amount = Math.Abs(invoice.TotalAmount),
+                Method = MapPaymentMethod(paymentType),
+                Amount = Math.Abs(amount),
                 TransactionDate = DateTime.Now,
                 SourceType = MapSourceTypeByInvoiceType(invoice.InvoiceType),
                 SourceId = invoiceId,

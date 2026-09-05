@@ -75,7 +75,7 @@ namespace RaccoonWarehouse.Invoices
         private readonly IProductUnitService _productUnitService;
         private readonly Func<ProductSearchRow, Task<bool>>? _onAddProduct;
         private readonly HashSet<string> _disabledProductKeys;
-        private readonly DispatcherTimer _searchDebounceTimer = new() { Interval = TimeSpan.FromMilliseconds(300) };
+        private readonly DispatcherTimer _searchDebounceTimer = new() { Interval = TimeSpan.FromMilliseconds(150) };
         private readonly SemaphoreSlim _serviceCallLock = new(1, 1);
         private bool _isAddingProduct;
 
@@ -243,6 +243,7 @@ namespace RaccoonWarehouse.Invoices
             {
                 _products.Clear();
                 ProductsGrid.Items.Refresh();
+                await RestoreSearchFocusAsync();
                 return;
             }
 
@@ -298,7 +299,7 @@ namespace RaccoonWarehouse.Invoices
                 _products.Clear();
                 foreach (var item in rows)
                 {
-                    item.Product.CurrentSalePrice = item.CurrentStock?.SalePrice ?? item.Product.DefaultSalePrice;
+                    item.Product.CurrentSalePrice = item.Product.DefaultSalePrice;
                     item.Product.CurrentPurchasePrice = item.CurrentStock?.PurchasePrice ?? 0m;
                     item.Product.CurrentExpiryDate = item.CurrentStock?.ExpiryDate;
                     var productUnits = unitsByProductId.TryGetValue(item.Product.Id, out var hydratedUnits)
@@ -338,9 +339,23 @@ namespace RaccoonWarehouse.Invoices
             }
             finally
             {
+                await RestoreSearchFocusAsync();
                 if (_serviceCallLock.CurrentCount == 0)
                     _serviceCallLock.Release();
             }
+        }
+
+        private async Task RestoreSearchFocusAsync()
+        {
+            await Dispatcher.BeginInvoke(() =>
+            {
+                if (!IsVisible)
+                    return;
+
+                SearchTextBox.Focus();
+                Keyboard.Focus(SearchTextBox);
+                SearchTextBox.CaretIndex = SearchTextBox.Text.Length;
+            }, DispatcherPriority.Input);
         }
 
 
@@ -416,9 +431,7 @@ private void ClearBtn_Click(object sender, RoutedEventArgs e)
                 set
                 {
                     _selectedUnit = value;
-                    _salePrice = value != null && SalePricesByUnitId.TryGetValue(value.Id, out var stockPrice)
-                        ? stockPrice
-                        : value?.SalePrice ?? 0m;
+                    _salePrice = value?.SalePrice ?? 0m;
                     PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SelectedUnit)));
                     PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SalePrice)));
                     PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(UnitName)));

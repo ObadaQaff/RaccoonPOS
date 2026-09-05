@@ -14,6 +14,7 @@ using RaccoonWarehouse.Domain.Invoices;
 using RaccoonWarehouse.Domain.Reports.Financial.Dtos;
 using RaccoonWarehouse.Domain.Reports.Financial.Filters;
 using RaccoonWarehouse.Domain.Reports.Sales.Dtos;
+using RaccoonWarehouse.Domain.Vouchers;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -416,6 +417,102 @@ namespace RaccoonWarehouse.Application.Service.FinancialTransactions
 
             return (summary, rows);
         }
+
+        public async Task<(CashFlowSummaryDto summary, List<CashFlowRowDto> rows)> GetVoucherPaymentsReceiptsAsync(CashFlowFilterDto filter)
+        {
+            if (filter.From > filter.To)
+                throw new ArgumentException("Invalid date range");
+
+            var from = filter.From.Date;
+            var to = filter.To.Date.AddDays(1).AddTicks(-1);
+            var voucherRepo = _uow.GetRepository<Voucher>();
+            var query = voucherRepo.GetAllAsQueryable()
+                .Where(x => x.VoucherType == VoucherType.Receipt || x.VoucherType == VoucherType.Payment)
+                .Where(x => (x.VoucherDate ?? x.CreatedDate) >= from && (x.VoucherDate ?? x.CreatedDate) <= to);
+
+            if (filter.Direction.HasValue)
+            {
+                var wantedType = filter.Direction == TransactionDirection.In ? VoucherType.Receipt : VoucherType.Payment;
+                query = query.Where(x => x.VoucherType == wantedType);
+            }
+
+            if (filter.Method.HasValue)
+            {
+                var paymentType = filter.Method.Value switch
+                {
+                    PaymentMethod.Cash => PaymentType.Cash,
+                    PaymentMethod.Credit => PaymentType.Credit,
+                    PaymentMethod.BankTransfer => PaymentType.Debit,
+                    PaymentMethod.Check => PaymentType.Check,
+                    PaymentMethod.MobilePayment => PaymentType.MobilePayment,
+                    PaymentMethod.Master => PaymentType.Master,
+                    PaymentMethod.Visa => PaymentType.Visa,
+                    _ => (PaymentType?)null
+                };
+                if (paymentType.HasValue)
+                    query = query.Where(x => x.PaymentType == paymentType.Value);
+            }
+
+            if (filter.SourceType.HasValue)
+            {
+                var wantedType = filter.SourceType == FinancialSourceType.ReceiptVoucher ? VoucherType.Receipt :
+                    filter.SourceType == FinancialSourceType.PaymentVoucher ? VoucherType.Payment : (VoucherType?)null;
+                if (wantedType.HasValue)
+                    query = query.Where(x => x.VoucherType == wantedType.Value);
+                else
+                    query = query.Where(x => false);
+            }
+
+            var vouchers = await query.AsNoTracking()
+                .OrderByDescending(x => x.VoucherDate ?? x.CreatedDate)
+                .ToListAsync();
+
+            var rows = vouchers.Select(voucher =>
+            {
+                var date = voucher.VoucherDate ?? voucher.CreatedDate;
+                var isReceipt = voucher.VoucherType == VoucherType.Receipt;
+                var amount = Math.Abs(voucher.Amount);
+                return new CashFlowRowDto
+                {
+                    Id = voucher.Id,
+                    Date = date,
+                    Direction = isReceipt ? TransactionDirection.In : TransactionDirection.Out,
+                    Method = MapVoucherPaymentType(voucher.PaymentType),
+                    AmountIn = isReceipt ? amount : 0m,
+                    AmountOut = isReceipt ? 0m : amount,
+                    SourceType = isReceipt ? FinancialSourceType.ReceiptVoucher : FinancialSourceType.PaymentVoucher,
+                    SourceId = voucher.Id,
+                    DocumentNumber = voucher.VoucherNumber,
+                    CashierName = null,
+                    Notes = voucher.Notes,
+                    IsVoided = false
+                };
+            }).ToList();
+
+            var summary = new CashFlowSummaryDto
+            {
+                TotalIn = rows.Sum(x => x.AmountIn),
+                TotalOut = rows.Sum(x => x.AmountOut),
+                CountIn = rows.Count(x => x.AmountIn > 0),
+                CountOut = rows.Count(x => x.AmountOut > 0),
+                CashNet = rows.Where(x => x.Method == PaymentMethod.Cash).Sum(x => x.Net),
+                VisaNet = rows.Where(x => x.Method == PaymentMethod.Visa).Sum(x => x.Net)
+            };
+
+            return (summary, rows);
+        }
+
+        private static PaymentMethod MapVoucherPaymentType(PaymentType paymentType) => paymentType switch
+        {
+            PaymentType.Cash => PaymentMethod.Cash,
+            PaymentType.Credit => PaymentMethod.Credit,
+            PaymentType.Debit => PaymentMethod.BankTransfer,
+            PaymentType.Check => PaymentMethod.Check,
+            PaymentType.MobilePayment => PaymentMethod.MobilePayment,
+            PaymentType.Master => PaymentMethod.Master,
+            PaymentType.Visa => PaymentMethod.Visa,
+            _ => PaymentMethod.Cash
+        };
     
 
 
@@ -704,6 +801,7 @@ namespace RaccoonWarehouse.Application.Service.FinancialTransactions
                 GetSalesReportAsync(FinancialSummaryFilterDto filter, InvoiceType? type = null);
 
             Task<(CashFlowSummaryDto summary, List<CashFlowRowDto> rows)> GetCashFlowAsync(CashFlowFilterDto filter);
+            Task<(CashFlowSummaryDto summary, List<CashFlowRowDto> rows)> GetVoucherPaymentsReceiptsAsync(CashFlowFilterDto filter);
 
 
             Task<(ProfitLossSummaryDto summary, List<ProfitLossRowDto> rows)> GetProfitLossAsync(ProfitLossFilterDto filter);

@@ -10,6 +10,7 @@ using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Media;
 using RaccoonWarehouse.Domain.Invoices.DTOs;
+using RaccoonWarehouse.Domain.InvoiceLines.DTOs;
 
 namespace RaccoonWarehouse.Helpers.Pdf
 {
@@ -170,10 +171,11 @@ namespace RaccoonWarehouse.Helpers.Pdf
             // Keep the complete table inside the 80mm receipt width. A star-sized
             // column can otherwise overflow the preview and make the item column
             // appear missing in RTL mode.
-            table.Columns.Add(new TableColumn { Width = new GridLength(112) });
-            table.Columns.Add(new TableColumn { Width = new GridLength(34) });
-            table.Columns.Add(new TableColumn { Width = new GridLength(54) });
-            table.Columns.Add(new TableColumn { Width = new GridLength(62) });
+            table.Columns.Add(new TableColumn { Width = new GridLength(96) });
+            table.Columns.Add(new TableColumn { Width = new GridLength(30) });
+            table.Columns.Add(new TableColumn { Width = new GridLength(46) });
+            table.Columns.Add(new TableColumn { Width = new GridLength(52) });
+            table.Columns.Add(new TableColumn { Width = new GridLength(66) });
 
             var headerGroup = new TableRowGroup();
             var header = new TableRow();
@@ -181,17 +183,20 @@ namespace RaccoonWarehouse.Helpers.Pdf
             AddCell(header, UiText.T("الكمية", "Qty"), true);
             AddCell(header, UiText.T("السعر", "Price"), true);
             AddCell(header, UiText.T("الإجمالي", "Total"), true);
+            AddCell(header, UiText.T("الباركود", "Barcode"), true);
             headerGroup.Rows.Add(header);
             table.RowGroups.Add(headerGroup);
 
             var rows = new TableRowGroup();
-            foreach (var line in invoice.InvoiceLines ?? Enumerable.Empty<Domain.InvoiceLines.DTOs.InvoiceLineReadDto>())
+            foreach (var line in invoice.InvoiceLines ?? Enumerable.Empty<InvoiceLineReadDto>())
             {
                 var row = new TableRow();
-                AddCell(row, string.IsNullOrWhiteSpace(line.ProductName) ? line.Product?.Name ?? "-" : line.ProductName);
+                var barcode = GetBarcode(line);
+                AddCell(row, string.IsNullOrWhiteSpace(line.ProductName) ? line.Product?.Name ?? "-" : line.ProductName, false, 8);
                 AddCell(row, line.Quantity.ToString("0.00000"));
-                AddCell(row, line.UnitPrice.ToString("N5"));
+                AddCell(row, line.UnitPrice.ToString("N5"), false, 8);
                 AddCell(row, line.LineTotal.ToString("N5"));
+                AddBarcodeCell(row, barcode);
                 rows.Rows.Add(row);
             }
             table.RowGroups.Add(rows);
@@ -215,6 +220,34 @@ namespace RaccoonWarehouse.Helpers.Pdf
             });
 
             return document;
+        }
+
+        private static string GetBarcode(InvoiceLineReadDto line) =>
+            !string.IsNullOrWhiteSpace(line.ProductUnit?.AlternateBarcode)
+                ? line.ProductUnit.AlternateBarcode!
+                : line.Product?.ITEMCODE?.ToString() ?? string.Empty;
+
+        private static void AddBarcodeCell(TableRow row, string barcode)
+        {
+            var cell = new TableCell
+            {
+                Padding = new Thickness(1),
+                BorderBrush = Brushes.Gray,
+                BorderThickness = new Thickness(0, 0, 0, 0.5),
+                TextAlignment = TextAlignment.Center
+            };
+            var panel = new StackPanel { Orientation = Orientation.Vertical };
+            var image = Code39BarcodeRenderer.CreateWpfImage(barcode);
+            if (image != null)
+                panel.Children.Add(new System.Windows.Controls.Image { Source = image, Height = 25, Stretch = Stretch.Fill });
+            panel.Children.Add(new TextBlock
+            {
+                Text = string.IsNullOrWhiteSpace(barcode) ? "-" : barcode,
+                FontSize = 7,
+                TextAlignment = TextAlignment.Center
+            });
+            cell.Blocks.Add(new BlockUIContainer(panel));
+            row.Cells.Add(cell);
         }
 
         private static void SendXpS200mFeedAndCut(string printerName, int feedLines)
@@ -296,12 +329,13 @@ namespace RaccoonWarehouse.Helpers.Pdf
         [DllImport("winspool.drv", SetLastError = true)]
         private static extern bool ClosePrinter(IntPtr printerHandle);
 
-        private static void AddCell(TableRow row, string text, bool header = false)
+        private static void AddCell(TableRow row, string text, bool header = false, double? fontSize = null)
         {
             row.Cells.Add(new TableCell(new Paragraph(new Run(text))
             {
                 Margin = new Thickness(0),
-                LineHeight = 15
+                LineHeight = header ? 15 : 11,
+                FontSize = fontSize ?? (header ? 11 : 9)
             })
             {
                 Padding = new Thickness(1),

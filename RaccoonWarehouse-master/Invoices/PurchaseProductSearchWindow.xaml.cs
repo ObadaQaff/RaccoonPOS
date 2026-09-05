@@ -62,7 +62,7 @@ namespace RaccoonWarehouse.Invoices
         private readonly IProductService _productService;
         private readonly Func<PurchaseProductSearchRow, Task<bool>>? _onSelectProduct;
         private readonly Func<string, Task>? _onCreateProduct;
-        private readonly DispatcherTimer _searchDebounceTimer = new() { Interval = TimeSpan.FromMilliseconds(250) };
+        private readonly DispatcherTimer _searchDebounceTimer = new() { Interval = TimeSpan.FromMilliseconds(300) };
         private readonly SemaphoreSlim _searchLock = new(1, 1);
         private int _searchVersion;
         private bool _isSelecting;
@@ -111,7 +111,17 @@ namespace RaccoonWarehouse.Invoices
                     .Where(p => p.DefaultPurchaseUnit != null && MatchesSearch(p, searchTerms))
                     .OrderBy(p => p.Name)) Products.Add(new(product));
                 CreateProductBtn.Visibility = Products.Count == 0 && _onCreateProduct != null ? Visibility.Visible : Visibility.Collapsed;
-                if (Products.Count > 0) { ProductsGrid.SelectedIndex = 0; ProductsGrid.CurrentCell = new DataGridCellInfo(Products[0], ProductsGrid.Columns[0]); ProductsGrid.ScrollIntoView(Products[0]); }
+                ProductsGrid.SelectedIndex = -1;
+                ProductsGrid.UnselectAllCells();
+                if (Products.Count > 0)
+                {
+                    ProductsGrid.SelectedIndex = 0;
+                    ProductsGrid.CurrentCell = new DataGridCellInfo(Products[0], ProductsGrid.Columns[0]);
+                    ProductsGrid.ScrollIntoView(Products[0]);
+                }
+
+                ProductsGrid.Items.Refresh();
+                UiText.ApplyTranslations(ProductsGrid);
             }
             catch (Exception ex) { MessageBox.Show($"{UiText.T("تعذر البحث عن الصنف", "Could not search for the product")}: {ex.Message}", UiText.T("خطأ", "Error")); }
             finally { _searchLock.Release(); }
@@ -131,7 +141,14 @@ namespace RaccoonWarehouse.Invoices
         }
         private async void SearchTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
         {
-            if (e.Key == Key.Down && Products.Count > 0) { ProductsGrid.Focus(); ProductsGrid.SelectedIndex = 0; ProductsGrid.CurrentCell = new DataGridCellInfo(Products[0], ProductsGrid.Columns[1]); ProductsGrid.BeginEdit(); e.Handled = true; }
+            if (e.Key == Key.Down && Products.Count > 0)
+            {
+                ProductsGrid.Focus();
+                ProductsGrid.SelectedIndex = 0;
+                ProductsGrid.CurrentCell = new DataGridCellInfo(Products[0], ProductsGrid.Columns[1]);
+                ProductsGrid.BeginEdit();
+                e.Handled = true;
+            }
             else if (e.Key == Key.Enter && ProductsGrid.SelectedItem is PurchaseProductSearchRow row) { await SelectProductAsync(row); e.Handled = true; }
         }
         private async void ProductsGrid_PreviewKeyDown(object sender, KeyEventArgs e)
@@ -177,7 +194,23 @@ namespace RaccoonWarehouse.Invoices
             if (string.IsNullOrWhiteSpace(search) || _onCreateProduct == null)
                 return;
 
-            await _onCreateProduct(search);
+            var lockTaken = false;
+            try
+            {
+                // Finish any active search before the parent window reloads products.
+                await _searchLock.WaitAsync();
+                lockTaken = true;
+                _searchVersion++;
+                _searchDebounceTimer.Stop();
+
+                await _onCreateProduct(search);
+            }
+            finally
+            {
+                if (lockTaken)
+                    _searchLock.Release();
+            }
+
             await SearchAsync();
         }
         private void ClearBtn_Click(object sender, RoutedEventArgs e) { SearchTextBox.Clear(); Products.Clear(); CreateProductBtn.Visibility = Visibility.Collapsed; FocusSearchBox(); }

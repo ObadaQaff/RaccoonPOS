@@ -11,8 +11,9 @@
         Background="#F2F6FA"
         FlowDirection="RightToLeft">
 
-    <Grid Margin="10">
+    <Grid Margin="6">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -22,7 +23,7 @@
 
         <StackPanel Grid.Row="0" Orientation="Vertical" HorizontalAlignment="Center">
             <TextBlock Text="لوحة الكاشيرات"
-                       FontSize="20"
+                       FontSize="18"
                        FontWeight="Bold"
                        Foreground="#2D8DCF"
                        HorizontalAlignment="Center"/>
@@ -30,14 +31,14 @@
                        FontSize="11"
                        Foreground="#55606D"
                        HorizontalAlignment="Center"
-                       Margin="0,3,0,0"/>
+                       Margin="0,2,0,0"/>
         </StackPanel>
 
         <Border Grid.Row="1"
                 Background="White"
                 CornerRadius="12"
-                Padding="8"
-                Margin="0,8,0,0"
+                Padding="6"
+                Margin="0,5,0,0"
                 BorderBrush="#D0D7DD"
                 BorderThickness="1">
             <Grid>
@@ -53,8 +54,8 @@
                                    Foreground="#5E6B75"
                                    Margin="0,0,0,2"/>
                         <ComboBox x:Name="CashierComboBox"
-                                  Width="180"
-                                  Height="32"
+                                  Width="160"
+                                  Height="28"
                                   DisplayMemberPath="Name"
                                   SelectedValuePath="Id"
                                   SelectionChanged="CashierComboBox_SelectionChanged"/>
@@ -65,15 +66,15 @@
                                    Foreground="#5E6B75"
                                    Margin="0,0,0,2"/>
                         <ComboBox x:Name="SessionComboBox"
-                                  Width="280"
-                                  Height="32"
+                                  Width="240"
+                                  Height="28"
                                   DisplayMemberPath="DisplayText"
                                   SelectionChanged="SessionComboBox_SelectionChanged"/>
                     </StackPanel>
                     <Button Content="تحديث"
-                            Width="95"
-                            Height="32"
-                            Margin="0,16,0,0"
+                            Width="85"
+                            Height="28"
+                            Margin="0,14,0,0"
                             Click="RefreshScope_Click"/>
                 </StackPanel>
 
@@ -136,7 +137,9 @@
                           SelectionMode="Single"
                           SelectionUnit="FullRow"
                           SelectionChanged="SessionsGrid_SelectionChanged"
-                          Height="130"
+                          Height="100"
+                          FontSize="10"
+                          RowHeight="26"
                           HorizontalScrollBarVisibility="Auto"
                           VerticalScrollBarVisibility="Auto">
                     <DataGrid.Columns>
@@ -146,6 +149,7 @@
                         <DataGridTextColumn Header="الحالة" Binding="{Binding Status}" Width="120"/>
                         <DataGridTextColumn Header="الافتتاحي" Binding="{Binding StatrBalance, StringFormat={}{0:N2}}" Width="130"/>
                         <DataGridTextColumn Header="الختامي" Binding="{Binding EndingBalance, StringFormat={}{0:N2}}" Width="130"/>
+                        <DataGridTextColumn Header="Net / Current" Binding="{Binding CurrentNet, StringFormat={}{0:N2}}" Width="130"/>
                     </DataGrid.Columns>
                 </DataGrid>
             </StackPanel>
@@ -178,7 +182,41 @@
             </Border>
         </UniformGrid>
 
-        <Border Grid.Row="4"
+        <UniformGrid Grid.Row="4" Columns="10" Margin="0,8,0,0">
+            <Border Background="#EEF7EF" CornerRadius="8" Padding="8" Margin="0,0,6,0" BorderBrush="#D0D7DD" BorderThickness="1">
+                <StackPanel><TextBlock Text="Cash / نقدي" Foreground="#67727D" FontSize="11"/><TextBlock x:Name="CashTotalTextBlock" Text="0.00" FontSize="16" FontWeight="Bold" Foreground="#27AE60"/></StackPanel>
+            </Border>
+            <Border Background="White" CornerRadius="8" Padding="8" Margin="0,0,6,0" BorderBrush="#D0D7DD" BorderThickness="1">
+                <StackPanel><TextBlock Text="Visa / Visa" Foreground="#67727D" FontSize="11"/><TextBlock x:Name="VisaTotalTextBlock" Text="0.00" FontSize="16" FontWeight="Bold" Foreground="#2D8DCF"/></StackPanel>
+            </Border>
+            <Border Background="White" CornerRadius="8" Padding="8" Margin="0,0,6,0" BorderBrush="#D0D7DD" BorderThickness="1">
+                <StackPanel><TextBlock Text="Credit / آجل" Foreground="#67727D" FontSize="11"/><TextBlock x:Name="CreditTotalTextBlock" Text="0.00" FontSize="16" FontWeight="Bold" Foreground="#C93F4D"/></StackPanel>
+            </Border>
+            <Border Background="White" CornerRadius="8" Padding="8" Margin="0,0,6,0" BorderBrush="#D0D7DD" BorderThickness="1">
+                <StackPanel><TextBlock Text="Master / ماستر" Foreground="#67727D" FontSize="11"/><TextBlock x:Name="MasterTotalTextBlock" Text="0.00" FontSize="16" FontWeight="Bold" Foreground="#2D8DCF"/></StackPanel>
+            </Border>
+            <Border Background="White" CornerRadius="8" Padding="8" Margin="0,0,6,0" BorderBrush="#D0D7DD" BorderThickness="1">
+                <StackPanel><TextBlock Text="Debit / مدين" Foreground="#67727D" FontSize="11"/><TextBlock x:Name="DebitTotalTextBlock" Text="0.00" FontSize="16" FontWeight="Bold" Foreground="#2D8DCF"/></StackPanel>
+            </Border>
+            <Border Background="White" CornerRadius="8" Padding="8" Margin="0,0,6,0" BorderBrush="#D0D7DD" BorderThickness="1">
+                <StackPanel><TextBlock Text="Check / شيك" Foreground="#67727D" FontSize="11"/><TextBlock x:Name="CheckTotalTextBlock" Text="0.00" FontSize="16" FontWeight="Bold" Foreground="#2D8DCF"/></StackPanel>
+            </Border>
+            <Border Background="White" CornerRadius="8" Padding="8" BorderBrush="#D0D7DD" BorderThickness="1">
+                <StackPanel><TextBlock Text="Mobile / موبايل" Foreground="#67727D" FontSize="11"/><TextBlock x:Name="MobileTotalTextBlock" Text="0.00" FontSize="16" FontWeight="Bold" Foreground="#2D8DCF"/></StackPanel>
+            </Border>
+
+            <Border Background="#EEF7EF" CornerRadius="8" Padding="8" Margin="0,0,6,0" BorderBrush="#D0D7DD" BorderThickness="1">
+                <StackPanel><TextBlock Text="Receipts / سندات القبض" Foreground="#67727D" FontSize="11"/><TextBlock x:Name="VoucherReceiptsTextBlock" Text="0.00" FontSize="16" FontWeight="Bold" Foreground="#27AE60"/></StackPanel>
+            </Border>
+            <Border Background="#FFF3F3" CornerRadius="8" Padding="8" Margin="0,0,6,0" BorderBrush="#D0D7DD" BorderThickness="1">
+                <StackPanel><TextBlock Text="Payments / سندات الدفع" Foreground="#67727D" FontSize="11"/><TextBlock x:Name="VoucherPaymentsTextBlock" Text="0.00" FontSize="16" FontWeight="Bold" Foreground="#C93F4D"/></StackPanel>
+            </Border>
+            <Border Background="White" CornerRadius="8" Padding="8" BorderBrush="#D0D7DD" BorderThickness="1">
+                <StackPanel><TextBlock Text="Voucher Net / صافي السندات" Foreground="#67727D" FontSize="11"/><TextBlock x:Name="VoucherNetTextBlock" Text="0.00" FontSize="16" FontWeight="Bold" Foreground="#2D8DCF"/></StackPanel>
+            </Border>
+        </UniformGrid>
+
+        <Border Grid.Row="5"
                 Background="White"
                 CornerRadius="12"
                 Padding="8"
@@ -191,7 +229,7 @@
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
                 <DockPanel Grid.Row="0" Margin="4,0,4,10" LastChildFill="True">
-                    <TextBlock Text="Search invoice number or customer"
+                            <TextBlock Text="Search voucher number / رقم السند"
                                VerticalAlignment="Center"
                                Foreground="#55606D"
                                Margin="0,0,10,0"/>
@@ -211,16 +249,28 @@
                       Style="{StaticResource MinimalDataGrid}"
                       AutoGenerateColumns="False"
                       IsReadOnly="True"
+                      FontSize="10"
+                      RowHeight="26"
                       SelectionMode="Single"
                       SelectionUnit="FullRow"
                       MouseDoubleClick="TransactionsGrid_MouseDoubleClick"
                       HorizontalScrollBarVisibility="Auto"
                       VerticalScrollBarVisibility="Auto">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="التاريخ" Binding="{Binding Date}" Width="190"/>
-                    <DataGridTextColumn Header="النوع" Binding="{Binding DocumentTypeText}" Width="150"/>
-                    <DataGridTextColumn Header="رقم المستند" Binding="{Binding DocumentNumber}" Width="170"/>
-                    <DataGridTemplateColumn Header="Falcon No. / رقم فالكون" Width="190">
+                    <DataGridTextColumn Header="التاريخ"
+                                        Binding="{Binding Date}"
+                                        SortMemberPath="Date"
+                                        CanUserSort="True"
+                                        Width="190"/>
+                    <DataGridTextColumn Header="رقم المستند"
+                                        Binding="{Binding DocumentNumber}"
+                                        SortMemberPath="DocumentNumber"
+                                        CanUserSort="True"
+                                        Width="170"/>
+                    <DataGridTemplateColumn Header="Falcon No. / رقم فالكون"
+                                            SortMemberPath="FalconInvoiceNumber"
+                                            CanUserSort="True"
+                                            Width="190">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
@@ -236,7 +286,27 @@
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
-                    <DataGridTextColumn Header="Customer" Binding="{Binding CustomerName}" Width="170"/>
+                    <DataGridTextColumn Header="المبلغ"
+                                        Binding="{Binding Amount, StringFormat={}{0:N2}}"
+                                        SortMemberPath="Amount"
+                                        CanUserSort="True"
+                                        Width="130"/>
+                    <DataGridTextColumn Header="Customer"
+                                        Binding="{Binding CustomerName}"
+                                        SortMemberPath="CustomerName"
+                                        CanUserSort="True"
+                                        Width="170"/>
+                    <DataGridTextColumn Header="الطريقة"
+                                        Binding="{Binding MethodText}"
+                                        SortMemberPath="MethodText"
+                                        CanUserSort="True"
+                                        Width="120"/>
+                    <DataGridTextColumn Header="النوع" Binding="{Binding DocumentTypeText}" Width="150"/>
+                    <DataGridTextColumn Header="المرجع" Binding="{Binding ReferenceText}" Width="180"/>
+                    <DataGridTextColumn Header="الاتجاه" Binding="{Binding DirectionText}" Width="100"/>
+                    <DataGridTextColumn Header="الكاشير" Binding="{Binding CashierName}" Width="170"/>
+                    <DataGridTextColumn Header="الحالة" Binding="{Binding StatusText}" Width="120"/>
+                    <DataGridTextColumn Header="ملاحظات" Binding="{Binding Notes}" Width="260"/>
                     <DataGridTemplateColumn Header="Copy" Width="85">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
@@ -246,7 +316,7 @@
                                         Click="CopyInvoiceNumber_Click"
                                         IsEnabled="{Binding IsInvoice}"/>
                             </DataTemplate>
-                    </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
                     <DataGridTemplateColumn Header="Print" Width="85">
                         <DataGridTemplateColumn.CellTemplate>
@@ -259,13 +329,6 @@
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
-                    <DataGridTextColumn Header="المرجع" Binding="{Binding ReferenceText}" Width="180"/>
-                    <DataGridTextColumn Header="الاتجاه" Binding="{Binding DirectionText}" Width="100"/>
-                    <DataGridTextColumn Header="الطريقة" Binding="{Binding MethodText}" Width="120"/>
-                    <DataGridTextColumn Header="المبلغ" Binding="{Binding Amount, StringFormat={}{0:N2}}" Width="130"/>
-                    <DataGridTextColumn Header="الكاشير" Binding="{Binding CashierName}" Width="170"/>
-                    <DataGridTextColumn Header="الحالة" Binding="{Binding StatusText}" Width="120"/>
-                    <DataGridTextColumn Header="ملاحظات" Binding="{Binding Notes}" Width="260"/>
                 </DataGrid.Columns>
             </DataGrid>
             </Grid>

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using RaccoonWarehouse.Domain.Enums;
 
 namespace RaccoonWarehouse.Domain.Reports.Sales.Dtos
 {
@@ -15,6 +16,7 @@ namespace RaccoonWarehouse.Domain.Reports.Sales.Dtos
         public string CashierName { get; set; }
 
         public decimal SubTotal { get; set; }       // قبل الضريبة
+        public decimal ReturnAmount { get; set; }   // sales-return lines only
         public decimal TotalTax { get; set; }
         public decimal Discount { get; set; }
         public decimal Total { get; set; }          // NetTotal = SubTotal - Discount + Tax
@@ -24,6 +26,7 @@ namespace RaccoonWarehouse.Domain.Reports.Sales.Dtos
 
         public string InvoiceType { get; set; }
         public string PaymentMethod { get; set; }
+        public Dictionary<PaymentType, decimal> PaymentAmounts { get; set; } = new();
         public string Status { get; set; }
     }
 }

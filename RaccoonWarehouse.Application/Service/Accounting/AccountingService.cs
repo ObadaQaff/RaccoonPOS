@@ -26,6 +26,8 @@ namespace RaccoonWarehouse.Application.Service.Accounting
 {
     public class AccountingService : IAccountingService
     {
+        private sealed record PaymentAllocation(PaymentType PaymentType, decimal Share);
+
         public const string PostingLockDateKey = "AccountingPostingLockDate";
         public const string CashMainAccountCodeKey = "Accounting.AccountCode.CashMain";
         public const string BankAccountCodeKey = "Accounting.AccountCode.Bank";
@@ -424,7 +426,28 @@ namespace RaccoonWarehouse.Application.Service.Accounting
             var lines = new List<JournalEntryLineWriteDto>();
             var entryDate = invoice.CreatedDate == default ? GetJordanNow() : invoice.CreatedDate;
             var accountIds = await ResolveInvoiceAccountIdsAsync(invoice);
-            var settlementAccountId = accountIds[GetSettlementAccountCodeKey(invoice.PaymentType, invoice.InvoiceType is InvoiceType.Purchase or InvoiceType.PurchaseReturn)];
+            var paymentAllocations = GetPaymentAllocations(invoice);
+            var isPurchaseSide = invoice.InvoiceType is InvoiceType.Purchase or InvoiceType.PurchaseReturn;
+            void AddSettlementDebit(decimal amount, string description)
+            {
+                foreach (var payment in paymentAllocations)
+                {
+                    var accountId = accountIds[GetSettlementAccountCodeKey(payment.PaymentType, isPurchaseSide)];
+                    AddDebit(lines, accountId, amount * payment.Share, description,
+                        customerId: payment.PaymentType == PaymentType.Credit && !isPurchaseSide ? invoice.CustomerId : null,
+                        supplierId: payment.PaymentType == PaymentType.Credit && isPurchaseSide ? invoice.SupplierId : null);
+                }
+            }
+            void AddSettlementCredit(decimal amount, string description)
+            {
+                foreach (var payment in paymentAllocations)
+                {
+                    var accountId = accountIds[GetSettlementAccountCodeKey(payment.PaymentType, isPurchaseSide)];
+                    AddCredit(lines, accountId, amount * payment.Share, description,
+                        customerId: payment.PaymentType == PaymentType.Credit && !isPurchaseSide ? invoice.CustomerId : null,
+                        supplierId: payment.PaymentType == PaymentType.Credit && isPurchaseSide ? invoice.SupplierId : null);
+                }
+            }
             var salesRevenueId = accountIds[SalesRevenueAccountCodeKey];
             var salesReturnsId = accountIds[SalesReturnsAccountCodeKey];
             var salesDiscountId = accountIds[SalesDiscountAccountCodeKey];
@@ -438,8 +461,7 @@ namespace RaccoonWarehouse.Application.Service.Accounting
             switch (invoice.InvoiceType)
             {
                 case InvoiceType.Sale:
-                    AddDebit(lines, settlementAccountId, invoice.TotalAmount, $"Invoice #{invoice.InvoiceNumber} collection",
-                        customerId: invoice.PaymentType == PaymentType.Credit ? invoice.CustomerId : null);
+                    AddSettlementDebit(invoice.TotalAmount, $"Invoice #{invoice.InvoiceNumber} collection");
                     if ((invoice.DiscountAmount ?? 0m) > 0)
                         AddDebit(lines, salesDiscountId, invoice.DiscountAmount!.Value, $"Invoice #{invoice.InvoiceNumber} discount");
                     AddCredit(lines, salesRevenueId, invoice.SubTotal, $"Invoice #{invoice.InvoiceNumber} sales");
@@ -467,12 +489,18 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                     var returnTotal = Math.Abs(returnLines.Sum(line => line.Quantity * line.UnitPrice));
                     var returnCogs = Math.Abs(returnLines.Sum(line => line.Quantity * line.UnitCost));
 
+                    // Some older return invoices store zero line subtotals while still
+                    // retaining the return quantity and unit price. Use the gross return
+                    // value as the fallback subtotal so the refund has a matching debit.
+                    if (returnSubtotal <= 0m && returnTotal > 0m)
+                        returnSubtotal = Math.Max(0m, returnTotal - returnTax);
+
                     var discount = Math.Max(0m, invoice.DiscountAmount ?? 0m);
                     saleSubtotal = Math.Max(0m, saleSubtotal - discount);
                     saleTotal = Math.Max(0m, saleTotal - discount);
 
                     if (saleTotal > 0)
-                        AddDebit(lines, settlementAccountId, saleTotal, $"Return invoice #{invoice.InvoiceNumber} new item sale collection");
+                        AddSettlementDebit(saleTotal, $"Return invoice #{invoice.InvoiceNumber} new item sale collection");
                     if (saleSubtotal > 0)
                         AddCredit(lines, salesRevenueId, saleSubtotal, $"Return invoice #{invoice.InvoiceNumber} new item sales");
                     if (saleTax > 0)
@@ -488,8 +516,7 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                     if (returnTax > 0)
                         AddDebit(lines, outputTaxId, returnTax, $"Sales return #{invoice.InvoiceNumber} tax reversal");
                     if (returnTotal > 0)
-                        AddCredit(lines, settlementAccountId, returnTotal, $"Sales return #{invoice.InvoiceNumber} refund",
-                            customerId: invoice.PaymentType == PaymentType.Credit ? invoice.CustomerId : null);
+                        AddSettlementCredit(returnTotal, $"Sales return #{invoice.InvoiceNumber} refund");
                     if (returnCogs > 0)
                     {
                         AddDebit(lines, inventoryId, returnCogs, $"Sales return #{invoice.InvoiceNumber} inventory recovery");
@@ -512,7 +539,7 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                     var exchangeReturnsTotal = Math.Abs(exchangeReturnLines.Sum(line => line.Quantity * line.UnitPrice));
                     var exchangeReturnsCogs = Math.Abs(exchangeReturnLines.Sum(line => line.Quantity * line.UnitCost));
 
-                    AddDebit(lines, settlementAccountId, exchangeSalesTotal, $"Exchange #{invoice.InvoiceNumber} sale collection");
+                    AddSettlementDebit(exchangeSalesTotal, $"Exchange #{invoice.InvoiceNumber} sale collection");
                     AddCredit(lines, salesRevenueId, exchangeSalesSubTotal, $"Exchange #{invoice.InvoiceNumber} sales");
                     if (exchangeSalesTax > 0)
                         AddCredit(lines, outputTaxId, exchangeSalesTax, $"Exchange #{invoice.InvoiceNumber} sales tax");
@@ -525,7 +552,7 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                     AddDebit(lines, salesReturnsId, exchangeReturnsSubTotal, $"Exchange #{invoice.InvoiceNumber} return");
                     if (exchangeReturnsTax > 0)
                         AddDebit(lines, outputTaxId, exchangeReturnsTax, $"Exchange #{invoice.InvoiceNumber} return tax reversal");
-                    AddCredit(lines, settlementAccountId, exchangeReturnsTotal, $"Exchange #{invoice.InvoiceNumber} return refund");
+                    AddSettlementCredit(exchangeReturnsTotal, $"Exchange #{invoice.InvoiceNumber} return refund");
                     if (exchangeReturnsCogs > 0)
                     {
                         AddDebit(lines, inventoryId, exchangeReturnsCogs, $"Exchange #{invoice.InvoiceNumber} inventory recovery");
@@ -539,8 +566,7 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                         AddDebit(lines, inputTaxId, invoice.TotalTax, $"Purchase invoice #{invoice.InvoiceNumber} input tax");
                     if ((invoice.DiscountAmount ?? 0m) > 0)
                         AddCredit(lines, purchaseDiscountId, invoice.DiscountAmount!.Value, $"Purchase invoice #{invoice.InvoiceNumber} discount");
-                    AddCredit(lines, settlementAccountId, invoice.TotalAmount, $"Purchase invoice #{invoice.InvoiceNumber} payment",
-                        supplierId: invoice.PaymentType == PaymentType.Credit ? invoice.SupplierId : null);
+                    AddSettlementCredit(invoice.TotalAmount, $"Purchase invoice #{invoice.InvoiceNumber} payment");
                     break;
 
                 case InvoiceType.PurchaseReturn:
@@ -548,8 +574,7 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                     var purchaseReturnTotal = Math.Abs(invoice.TotalAmount);
                     var purchaseReturnNetSales = Math.Abs(invoice.NetSales);
 
-                    AddDebit(lines, settlementAccountId, purchaseReturnTotal, $"Purchase return #{invoice.InvoiceNumber} refund",
-                        supplierId: invoice.PaymentType == PaymentType.Credit ? invoice.SupplierId : null);
+                    AddSettlementDebit(purchaseReturnTotal, $"Purchase return #{invoice.InvoiceNumber} refund");
                     if (purchaseReturnTax > 0)
                         AddCredit(lines, inputTaxId, purchaseReturnTax, $"Purchase return #{invoice.InvoiceNumber} input tax reversal");
                     AddCredit(lines, inventoryId, purchaseReturnNetSales, $"Purchase return #{invoice.InvoiceNumber} inventory reversal");
@@ -634,7 +659,9 @@ namespace RaccoonWarehouse.Application.Service.Accounting
             if (document.Items == null || document.Items.Count == 0)
                 return Result<JournalEntryReadDto>.Ok(new JournalEntryReadDto(), "Stock document has no items to post.");
 
-            var grossAmount = document.Items.Sum(x => Math.Max(0m, x.Quantity * x.PurchasePrice - x.LineDiscountAmount));
+            var isCustomerSaleReturn = document.OperationType == StockOutOperationType.CustomerSaleReturn;
+            var grossAmount = document.Items.Sum(x => Math.Max(0m,
+                x.Quantity * (isCustomerSaleReturn ? x.SalePrice : x.PurchasePrice) - x.LineDiscountAmount));
             var discount = Math.Clamp(document.DiscountAmount ?? 0m, 0m, Math.Max(grossAmount, 0m));
             var totalAmount = grossAmount - discount;
             if (totalAmount <= 0)
@@ -646,6 +673,8 @@ namespace RaccoonWarehouse.Application.Service.Accounting
             var stockLossId = await ResolveSystemAccountIdAsync(StockLossAccountCodeKey, "5120000000");
             var internalConsumptionId = await ResolveSystemAccountIdAsync(InternalConsumptionAccountCodeKey, "5140000000");
             var accountsPayableId = await ResolveSystemAccountIdAsync(AccountsPayableAccountCodeKey, "2110000000");
+            var salesReturnsId = await ResolveSystemAccountIdAsync(SalesReturnsAccountCodeKey, "4120000000");
+            var cogsId = await ResolveSystemAccountIdAsync(CostOfGoodsSoldAccountCodeKey, "5110000000");
             var description = BuildStockDocumentDescription(document);
             var lines = new List<JournalEntryLineWriteDto>();
 
@@ -667,8 +696,51 @@ namespace RaccoonWarehouse.Application.Service.Accounting
             }
             else if (document.Type == StockVoucherType.Out)
             {
-                AddDebit(lines, document.SupplierId.HasValue ? stockLossId : internalConsumptionId, totalAmount, description);
-                AddCredit(lines, inventoryId, totalAmount, description);
+                var isSupplierReturn = document.OperationType is StockOutOperationType.PurchaseInvoiceReturn or StockOutOperationType.StockInReturn
+                    || string.Equals(
+                    document.ReferenceNumber,
+                    "STOCK_OUT_REASON:SupplierReturn",
+                    StringComparison.OrdinalIgnoreCase);
+
+                if (isCustomerSaleReturn)
+                {
+                    AddDebit(lines, salesReturnsId, totalAmount, description);
+                    if (document.PaymentType == PaymentType.Credit && document.CustomerId.HasValue)
+                    {
+                        var receivableId = await ResolveSettlementAccountIdAsync(document.PaymentType, isPurchaseSide: false);
+                        AddCredit(lines, receivableId, totalAmount, description, customerId: document.CustomerId);
+                    }
+                    else if (document.PaymentType.HasValue)
+                    {
+                        var settlementAccountId = await ResolveSettlementAccountIdAsync(document.PaymentType, isPurchaseSide: false);
+                        AddCredit(lines, settlementAccountId, totalAmount, description);
+                    }
+
+                    var returnCost = document.Items.Sum(x => Math.Max(0m, x.Quantity * x.PurchasePrice));
+                    if (returnCost > 0m)
+                    {
+                        AddDebit(lines, inventoryId, returnCost, description + " inventory recovery");
+                        AddCredit(lines, cogsId, returnCost, description + " cost reversal");
+                    }
+                }
+                else if (isSupplierReturn && document.PaymentType == PaymentType.Credit && document.SupplierId.HasValue)
+                {
+                    // Returning stock to a supplier on credit reduces the payable balance.
+                    AddDebit(lines, accountsPayableId, totalAmount, description, supplierId: document.SupplierId);
+                    AddCredit(lines, inventoryId, totalAmount, description);
+                }
+                else if (isSupplierReturn && document.PaymentType.HasValue)
+                {
+                    // A non-credit supplier return represents a refund through the selected method.
+                    var settlementAccountId = await ResolveSettlementAccountIdAsync(document.PaymentType, isPurchaseSide: true);
+                    AddDebit(lines, settlementAccountId, totalAmount, description);
+                    AddCredit(lines, inventoryId, totalAmount, description);
+                }
+                else
+                {
+                    AddDebit(lines, document.SupplierId.HasValue ? stockLossId : internalConsumptionId, totalAmount, description);
+                    AddCredit(lines, inventoryId, totalAmount, description);
+                }
             }
             else
             {
@@ -1351,20 +1423,16 @@ namespace RaccoonWarehouse.Application.Service.Accounting
 
         private async Task<Dictionary<string, int>> ResolveInvoiceAccountIdsAsync(InvoiceWriteDto invoice)
         {
-            var settlementKey = GetSettlementAccountCodeKey(
-                invoice.PaymentType,
-                invoice.InvoiceType is InvoiceType.Purchase or InvoiceType.PurchaseReturn);
+            var isPurchaseSide = invoice.InvoiceType is InvoiceType.Purchase or InvoiceType.PurchaseReturn;
+            var settlementKeys = invoice.Payments?.Where(payment => payment.Amount > 0m)
+                .Select(payment => GetSettlementAccountCodeKey(payment.PaymentType, isPurchaseSide))
+                .Distinct()
+                .ToList() ?? new List<string>();
+            if (settlementKeys.Count == 0)
+                settlementKeys.Add(GetSettlementAccountCodeKey(invoice.PaymentType, isPurchaseSide));
+
             var requiredCodes = new Dictionary<string, string>
             {
-                [settlementKey] = settlementKey switch
-                {
-                    AccountsPayableAccountCodeKey => "2110000000",
-                    AccountsReceivableAccountCodeKey => "1140000000",
-                    IssuedChecksPayableAccountCodeKey => "2140000000",
-                    ChecksInHandAccountCodeKey => "1180000000",
-                    BankAccountCodeKey => "1130000000",
-                    _ => "1110000000"
-                },
                 [SalesRevenueAccountCodeKey] = "4110000000",
                 [SalesReturnsAccountCodeKey] = "4120000000",
                 [SalesDiscountAccountCodeKey] = "4130000000",
@@ -1374,6 +1442,19 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                 [OutputTaxAccountCodeKey] = "2120000000",
                 [InputTaxAccountCodeKey] = "1160000000"
             };
+
+            foreach (var settlementKey in settlementKeys)
+            {
+                requiredCodes[settlementKey] = settlementKey switch
+                {
+                    AccountsPayableAccountCodeKey => "2110000000",
+                    AccountsReceivableAccountCodeKey => "1140000000",
+                    IssuedChecksPayableAccountCodeKey => "2140000000",
+                    ChecksInHandAccountCodeKey => "1180000000",
+                    BankAccountCodeKey => "1130000000",
+                    _ => "1110000000"
+                };
+            }
 
             var settings = await _context.AppSettings
                 .AsNoTracking()
@@ -1405,6 +1486,26 @@ namespace RaccoonWarehouse.Application.Service.Accounting
             }
 
             return accountIds;
+        }
+
+        private static List<PaymentAllocation> GetPaymentAllocations(InvoiceWriteDto invoice)
+        {
+            var total = Math.Abs(invoice.TotalAmount);
+            var payments = invoice.Payments?.Where(payment => payment.Amount > 0m).ToList();
+            if (payments == null || payments.Count == 0)
+            {
+                return new List<PaymentAllocation>
+                {
+                    new(invoice.PaymentType ?? PaymentType.Cash, 1m)
+                };
+            }
+
+            if (total == 0m)
+                return payments.Select(payment => new PaymentAllocation(payment.PaymentType, 0m)).ToList();
+
+            return payments
+                .Select(payment => new PaymentAllocation(payment.PaymentType, payment.Amount / total))
+                .ToList();
         }
 
         private static string GetSettlementAccountCodeKey(PaymentType? paymentType, bool isPurchaseSide)

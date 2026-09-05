@@ -1,8 +1,10 @@
 using RaccoonWarehouse.Application.Service.Invoices;
+using RaccoonWarehouse.Application.Service.FinancialTransactions;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Reports.Financial.Filters;
+using RaccoonWarehouse.Domain.Reports.Financial.Dtos;
 using RaccoonWarehouse.Domain.Reports.Sales.Dtos;
 using RaccoonWarehouse.Domain.Users.DTOs;
 using RaccoonWarehouse.Helpers.Localization;
@@ -22,6 +24,7 @@ namespace RaccoonWarehouse.Reports
         private readonly IInvoiceService _invoiceService;   // ✅ real invoices query
         private readonly IUserService _userService;
         private readonly ILoadingService _loadingService;
+        private readonly IFinancialTransactionService _financialTransactionService;
         private readonly SourceDocumentNavigationService _sourceDocumentNavigationService;
 
         private List<UserReadDto> _customers = new();
@@ -32,7 +35,8 @@ namespace RaccoonWarehouse.Reports
             IInvoiceService invoiceService,
             IUserService userService,
             ILoadingService loadingService,
-            SourceDocumentNavigationService sourceDocumentNavigationService)
+            SourceDocumentNavigationService sourceDocumentNavigationService,
+            IFinancialTransactionService financialTransactionService)
         {
             InitializeComponent();
             UiText.ApplyWindow(this);
@@ -40,6 +44,7 @@ namespace RaccoonWarehouse.Reports
             _invoiceService = invoiceService;
             _userService = userService;
             _loadingService = loadingService;
+            _financialTransactionService = financialTransactionService;
             _sourceDocumentNavigationService = sourceDocumentNavigationService;
 
             Loaded += SalesReport_Loaded;
@@ -212,6 +217,14 @@ namespace RaccoonWarehouse.Reports
                     _currentRows = rows;
                     SalesReportGrid.ItemsSource = rows;
                     FillSummary(rows);
+
+                    var voucherReport = await _financialTransactionService.GetVoucherPaymentsReceiptsAsync(new CashFlowFilterDto
+                    {
+                        From = from,
+                        To = ToDatePicker.SelectedDate.Value.Date,
+                        IncludeVoided = false
+                    });
+                    FillVoucherSummary(voucherReport.summary);
                 }
             }
             catch (Exception ex)
@@ -250,7 +263,7 @@ namespace RaccoonWarehouse.Reports
 
             var countedSales = data.Where(IsCountedSale).ToList();
             decimal totalSales = countedSales.Sum(x => x.SubTotal);
-            decimal totalReturns = data.Where(IsReturn).Sum(x => x.SubTotal);
+            decimal totalReturns = data.Where(IsReturn).Sum(x => x.ReturnAmount);
             decimal totalTax = countedSales.Sum(x => x.TotalTax);
             decimal totalDiscount = countedSales.Sum(x => x.Discount);
             decimal totalCogs = countedSales.Sum(x => x.Cogs);
@@ -259,8 +272,7 @@ namespace RaccoonWarehouse.Reports
             decimal grossProfit = netSales - totalCogs;
 
             decimal PaymentTotal(PaymentType paymentType) => data
-                .Where(x => string.Equals(x.PaymentMethod, paymentType.ToString(), StringComparison.OrdinalIgnoreCase))
-                .Sum(x => x.Total);
+                .Sum(x => x.PaymentAmounts.TryGetValue(paymentType, out var amount) ? amount : 0m);
 
             CashTotalText.Text = PaymentTotal(PaymentType.Cash).ToString("0.00000");
             VisaTotalText.Text = PaymentTotal(PaymentType.Visa).ToString("0.00000");
@@ -293,6 +305,16 @@ namespace RaccoonWarehouse.Reports
             CheckTotalText.Text = "0";
             MobileTotalText.Text = "0";
             CreditTotalText.Text = "0";
+            VoucherReceiptsText.Text = "0";
+            VoucherPaymentsText.Text = "0";
+            VoucherNetText.Text = "0";
+        }
+
+        private void FillVoucherSummary(CashFlowSummaryDto summary)
+        {
+            VoucherReceiptsText.Text = summary.TotalIn.ToString("0.00000");
+            VoucherPaymentsText.Text = summary.TotalOut.ToString("0.00000");
+            VoucherNetText.Text = summary.Net.ToString("0.00000");
         }
 
         private void BackBtn_Click(object sender, RoutedEventArgs e)

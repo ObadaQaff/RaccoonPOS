@@ -222,18 +222,25 @@ namespace RaccoonWarehouse.Invoices
 
         private void PayInvoice_PreviewKeyDown(object sender, KeyEventArgs e)
         {
-            if (e.Key == Key.F2)
+            if (e.Key == Key.F1)
             {
                 SearchProductBtn_Click(this, new RoutedEventArgs());
                 e.Handled = true;
                 return;
             }
 
-            if (e.Key != Key.F1)
+            if (e.Key == Key.F2)
+            {
+                SaveReceiptBtn_Click(SaveReceiptBtn, new RoutedEventArgs());
+                e.Handled = true;
                 return;
+            }
 
-            SaveReceiptBtn_Click(SaveReceiptBtn, new RoutedEventArgs());
-            e.Handled = true;
+            if (e.Key == Key.Delete)
+            {
+                DeleteProduct_Click(this, new RoutedEventArgs());
+                e.Handled = true;
+            }
         }
         private void PayInvoice_Closed(object? sender, EventArgs e)
         {

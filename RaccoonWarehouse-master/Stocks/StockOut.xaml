@@ -268,6 +268,48 @@
                               SelectedValuePath="Id"/>
                 </StackPanel>
 
+                <Grid Margin="6,0,0,10" HorizontalAlignment="Left">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="230"/>
+                        <ColumnDefinition Width="230"/>
+                        <ColumnDefinition Width="230"/>
+                        <ColumnDefinition Width="230"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" Margin="6">
+                        <TextBlock Text="Reason / السبب" Style="{StaticResource HeaderText}" FontSize="14"/>
+                        <ComboBox x:Name="ReasonComboBox" Width="230" Height="32" SelectionChanged="ReasonComboBox_SelectionChanged">
+                            <ComboBoxItem Tag="PurchaseInvoiceReturn">Purchase invoice return / مرتجع فاتورة شراء</ComboBoxItem>
+                            <ComboBoxItem Tag="StockInReturn">Stock-in return / مرتجع إدخال مخزون</ComboBoxItem>
+                            <ComboBoxItem Tag="CustomerSaleReturn">Customer sale return / مرتجع بيع</ComboBoxItem>
+                            <ComboBoxItem Tag="Damage">Damage / تلف</ComboBoxItem>
+                            <ComboBoxItem Tag="Expired">Expired / منتهي</ComboBoxItem>
+                            <ComboBoxItem Tag="InternalUse">Internal use / استخدام داخلي</ComboBoxItem>
+                            <ComboBoxItem Tag="SupplierReturn">Supplier return / مرتجع مورد</ComboBoxItem>
+                            <ComboBoxItem Tag="Other">Other / أخرى</ComboBoxItem>
+                        </ComboBox>
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Margin="6">
+                        <TextBlock Text="Payment / الدفع" Style="{StaticResource HeaderText}" FontSize="14"/>
+                        <ComboBox x:Name="PaymentTypeComboBox" Width="230" Height="32" SelectionChanged="PaymentTypeComboBox_SelectionChanged">
+                            <ComboBoxItem Tag="1">Cash / نقدي</ComboBoxItem>
+                            <ComboBoxItem Tag="7">Visa</ComboBoxItem>
+                            <ComboBoxItem Tag="6">Master</ComboBoxItem>
+                            <ComboBoxItem Tag="3">Debit</ComboBoxItem>
+                            <ComboBoxItem Tag="4">Check / شيك</ComboBoxItem>
+                            <ComboBoxItem Tag="5">Mobile</ComboBoxItem>
+                            <ComboBoxItem Tag="2">Credit / آجل</ComboBoxItem>
+                        </ComboBox>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Margin="6">
+                        <TextBlock Text="Supplier / المورد" Style="{StaticResource HeaderText}" FontSize="14"/>
+                        <ComboBox x:Name="SupplierComboBox" Width="230" Height="32" DisplayMemberPath="Name" SelectedValuePath="Id" IsEditable="True" IsTextSearchEnabled="True"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="3" Margin="6">
+                        <TextBlock Text="Customer / العميل" Style="{StaticResource HeaderText}" FontSize="14"/>
+                        <ComboBox x:Name="CustomerComboBox" Width="230" Height="32" DisplayMemberPath="Name" SelectedValuePath="Id" IsEditable="True" IsTextSearchEnabled="True"/>
+                    </StackPanel>
+                </Grid>
+
                 <!-- ====== PRODUCT INPUT SECTION ====== -->
                 <StackPanel Margin="10" Orientation="Vertical" Background="#E8F0F7" >
 

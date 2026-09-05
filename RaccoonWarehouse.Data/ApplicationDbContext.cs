@@ -66,6 +66,7 @@ namespace RaccoonWarehouse.Data
         public DbSet<Currency> Currencies => Set<Currency>();
         public DbSet<ExchangeRate> ExchangeRates => Set<ExchangeRate>();
         public DbSet<IntegrationInbox> IntegrationInbox => Set<IntegrationInbox>();
+        public DbSet<InvoicePayment> InvoicePayments => Set<InvoicePayment>();
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
@@ -357,6 +358,15 @@ namespace RaccoonWarehouse.Data
                 .WithMany(i => i.InvoiceLines)
                 .HasForeignKey(il => il.InvoiceId)
                 .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<InvoicePayment>()
+                .HasOne(payment => payment.Invoice)
+                .WithMany(invoice => invoice.Payments)
+                .HasForeignKey(payment => payment.InvoiceId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<InvoicePayment>()
+                .HasIndex(payment => payment.InvoiceId);
 
             modelBuilder.Entity<InvoiceLine>()
                 .HasOne(il => il.Product)

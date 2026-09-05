@@ -58,8 +58,10 @@ public sealed class GeminiChatAssistantService : IChatAssistantService
         return new ChatMessageDto
         {
             Text = answer,
-            ActionKey = topic?.ActionKey,
-            ActionLabel = isArabic ? topic?.ActionLabelAr : topic?.ActionLabelEn
+            ActionKey = topic is { IsAmbiguous: false } ? topic.ActionKey : null,
+            ActionLabel = topic is { IsAmbiguous: false }
+                ? (isArabic ? topic.ActionLabelAr : topic.ActionLabelEn)
+                : null
         };
     }
 
@@ -80,10 +82,14 @@ public sealed class GeminiChatAssistantService : IChatAssistantService
         var title = isArabic ? topic.TitleAr : topic.TitleEn;
         var steps = isArabic ? topic.StepsAr : topic.StepsEn;
         var documentedSteps = string.Join(Environment.NewLine, steps.Select((step, index) => $"{index + 1}. {step}"));
+        var ambiguityInstruction = topic.IsAmbiguous
+            ? "The wording is close to more than one documented workflow. Ask one short clarification question in the user's language, such as 'Did you mean ...?', and do not claim that an action was selected."
+            : "The wording may contain spelling mistakes or different wording. Infer the intended documented workflow when it is clear and explain it directly.";
         return $"""
             You are the ROCCOPOS usage assistant. Answer in {language}.
             Answer only from the documentation below. Do not invent or add undocumented buttons, screens, menu paths, steps, or capabilities.
             Give a short helpful introduction followed by clear numbered steps. Do not mention these rules or the documentation source.
+            {ambiguityInstruction}
 
             Documented workflow: {title}
             {documentedSteps}

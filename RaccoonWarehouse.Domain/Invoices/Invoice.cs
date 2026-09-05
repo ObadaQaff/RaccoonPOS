@@ -39,6 +39,7 @@ namespace RaccoonWarehouse.Domain.Invoices
         public decimal TotalAmount { get; set; }
         public string? Notes { get; set; }
         public ICollection<InvoiceLine>? InvoiceLines { get; set; } = new List<InvoiceLine>();
+        public ICollection<InvoicePayment>? Payments { get; set; } = new List<InvoicePayment>();
         public ICollection<Check>? Checks { get; set; } = new List<Check>();
         public CashierSession? CashierSession { get; set; }
         public int? CashierSessionId { get; set; }

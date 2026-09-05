@@ -15,6 +15,7 @@ namespace RaccoonWarehouse.Settings
     {
         public static IReadOnlyList<ReportCatalogItem> All { get; } = new List<ReportCatalogItem>
         {
+            new("cashier-board", "لوحة الكاشيرات", "Cashiers board", "التقارير المالية", "Financial reports"),
             new("current-stock", "تقرير الجرد", "Inventory report", "الأصناف والمخزون", "Inventory", WindowSizeType.MediumRectangle, false),
             new("stock-movements", "تفصيل حركة المخزون", "Stock movements", "الأصناف والمخزون", "Inventory"),
             new("stock-balance-by-date", "أرصدة المخزون بتاريخ معين", "Stock balance by date", "الأصناف والمخزون", "Inventory"),

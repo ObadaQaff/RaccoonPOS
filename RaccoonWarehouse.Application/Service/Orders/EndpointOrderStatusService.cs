@@ -149,19 +149,21 @@ namespace RaccoonWarehouse.Application.Service.Orders
                     }
                 }
 
-                if (synchronizeBox)
-                {
-                    var cartId = GetBoxCartId(invoice.OriginalInvoiceId);
-                    if (cartId.HasValue)
-                    {
-                        var boxResult = await _boxCartApiService.UpdateCartStatusAsync(
-                            cartId.Value,
-                            MapBoxCartStatus(targetStatus),
-                            cancellationToken);
-                        if (!boxResult.Success)
-                            return Result.Fail(boxResult.Message, boxResult.Errors);
-                    }
-                }
+                // Box synchronization is intentionally disabled.
+                // Local order status, accounting reversal, and stock restoration remain active.
+                // if (synchronizeBox)
+                // {
+                //     var cartId = GetBoxCartId(invoice.OriginalInvoiceId);
+                //     if (cartId.HasValue)
+                //     {
+                //         var boxResult = await _boxCartApiService.UpdateCartStatusAsync(
+                //             cartId.Value,
+                //             MapBoxCartStatus(targetStatus),
+                //             cancellationToken);
+                //         if (!boxResult.Success)
+                //             return Result.Fail(boxResult.Message, boxResult.Errors);
+                //     }
+                // }
 
                 return Result.Ok($"Endpoint order status changed to {targetStatus}.");
             }

@@ -5,13 +5,45 @@ using RaccoonWarehouse.Application.Service.Stocks;
 using RaccoonWarehouse.Data;
 using RaccoonWarehouse.Data.Repository;
 using RaccoonWarehouse.Domain.Enums;
+using RaccoonWarehouse.Domain.Products;
+using RaccoonWarehouse.Domain.ProductUnits;
 using RaccoonWarehouse.Domain.Stock;
+using RaccoonWarehouse.Domain.Units;
 using Xunit;
 
 namespace RaccoonWarehouse.Tests;
 
 public class StockServiceStockOutRulesTests
 {
+    [Theory]
+    [InlineData("040000155188", "40000155188")]
+    [InlineData(" 000123 ", "123")]
+    [InlineData("0", "0")]
+    [InlineData("6253002402318", "6253002402318")]
+    public void FalconBarcodeNormalization_ShouldMatchNumericDatabaseBarcodes(string input, string expected)
+    {
+        Assert.Equal(expected, FalconStockImportService.NormalizeBarcode(input));
+    }
+
+    [Theory]
+    [InlineData("115", 115)]
+    [InlineData("0.5", 0.5)]
+    public void FalconQuantityParser_ShouldAcceptPositiveInvariantNumbers(string input, decimal expected)
+    {
+        Assert.True(FalconStockImportService.TryParsePositiveQuantity(input, out var quantity));
+        Assert.Equal(expected, quantity);
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("-2")]
+    [InlineData("invalid")]
+    [InlineData("")]
+    public void FalconQuantityParser_ShouldRejectNonPositiveOrInvalidNumbers(string input)
+    {
+        Assert.False(FalconStockImportService.TryParsePositiveQuantity(input, out _));
+    }
+
     private static StockService CreateService(string databaseName, out ApplicationDbContext context)
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
@@ -22,6 +54,115 @@ public class StockServiceStockOutRulesTests
         var mapper = new MapperConfiguration(cfg => cfg.AddProfile<MappingProfile>()).CreateMapper();
         var uow = new UOW(context, mapper);
         return new StockService(context, uow, mapper);
+    }
+
+    [Fact]
+    public async Task PostMovements_PurchaseWithoutExpiryDate_ShouldFail()
+    {
+        var service = CreateService(nameof(PostMovements_PurchaseWithoutExpiryDate_ShouldFail), out _);
+
+        var result = await service.PostMovementsAsync(new[]
+        {
+            new StockMovementPostDto
+            {
+                ProductId = 9001,
+                ProductUnitId = 9002,
+                Quantity = 2m,
+                QuantityPerUnitSnapshot = 1m,
+                BaseQuantity = 2m,
+                UnitPrice = 5m,
+                PurchasePrice = 5m,
+                TransactionType = TransactionType.Purchase
+            }
+        });
+
+        Assert.False(result.Success);
+        Assert.Contains(result.Errors, error => error.Contains("ExpiryDate is required"));
+    }
+
+    [Fact]
+    public async Task PostMovements_AdminPurchase_ShouldUpdateWeightedAverageCatalogCost()
+    {
+        var service = CreateService(nameof(PostMovements_AdminPurchase_ShouldUpdateWeightedAverageCatalogCost), out var context);
+        const int productId = 9101;
+        const int productUnitId = 9102;
+        context.Set<Product>().Add(new Product
+        {
+            Id = productId,
+            Name = "Average cost product",
+            ITEMCODE = 91010001,
+            SubCategoryId = 1,
+            CreatedDate = DateTime.Now,
+            UpdatedDate = DateTime.Now
+        });
+        context.Set<Unit>().Add(new Unit
+        {
+            Id = 9103,
+            Name = "Piece",
+            CreatedDate = DateTime.Now,
+            UpdatedDate = DateTime.Now
+        });
+        context.Set<ProductUnit>().Add(new ProductUnit
+        {
+            Id = productUnitId,
+            ProductId = productId,
+            UnitId = 9103,
+            QuantityPerUnit = 1m,
+            PurchasePrice = 5m,
+            SalePrice = 12m,
+            IsBaseUnit = true,
+            CreatedDate = DateTime.Now,
+            UpdatedDate = DateTime.Now
+        });
+        await context.SaveChangesAsync();
+
+        await service.PostMovementsAsync(new[]
+        {
+            CreatePurchaseMovement(productId, productUnitId, 10m, 5m, false)
+        });
+        var result = await service.PostMovementsAsync(new[]
+        {
+            CreatePurchaseMovement(productId, productUnitId, 10m, 9m, true)
+        });
+
+        var unit = await context.Set<ProductUnit>().SingleAsync(item => item.Id == productUnitId);
+        var allocation = await service.AllocateOutgoingAsync(new[]
+        {
+            new StockAllocationRequestDto
+            {
+                ProductId = productId,
+                ProductUnitId = productUnitId,
+                Quantity = 12m
+            }
+        });
+        Assert.True(result.Success, result.Message);
+        Assert.Equal(7m, unit.PurchasePrice);
+        Assert.True(allocation.Success, allocation.Message);
+        Assert.All(allocation.Data!, item => Assert.Equal(7m, item.PurchasePrice));
+    }
+
+    private static StockMovementPostDto CreatePurchaseMovement(
+        int productId,
+        int productUnitId,
+        decimal quantity,
+        decimal cost,
+        bool updateAverageCost)
+    {
+        return new StockMovementPostDto
+        {
+            ProductId = productId,
+            ProductUnitId = productUnitId,
+            Quantity = quantity,
+            QuantityPerUnitSnapshot = 1m,
+            BaseQuantity = quantity,
+            UnitPrice = cost,
+            PurchasePrice = cost,
+            SalePrice = 12m,
+            ExpiryDate = DateTime.Today.AddYears(1),
+            TransactionType = TransactionType.Purchase,
+            UpdateCatalogAverageCost = updateAverageCost,
+            TransactionDate = DateTime.Now
+        };
     }
 
     [Fact]
@@ -66,6 +207,7 @@ public class StockServiceStockOutRulesTests
                 UnitPrice = 10,
                 PurchasePrice = 8,
                 SalePrice = 10,
+                ExpiryDate = DateTime.Today.AddYears(1),
                 TransactionType = TransactionType.Purchase,
                 TransactionDate = DateTime.Now,
                 Notes = "Seed stock"
@@ -109,6 +251,7 @@ public class StockServiceStockOutRulesTests
                 UnitPrice = 12,
                 PurchasePrice = 9,
                 SalePrice = 12,
+                ExpiryDate = DateTime.Today.AddYears(1),
                 TransactionType = TransactionType.Purchase,
                 TransactionDate = DateTime.Now,
                 Notes = "Seed stock"
@@ -155,6 +298,7 @@ public class StockServiceStockOutRulesTests
                 UnitPrice = 7,
                 PurchasePrice = 5,
                 SalePrice = 7,
+                ExpiryDate = DateTime.Today.AddYears(1),
                 TransactionType = TransactionType.Purchase,
                 TransactionDate = DateTime.Now,
                 Notes = "Seed stock"
@@ -173,6 +317,7 @@ public class StockServiceStockOutRulesTests
                 UnitPrice = 6,
                 PurchasePrice = 6,
                 SalePrice = 9,
+                ExpiryDate = DateTime.Today.AddYears(1),
                 TransactionType = TransactionType.Purchase,
                 TransactionDate = DateTime.Now,
                 Notes = "Stock in"
@@ -184,7 +329,7 @@ public class StockServiceStockOutRulesTests
 
         Assert.True(result.Success);
         Assert.Equal(5, stock.Quantity);
-        Assert.Equal(6, stock.PurchasePrice);
+        Assert.Equal(5.6m, stock.PurchasePrice);
         Assert.Equal(9, stock.SalePrice);
     }
 

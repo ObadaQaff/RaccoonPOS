@@ -87,8 +87,6 @@ public class VoucherServiceCrudTests
             PaymentType = PaymentType.Cash,
             Amount = 50m,
             Notes = null,
-            CustomerId = null,
-            SupplierId = null,
             CasherId = null,
             Checks = null,
             CreatedDate = DateTime.Now,
@@ -102,7 +100,6 @@ public class VoucherServiceCrudTests
         Assert.NotNull(created);
         Assert.Null(created!.VoucherNumber);
         Assert.Null(created.Notes);
-        Assert.Null(created.CustomerId);
     }
 
     [Fact]

@@ -60,11 +60,15 @@ public sealed class AccountingOperationService : IAccountingOperationService
     {
         var repository = _uow.GetRepository<AccountingOperation>();
         var referenceId = transaction.SourceId ?? 0;
+        // A mixed invoice can have several financial allocations. Keep one
+        // idempotency key per invoice and payment method, not one key for the
+        // whole invoice, otherwise cash + Visa collide on the unique index.
+        var operationType = $"PostFinancialTransaction:{(int)transaction.Method}";
         var existing = await repository.GetAllAsQueryable()
             .FirstOrDefaultAsync(operation =>
                 operation.ReferenceType == "InvoiceFinancial" &&
                 operation.ReferenceId == referenceId &&
-                operation.OperationType == "PostFinancialTransaction");
+                operation.OperationType == operationType);
 
         if (existing != null)
             return;
@@ -75,7 +79,7 @@ public sealed class AccountingOperationService : IAccountingOperationService
             ReferenceType = "InvoiceFinancial",
             ReferenceId = referenceId,
             ReferenceNumber = referenceNumber,
-            OperationType = "PostFinancialTransaction",
+            OperationType = operationType,
             PayloadJson = JsonSerializer.Serialize(transaction),
             Status = AccountingOperationStatus.Pending,
             CreatedDate = now,
@@ -273,7 +277,8 @@ public sealed class AccountingOperationProcessor
         try
         {
             string? failureMessage = null;
-            if (operation.OperationType == "PostFinancialTransaction")
+            if (operation.OperationType == "PostFinancialTransaction"
+                || operation.OperationType.StartsWith("PostFinancialTransaction:", StringComparison.Ordinal))
             {
                 var transaction = JsonSerializer.Deserialize<FinancialPostDto>(operation.PayloadJson)
                     ?? throw new InvalidOperationException("Financial operation payload is empty.");

@@ -104,6 +104,8 @@
                 <!-- Summary -->
                 <RowDefinition Height="Auto"/>
                 <!-- Payment summary -->
+                <RowDefinition Height="Auto"/>
+                <!-- Voucher summary -->
                 <RowDefinition Height="*"/>
                 <!-- DataGrid -->
             </Grid.RowDefinitions>
@@ -318,8 +320,30 @@
                 </Border>
             </UniformGrid>
 
+            <!-- VOUCHER TOTALS: RECEIPT AND PAYMENT VOUCHERS ONLY -->
+            <UniformGrid Grid.Row="3" Columns="3" Margin="0,0,0,12">
+                <Border Background="#F4FBF7" CornerRadius="12" BorderBrush="#B9DEC8" BorderThickness="1" Padding="8" Margin="6">
+                    <StackPanel>
+                        <TextBlock Text="سندات القبض / Receipt Vouchers" Foreground="#39704E"/>
+                        <TextBlock x:Name="VoucherReceiptsText" FontSize="16" FontWeight="Bold" Foreground="#267A45"/>
+                    </StackPanel>
+                </Border>
+                <Border Background="#FFF7F7" CornerRadius="12" BorderBrush="#E8C4C4" BorderThickness="1" Padding="8" Margin="6">
+                    <StackPanel>
+                        <TextBlock Text="سندات الصرف / Payment Vouchers" Foreground="#8A4A4A"/>
+                        <TextBlock x:Name="VoucherPaymentsText" FontSize="16" FontWeight="Bold" Foreground="#B33A3A"/>
+                    </StackPanel>
+                </Border>
+                <Border Background="White" CornerRadius="12" BorderBrush="#D0D7DD" BorderThickness="1" Padding="8" Margin="6">
+                    <StackPanel>
+                        <TextBlock Text="صافي السندات / Voucher Net" Foreground="#666"/>
+                        <TextBlock x:Name="VoucherNetText" FontSize="16" FontWeight="Bold"/>
+                    </StackPanel>
+                </Border>
+            </UniformGrid>
+
             <!-- RESULTS GRID -->
-            <Border Grid.Row="3"
+            <Border Grid.Row="4"
                     Background="White"
                     CornerRadius="12"
                     BorderBrush="#D0D7DD"

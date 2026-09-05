@@ -20,6 +20,7 @@ using RaccoonWarehouse.Domain.StockTransactions.DTOs;
 using RaccoonWarehouse.Helpers.Localization;
 using RaccoonWarehouse.Helpers.pdf;
 using RaccoonWarehouse.Helpers.Pdf;
+using RaccoonWarehouse.Invoices;
 using System;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -61,6 +62,7 @@ namespace RaccoonWarehouse.Stocks
         private readonly IStockTransactionService _stockTransactionService;
         private int? _currentDocumentId = null;
         private List<StockItemReadDto> _originalItems = new(); // Used for stock adjustment
+        private StockOutOperationType _originalOperationType = StockOutOperationType.Damage;
         #endregion
 
         #region Constructor
@@ -104,11 +106,25 @@ namespace RaccoonWarehouse.Stocks
 
         private void StockOut_PreviewKeyDown(object sender, KeyEventArgs e)
         {
-            if (e.Key != Key.F1)
+            if (e.Key == Key.F1)
+            {
+                SearchProductBtn_Click(this, new RoutedEventArgs());
+                e.Handled = true;
                 return;
+            }
 
-            SaveStockOutBtn_Click(SaveStockOutBtn, new RoutedEventArgs());
-            e.Handled = true;
+            if (e.Key == Key.F2)
+            {
+                SaveStockOutBtn_Click(SaveStockOutBtn, new RoutedEventArgs());
+                e.Handled = true;
+                return;
+            }
+
+            if (e.Key == Key.Delete)
+            {
+                DeleteProduct_Click(this, new RoutedEventArgs());
+                e.Handled = true;
+            }
         }
         private async Task LoadDataAsync()
         {
@@ -134,6 +150,15 @@ namespace RaccoonWarehouse.Stocks
                 WarehouseComboBox.ItemsSource = warehouses.Data;
                 WarehouseComboBox.DisplayMemberPath = "Name";
                 WarehouseComboBox.SelectedValuePath = "Id";
+                var users = await _userService.GetAllAsync();
+                SupplierComboBox.ItemsSource = users.Data?.OrderBy(user => user.Name).ToList();
+                SupplierComboBox.DisplayMemberPath = "Name";
+                SupplierComboBox.SelectedValuePath = "Id";
+                CustomerComboBox.ItemsSource = users.Data?.OrderBy(user => user.Name).ToList();
+                CustomerComboBox.DisplayMemberPath = "Name";
+                CustomerComboBox.SelectedValuePath = "Id";
+                SelectReason("Damage");
+                PaymentTypeComboBox.SelectedIndex = 0;
 
                 var stockedProducts = await _stockService.GetAllWithFilteringAndIncludeAsync(
                             s => s.Quantity > 0,
@@ -251,7 +276,28 @@ namespace RaccoonWarehouse.Stocks
                 }
 
                 bool isUpdate = _currentDocumentId != null;
-                var expandedItems = await ExpandStockItemsByFefoAsync(Items);
+                var paymentType = GetSelectedPaymentType();
+                var reasonKey = GetSelectedReasonKey();
+                var operationType = GetSelectedOperationType();
+                var expandedItems = operationType == StockOutOperationType.CustomerSaleReturn
+                    ? Items.Where(item => item.Quantity > 0).ToList()
+                    : await ExpandStockItemsByFefoAsync(Items);
+                var movementMultiplier = operationType == StockOutOperationType.CustomerSaleReturn ? 1m : -1m;
+                var supplierId = SupplierComboBox.SelectedValue is int selectedSupplierId && selectedSupplierId > 0
+                    ? selectedSupplierId
+                    : (int?)null;
+                var customerId = CustomerComboBox.SelectedValue is int selectedCustomerId && selectedCustomerId > 0
+                    ? selectedCustomerId
+                    : (int?)null;
+
+                if (paymentType == PaymentType.Credit
+                    && operationType != StockOutOperationType.CustomerSaleReturn
+                    && !supplierId.HasValue)
+                {
+                    HideLoadingIfShown();
+                    MessageBox.Show(UiText.T("يرجى اختيار المورد للدفع الآجل.", "Please select a supplier for credit."), UiText.T("تنبيه", "Notice"));
+                    return;
+                }
 
                 // ============= CREATE DTO =============
                 var documentDto = new StockDocumentWriteDto
@@ -259,6 +305,12 @@ namespace RaccoonWarehouse.Stocks
                     Id = _currentDocumentId ?? 0,
                     DocumentNumber = VoucherNumberTxt.Text,
                     Type = StockVoucherType.Out,
+                    OperationType = operationType,
+                    SourceDocumentId = GetSourceDocumentId(),
+                    SupplierId = supplierId,
+                    CustomerId = customerId,
+                    PaymentType = paymentType,
+                    ReferenceNumber = $"STOCK_OUT_REASON:{reasonKey}",
                     WarehouseId = WarehouseComboBox.SelectedValue != null ? (int)WarehouseComboBox.SelectedValue : null,
                     Notes = NotesTxt.Text,
                     Items = expandedItems,
@@ -273,7 +325,7 @@ namespace RaccoonWarehouse.Stocks
                     if (result.Success)
                     {
                         var movementResult = await _stockService.PostMovementsAsync(
-                            BuildStockMovements(expandedItems, TransactionType.Adjustment, $"Stock out document #{documentDto.DocumentNumber}"));
+                            BuildStockMovements(expandedItems, TransactionType.Adjustment, $"Stock out document #{documentDto.DocumentNumber}", movementMultiplier));
                         if (!movementResult.Success)
                         {
                             HideLoadingIfShown();
@@ -296,7 +348,8 @@ namespace RaccoonWarehouse.Stocks
                     {
                         // 1️⃣ Return original quantities to stock (reverse)
                         var reverseResult = await _stockService.PostMovementsAsync(
-                            BuildStockMovements(_originalItems, TransactionType.Adjustment, $"Reverse stock out document #{documentDto.DocumentNumber}", multiplier: 1m));
+                            BuildStockMovements(_originalItems, TransactionType.Adjustment, $"Reverse stock out document #{documentDto.DocumentNumber}",
+                                multiplier: _originalOperationType == StockOutOperationType.CustomerSaleReturn ? -1m : 1m));
                         if (!reverseResult.Success)
                         {
                             HideLoadingIfShown();
@@ -306,7 +359,7 @@ namespace RaccoonWarehouse.Stocks
                
                         // 2️⃣ Add new quantities
                         var applyResult = await _stockService.PostMovementsAsync(
-                            BuildStockMovements(expandedItems, TransactionType.Adjustment, $"Update stock out document #{documentDto.DocumentNumber}"));
+                            BuildStockMovements(expandedItems, TransactionType.Adjustment, $"Update stock out document #{documentDto.DocumentNumber}", movementMultiplier));
                         if (!applyResult.Success)
                         {
                             HideLoadingIfShown();
@@ -339,10 +392,17 @@ namespace RaccoonWarehouse.Stocks
             VoucherNumberTxt.Text = GenerateDocumentNumber();
             DatePickerInvoice.SelectedDate = DateTime.Now;
             WarehouseComboBox.SelectedIndex = -1;
+            SupplierComboBox.SelectedIndex = -1;
+            CustomerComboBox.SelectedIndex = -1;
+            SelectReason("Damage");
+            PaymentTypeComboBox.SelectedIndex = 0;
 
             NotesTxt.Text = "";
             Items.Clear();
             _itemUnits.Clear();
+            _currentDocumentId = null;
+            _originalItems.Clear();
+            _originalOperationType = StockOutOperationType.Damage;
 
             ProductBox.SelectedIndex = -1;
             UnitBox.ItemsSource = null;
@@ -359,6 +419,69 @@ namespace RaccoonWarehouse.Stocks
             string prefix = "DOC";
             string datePart = DateTime.Now.ToString("yyyyMMddHHmmss");
             return $"{prefix}-{datePart}";
+        }
+
+        private PaymentType GetSelectedPaymentType()
+        {
+            if (PaymentTypeComboBox.SelectedItem is ComboBoxItem item &&
+                int.TryParse(item.Tag?.ToString(), out var value) &&
+                Enum.IsDefined(typeof(PaymentType), value))
+            {
+                return (PaymentType)value;
+            }
+
+            return PaymentType.Cash;
+        }
+
+        private string GetSelectedReasonKey()
+        {
+            return (ReasonComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "Other";
+        }
+
+        private void SelectReason(string tag)
+        {
+            ReasonComboBox.SelectedIndex = ReasonComboBox.Items
+                .OfType<ComboBoxItem>()
+                .ToList()
+                .FindIndex(item => string.Equals(item.Tag?.ToString(), tag, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private StockOutOperationType GetSelectedOperationType()
+        {
+            return GetSelectedReasonKey() switch
+            {
+                "PurchaseInvoiceReturn" or "SupplierReturn" => StockOutOperationType.PurchaseInvoiceReturn,
+                "StockInReturn" => StockOutOperationType.StockInReturn,
+                "CustomerSaleReturn" => StockOutOperationType.CustomerSaleReturn,
+                "Expired" => StockOutOperationType.Expired,
+                "InternalUse" => StockOutOperationType.InternalUse,
+                "Damage" => StockOutOperationType.Damage,
+                _ => StockOutOperationType.Other
+            };
+        }
+
+        private string? GetSourceDocumentId() => null;
+
+        private void ReasonComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!IsLoaded || SupplierComboBox == null)
+                return;
+
+            var operationType = GetSelectedOperationType();
+            var isSupplierReturn = operationType is StockOutOperationType.PurchaseInvoiceReturn or StockOutOperationType.StockInReturn;
+            CustomerComboBox.IsEnabled = operationType == StockOutOperationType.CustomerSaleReturn;
+            SupplierComboBox.IsEnabled = isSupplierReturn || GetSelectedPaymentType() == PaymentType.Credit;
+        }
+
+        private void PaymentTypeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!IsLoaded || SupplierComboBox == null)
+                return;
+
+            var operationType = GetSelectedOperationType();
+            CustomerComboBox.IsEnabled = operationType == StockOutOperationType.CustomerSaleReturn;
+            SupplierComboBox.IsEnabled = operationType is StockOutOperationType.PurchaseInvoiceReturn or StockOutOperationType.StockInReturn
+                || (GetSelectedPaymentType() == PaymentType.Credit && operationType != StockOutOperationType.CustomerSaleReturn);
         }
         #region Qty Handle
         private async Task NormalizeStockItemAsync(StockItemWriteDto item)
@@ -460,7 +583,9 @@ namespace RaccoonWarehouse.Stocks
                         Quantity = allocation.Quantity,
                         QuantityPerUnitSnapshot = allocation.QuantityPerUnitSnapshot,
                         BaseQuantity = allocation.BaseQuantity,
-                        PurchasePrice = allocation.PurchasePrice,
+                        // Stock Out uses the cost entered by the user. FEFO still chooses the lots,
+                        // but the outgoing quantity must not overwrite the document cost.
+                        PurchasePrice = sourceItem.PurchasePrice > 0 ? sourceItem.PurchasePrice : allocation.PurchasePrice,
                         SalePrice = allocation.SalePrice,
                         ExpiryDate = allocation.ExpiryDate ?? sourceItem.ExpiryDate,
                         CreatedDate = sourceItem.CreatedDate,
@@ -502,9 +627,11 @@ namespace RaccoonWarehouse.Stocks
                         .Distinct()
                         .ToHashSet();
 
-                    var availableUnits = (unitsResult?.Data ?? new List<ProductUnitWriteDto>())
-                        .Where(u => availableUnitIds.Contains(u.Id))
-                        .ToList();
+                    var availableUnits = GetSelectedOperationType() == StockOutOperationType.CustomerSaleReturn
+                        ? (unitsResult?.Data ?? new List<ProductUnitWriteDto>()).ToList()
+                        : (unitsResult?.Data ?? new List<ProductUnitWriteDto>())
+                            .Where(u => availableUnitIds.Contains(u.Id))
+                            .ToList();
 
                     // Update the item's Units collection
                     item.Units.Clear();
@@ -562,27 +689,79 @@ namespace RaccoonWarehouse.Stocks
         #region SearchAboutProduct Handle
         private void SearchProductBtn_Click(object sender, RoutedEventArgs e)
         {
-            string search = ProductBox.Text?.Trim() ?? "";
-
-            if (string.IsNullOrWhiteSpace(search))
+            try
             {
-                ProductBox.ItemsSource = Products;
-                ProductBox.IsDropDownOpen = true;
-                return;
+                var searchWindow = new PurchaseProductSearchWindow(
+                    _productService,
+                    async row => await AddProductFromSearchAsync(row))
+                {
+                    Owner = this
+                };
+
+                searchWindow.ShowDialog();
+                ProductBox.Focus();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"{UiText.T("تعذر فتح بحث الأصناف", "Could not open the product search window")}: {ex.Message}",
+                    UiText.T("خطأ", "Error"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+        }
+
+        private async Task<bool> AddProductFromSearchAsync(PurchaseProductSearchWindow.PurchaseProductSearchRow row)
+        {
+            if (row.ProductUnitId <= 0)
+            {
+                MessageBox.Show(
+                    UiText.T("لا توجد وحدة شراء معرفة لهذا المنتج.", "No purchase unit is defined for this product."),
+                    UiText.T("تنبيه", "Notice"));
+                return false;
             }
 
-            var filtered = Products.Where(p =>
-                (!string.IsNullOrEmpty(p.Name) &&
-                 p.Name.Contains(search, StringComparison.OrdinalIgnoreCase))
-                ||
-                p.ITEMCODE.ToString().Contains(search)
-            ).ToList();
+            var unit = row.Product.ProductUnits?.FirstOrDefault(x => x.Id == row.ProductUnitId);
+            if (unit == null)
+            {
+                MessageBox.Show(
+                    UiText.T("تعذر تحميل وحدة المنتج.", "The product unit could not be loaded."),
+                    UiText.T("تنبيه", "Notice"));
+                return false;
+            }
 
-            ProductBox.ItemsSource = filtered;
-            ProductBox.IsDropDownOpen = true;
+            var stockResult = await _stockService.GetAllWithFilteringAndIncludeAsync(
+                s => s.ProductId == row.Product.Id && s.ProductUnitId == row.ProductUnitId && s.Quantity > 0);
+            var availableQty = stockResult.Data?.Sum(s => s.Quantity) ?? 0m;
+            if (GetSelectedOperationType() != StockOutOperationType.CustomerSaleReturn && availableQty <= 0)
+            {
+                MessageBox.Show(
+                    UiText.T("هذا المنتج/الوحدة غير متوفر حالياً في المخزون.", "This product/unit is currently unavailable in stock."),
+                    UiText.T("تنبيه", "Notice"));
+                return false;
+            }
 
-            if (filtered.Count == 1)
-                ProductBox.SelectedItem = filtered.First();
+            var quantityPerUnit = unit.QuantityPerUnit > 0m ? unit.QuantityPerUnit : 1m;
+            var item = new StockItemWriteDto
+            {
+                ProductId = row.Product.Id,
+                ProductUnitId = row.ProductUnitId,
+                Quantity = row.Quantity > 0m ? row.Quantity : 1m,
+                QuantityPerUnitSnapshot = quantityPerUnit,
+                BaseQuantity = (row.Quantity > 0m ? row.Quantity : 1m) * quantityPerUnit,
+                PurchasePrice = row.PurchasePrice,
+                SalePrice = unit.SalePrice,
+                ExpiryDate = row.ExpiryDate,
+                CreatedDate = DateTime.Now,
+                UpdatedDate = DateTime.Now,
+                ProductName = row.ProductName,
+                UnitName = row.UnitName
+            };
+
+            Items.Add(item);
+            _itemUnits[item] = row.ProductUnitId;
+            ProductsGrid.Items.Refresh();
+            return true;
         }
 
         #endregion
@@ -648,9 +827,11 @@ namespace RaccoonWarehouse.Stocks
                     .Distinct()
                     .ToHashSet();
 
-                var availableUnits = (unitsResult?.Data ?? new List<ProductUnitWriteDto>())
-                    .Where(u => availableUnitIds.Contains(u.Id))
-                    .ToList();
+                var availableUnits = GetSelectedOperationType() == StockOutOperationType.CustomerSaleReturn
+                    ? (unitsResult?.Data ?? new List<ProductUnitWriteDto>()).ToList()
+                    : (unitsResult?.Data ?? new List<ProductUnitWriteDto>())
+                        .Where(u => availableUnitIds.Contains(u.Id))
+                        .ToList();
 
                 UnitBox.ItemsSource = availableUnits;
 
@@ -723,13 +904,14 @@ namespace RaccoonWarehouse.Stocks
                     s => s.ProductId == product.Id && s.ProductUnitId == unit.Id);
 
                 var availableQty = stockResult.Data.FirstOrDefault()?.Quantity ?? 0m;
-                if (availableQty <= 0)
+                var isCustomerSaleReturn = GetSelectedOperationType() == StockOutOperationType.CustomerSaleReturn;
+                if (!isCustomerSaleReturn && availableQty <= 0)
                 {
                     MessageBox.Show(UiText.T("هذا المنتج/الوحدة غير متوفر بالمخزون حالياً.", "This product/unit is currently unavailable in stock."), UiText.T("تنبيه", "Notice"));
                     return;
                 }
 
-                if (qty > availableQty)
+                if (!isCustomerSaleReturn && qty > availableQty)
                 {
                     MessageBox.Show(UiText.T($"الكمية المطلوبة أكبر من المتوفر. المتوفر: {availableQty}", $"The requested quantity is greater than the available stock. Available: {availableQty}"), UiText.T("تنبيه", "Notice"));
                     return;
@@ -1042,11 +1224,22 @@ namespace RaccoonWarehouse.Stocks
 
             _currentDocumentId = doc.Id;                 // <-- critical
             _originalItems = doc.Items.ToList();         // <-- for adjusting stock differences
+            _originalOperationType = doc.OperationType;
             WarehouseComboBox.SelectedValue = doc.WarehouseId;
 
             VoucherNumberTxt.Text = doc.DocumentNumber;
             DatePickerInvoice.SelectedDate = doc.CreatedDate;
             NotesTxt.Text = doc.Notes;
+            PaymentTypeComboBox.SelectedIndex = PaymentTypeComboBox.Items
+                .OfType<ComboBoxItem>()
+                .ToList()
+                .FindIndex(item => item.Tag?.ToString() == ((int)(doc.PaymentType ?? PaymentType.Cash)).ToString());
+            SupplierComboBox.SelectedValue = doc.SupplierId;
+            CustomerComboBox.SelectedValue = doc.CustomerId;
+            var reasonKey = doc.ReferenceNumber?.StartsWith("STOCK_OUT_REASON:", StringComparison.OrdinalIgnoreCase) == true
+                ? doc.ReferenceNumber["STOCK_OUT_REASON:".Length..]
+                : "Other";
+            SelectReason(reasonKey);
 
             Items.Clear();
             _itemUnits.Clear();

@@ -546,4 +546,103 @@
     "stepsEn": ["On the login window, enter the assigned username and password, then sign in.", "To end the current user session, select Logout at the bottom of the main sidebar.", "Confirm when requested; the application returns to login."],
     "stepsAr": ["في نافذة الدخول أدخل اسم المستخدم وكلمة المرور المخصصين ثم سجل الدخول.", "لإنهاء جلسة المستخدم اختر تسجيل خروج أسفل القائمة الجانبية الرئيسية.", "أكد عند الطلب وسيعود التطبيق إلى نافذة الدخول."]
   }
+,
+  {
+    "id": "accounting.overview",
+    "keywords": ["accounting overview", "accounting", "chart of accounts", "journal entry", "debit credit", "balanced journal", "invoice posting", "failed accounting operation", "trial balance", "general ledger", "balance sheet", "checks", "المحاسبة", "شجرة الحسابات", "قيد اليومية", "مدين دائن", "ميزان المراجعة", "دفتر الأستاذ", "الميزانية"],
+    "titleEn": "Understand accounting and posting",
+    "titleAr": "فهم المحاسبة والترحيل",
+    "stepsEn": [
+      "Use the chart of accounts to review the accounts used by sales, purchases, inventory, taxes, customers, suppliers, payment methods, revenue, returns, discounts and cost of goods sold.",
+      "A manual journal entry must contain at least two lines and total debits must equal total credits. Save only balanced entries.",
+      "Invoices and vouchers create accounting operations that are posted by the accounting processor. If an operation fails, review the error and retry it from Accounting Operations after correcting the cause.",
+      "Sales normally debit the selected payment allocations or customer and credit sales revenue; tax, inventory and cost accounts are posted according to the invoice type.",
+      "Purchases normally debit inventory and applicable input tax and credit the supplier or payment allocations. Sales returns reverse the sale settlement and restore inventory; mixed documents contain both sale and return effects.",
+      "Use Trial Balance, General Ledger, Balance Sheet and Checks to verify that postings are complete, balanced and connected to the correct accounts.",
+      "Payment allocations can contain Cash, Credit, Debit, Check, Mobile, MasterCard and Visa. For a mixed payment, each allocation is posted to its own account. A credit sale requires a customer."
+    ],
+    "stepsAr": [
+      "استخدم شجرة الحسابات لمراجعة حسابات المبيعات والمشتريات والمخزون والضرائب والعملاء والموردين وطرق الدفع والإيرادات والمرتجعات والخصومات وتكلفة البضاعة المباعة.",
+      "يجب أن يحتوي القيد اليدوي على سطرين على الأقل، ويجب أن يتساوى مجموع المدين مع مجموع الدائن قبل الحفظ.",
+      "تنشئ الفواتير والسندات عمليات محاسبية يعالجها نظام الترحيل. عند فشل العملية راجع الخطأ ثم أعد المحاولة من عمليات المحاسبة بعد تصحيح السبب.",
+      "تُحمّل المبيعات عادةً حسابات طرق الدفع أو العميل وتُقيّد الإيرادات، وتُرحّل الضريبة والمخزون والتكلفة حسب نوع الفاتورة.",
+      "تُحمّل المشتريات عادةً المخزون وضريبة المدخلات وتُقيّد المورد أو طرق الدفع. تعكس مرتجعات البيع التسوية وتعيد المخزون، والمستند المختلط يجمع تأثير البيع والمرتجع.",
+      "استخدم ميزان المراجعة ودفتر الأستاذ والميزانية والفحوصات للتأكد من اكتمال الترحيل وتوازنه وربطه بالحسابات الصحيحة.",
+      "يمكن تقسيم الدفع بين نقدي وآجل وخصم وبنك وشيك وموبايل وماستر وفيزا، ويُرحّل كل جزء إلى حسابه. البيع الآجل يحتاج إلى عميل."
+    ],
+    "actionKey": "accounting-operations", "actionLabelEn": "Open Accounting Operations", "actionLabelAr": "فتح العمليات المحاسبية"
+  },
+  {
+    "id": "invoices.overview",
+    "keywords": ["invoice overview", "sales invoice", "purchase invoice", "sales return", "purchase return", "mixed return sale", "hold invoice", "resume invoice", "change payment", "split payment", "tax invoice", "Falcon invoice", "الفواتير", "فاتورة بيع", "فاتورة شراء", "مرتجع بيع", "مرتجع شراء", "فاتورة مختلطة", "تعليق الفاتورة", "تغيير الدفع"],
+    "titleEn": "Understand invoices and their effects",
+    "titleAr": "فهم الفواتير وتأثيراتها",
+    "stepsEn": [
+      "Sales invoices reduce stock and record revenue, tax and cost according to the selected products and payment allocation. A credit sale must have a customer.",
+      "Purchase invoices increase stock and record supplier or payment settlement, tax and cost. The purchase cost-includes-tax option is a UI calculation choice; the saved values follow the invoice calculation.",
+      "Stock-in documents increase stock using untaxed stock-in cost rules. Sales returns add returned stock and reduce the original sales settlement; purchase returns reduce stock and reverse the purchase effect.",
+      "A mixed return/sale invoice can return existing sale lines and sell new lines in the same document. Return quantities and new sale quantities must be reviewed separately before saving.",
+      "Invoice lines may include quantity, unit, price, line discount, free quantity, tax and total. Free quantity increases quantity without adding cost for the free part.",
+      "Payment can be changed after creation or split across multiple methods. The customer, payment allocations, stock, invoice totals and accounting operation must remain consistent after the change.",
+      "Use the Falcon invoice number to identify and search an invoice. When loading an invoice for a return, verify the original quantities and the remaining returnable quantity before saving.",
+      "Held POS invoices should be resumed through the held-invoice list; starting a new invoice after resuming must use a fresh invoice state."
+    ],
+    "stepsAr": [
+      "تُقلل فاتورة البيع المخزون وتثبت الإيراد والضريبة والتكلفة حسب الأصناف وطريقة الدفع، وتحتاج الفاتورة الآجلة إلى عميل.",
+      "تزيد فاتورة الشراء المخزون وتثبت تسوية المورد أو الدفع والضريبة والتكلفة. خيار شمول الضريبة في تكلفة الشراء للحساب على الواجهة، والقيم المحفوظة تتبع حساب الفاتورة.",
+      "يزيد سند الإدخال المخزون وفق تكلفة الإدخال بدون ضريبة. يقلل مرتجع البيع التسوية ويعيد الكمية، بينما يقلل مرتجع الشراء المخزون ويعكس أثر الشراء.",
+      "يمكن أن تجمع الفاتورة المختلطة مرتجع أصناف مباعة وبيع أصناف جديدة، ويجب مراجعة كميات المرتجع والبيع بشكل منفصل قبل الحفظ.",
+      "يمكن أن يحتوي السطر على الكمية والوحدة والسعر وخصم السطر والكمية المجانية والضريبة والإجمالي. تزيد الكمية المجانية دون إضافة تكلفة للجزء المجاني.",
+      "يمكن تغيير الدفع بعد إنشاء الفاتورة أو تقسيمه بين عدة طرق. يجب أن تبقى بيانات العميل والتوزيعات والمخزون والإجماليات والعملية المحاسبية متطابقة.",
+      "استخدم رقم فاتورة فالكون للتعرف على الفاتورة والبحث عنها. عند تحميل فاتورة للمرتجع تحقق من الكمية الأصلية والكمية المتبقية للمرتجع قبل الحفظ.",
+      "تُستأنف الفواتير المعلقة من قائمة الفواتير المعلقة، ويجب أن تبدأ الفاتورة الجديدة بعد الاستئناف بحالة جديدة."
+    ],
+    "actionKey": "invoice-search", "actionLabelEn": "Open Invoice Search", "actionLabelAr": "فتح بحث الفواتير"
+  },
+  {
+    "id": "vouchers.overview",
+    "keywords": ["voucher overview", "receipt voucher", "payment voucher", "cash receipt", "cash payment", "voucher accounting", "voucher reference", "السندات", "سند قبض", "سند صرف", "قبض نقدي", "صرف نقدي", "مرجع السند"],
+    "titleEn": "Understand receipts and payment vouchers",
+    "titleAr": "فهم سندات القبض والصرف",
+    "stepsEn": [
+      "Use a receipt voucher to record money received and a payment voucher to record money paid. Select the related account or party, date, amount and payment method.",
+      "Add a clear reference or note so the voucher can be traced in the financial transactions and accounting operations screens.",
+      "Choose the correct payment method and related customer, supplier or account. A voucher must have a valid financial counterpart and a non-zero amount where required.",
+      "After saving, verify that the voucher created a balanced accounting operation and that the cash, bank, customer or supplier balance changed in the expected direction.",
+      "If posting fails, do not create a duplicate voucher. Correct the failed operation, then retry it from Accounting Operations and verify the resulting journal."
+    ],
+    "stepsAr": [
+      "استخدم سند القبض لتسجيل المبالغ المستلمة وسند الصرف لتسجيل المبالغ المدفوعة، وحدد الحساب أو الطرف والتاريخ والمبلغ وطريقة الدفع.",
+      "أضف مرجعاً أو ملاحظة واضحة حتى يمكن تتبع السند في المعاملات المالية وعمليات المحاسبة.",
+      "اختر طريقة الدفع والطرف أو الحساب المرتبط الصحيح. يجب أن يحتوي السند على مقابل مالي صحيح ومبلغ غير صفري عند الحاجة.",
+      "بعد الحفظ تحقق من إنشاء عملية محاسبية متوازنة ومن تغير رصيد النقد أو البنك أو العميل أو المورد بالاتجاه المتوقع.",
+      "عند فشل الترحيل لا تنشئ سنداً مكرراً. صحح العملية الفاشلة ثم أعد تنفيذها من عمليات المحاسبة وتحقق من القيد الناتج."
+    ],
+    "actionKey": "vouchers-search", "actionLabelEn": "Open Voucher Search", "actionLabelAr": "فتح بحث السندات"
+  },
+  {
+    "id": "reports.overview",
+    "keywords": ["reports overview", "sales report", "payment collection report", "cash visa credit totals", "profit loss", "cash flow", "stock report", "inventory valuation", "credit sales report", "تقارير", "تقرير المبيعات", "تحصيل الدفع", "الأرباح والخسائر", "التدفق النقدي", "تقارير المخزون"],
+    "titleEn": "Understand reports and totals",
+    "titleAr": "فهم التقارير والإجماليات",
+    "stepsEn": [
+      "Set the date range and available filters before running a report. Review the selected cashier, customer, invoice type, invoice source and payment method filters.",
+      "The Sales Report totals each payment allocation separately. A mixed invoice contributes only its Visa, Cash, Credit or other allocated amount to the matching total; do not count the full invoice total again.",
+      "Review sales total, returns, discounts, tax, COGS and profit together. Sales returns affect sales and payment totals according to their refund allocation; purchase and stock-in returns are not sales returns.",
+      "Use Credit Sales for customer balances, Cash Flow for cash movement, and Profit and Loss for revenue, costs, returns and profit. Compare report totals with the related invoice and accounting entries when investigating a difference.",
+      "Use General Ledger, Trial Balance, Balance Sheet and Checks to validate financial postings. Failed or unbalanced operations must be corrected and retried before relying on report totals.",
+      "Use Stock Movements, Stock Balance by Date, Inventory Summary, Valuation, Below Minimum, Material Movements, Stock Balances, Item Cost and Product or Invoice Profit reports to validate quantities and costs.",
+      "For a payment-method check, compare the report total with the sum of InvoicePayments for the same date and scope, including the individual parts of mixed payments."
+    ],
+    "stepsAr": [
+      "حدد الفترة الزمنية والفلاتر المتاحة قبل تشغيل التقرير، وراجع الكاشير والعميل ونوع الفاتورة ومصدرها وطريقة الدفع.",
+      "يجمع تقرير المبيعات كل جزء من الدفع بشكل مستقل. تضاف حصة الفيزا أو النقد أو الآجل من الفاتورة المختلطة إلى إجمالي طريقتها فقط، ولا يُعاد احتساب إجمالي الفاتورة كاملاً.",
+      "راجع إجمالي المبيعات والمرتجعات والخصومات والضريبة والتكلفة والربح معاً. تؤثر مرتجعات البيع حسب توزيع الاسترداد، أما مرتجعات الشراء والإدخال فلا تدخل في تقرير المبيعات.",
+      "استخدم تقرير المبيعات الآجلة لأرصدة العملاء، والتدفق النقدي لحركة النقد، والأرباح والخسائر للإيرادات والتكاليف والمرتجعات والربح. قارنها بالفاتورة والقيود عند وجود فرق.",
+      "استخدم دفتر الأستاذ وميزان المراجعة والميزانية والفحوصات للتحقق من الترحيل المالي. يجب تصحيح العمليات الفاشلة أو غير المتوازنة وإعادة تنفيذها قبل الاعتماد على التقارير.",
+      "استخدم تقارير حركات المخزون والرصيد حسب التاريخ وملخص المخزون والتقييم وتحت الحد الأدنى والتسويات والأرصدة وتكلفة الصنف وربحية الصنف أو الفاتورة للتحقق من الكميات والتكاليف.",
+      "للتحقق من طريقة الدفع قارن إجمالي التقرير بمجموع دفعات الفواتير ضمن نفس الفترة والنطاق، مع احتساب أجزاء الفواتير المختلطة كلٌ حسب طريقته."
+    ],
+    "actionKey": "sales-report", "actionLabelEn": "Open Sales Report", "actionLabelAr": "فتح تقرير المبيعات"
+  }
 ]

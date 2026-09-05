@@ -36,6 +36,10 @@ namespace RaccoonWarehouse.Application.Service.StockDocuments
             {
                 if (dto.Items == null || dto.Items.Count == 0)
                     return Result<StockDocumentWriteDto>.Fail("Stock document must contain at least one item.");
+                if (dto.Type == StockVoucherType.Out && dto.PaymentType == PaymentType.Credit && !dto.SupplierId.HasValue)
+                    return Result<StockDocumentWriteDto>.Fail("A supplier is required for credit stock-out.");
+                if (dto.Type == StockVoucherType.Out && dto.OperationType == StockOutOperationType.CustomerSaleReturn && !dto.CustomerId.HasValue)
+                    return Result<StockDocumentWriteDto>.Fail("A customer is required for a customer sale return.");
                 if (dto.Type == StockVoucherType.In && dto.Items.Any(item => !item.ExpiryDate.HasValue))
                     return Result<StockDocumentWriteDto>.Fail("Expiry date is required for every stock-in item.");
                 if (dto.Type == StockVoucherType.In && dto.PaymentType == PaymentType.Credit && !dto.SupplierId.HasValue)
@@ -125,6 +129,10 @@ namespace RaccoonWarehouse.Application.Service.StockDocuments
                     return Result<StockDocumentWriteDto>.Fail("Stock document must contain at least one item.");
                 if (dto.Type == StockVoucherType.In && dto.Items.Any(item => !item.ExpiryDate.HasValue))
                     return Result<StockDocumentWriteDto>.Fail("Expiry date is required for every stock-in item.");
+                if (dto.Type == StockVoucherType.Out && dto.PaymentType == PaymentType.Credit && !dto.SupplierId.HasValue)
+                    return Result<StockDocumentWriteDto>.Fail("A supplier is required for credit stock-out.");
+                if (dto.Type == StockVoucherType.Out && dto.OperationType == StockOutOperationType.CustomerSaleReturn && !dto.CustomerId.HasValue)
+                    return Result<StockDocumentWriteDto>.Fail("A customer is required for a customer sale return.");
 
                 var document = await _uow.StockDocuments.GetAllAsQueryable()
                     .Include(x => x.Items)

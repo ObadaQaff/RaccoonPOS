@@ -5,6 +5,7 @@ using RaccoonWarehouse.POS;
 using RaccoonWarehouse.Reports;
 using RaccoonWarehouse.Stocks;
 using RaccoonWarehouse.Vouchers;
+using RaccoonWarehouse.FinancialTransactions.Reports;
 
 namespace RaccoonWarehouse.Navigation.Modules
 {
@@ -25,7 +26,9 @@ namespace RaccoonWarehouse.Navigation.Modules
                 "Reports.Sales" or
                 "Reports.CreditSales" or
                 "Reports.InvoiceProfit" or
-                "Reports.ShiftSummary";
+                "Reports.ShiftSummary" or
+                "Reports.PaymentsReceipts" or
+                "Reports.InvoicePaymentMethods";
         }
 
         public Task ExecuteAsync(string actionKey, DashboardActionContext context)
@@ -70,6 +73,12 @@ namespace RaccoonWarehouse.Navigation.Modules
                     break;
                 case "Reports.ShiftSummary":
                     context.OpenReportWindow(() => WindowManager.Show<DailySalesReport>(WindowSizeType.LargeRectangle));
+                    break;
+                case "Reports.PaymentsReceipts":
+                    context.OpenReportWindow(() => WindowManager.Show<CashFlowReport>(WindowSizeType.LargeRectangle));
+                    break;
+                case "Reports.InvoicePaymentMethods":
+                    context.OpenReportWindow(() => WindowManager.Show<InvoicePaymentMethodsReport>(WindowSizeType.LargeRectangle));
                     break;
             }
 

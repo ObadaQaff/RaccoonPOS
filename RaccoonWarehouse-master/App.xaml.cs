@@ -864,6 +864,7 @@ END;";
                 ["current-stock"] = typeof(CurrentStock),
                 ["stock-movements"] = typeof(RaccoonWarehouse.Stocks.Reports.StockMovementsReport),
                 ["sales-report"] = typeof(SalesReport),
+                ["cashier-board"] = typeof(DailySalesReport),
                 ["credit-sales"] = typeof(CreditSalesReport),
                 ["inactive-products"] = typeof(InactiveProductsReport),
                 ["discount-summary"] = typeof(DiscountSummaryReport),
@@ -876,6 +877,7 @@ END;";
                 ["stock-valuation"] = typeof(StockValuationReport),
                 ["product-profit"] = typeof(ProductProfitReport),
                 ["cash-flow"] = typeof(CashFlowReport),
+                ["invoice-payment-methods"] = typeof(InvoicePaymentMethodsReport),
                 ["profit-loss"] = typeof(ProfitLossReport),
                 ["stock-balances"] = typeof(StockBalancesReport),
                 ["material-movements"] = typeof(MaterialMovementsReport),
@@ -1070,6 +1072,7 @@ END;";
             services.AddTransient<PayInvoice>();
 
             services.AddTransient<CashFlowReport>();
+            services.AddTransient<InvoicePaymentMethodsReport>();
             services.AddTransient<ProfitLossReport>();
 
 

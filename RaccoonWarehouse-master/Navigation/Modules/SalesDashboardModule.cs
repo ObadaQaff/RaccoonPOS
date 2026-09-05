@@ -46,7 +46,9 @@ namespace RaccoonWarehouse.Navigation.Modules
                                 new ModuleActionDefinition("Reports.Sales", "تقرير المبيعات"),
                                 new ModuleActionDefinition("Reports.CreditSales", "تقرير مبيعات الآجل"),
                                 new ModuleActionDefinition("Reports.InvoiceProfit", "تحليل ربحية الفواتير"),
-                                new ModuleActionDefinition("Reports.ShiftSummary", "لوحة الكاشيرات")
+                                new ModuleActionDefinition("Reports.ShiftSummary", "لوحة الكاشيرات"),
+                                new ModuleActionDefinition("Reports.PaymentsReceipts", UiText.T("تقرير المدفوعات والمقبوضات", "Payments and Receipts Report")),
+                                new ModuleActionDefinition("Reports.InvoicePaymentMethods", UiText.T("تقرير طرق دفع الفواتير", "Invoice Payment Methods Report"))
                             }),
                         new ModuleGroupDefinition(
                             UiText.T("الطلبيات", "Orders"),

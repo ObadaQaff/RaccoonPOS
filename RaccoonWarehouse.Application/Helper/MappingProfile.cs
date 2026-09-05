@@ -107,11 +107,17 @@ namespace RaccoonWarehouse.Application.Helper
                             : PaymentType.Cash));
 
             CreateMap<InvoiceWriteDto, Invoice>()
-                .ForMember(d => d.InvoiceLines, opt => opt.Ignore());
+                .ForMember(d => d.InvoiceLines, opt => opt.Ignore())
+                .ForMember(d => d.Payments, opt => opt.Ignore());
             CreateMap<Invoice, InvoiceWriteDto>();
             CreateMap<Invoice, InvoiceReadDto>()
                 .ForMember(dest => dest.DelegateName, opt => opt.MapFrom(src => src.Delegate != null ? src.Delegate.FullName : null))
                 .ReverseMap();
+            CreateMap<InvoicePaymentWriteDto, InvoicePayment>()
+                .ForMember(d => d.Invoice, opt => opt.Ignore())
+                .ForMember(d => d.InvoiceId, opt => opt.Ignore());
+            CreateMap<InvoicePayment, InvoicePaymentWriteDto>();
+            CreateMap<InvoicePayment, InvoicePaymentReadDto>();
 
             CreateMap<InvoiceLineWriteDto, InvoiceLine>()
                 .ForMember(d => d.InvoiceId, opt => opt.Ignore())

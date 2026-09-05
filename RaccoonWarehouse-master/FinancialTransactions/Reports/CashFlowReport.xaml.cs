@@ -3,6 +3,7 @@ using RaccoonWarehouse.Domain.Reports.Financial.Dtos;
 using RaccoonWarehouse.Domain.Reports.Financial.Filters;
 using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Helpers.Localization;
+using RaccoonWarehouse.Navigation;
 using ClosedXML.Excel;
 using Microsoft.Win32;
 using System;
@@ -17,13 +18,18 @@ namespace RaccoonWarehouse.FinancialTransactions.Reports
     {
         private readonly IFinancialTransactionService _service;
         private readonly ILoadingService _loadingService;
+        private readonly SourceDocumentNavigationService _sourceDocumentNavigationService;
         private List<CashFlowRowDto> _currentRows = new();
 
-        public CashFlowReport(IFinancialTransactionService service, ILoadingService loadingService)
+        public CashFlowReport(
+            IFinancialTransactionService service,
+            ILoadingService loadingService,
+            SourceDocumentNavigationService sourceDocumentNavigationService)
         {
             InitializeComponent();
             _service = service;
             _loadingService = loadingService;
+            _sourceDocumentNavigationService = sourceDocumentNavigationService;
             UiText.ApplyWindow(this);
 
             Loaded += CashFlowReport_Loaded;
@@ -33,7 +39,7 @@ namespace RaccoonWarehouse.FinancialTransactions.Reports
         {
             FromDatePicker.SelectedDate = DateTime.Today;
             ToDatePicker.SelectedDate = DateTime.Today;
-            IncludeVoidedCheckBox.IsChecked = false;
+            IncludeVoidedCheckBox.Visibility = Visibility.Collapsed;
 
             // Direction
             DirectionComboBox.Items.Clear();
@@ -49,11 +55,11 @@ namespace RaccoonWarehouse.FinancialTransactions.Reports
                 PaymentMethodComboBox.Items.Add(new ComboBoxItem { Content = v.ToString(), Tag = v });
             PaymentMethodComboBox.SelectedIndex = 0;
 
-            // SourceType
+            // Voucher type only: this report intentionally excludes invoices and stock documents.
             SourceTypeComboBox.Items.Clear();
             SourceTypeComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("الكل", "All"), Tag = null });
-            foreach (var v in Enum.GetValues(typeof(FinancialSourceType)).Cast<FinancialSourceType>())
-                SourceTypeComboBox.Items.Add(new ComboBoxItem { Content = v.ToString(), Tag = v });
+            SourceTypeComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("سند قبض", "Receipt voucher"), Tag = FinancialSourceType.ReceiptVoucher });
+            SourceTypeComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("سند صرف", "Payment voucher"), Tag = FinancialSourceType.PaymentVoucher });
             SourceTypeComboBox.SelectedIndex = 0;
         }
 
@@ -87,7 +93,7 @@ namespace RaccoonWarehouse.FinancialTransactions.Reports
                 if (SourceTypeComboBox.SelectedItem is ComboBoxItem st && st.Tag is FinancialSourceType src)
                     filter.SourceType = src;
 
-                var (summary, rows) = await _service.GetCashFlowAsync(filter);
+                var (summary, rows) = await _service.GetVoucherPaymentsReceiptsAsync(filter);
 
                 _currentRows = rows ?? new List<CashFlowRowDto>();
                 CashFlowGrid.ItemsSource = _currentRows;
@@ -107,6 +113,35 @@ namespace RaccoonWarehouse.FinancialTransactions.Reports
             {
                 if (loadingShown)
                     _loadingService.Hide();
+            }
+        }
+
+        private async void CashFlowGrid_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (CashFlowGrid.SelectedItem is not CashFlowRowDto row || row.SourceId is not > 0)
+                return;
+
+            try
+            {
+                _loadingService.Show();
+                await _sourceDocumentNavigationService.OpenSourceDocument(
+                    row.SourceType.ToString() switch
+                    {
+                        nameof(FinancialSourceType.ReceiptVoucher) => "Voucher",
+                        nameof(FinancialSourceType.PaymentVoucher) => "Voucher",
+                        _ => null
+                    },
+                    row.SourceId);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"{UiText.T("خطأ", "Error")}: {ex.Message}",
+                    UiText.T("خطأ", "Error"));
+            }
+            finally
+            {
+                _loadingService.Hide();
             }
         }
 
@@ -138,7 +173,7 @@ namespace RaccoonWarehouse.FinancialTransactions.Reports
                     UiText.T("التاريخ", "Date"), UiText.T("الاتجاه", "Direction"),
                     UiText.T("طريقة الدفع", "Payment method"), UiText.T("داخل", "In"),
                     UiText.T("خارج", "Out"), UiText.T("الصافي", "Net"),
-                    UiText.T("المصدر", "Source"), UiText.T("رقم المصدر", "Source number"),
+                    UiText.T("المصدر", "Source"), UiText.T("رقم السند", "Voucher number"),
                     UiText.T("الكاشير", "Cashier"), UiText.T("الحالة", "Status"),
                     UiText.T("ملاحظات", "Notes")
                 };
@@ -157,7 +192,7 @@ namespace RaccoonWarehouse.FinancialTransactions.Reports
                     sheet.Cell(excelRow, 5).Value = row.AmountOut;
                     sheet.Cell(excelRow, 6).Value = row.Net;
                     sheet.Cell(excelRow, 7).Value = row.SourceType.ToString();
-                    sheet.Cell(excelRow, 8).Value = row.SourceId;
+                    sheet.Cell(excelRow, 8).Value = row.DocumentNumber;
                     sheet.Cell(excelRow, 9).Value = row.CashierName;
                     sheet.Cell(excelRow, 10).Value = row.StatusText;
                     sheet.Cell(excelRow, 11).Value = row.Notes;

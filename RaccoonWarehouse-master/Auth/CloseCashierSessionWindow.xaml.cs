@@ -1,6 +1,7 @@
 ﻿using RaccoonWarehouse.Application.Service.Cashers;
 using RaccoonWarehouse.Application.Service.FinancialTransactions;
 using RaccoonWarehouse.Application.Service.Users;
+using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.FinancialTransactions.DTOs;
 using RaccoonWarehouse.Helpers.Localization;
@@ -29,15 +30,19 @@ namespace RaccoonWarehouse.Auth
         private readonly ICashierSessionService _cashierSessionService;
         private readonly IFinancialTransactionService _financialService;
         private readonly IUserSession _userSession;
+        private readonly ILoadingService _loadingService;
 
         private decimal _opening;
         private decimal _expected;
         private decimal _expectedClosingCash;
+        private bool _isInitialized;
+        private bool _isClosing;
 
         public CloseCashierSessionWindow(
             ICashierSessionService cashierSessionService,
             IFinancialTransactionService financialService,
-            IUserSession userSession)
+            IUserSession userSession,
+            ILoadingService loadingService)
         {
             InitializeComponent();
             UiText.ApplyWindow(this);
@@ -46,7 +51,28 @@ namespace RaccoonWarehouse.Auth
             _cashierSessionService = cashierSessionService;
             _financialService = financialService;
             _userSession = userSession;
-            InitAsync();
+            _loadingService = loadingService;
+            Loaded += CloseCashierSessionWindow_Loaded;
+        }
+
+        private async void CloseCashierSessionWindow_Loaded(object sender, RoutedEventArgs e)
+        {
+            _loadingService.Show();
+
+            try
+            {
+                await InitAsync();
+                _isInitialized = _userSession.CurrentCashierSession != null;
+            }
+            catch (Exception ex)
+            {
+                ShowError(ex.Message);
+            }
+            finally
+            {
+                _loadingService.Hide();
+                CloseSessionButton.IsEnabled = true;
+            }
         }
 
         public async Task InitAsync()
@@ -78,6 +104,15 @@ namespace RaccoonWarehouse.Auth
 
         private async void CloseSession_Click(object sender, RoutedEventArgs e)
         {
+            if (_isClosing)
+                return;
+
+            if (!_isInitialized)
+            {
+                ShowError(UiText.T("تعذر تحميل الجلسة الحالية.", "The current session could not be loaded."));
+                return;
+            }
+
             ErrorText.Visibility = Visibility.Collapsed;
 
             var currentSession = _userSession.CurrentCashierSession;
@@ -104,6 +139,10 @@ namespace RaccoonWarehouse.Auth
 
             try
             {
+                _isClosing = true;
+                CloseSessionButton.IsEnabled = false;
+                _loadingService.Show();
+
                 // 1) Close session (store ending balance)
                 await _cashierSessionService.CloseSessionAsync(sessionId, counted);
 
@@ -144,6 +183,12 @@ namespace RaccoonWarehouse.Auth
             catch (Exception ex)
             {
                 ShowError(ex.Message);
+                _isClosing = false;
+                CloseSessionButton.IsEnabled = true;
+            }
+            finally
+            {
+                _loadingService.Hide();
             }
         }
 

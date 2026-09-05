@@ -1,18 +1,84 @@
 using Microsoft.EntityFrameworkCore;
+using RaccoonWarehouse.Application.Service.Invoices;
 using RaccoonWarehouse.Application.Service.Orders;
 using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Data;
 using RaccoonWarehouse.Domain.Orders.DTOs;
 using RaccoonWarehouse.Helpers.Localization;
+using RaccoonWarehouse.Helpers.Pdf;
+using RaccoonWarehouse.Domain.Invoices.DTOs;
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Media;
 
 namespace RaccoonWarehouse.Orders
 {
+    public sealed class Code39BarcodeConverter : IValueConverter
+    {
+        private static readonly IReadOnlyDictionary<char, string> Encodings =
+            new Dictionary<char, string>
+            {
+                ['0'] = "101001101101", ['1'] = "110100101011", ['2'] = "101100101011",
+                ['3'] = "110110010101", ['4'] = "101001101011", ['5'] = "110100110101",
+                ['6'] = "101100110101", ['7'] = "101001011011", ['8'] = "110100101101",
+                ['9'] = "101100101101", ['A'] = "110101001011", ['B'] = "101101001011",
+                ['C'] = "110110100101", ['D'] = "101011001011", ['E'] = "110101100101",
+                ['F'] = "101101100101", ['G'] = "101010011011", ['H'] = "110101001101",
+                ['I'] = "101101001101", ['J'] = "101011001101", ['K'] = "110101010011",
+                ['L'] = "101101010011", ['M'] = "110110101001", ['N'] = "101011010011",
+                ['O'] = "110101101001", ['P'] = "101101101001", ['Q'] = "101010110011",
+                ['R'] = "110101011001", ['S'] = "101101011001", ['T'] = "101011011001",
+                ['U'] = "110010101011", ['V'] = "100110101011", ['W'] = "110011010101",
+                ['X'] = "100101101011", ['Y'] = "110010110101", ['Z'] = "100110110101",
+                ['-'] = "100101011011", ['.'] = "110010101101", [' '] = "100110101101",
+                ['$'] = "100100100101", ['/'] = "100100101001", ['+'] = "100101001001",
+                ['%'] = "101001001001", ['*'] = "100101101101"
+            };
+
+        public object? Convert(object value, Type targetType, object? parameter, CultureInfo culture)
+        {
+            var barcode = value as string;
+            if (string.IsNullOrWhiteSpace(barcode))
+                return null;
+
+            var normalized = barcode.Trim().ToUpperInvariant();
+            if (normalized.Any(character => !Encodings.ContainsKey(character) || character == '*'))
+                return null;
+
+            var pattern = Encodings['*'] + "0" +
+                          string.Concat(normalized.Select(character => Encodings[character] + "0")) +
+                          Encodings['*'];
+            const double moduleWidth = 1.0;
+            const double quietZone = 10.0;
+            const double height = 32.0;
+            var width = quietZone * 2 + pattern.Length * moduleWidth;
+            var drawing = new DrawingGroup();
+            using (var context = drawing.Open())
+            {
+                context.DrawRectangle(Brushes.White, null, new Rect(0, 0, width, height));
+                var x = quietZone;
+                foreach (var module in pattern)
+                {
+                    if (module == '1')
+                        context.DrawRectangle(Brushes.Black, null, new Rect(x, 0, moduleWidth, height));
+                    x += moduleWidth;
+                }
+            }
+
+            return new DrawingImage(drawing);
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
+            Binding.DoNothing;
+    }
+
     public partial class OrderInvoiceDetails : Window
     {
         private readonly ApplicationDbContext _context;
+        private readonly IInvoiceService _invoiceService;
         private readonly IEndpointOrderStatusService _endpointOrderStatusService;
         private readonly ILoadingService _loadingService;
         private readonly ObservableCollection<OrderInvoiceLineRow> _lines = new();
@@ -24,11 +90,13 @@ namespace RaccoonWarehouse.Orders
 
         public OrderInvoiceDetails(
             ApplicationDbContext context,
+            IInvoiceService invoiceService,
             IEndpointOrderStatusService endpointOrderStatusService,
             ILoadingService loadingService)
         {
             InitializeComponent();
             _context = context;
+            _invoiceService = invoiceService;
             _endpointOrderStatusService = endpointOrderStatusService;
             _loadingService = loadingService;
             LinesGrid.ItemsSource = _lines;
@@ -44,6 +112,8 @@ namespace RaccoonWarehouse.Orders
         private async void OrderInvoiceDetails_Loaded(object sender, RoutedEventArgs e)
         {
             UiText.ApplyWindow(this);
+            ExportPdfButton.Content = UiText.T("تصدير PDF", "Export PDF");
+            PrintInvoiceButton.Content = UiText.T("طباعة", "Print");
             InitializeStatusOptions();
             await LoadProductsAsync();
             await LoadInvoiceAsync();
@@ -66,12 +136,14 @@ namespace RaccoonWarehouse.Orders
                 {
                     Id = product.Id,
                     Name = product.Name ?? string.Empty,
+                    ItemCode = product.ITEMCODE?.ToString() ?? string.Empty,
                     Units = (product.ProductUnits ?? Array.Empty<RaccoonWarehouse.Domain.ProductUnits.ProductUnit>())
                         .Select(unit => new OrderUnitOption
                         {
                             Id = unit.Id,
                             Name = unit.Unit?.Name ?? string.Empty,
-                            SalePrice = unit.SalePrice
+                            SalePrice = unit.SalePrice,
+                            Barcode = unit.AlternateBarcode
                         })
                         .OrderBy(unit => unit.Name)
                         .ToList()
@@ -160,6 +232,8 @@ namespace RaccoonWarehouse.Orders
             UnitPriceTextBox.IsEnabled = canEditDetails;
             AddReplaceLineButton.IsEnabled = canEditDetails;
             DeleteLineButton.IsEnabled = canEditDetails;
+            ExportPdfButton.IsEnabled = true;
+            PrintInvoiceButton.IsEnabled = true;
 
             _lines.Clear();
             foreach (var line in (invoice.InvoiceLines ??
@@ -171,6 +245,7 @@ namespace RaccoonWarehouse.Orders
                     InvoiceLineId = line.Id,
                     ProductId = line.ProductId,
                     ProductUnitId = line.ProductUnitId,
+                    Barcode = GetBarcode(line.Product?.ITEMCODE?.ToString(), line.ProductUnit?.AlternateBarcode),
                     ProductName = line.Product?.Name ?? string.Empty,
                     UnitName = line.ProductUnit?.Unit?.Name ?? string.Empty,
                     Quantity = line.Quantity,
@@ -240,6 +315,7 @@ namespace RaccoonWarehouse.Orders
             var line = existing ?? new OrderInvoiceLineRow();
             line.ProductId = product.Id;
             line.ProductUnitId = unit.Id;
+            line.Barcode = GetBarcode(product.ItemCode, unit.Barcode);
             line.ProductName = product.Name;
             line.UnitName = unit.Name;
             line.Quantity = quantity;
@@ -271,6 +347,13 @@ namespace RaccoonWarehouse.Orders
             QuantityTextBox.Clear();
             UnitPriceTextBox.Clear();
         }
+
+    private static string GetBarcode(string? itemCode, string? alternateBarcode)
+    {
+        return !string.IsNullOrWhiteSpace(alternateBarcode)
+            ? alternateBarcode
+            : itemCode ?? string.Empty;
+    }
 
         private void UpdateDisplayedTotal()
         {
@@ -483,6 +566,74 @@ namespace RaccoonWarehouse.Orders
         {
             Close();
         }
+
+        private async void ExportPdf_Click(object sender, RoutedEventArgs e)
+        {
+            await WithInvoiceActionAsync(invoice =>
+            {
+                var dialog = new Microsoft.Win32.SaveFileDialog
+                {
+                    Filter = "PDF Files (*.pdf)|*.pdf",
+                    FileName = $"Invoice_{invoice.InvoiceNumber}.pdf"
+                };
+
+                if (dialog.ShowDialog(this) != true)
+                    return;
+
+                PdfGenerator.SalesInvoice(invoice, dialog.FileName);
+                MessageBox.Show(
+                    UiText.T("تم تصدير الفاتورة بنجاح.", "The invoice was exported successfully."),
+                    UiText.T("تم الحفظ", "Saved"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            });
+        }
+
+        private async void PrintInvoice_Click(object sender, RoutedEventArgs e)
+        {
+            await WithInvoiceActionAsync(invoice => ReportPrintService.PrintSmallInvoice(invoice, this));
+        }
+
+        private async Task WithInvoiceActionAsync(Action<InvoiceReadDto> action)
+        {
+            var loadingShown = false;
+            try
+            {
+                ExportPdfButton.IsEnabled = false;
+                PrintInvoiceButton.IsEnabled = false;
+                _loadingService.Show();
+                loadingShown = true;
+
+                var invoice = await _invoiceService.GetFullInvoiceByIdAsync(_invoiceId);
+                if (invoice == null)
+                {
+                    MessageBox.Show(
+                        UiText.T("لم يتم العثور على الفاتورة.", "Invoice was not found."),
+                        UiText.T("خطأ", "Error"),
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    return;
+                }
+
+                action(invoice);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"{UiText.T("تعذر تنفيذ إجراء الفاتورة", "Could not complete the invoice action")}: {ex.Message}",
+                    UiText.T("خطأ", "Error"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+            finally
+            {
+                if (loadingShown)
+                    _loadingService.Hide();
+
+                ExportPdfButton.IsEnabled = true;
+                PrintInvoiceButton.IsEnabled = true;
+            }
+        }
     }
 
     public sealed class OrderInvoiceLineRow
@@ -490,6 +641,7 @@ namespace RaccoonWarehouse.Orders
         public int InvoiceLineId { get; set; }
         public int ProductId { get; set; }
         public int ProductUnitId { get; set; }
+        public string Barcode { get; set; } = string.Empty;
         public string ProductName { get; set; } = string.Empty;
         public string UnitName { get; set; } = string.Empty;
         public decimal Quantity { get; set; }
@@ -512,6 +664,7 @@ namespace RaccoonWarehouse.Orders
     {
         public int Id { get; set; }
         public string Name { get; set; } = string.Empty;
+        public string ItemCode { get; set; } = string.Empty;
         public List<OrderUnitOption> Units { get; set; } = new();
     }
 
@@ -520,5 +673,6 @@ namespace RaccoonWarehouse.Orders
         public int Id { get; set; }
         public string Name { get; set; } = string.Empty;
         public decimal SalePrice { get; set; }
+        public string? Barcode { get; set; }
     }
 }

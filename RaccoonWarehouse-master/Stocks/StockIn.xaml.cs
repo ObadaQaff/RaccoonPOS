@@ -112,16 +112,23 @@ namespace RaccoonWarehouse.Stocks
         {
             if (e.Key == Key.F1)
             {
+                SearchProductBtn_Click(this, new RoutedEventArgs());
+                e.Handled = true;
+                return;
+            }
+
+            if (e.Key == Key.F2)
+            {
                 SaveStockInBtn_Click(SaveStockInBtn, new RoutedEventArgs());
                 e.Handled = true;
                 return;
             }
 
-            if (e.Key != Key.F2)
-                return;
-
-            SearchProductBtn_Click(this, new RoutedEventArgs());
-            e.Handled = true;
+            if (e.Key == Key.Delete)
+            {
+                DeleteProduct_Click(this, new RoutedEventArgs());
+                e.Handled = true;
+            }
         }
 
 

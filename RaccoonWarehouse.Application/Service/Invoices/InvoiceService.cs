@@ -69,6 +69,24 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 var lineRepo = _uow.GetRepository<InvoiceLine>();
                 var checkRepo = _uow.GetRepository<Check>();
 
+                var normalizedFalconInvoiceNumber = dto.FalconInvoiceNumber?.Trim();
+                if (dto.IsPOS == true && string.IsNullOrWhiteSpace(normalizedFalconInvoiceNumber))
+                    return Result<InvoiceWriteDto>.Fail("Falcon invoice number is required / رقم فالكون مطلوب.");
+
+                if (dto.IsPOS == true)
+                {
+                    var falconNumberExists = await invoiceRepo.GetAllAsQueryable()
+                        .AnyAsync(invoice =>
+                            invoice.IsPOS == true
+                            && invoice.FalconInvoiceNumber == normalizedFalconInvoiceNumber
+                            && invoice.Id != dto.Id);
+
+                    if (falconNumberExists)
+                        return Result<InvoiceWriteDto>.Fail("Falcon invoice number already exists / رقم فالكون موجود مسبقاً.");
+
+                    dto.FalconInvoiceNumber = normalizedFalconInvoiceNumber;
+                }
+
                 if (dto.Id <= 0)
                 {
                     if (!int.TryParse(dto.InvoiceNumber, out var invoiceNumber) || invoiceNumber < 100 || invoiceNumber > 99999)
@@ -106,7 +124,8 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                     var lineTotal = grossLineTotal - l.LineDiscountAmount;
                     var taxRate = l.TaxExempt ? 0m : l.TaxRate;
                     var isPurchaseInvoice = dto.InvoiceType is InvoiceType.Purchase or InvoiceType.PurchaseReturn;
-                    var includesTax = isPurchaseInvoice && dto.CostPriceIncludesTax;
+                    // Sales prices are tax-inclusive; purchases depend on the invoice setting.
+                    var includesTax = !isPurchaseInvoice || dto.CostPriceIncludesTax;
                     var divisor = includesTax ? 1m + (taxRate / 100m) : 1m;
 
                     l.LineSubTotal = l.TaxExempt || divisor <= 0m
@@ -139,6 +158,11 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 dto.NetSales = dto.SubTotal - (dto.DiscountAmount ?? 0m); // قبل الضريبة
                 dto.GrossProfit = dto.NetSales - dto.TotalCOGS;
                 LogInvoiceTiming("invoice line normalization and totals", totalTiming, stepTiming);
+                var paymentValidation = dto.Status is InvoiceStatus.OnHold or InvoiceStatus.Cancelled
+                    ? null
+                    : NormalizeAndValidatePayments(dto);
+                if (paymentValidation != null)
+                    return Result<InvoiceWriteDto>.Fail(paymentValidation);
                 var checkValidation = ValidateChecks(dto);
                 if (checkValidation != null)
                     return Result<InvoiceWriteDto>.Fail(checkValidation);
@@ -147,6 +171,7 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 dto.UpdatedDate = DateTime.Now;
 
                 // 3) أنشئ invoice بدون lines (مهم)
+                await using var createTransaction = await _uow.BeginTransactionAsync();
                 var invoice = _mapper.Map<Invoice>(dto);
                 invoice.InvoiceLines = new List<InvoiceLine>();
                 invoice.Checks = new List<Check>();
@@ -160,10 +185,22 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 {
                     var line = _mapper.Map<InvoiceLine>(l);
 
+                    line.Id = 0;
                     line.InvoiceId = invoice.Id;  // ✅ أهم سطر
                     line.Invoice = null;          // اختياري لتجنب tracking issues
+                    line.Product = null;
+                    line.ProductUnit = null;
 
                     await lineRepo.AddAsync(line);
+                }
+
+                foreach (var paymentDto in dto.Payments ?? Enumerable.Empty<InvoicePaymentWriteDto>())
+                {
+                    var payment = _mapper.Map<InvoicePayment>(paymentDto);
+                    payment.Id = 0;
+                    payment.InvoiceId = invoice.Id;
+                    payment.Invoice = null;
+                    await _uow.GetRepository<InvoicePayment>().AddAsync(payment);
                 }
 
                 foreach (var checkDto in dto.Checks ?? Enumerable.Empty<Domain.Checks.DTOs.CheckWriteDto>())
@@ -176,16 +213,23 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 }
 
                 await _uow.CommitAsync();
+                await createTransaction.CommitAsync();
                 LogInvoiceTiming("invoice lines and checks database save", totalTiming, stepTiming);
 
                 dto.Id = invoice.Id;
-                if (_accountingService != null && !dto.DeferAccountingPosting)
+                var shouldPostAccounting = _accountingService != null
+                    && !dto.DeferAccountingPosting
+                    && dto.Status is not InvoiceStatus.Draft
+                    && dto.Status is not InvoiceStatus.OnHold;
+
+                if (shouldPostAccounting)
                 {
                     var journalResult = await _accountingService.PostInvoiceEntryAsync(dto);
                     LogInvoiceTiming("invoice accounting entry", totalTiming, stepTiming);
                     if (!journalResult.Success)
                     {
                         _context.Set<InvoiceLine>().RemoveRange(_context.Set<InvoiceLine>().Where(x => x.InvoiceId == invoice.Id));
+                        _context.Set<InvoicePayment>().RemoveRange(_context.Set<InvoicePayment>().Where(x => x.InvoiceId == invoice.Id));
                         _context.Set<Check>().RemoveRange(_context.Set<Check>().Where(x => x.InvoiceId == invoice.Id));
                         _context.Set<Invoice>().Remove(invoice);
                         await _uow.CommitAsync();
@@ -231,8 +275,27 @@ namespace RaccoonWarehouse.Application.Service.Invoices
 
                 var invoiceRepo = _uow.GetRepository<Invoice>();
                 var lineRepo = _uow.GetRepository<InvoiceLine>();
+                var normalizedFalconInvoiceNumber = dto.FalconInvoiceNumber?.Trim();
+                if (dto.IsPOS == true && string.IsNullOrWhiteSpace(normalizedFalconInvoiceNumber))
+                    return Result<InvoiceWriteDto>.Fail("Falcon invoice number is required / رقم فالكون مطلوب.");
+
+                if (dto.IsPOS == true)
+                {
+                    var falconNumberExists = await invoiceRepo.GetAllAsQueryable()
+                        .AnyAsync(invoice =>
+                            invoice.IsPOS == true
+                            && invoice.FalconInvoiceNumber == normalizedFalconInvoiceNumber
+                            && invoice.Id != dto.Id);
+
+                    if (falconNumberExists)
+                        return Result<InvoiceWriteDto>.Fail("Falcon invoice number already exists / رقم فالكون موجود مسبقاً.");
+
+                    dto.FalconInvoiceNumber = normalizedFalconInvoiceNumber;
+                }
+
                 var existingInvoice = await invoiceRepo.GetAllAsQueryable()
                     .Include(x => x.InvoiceLines)
+                    .Include(x => x.Payments)
                     .Include(x => x.Checks)
                     .FirstOrDefaultAsync(x => x.Id == dto.Id);
 
@@ -255,6 +318,11 @@ namespace RaccoonWarehouse.Application.Service.Invoices
 
                 await NormalizeInvoiceLinesAsync(dto.InvoiceLines);
                 ApplyInvoiceTotals(dto, existingInvoice.CreatedDate);
+                var paymentValidation = dto.Status is InvoiceStatus.OnHold or InvoiceStatus.Cancelled
+                    ? null
+                    : NormalizeAndValidatePayments(dto);
+                if (paymentValidation != null)
+                    return Result<InvoiceWriteDto>.Fail(paymentValidation);
                 var checkValidation = ValidateChecks(dto);
                 if (checkValidation != null)
                     return Result<InvoiceWriteDto>.Fail(checkValidation);
@@ -267,6 +335,7 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                     and not InvoiceStatus.InProcess;
 
                 var existingLines = existingInvoice.InvoiceLines?.ToList() ?? new List<InvoiceLine>();
+                var existingPayments = existingInvoice.Payments?.ToList() ?? new List<InvoicePayment>();
                 var existingChecks = existingInvoice.Checks?.ToList() ?? new List<Check>();
 
                 _mapper.Map(dto, existingInvoice);
@@ -275,22 +344,38 @@ namespace RaccoonWarehouse.Application.Service.Invoices
 
                 if (existingLines.Count > 0)
                     _context.Set<InvoiceLine>().RemoveRange(existingLines);
+                if (existingPayments.Count > 0)
+                    _context.Set<InvoicePayment>().RemoveRange(existingPayments);
                 if (existingChecks.Count > 0)
                     _context.Set<Check>().RemoveRange(existingChecks);
 
                 existingInvoice.InvoiceLines = new List<InvoiceLine>();
+                existingInvoice.Payments = new List<InvoicePayment>();
                 existingInvoice.Checks = new List<Check>();
 
+                await using var updateTransaction = await _uow.BeginTransactionAsync();
                 await _uow.CommitAsync();
 
                 foreach (var lineDto in dto.InvoiceLines)
                 {
                     var line = _mapper.Map<InvoiceLine>(lineDto);
+                    line.Id = 0;
                     line.InvoiceId = existingInvoice.Id;
                     line.Invoice = null;
+                    line.Product = null;
+                    line.ProductUnit = null;
                     line.CreatedDate = lineDto.CreatedDate == default ? dto.CreatedDate : lineDto.CreatedDate;
                     line.UpdatedDate = dto.UpdatedDate;
                     await lineRepo.AddAsync(line);
+                }
+
+                foreach (var paymentDto in dto.Payments ?? Enumerable.Empty<InvoicePaymentWriteDto>())
+                {
+                    var payment = _mapper.Map<InvoicePayment>(paymentDto);
+                    payment.Id = 0;
+                    payment.InvoiceId = existingInvoice.Id;
+                    payment.Invoice = null;
+                    await _uow.GetRepository<InvoicePayment>().AddAsync(payment);
                 }
 
                 var checkRepo = _uow.GetRepository<Check>();
@@ -304,8 +389,13 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 }
 
                 await _uow.CommitAsync();
+                await updateTransaction.CommitAsync();
 
-                if (_accountingService != null)
+                var shouldPostAccounting = _accountingService != null
+                    && dto.Status is not InvoiceStatus.Draft
+                    && dto.Status is not InvoiceStatus.OnHold;
+
+                if (shouldPostAccounting)
                 {
                     if (hadPostedAccounting)
                     {
@@ -337,15 +427,49 @@ namespace RaccoonWarehouse.Application.Service.Invoices
         {
             if (dto.InvoiceType is InvoiceType.Purchase or InvoiceType.PurchaseReturn)
             {
-                return dto.PaymentType == PaymentType.Credit && !dto.SupplierId.HasValue
+                return HasPaymentType(dto, PaymentType.Credit) && !dto.SupplierId.HasValue
                     ? "A supplier is required for credit purchase invoices."
                     : null;
             }
 
-            if (dto.PaymentType == PaymentType.Credit && !dto.CustomerId.HasValue)
+            if (HasPaymentType(dto, PaymentType.Credit) && !dto.CustomerId.HasValue)
                 return "A customer is required for credit sales invoices.";
 
             return null;
+        }
+
+        private static bool HasPaymentType(InvoiceWriteDto dto, PaymentType paymentType) =>
+            (dto.Payments?.Any(payment => payment.PaymentType == paymentType && payment.Amount > 0m) ?? false)
+            || ((dto.Payments == null || dto.Payments.Count == 0) && dto.PaymentType == paymentType);
+
+        private static string? NormalizeAndValidatePayments(InvoiceWriteDto dto)
+        {
+            var payments = dto.Payments?.Where(payment => payment.Amount > 0m).ToList()
+                ?? new List<InvoicePaymentWriteDto>();
+
+            if (payments.Count == 0)
+            {
+                if (!dto.PaymentType.HasValue)
+                    return "A payment method is required.";
+
+                payments.Add(new InvoicePaymentWriteDto
+                {
+                    PaymentType = dto.PaymentType.Value,
+                    Amount = Math.Abs(dto.TotalAmount)
+                });
+            }
+
+            if (payments.GroupBy(payment => payment.PaymentType).Any(group => group.Count() > 1))
+                return "Each payment method can appear only once.";
+
+            var expected = Math.Round(Math.Abs(dto.TotalAmount), 3);
+            var actual = Math.Round(payments.Sum(payment => payment.Amount), 3);
+            if (actual != expected)
+                return $"Payment amounts must equal the invoice total ({expected:0.000}).";
+
+            dto.Payments = payments;
+            dto.PaymentType = payments[0].PaymentType;
+            return ValidateCreditParty(dto);
         }
 
         private static async Task<string?> ValidateReturnPaymentTermsAsync(
@@ -378,7 +502,9 @@ namespace RaccoonWarehouse.Application.Service.Invoices
 
         private static string? ValidateChecks(InvoiceWriteDto dto)
         {
-            if (dto.PaymentType != PaymentType.Check)
+            var checkPayment = dto.Payments?.FirstOrDefault(payment =>
+                payment.PaymentType == PaymentType.Check && payment.Amount > 0m);
+            if (checkPayment == null && dto.PaymentType != PaymentType.Check)
                 return null;
 
             var checks = dto.Checks?.ToList() ?? new List<Domain.Checks.DTOs.CheckWriteDto>();
@@ -388,7 +514,8 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 return "Check number, positive amount, and due date are required.";
             if (checks.GroupBy(x => x.CheckNumber.Trim(), StringComparer.OrdinalIgnoreCase).Any(x => x.Count() > 1))
                 return "Check numbers cannot be duplicated within an invoice.";
-            if (Math.Round(checks.Sum(x => x.Amount), 3) != Math.Round(dto.TotalAmount, 3))
+            var expectedAmount = checkPayment?.Amount ?? Math.Abs(dto.TotalAmount);
+            if (Math.Round(checks.Sum(x => x.Amount), 3) != Math.Round(expectedAmount, 3))
                 return "The total check amount must equal the invoice total.";
 
             return null;
@@ -448,7 +575,8 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 var lineTotal = grossLineTotal - l.LineDiscountAmount;
                 var taxRate = l.TaxExempt ? 0m : l.TaxRate;
                 var isPurchaseInvoice = dto.InvoiceType is InvoiceType.Purchase or InvoiceType.PurchaseReturn;
-                var includesTax = isPurchaseInvoice && dto.CostPriceIncludesTax;
+                // Sales prices are tax-inclusive; purchases depend on the invoice setting.
+                var includesTax = !isPurchaseInvoice || dto.CostPriceIncludesTax;
                 var divisor = includesTax ? 1m + (taxRate / 100m) : 1m;
 
                 l.LineSubTotal = l.TaxExempt || divisor <= 0m
@@ -498,7 +626,8 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 var lineTotal = grossLineTotal - line.LineDiscountAmount;
                 var rate = line.TaxExempt ? 0m : line.TaxRate;
                 var isPurchaseInvoice = invoice.InvoiceType is InvoiceType.Purchase or InvoiceType.PurchaseReturn;
-                var includesTax = isPurchaseInvoice && invoice.CostPriceIncludesTax;
+                // Sales prices are tax-inclusive; purchases depend on the invoice setting.
+                var includesTax = !isPurchaseInvoice || invoice.CostPriceIncludesTax;
                 var divisor = includesTax ? 1m + (rate / 100m) : 1m;
                 line.LineSubTotal = line.TaxExempt || divisor <= 0m
                     ? lineTotal
@@ -589,6 +718,7 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                     .ThenInclude(l => l.ProductUnit)
                         .ThenInclude(u => u.Unit)
                 .Include(i => i.Checks)
+                .Include(i => i.Payments)
                 .Include(i => i.User)          // customer
                 .Include(i => i.Delegate)
                 .Include(i => i.Voucher)       // voucher (optional)
@@ -636,6 +766,7 @@ namespace RaccoonWarehouse.Application.Service.Invoices
 
                 var query = _uow.Invoices.GetAllAsQueryable()
                        .Include(i => i.InvoiceLines)
+                       .Include(i => i.Payments)
                        .Include(i => i.User)
                        .Include(i => i.Delegate)
                        .AsNoTracking();
@@ -665,7 +796,10 @@ namespace RaccoonWarehouse.Application.Service.Invoices
 
                 if (!string.IsNullOrWhiteSpace(invoiceNumber))
                 {
-                    query = query.Where(i => i.InvoiceNumber == invoiceNumber);
+                    var identifier = invoiceNumber.Trim();
+                    query = query.Where(i =>
+                        i.InvoiceNumber == identifier ||
+                        i.FalconInvoiceNumber == identifier);
                 }
 
                 if (!string.IsNullOrWhiteSpace(customerName))
@@ -744,6 +878,7 @@ namespace RaccoonWarehouse.Application.Service.Invoices
             var lineRepo = _uow.GetRepository<InvoiceLine>();
 
             var invoicesQ = invoiceRepo.GetAllAsQueryable()
+                .AsNoTracking()
                 .Where(x => x.CreatedDate >= filter.From && x.CreatedDate <= filter.To);
 
             if (filter.CustomerId.HasValue)
@@ -753,7 +888,9 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 invoicesQ = invoicesQ.Where(x => x.CasherId == filter.CashierId.Value);
 
             if (filter.PaymentType.HasValue)
-                invoicesQ = invoicesQ.Where(x => x.PaymentType == filter.PaymentType.Value);
+                invoicesQ = invoicesQ.Where(x =>
+                    x.PaymentType == filter.PaymentType.Value ||
+                    x.Payments!.Any(payment => payment.PaymentType == filter.PaymentType.Value && payment.Amount > 0m));
 
             if (type.HasValue)
                 invoicesQ = invoicesQ.Where(x => x.InvoiceType == type.Value);
@@ -779,19 +916,35 @@ namespace RaccoonWarehouse.Application.Service.Invoices
             var invoiceIds = await invoicesQ.Select(x => x.Id).ToListAsync();
 
             var lines = await lineRepo.GetAllAsQueryable()
+                .AsNoTracking()
                 .Where(l => invoiceIds.Contains(l.InvoiceId))
                 .ToListAsync();
 
-            var linesByInvoice = lines.GroupBy(l => l.InvoiceId)
+                var linesByInvoice = lines.GroupBy(l => l.InvoiceId)
                 .ToDictionary(g => g.Key, g => new
                 {
                     Cogs = g.Sum(x => x.Quantity * x.UnitCost),
                     SubTotal = g.Sum(x => x.LineSubTotal),
-                    Tax = g.Sum(x => x.TaxAmount)
+                    Tax = g.Sum(x => x.TaxAmount > 0m
+                        ? x.TaxAmount
+                        : !x.TaxExempt && x.TaxRate > 0m
+                            ? Math.Round(
+                                Math.Max(0m, x.Quantity * x.UnitPrice - x.LineDiscountAmount)
+                                * x.TaxRate / (100m + x.TaxRate),
+                                3)
+                            : 0m),
+                    SaleSettlementTotal = g.Where(x => x.Quantity > 0m)
+                        .Sum(x => x.Quantity * x.UnitPrice),
+                    ReturnSettlementTotal = Math.Abs(g.Where(x => x.Quantity < 0m)
+                        .Sum(x => x.Quantity * x.UnitPrice)),
+                    ReturnAmount = g.Sum(x => x.Quantity < 0m
+                        ? Math.Abs(x.Quantity * x.UnitPrice)
+                        : 0m)
                 });
 
             var invoices = await invoicesQ
                 .Include(x => x.User) // customer
+                .Include(x => x.Payments)
                 .ToListAsync();
 
             var cashierIds = invoices
@@ -814,9 +967,19 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 var subTotal = agg?.SubTotal ?? inv.SubTotal;     // prefer lines, fallback invoice
                 var tax = agg?.Tax ?? inv.TotalTax;
                 var cogs = agg?.Cogs ?? inv.TotalCOGS;
+                var returnAmount = inv.InvoiceType == InvoiceType.Return
+                    ? agg?.ReturnAmount ?? Math.Abs(Math.Min(subTotal, 0m))
+                    : 0m;
 
                 var total = subTotal - discount + tax;
                 var profit = (subTotal - discount) - cogs;
+                var invoiceSign = inv.TotalAmount < 0m ? -1m : 1m;
+                var paymentAmounts = (inv.Payments ?? new List<InvoicePayment>())
+                    .Where(payment => payment.Amount > 0m)
+                    .GroupBy(payment => payment.PaymentType)
+                    .ToDictionary(group => group.Key, group => invoiceSign * group.Sum(payment => payment.Amount));
+                if (paymentAmounts.Count == 0 && inv.PaymentType.HasValue)
+                    paymentAmounts[inv.PaymentType.Value] = invoiceSign * Math.Abs(inv.TotalAmount);
 
                 return new SalesReportRowDto
                 {
@@ -829,6 +992,7 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                         : "—",
 
                     SubTotal = subTotal,
+                    ReturnAmount = returnAmount,
                     TotalTax = tax,
                     Discount = discount,
                     Total = total,
@@ -837,7 +1001,8 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                     Profit = profit,
 
                     InvoiceType = inv.InvoiceType.ToString(),
-                    PaymentMethod = inv.PaymentType?.ToString() ?? "—",
+                    PaymentMethod = paymentAmounts.Count > 1 ? "Mixed" : paymentAmounts.Keys.FirstOrDefault().ToString(),
+                    PaymentAmounts = paymentAmounts,
                     Status = inv.Status?.ToString() ?? "—"
                 };
             }).OrderByDescending(r => r.Date).ToList();
@@ -859,7 +1024,7 @@ namespace RaccoonWarehouse.Application.Service.Invoices
             var totalDiscounts = countedSales.Sum(r => r.Discount);
 
             var totalReturns = filter.IncludeReturns
-                ? rows.Where(r => r.InvoiceType == InvoiceType.Return.ToString()).Sum(r => r.SubTotal)
+                ? rows.Where(r => r.InvoiceType == InvoiceType.Return.ToString()).Sum(r => r.ReturnAmount)
                 : 0m;
 
             var netSales = (totalSales - totalReturns) - totalDiscounts; // قبل الضريبة
@@ -887,6 +1052,27 @@ namespace RaccoonWarehouse.Application.Service.Invoices
             };
 
             return Result<(FinancialSummaryDto, List<SalesReportRowDto>)>.Ok((summary, rows));
+        }
+
+        public async Task<InvoiceReadDto?> FindPOSInvoiceByFalconNumberAsync(
+            string falconInvoiceNumber,
+            int? excludeInvoiceId = null)
+        {
+            var identifier = falconInvoiceNumber?.Trim();
+            if (string.IsNullOrWhiteSpace(identifier))
+                return null;
+
+            var query = _uow.Invoices.GetAllAsQueryable()
+                .AsNoTracking()
+                .Where(invoice =>
+                    invoice.IsPOS == true &&
+                    invoice.FalconInvoiceNumber == identifier);
+
+            if (excludeInvoiceId.HasValue)
+                query = query.Where(invoice => invoice.Id != excludeInvoiceId.Value);
+
+            var invoice = await query.FirstOrDefaultAsync();
+            return invoice == null ? null : _mapper.Map<InvoiceReadDto>(invoice);
         }
 
         public async Task<Result<(DateTime? from, DateTime? to)>> GetSalesReportDateRangeAsync()
@@ -930,6 +1116,10 @@ namespace RaccoonWarehouse.Application.Service.Invoices
           bool? isSal,
           bool? isPOS = null,
           InvoiceStatus? status = null);
+
+        Task<InvoiceReadDto?> FindPOSInvoiceByFalconNumberAsync(
+            string falconInvoiceNumber,
+            int? excludeInvoiceId = null);
 
 
         Task<InvoiceReadDto?> GetFullInvoiceByIdAsync(int id);

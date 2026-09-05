@@ -1,5 +1,7 @@
 namespace RaccoonWarehouse.Domain.ChatAssistant.DTOs;
 
+using System.Text.Json.Serialization;
+
 public sealed class ChatAssistantHelpTopicDto
 {
     public string Id { get; init; } = string.Empty;
@@ -11,4 +13,10 @@ public sealed class ChatAssistantHelpTopicDto
     public string? ActionKey { get; init; }
     public string? ActionLabelEn { get; init; }
     public string? ActionLabelAr { get; init; }
+
+    [JsonIgnore]
+    public double MatchScore { get; set; }
+
+    [JsonIgnore]
+    public bool IsAmbiguous { get; set; }
 }

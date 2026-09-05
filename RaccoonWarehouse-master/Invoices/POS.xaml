@@ -679,7 +679,13 @@
                                  Padding="8,0"
                                  VerticalContentAlignment="Center"
                                  TextAlignment="Left"
-                                 Style="{StaticResource AppSearchTextBoxStyle}"/>
+                                 Style="{StaticResource AppSearchTextBoxStyle}"
+                                 TextChanged="FalconInvoiceNumberTextBox_TextChanged"/>
+                        <TextBlock x:Name="FalconInvoiceValidationText"
+                                   Foreground="#C62828"
+                                   FontSize="10"
+                                   TextWrapping="Wrap"
+                                   Visibility="Collapsed"/>
                     </StackPanel>
 
                     <Border Grid.Column="5" Margin="16,0,0,0" Padding="12,6"
@@ -1181,8 +1187,15 @@
                                 <TextBlock Text="آجل" Margin="6,0,0,0"/>
                             </StackPanel>
                         </Button>
-                        <!-- spare slot can hold a future method -->
-                        <Border/>
+                        <Button Style="{StaticResource PaymentBtn}"
+                                Background="#7A5AA6"
+                                Click="SplitPaymentBtn_Click"
+                                ToolTip="Split payment">
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <iconPacks:PackIconMaterial Kind="CallSplit" Width="15" Height="15"/>
+                                <TextBlock Text="Split" Margin="6,0,0,0"/>
+                            </StackPanel>
+                        </Button>
                     </UniformGrid>
                 </StackPanel>
             </Border>

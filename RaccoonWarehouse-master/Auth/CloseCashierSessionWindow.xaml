@@ -150,12 +150,14 @@
                     Click="Cancel_Click"/>
 
             <Button Grid.Column="2"
+                    x:Name="CloseSessionButton"
                     Height="44"
                     Background="#C62828"
                     Foreground="White"
                     FontWeight="Bold"
                     BorderThickness="0"
                     Cursor="Hand"
+                    IsEnabled="False"
                     Content="إنهاء الجلسة"
                     Click="CloseSession_Click"/>
         </Grid>
