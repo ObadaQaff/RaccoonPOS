@@ -1398,6 +1398,7 @@ namespace RaccoonWarehouse.Invoices
             DiscountSummaryText.Text = discount.ToString("0.00000");
             NetTotalText.Text = _currentInvoice.TotalAmount.ToString("0.00000");
         }
+        #region Product, unit, stock, and pricing helpers
         private ProductReadDto? FindProductForLine(InvoiceLineWriteDto line)
         {
             if (line.SelectedProduct != null)
@@ -1729,6 +1730,8 @@ namespace RaccoonWarehouse.Invoices
 
             return true;
         }
+        #endregion
+
         private async void InvoiceGrid_CellEditEnding(object sender, DataGridCellEditEndingEventArgs e)
         {
             if (e.EditAction != DataGridEditAction.Commit || e.Row.Item is not InvoiceLineWriteDto line)
@@ -1850,6 +1853,7 @@ namespace RaccoonWarehouse.Invoices
             await ProcessPendingFefoSplitAsync();
         }
 
+        #region Stock availability and FEFO allocation
         private async Task<InvoiceLineWriteDto?> ProcessPendingFefoSplitAsync()
         {
             if (!_hasPendingFefoSplit || _pendingFefoEditedLine == null || _isProcessingPendingFefoSplit)
@@ -2641,6 +2645,8 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
         }
 
 
+        #endregion
+
         private bool CanSaveInvoice()
         {
             if (string.IsNullOrWhiteSpace(FalconInvoiceNumberTextBox.Text))
@@ -2806,6 +2812,7 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
             Interlocked.Increment(ref _falconValidationVersion);
         }
 
+        #region Return and exchange validation helpers
         private async Task<InvoiceWriteDto?> LoadOriginalInvoiceForReturnOrExchangeAsync(string? invoiceNumber)
         {
             if (string.IsNullOrWhiteSpace(invoiceNumber))
@@ -3078,6 +3085,8 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
             return true;
         }
 
+        #endregion
+
         private void ApplyOriginalCreditTerms(InvoiceWriteDto originalInvoice)
         {
             if (originalInvoice.PaymentType != PaymentType.Credit)
@@ -3088,6 +3097,7 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
             SelectInvoiceCustomer(originalInvoice.CustomerId);
         }
 
+        #region Customer selection and filtering
         private void SelectInvoiceCustomer(int? customerId)
         {
             if (!customerId.HasValue || _allCustomers == null)
@@ -3350,6 +3360,8 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
                 FocusBarcodeInputDeferred();
             }
         }
+
+        #endregion
 
         private async void ChangePaymentMethodBtn_Click(object sender, RoutedEventArgs e)
         {
@@ -4397,6 +4409,7 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
             RecalculateTotals();
         }
 
+        #region Printing, receipts, reports, and display actions
         // ===================== PRINTING AND RECEIPTS =====================
         private void InvoiceGrid_LoadingRow(object? sender, DataGridRowEventArgs e)
         {
@@ -4526,6 +4539,8 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
                     _loading.Hide();
             }
         }
+
+        #endregion
 
         #region Product search and suggestions
         // Keep track of the current Popup for the editing cell
