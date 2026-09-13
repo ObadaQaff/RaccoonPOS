@@ -3,6 +3,7 @@ using RaccoonWarehouse.Application.Service.Invoices;
 using RaccoonWarehouse.Application.Service.Stocks;
 using RaccoonWarehouse.Application.Service.Accounting;
 using RaccoonWarehouse.Core.Common;
+using RaccoonWarehouse.Core.Audit;
 using RaccoonWarehouse.Core.Interface;
 using RaccoonWarehouse.Domain.Cashiers.DTOs;
 using RaccoonWarehouse.Domain.Enums;
@@ -42,19 +43,22 @@ namespace RaccoonWarehouse.Application.Service.Sales
         private readonly IFinancialTransactionService _financialService;
         private readonly IAccountingOperationService _accountingOperationService;
         private readonly IUOW _uow;
+        private readonly IAuditLogService _auditLogService;
 
         public SaleCheckoutService(
             IInvoiceService invoiceService,
             IStockService stockService,
             IFinancialTransactionService financialService,
             IAccountingOperationService accountingOperationService,
-            IUOW uow)
+            IUOW uow,
+            IAuditLogService auditLogService)
         {
             _invoiceService = invoiceService;
             _stockService = stockService;
             _financialService = financialService;
             _accountingOperationService = accountingOperationService;
             _uow = uow;
+            _auditLogService = auditLogService;
         }
 
         public async Task<Result<SaleCheckoutResult>> CompleteAsync(SaleCheckoutRequest request)
@@ -139,6 +143,11 @@ namespace RaccoonWarehouse.Application.Service.Sales
                 await transaction.CommitAsync();
                 LogTiming("checkout transaction commit", timing, stepTiming);
                 PosPerformanceLogger.Write("checkout total", timing.ElapsedMilliseconds, timing.ElapsedMilliseconds);
+                await _auditLogService.WriteAsync(new AuditEvent(
+                    "Invoice.Checkout",
+                    PermissionKey: "SalesInvoice.Create",
+                    EntityType: "Invoice",
+                    EntityId: savedInvoiceId));
 
                 return Result<SaleCheckoutResult>.Ok(
                     new SaleCheckoutResult
