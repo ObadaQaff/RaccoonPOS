@@ -2,8 +2,10 @@ using Microsoft.Extensions.DependencyInjection;
 using RaccoonWarehouse.Application.Service.AuthService;
 using RaccoonWarehouse.Application.Service.Cashers;
 using RaccoonWarehouse.Application.Service.FinancialTransactions;
+using RaccoonWarehouse.Application.Service.Permissions;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Domain.Cashiers.DTOs;
+using RaccoonWarehouse.Domain.Permissions;
 using System;
 using System.Windows;
 using System.Windows.Controls;
@@ -18,19 +20,22 @@ namespace RaccoonWarehouse.Auth
         private readonly ICashierSessionService _cashierSessionService;
         private readonly IUserSession _userSession;
         private readonly IAuthService _authService;
+        private readonly IPermissionService _permissionService;
 
         public LoginWindow(
             IServiceProvider serviceProvider,
             ICashierSessionService cashierSessionService,
             IUserSession userSession,
             IAuthService authService,
-            IFinancialTransactionService financialTransactionService)
+            IFinancialTransactionService financialTransactionService,
+            IPermissionService permissionService)
         {
             InitializeComponent();
             _serviceProvider = serviceProvider;
             _cashierSessionService = cashierSessionService;
             _userSession = userSession;
             _authService = authService;
+            _permissionService = permissionService;
         }
 
         private void Window_Loaded(object sender, RoutedEventArgs e)
@@ -115,6 +120,7 @@ namespace RaccoonWarehouse.Auth
                 }
 
                 _userSession.SetCurrentUser(user);
+                await LoadSessionPermissionsAsync(user.Role);
 
                 var openSession = await _cashierSessionService.GetOpenSessionByCashierAsync(user.Id);
                 CashierSessionReadDto session;
@@ -156,6 +162,13 @@ namespace RaccoonWarehouse.Auth
             {
                 SetLoading(false);
             }
+        }
+
+        private async Task LoadSessionPermissionsAsync(RaccoonWarehouse.Domain.Enums.UserRole role)
+        {
+            var permissionKeys = PermissionCatalog.All.Select(permission => permission.Key);
+            var permissions = await _permissionService.GetPermissionMapAsync(role, permissionKeys);
+            _userSession.CachePermissions(permissions);
         }
 
         private void SetLoading(bool isLoading)
