@@ -1244,12 +1244,6 @@ namespace RaccoonWarehouse.Invoices
             }
         }
 
-        private void RefreshProductBrowseState()
-        {
-            // Browse is server-driven in phase 1. Keep subcategory tabs as-is (already bound from stock load elsewhere if needed).
-            SyncCategoryTabSelection();
-        }
-
         private void SyncCategoryTabSelection()
         {
             foreach (var toggleButton in FindVisualChildren<ToggleButton>(CategoryTabsControl))
@@ -1302,13 +1296,6 @@ namespace RaccoonWarehouse.Invoices
 
             await AddProductToInvoiceAsync(product, moveFocusToQuantity: false);
             FocusBarcodeGridCellDeferred();
-        }
-
-        private void ResetProductDropdownState()
-        {
-            _loadedProductIds.Clear();
-            Products.Clear();
-            ProductSuggestions.Clear();
         }
 
         private async Task LoadSellableProductsAsync()
@@ -1532,20 +1519,6 @@ namespace RaccoonWarehouse.Invoices
                 return product;
 
             return null;
-        }
-
-        private async Task<List<ProductUnitReadDto>> LoadHydratedUnitsAsync(int productId)
-        {
-            if (_hydratedProductUnits.TryGetValue(productId, out var cachedUnits))
-                return cachedUnits;
-
-            var result = await _productUnitService.GetAllWithFilteringAndIncludeAsync(
-                unit => unit.ProductId == productId,
-                unit => unit.Unit);
-
-            var units = result.Data ?? new List<ProductUnitReadDto>();
-            _hydratedProductUnits[productId] = units;
-            return units;
         }
 
         private async Task<ProductReadDto?> ResolveProductForUnitsAsync(int productId)
