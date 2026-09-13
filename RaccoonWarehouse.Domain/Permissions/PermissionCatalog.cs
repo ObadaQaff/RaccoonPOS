@@ -54,6 +54,17 @@ namespace RaccoonWarehouse.Domain.Permissions
             AddResource(items, ref sort, "Administration", "Settings", "الإعدادات", "View", "ManageSettings");
             AddResource(items, ref sort, "Administration", "AuditLogs", "سجل المراجعة", "View", "Export");
 
+            AddResource(items, ref sort, "Accounting", "Accounting.Checks", "Checks", "View");
+            AddResource(items, ref sort, "Accounting", "Accounting.Accounts", "Accounts", "View");
+            AddResource(items, ref sort, "Accounting", "Accounting.JournalEntry", "Journal Entry", "Create");
+            AddResource(items, ref sort, "Accounting", "Accounting.JournalEntries", "Journal Entries", "View");
+            AddResource(items, ref sort, "Accounting", "Accounting.Operations", "Accounting Operations", "View");
+            AddResource(items, ref sort, "Accounting", "Accounting.TrialBalance", "Trial Balance", "View");
+            AddResource(items, ref sort, "Accounting", "Accounting.GeneralLedger", "General Ledger", "View");
+            AddResource(items, ref sort, "Accounting", "Accounting.BalanceSheet", "Balance Sheet", "View");
+            AddResource(items, ref sort, "Accounting", "Accounting.CustomerDebts", "Customer Debts", "View");
+            AddResource(items, ref sort, "Accounting", "Accounting.SupplierPayables", "Supplier Payables", "View");
+            AddResource(items, ref sort, "Accounting", "Accounting.PartyBalances", "Party Balances", "View");
             AddReportPermissions(items, ref sort);
             return items;
         }

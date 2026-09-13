@@ -289,7 +289,50 @@ namespace RaccoonWarehouse
         private async Task ShowDashboardModuleAsync(string moduleKey, RoutedEventHandler clickHandler, int maxColumns = 2)
         {
             var moduleDefinition = await _dashboardModules.GetDefinitionAsync(moduleKey);
-            ShowDashboardGroups(moduleDefinition.Groups, clickHandler, maxColumns);
+            var visibleGroups = new List<ModuleGroupDefinition>();
+            foreach (var group in moduleDefinition.Groups)
+            {
+                var visibleActions = new List<ModuleActionDefinition>();
+                foreach (var action in group.Actions)
+                {
+                    var permissionKey = ResolveDashboardPermissionKey(action);
+                    var canView = string.IsNullOrWhiteSpace(permissionKey) ||
+                        !(_userSession.CurrentRole is UserRole role) ||
+                        await _permissionService.HasPermissionAsync(role, permissionKey);
+                    if (canView)
+                        visibleActions.Add(action);
+                }
+
+                if (visibleActions.Count > 0)
+                    visibleGroups.Add(new ModuleGroupDefinition(group.Title, visibleActions));
+            }
+
+            ShowDashboardGroups(visibleGroups, clickHandler, maxColumns);
+        }
+
+        private static string? ResolveDashboardPermissionKey(ModuleActionDefinition action)
+        {
+            if (!string.IsNullOrWhiteSpace(action.PermissionKey))
+                return action.PermissionKey;
+
+            return action.Key switch
+            {
+                "Stocks.In" => "StockInVoucher.Create",
+                "Stocks.Out" => "StockOutVoucher.Create",
+                "Stocks.Adjustment" => "StockAdjustment.Create",
+                "Accounting.Checks" => "Accounting.Checks.View",
+                "Accounting.Accounts" => "Accounting.Accounts.View",
+                "Accounting.JournalEntry.Create" => "Accounting.JournalEntry.Create",
+                "Accounting.JournalEntries" => "Accounting.JournalEntries.View",
+                "Accounting.Operations" => "Accounting.Operations.View",
+                "Accounting.TrialBalance" => "Accounting.TrialBalance.View",
+                "Accounting.GeneralLedger" => "Accounting.GeneralLedger.View",
+                "Accounting.BalanceSheet" => "Accounting.BalanceSheet.View",
+                "Accounting.CustomerDebts" => "Accounting.CustomerDebts.View",
+                "Accounting.SupplierPayables" => "Accounting.SupplierPayables.View",
+                "Accounting.PartyBalances" => "Accounting.PartyBalances.View",
+                _ => null
+            };
         }
 
         private async Task RunSidebarNavigationAsync(Func<Task> navigation)
