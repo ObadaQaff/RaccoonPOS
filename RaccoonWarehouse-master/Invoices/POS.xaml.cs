@@ -5885,11 +5885,6 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
 
         #endif
         #endregion
-        private void BarcodeTextBox_TextChanged(object sender, TextChangedEventArgs e)
-        {
-
-        }
-
         #endregion
 
         #region SessionManagement

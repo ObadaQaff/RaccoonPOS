@@ -650,7 +650,7 @@
                                      FlowDirection="LeftToRight"
                                      ToolTip="Scan or enter barcode"
                                      PreviewKeyDown="BarcodeTextBox_PreviewKeyDown"
-                                     TextChanged="BarcodeTextBox_TextChanged"/>
+                                     />
                             <Border Grid.Column="1" Width="34" Height="34" Margin="4,0,0,0"
                                     Background="#EEF7EF" CornerRadius="8"
                                     HorizontalAlignment="Center" VerticalAlignment="Center">
