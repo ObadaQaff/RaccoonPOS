@@ -205,19 +205,28 @@ namespace RaccoonWarehouse.Application.Service.Permissions
             {
                 await EnsureSeedDataAsync();
                 var now = DateTime.Now;
+                var permissionList = permissions
+                    .Where(x => !string.IsNullOrWhiteSpace(x.PermissionKey))
+                    .GroupBy(x => x.PermissionKey, StringComparer.OrdinalIgnoreCase)
+                    .Select(x => x.Last())
+                    .ToList();
+                var existingPermissions = await _dbContext.Set<RolePermission>()
+                    .Where(x => x.Role == role)
+                    .ToListAsync();
+                var existingByKey = existingPermissions.ToDictionary(
+                    x => x.PermissionKey,
+                    StringComparer.OrdinalIgnoreCase);
 
-                foreach (var dto in permissions)
+                foreach (var dto in permissionList)
                 {
-                    var existing = await _dbContext.Set<RolePermission>()
-                        .FirstOrDefaultAsync(x => x.Role == role && x.PermissionKey == dto.PermissionKey);
-
-                    if (existing == null)
+                    if (!existingByKey.TryGetValue(dto.PermissionKey, out var existing))
                     {
                         var entity = _mapper.Map<RolePermission>(dto);
                         entity.Role = role;
                         entity.CreatedDate = now;
                         entity.UpdatedDate = now;
                         await _dbContext.Set<RolePermission>().AddAsync(entity);
+                        existingByKey[entity.PermissionKey] = entity;
                     }
                     else
                     {
