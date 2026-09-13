@@ -248,19 +248,27 @@ namespace RaccoonWarehouse.Data.Repository
            Func<IQueryable<T>, IOrderedQueryable<T>> orderBy = null,
            params Expression<Func<T, object>>[] includes)
         {
-            IQueryable<T> query = _entities.AsNoTracking();
+            IQueryable<T> baseQuery = _entities.AsNoTracking();
 
             if (filter != null)
             {
-                query = query.Where(filter);
+                baseQuery = baseQuery.Where(filter);
             }
+
+            // Includes are not needed for the count and can create expensive joins.
+            int totalCount = await baseQuery.CountAsync();
+
+            IQueryable<T> query = baseQuery;
 
             foreach (var include in includes)
             {
                 query = query.Include(include);
             }
 
-            int totalCount = await query.CountAsync();
+            // Split collection includes into separate SQL queries to avoid cartesian
+            // joins and unreliable materialization of large include graphs.
+            if (includes.Length > 0)
+                query = query.AsSplitQuery();
 
             if (orderBy != null)
             {
