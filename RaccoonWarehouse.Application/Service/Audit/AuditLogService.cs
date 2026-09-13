@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.EntityFrameworkCore;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Core.Audit;
 using RaccoonWarehouse.Data;
@@ -42,9 +43,10 @@ namespace RaccoonWarehouse.Application.Service.Audit
                 _userSession.SessionId,
                 auditEvent.ErrorMessage);
 
+            AuditLog? pendingAudit = null;
             try
             {
-                _dbContext.AuditLogs.Add(new AuditLog
+                pendingAudit = new AuditLog
                 {
                     UserId = user?.Id,
                     Role = user?.Role,
@@ -57,7 +59,8 @@ namespace RaccoonWarehouse.Application.Service.Audit
                     ErrorMessage = auditEvent.ErrorMessage,
                     CreatedDate = DateTime.Now,
                     UpdatedDate = DateTime.Now
-                });
+                };
+                _dbContext.AuditLogs.Add(pendingAudit);
 
                 await _dbContext.SaveChangesAsync();
             }
@@ -65,6 +68,8 @@ namespace RaccoonWarehouse.Application.Service.Audit
             {
                 // Audit storage must not block login, checkout, or permission changes
                 // when an older installation has not applied the audit migration yet.
+                if (pendingAudit != null)
+                    _dbContext.Entry(pendingAudit).State = EntityState.Detached;
                 _logger.LogWarning(ex, "Audit persistence failed for action {Action}", auditEvent.Action);
             }
 
