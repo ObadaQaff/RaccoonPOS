@@ -67,6 +67,7 @@ namespace RaccoonWarehouse.Domain.Permissions
             AddResource(items, ref sort, "Accounting", "Accounting.CustomerDebts", "Customer Debts", "View");
             AddResource(items, ref sort, "Accounting", "Accounting.SupplierPayables", "Supplier Payables", "View");
             AddResource(items, ref sort, "Accounting", "Accounting.PartyBalances", "Party Balances", "View");
+            AddDashboardActionPermissions(items, ref sort);
             AddReportPermissions(items, ref sort);
             return items;
         }
@@ -82,6 +83,43 @@ namespace RaccoonWarehouse.Domain.Permissions
                     Resource = resource,
                     Action = action,
                     DisplayName = displayName,
+                    SortOrder = sort++
+                });
+            }
+        }
+
+        private static void AddDashboardActionPermissions(List<PermissionCatalogItem> items, ref int sort)
+        {
+            var actionKeys = new[]
+            {
+                "Categories.List", "Categories.Create", "SubCategories.List", "SubCategories.Create",
+                "Brands.Create", "Brands.List", "Products.Create", "Products.List", "Products.PriceList",
+                "Products.ItemCostDetails", "Products.ProfitReport", "Products.InactiveReport",
+                "Stocks.BalancesReport", "Stocks.LowStockReport", "Stocks.MaterialMovementsReport",
+                "Units.Create", "Units.List", "Settings.Delegates", "Settings.Employees",
+                "Settings.Accounting", "Settings.Language", "Settings.Permissions", "Delegates.List",
+                "Employees.List", "Warehouses.Create", "Warehouses.List", "Invoices.Sales",
+                "Invoices.Purchase", "Vouchers.Receipt", "Vouchers.Payment", "Stocks.In",
+                "Stocks.Out", "Stocks.Adjustment", "Reports.Sales", "Reports.CreditSales",
+                "Reports.InvoiceProfit", "Reports.ShiftSummary", "Reports.PaymentsReceipts",
+                "Reports.InvoicePaymentMethods", "Orders.Import"
+            };
+
+            foreach (var key in actionKeys)
+            {
+                if (items.Any(item => string.Equals(item.Key, key, StringComparison.OrdinalIgnoreCase)))
+                    continue;
+
+                var separator = key.IndexOf('.');
+                var resource = separator > 0 ? key[..separator] : key;
+                var action = separator > 0 ? key[(separator + 1)..] : "View";
+                items.Add(new PermissionCatalogItem
+                {
+                    Key = key,
+                    Module = "Dashboard",
+                    Resource = resource,
+                    Action = action,
+                    DisplayName = resource,
                     SortOrder = sort++
                 });
             }

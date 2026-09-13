@@ -37,6 +37,7 @@ using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Core.Modules;
 using RaccoonWarehouse.Navigation.Modules;
 using RaccoonWarehouse.Domain.Enums;
+using RaccoonWarehouse.Domain.Permissions;
 using RaccoonWarehouse.Domain.Notifications;
 using RaccoonWarehouse.Application.Service.Orders;
 using System.Windows.Threading;
@@ -336,7 +337,7 @@ namespace RaccoonWarehouse
                 "Accounting.CustomerDebts" => "Accounting.CustomerDebts.View",
                 "Accounting.SupplierPayables" => "Accounting.SupplierPayables.View",
                 "Accounting.PartyBalances" => "Accounting.PartyBalances.View",
-                _ => null
+                _ => PermissionCatalog.FindByKey(action.Key)?.Key
             };
         }
 
