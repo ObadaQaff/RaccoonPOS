@@ -7,6 +7,7 @@ namespace RaccoonWarehouse.Application.Service.Users
     public class UserSession : IUserSession
     {
         private Guid _sessionId = Guid.NewGuid();
+        private readonly Dictionary<string, bool> _permissionCache = new(StringComparer.OrdinalIgnoreCase);
 
         public Guid SessionId => _sessionId;
         public UserReadDto? CurrentUser { get; private set; }
@@ -21,12 +22,24 @@ namespace RaccoonWarehouse.Application.Service.Users
 
         public event EventHandler? Changed;
 
+        public bool TryGetCachedPermission(string permissionKey, out bool isAllowed) =>
+            _permissionCache.TryGetValue(permissionKey, out isAllowed);
+
+        public void CachePermissions(IEnumerable<KeyValuePair<string, bool>> permissions)
+        {
+            foreach (var permission in permissions)
+                _permissionCache[permission.Key] = permission.Value;
+        }
+
+        public void ClearPermissionCache() => _permissionCache.Clear();
+
         public void SetCurrentUser(UserReadDto user)
         {
             ArgumentNullException.ThrowIfNull(user);
 
             CurrentUser = user;
             CurrentCashierSession = null;
+            ClearPermissionCache();
             StartNewApplicationSession();
             NotifyChanged();
         }
@@ -50,6 +63,7 @@ namespace RaccoonWarehouse.Application.Service.Users
         {
             CurrentUser = null;
             CurrentCashierSession = null;
+            ClearPermissionCache();
             StartNewApplicationSession();
             NotifyChanged();
         }
@@ -77,6 +91,10 @@ namespace RaccoonWarehouse.Application.Service.Users
         int? CurrentCashierSessionId { get; }
 
         event EventHandler? Changed;
+
+        bool TryGetCachedPermission(string permissionKey, out bool isAllowed);
+        void CachePermissions(IEnumerable<KeyValuePair<string, bool>> permissions);
+        void ClearPermissionCache();
 
         void SetCurrentUser(UserReadDto user);
         void AttachCashierSession(CashierSessionReadDto session);

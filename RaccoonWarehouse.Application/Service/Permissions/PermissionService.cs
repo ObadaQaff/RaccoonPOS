@@ -140,11 +140,19 @@ namespace RaccoonWarehouse.Application.Service.Permissions
         {
             await EnsureSeedDataAsync();
 
+            if (_userSession.CurrentRole == role &&
+                _userSession.TryGetCachedPermission(permissionKey, out var cachedAllowed))
+                return cachedAllowed;
+
             var saved = await _dbContext.Set<RolePermission>()
                 .AsNoTracking()
                 .FirstOrDefaultAsync(x => x.Role == role && x.PermissionKey == permissionKey);
 
-            return saved?.IsAllowed ?? true;
+            var isAllowed = saved?.IsAllowed ?? true;
+            if (_userSession.CurrentRole == role)
+                _userSession.CachePermissions(new[] { new KeyValuePair<string, bool>(permissionKey, isAllowed) });
+
+            return isAllowed;
         }
 
         public async Task<Dictionary<string, bool>> GetPermissionMapAsync(UserRole role, IEnumerable<string> permissionKeys)
@@ -162,7 +170,11 @@ namespace RaccoonWarehouse.Application.Service.Permissions
                 .ToListAsync();
 
             var savedMap = saved.ToDictionary(x => x.PermissionKey, x => x.IsAllowed, StringComparer.OrdinalIgnoreCase);
-            return keys.ToDictionary(x => x, x => savedMap.TryGetValue(x, out var allowed) ? allowed : true, StringComparer.OrdinalIgnoreCase);
+            var result = keys.ToDictionary(x => x, x => savedMap.TryGetValue(x, out var allowed) ? allowed : true, StringComparer.OrdinalIgnoreCase);
+            if (_userSession.CurrentRole == role)
+                _userSession.CachePermissions(result);
+
+            return result;
         }
 
         public async Task<HashSet<string>> GetDeniedPermissionKeysAsync(UserRole role, string module)
@@ -215,6 +227,7 @@ namespace RaccoonWarehouse.Application.Service.Permissions
                 }
 
                 await _dbContext.SaveChangesAsync();
+                _userSession.ClearPermissionCache();
                 return Result<bool>.Ok(true, "تم حفظ صلاحيات النظام بنجاح.");
             }
             catch (Exception ex)
