@@ -993,6 +993,7 @@ END;";
             services.AddTransient<IModuleDefinitionProvider, UsersDashboardModule>();
             services.AddTransient<IModuleDefinitionProvider, CustomersDashboardModule>();
             services.AddTransient<IModuleDefinitionProvider, AccountingDashboardModule>();
+            services.AddSingleton<IModuleConfiguration, ModuleConfiguration>();
             services.AddTransient<DashboardModuleRegistry>();
             services.AddTransient<IDashboardActionHandler, ProductsDashboardActionHandler>();
             services.AddTransient<IDashboardActionHandler, CategoriesDashboardActionHandler>();
