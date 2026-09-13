@@ -5,6 +5,7 @@ using PdfSharpCore.Fonts;
 using PdfSharpCore.Utils;
 using QuestPDF.Infrastructure;
 using RaccoonWarehouse.Application.Service.Accounting;
+using RaccoonWarehouse.Application.Service.Audit;
 using RaccoonWarehouse.Application.Service.AuthService;
 using RaccoonWarehouse.Application.Service.Brands;
 using RaccoonWarehouse.Application.Service.Cashers;
@@ -894,6 +895,7 @@ END;";
 
             //session singelton 
             services.AddSingleton<IUserSession, UserSession>();
+            services.AddSingleton<RaccoonWarehouse.Core.Audit.IAuditLogService, AuditLogService>();
             services.AddSingleton<IReadOnlyDictionary<string, Type>>(windowMap);
             services.AddSingleton<IWindowNavigationService, WindowNavigationService>();
             services.AddSingleton<RaccoonWarehouse.Core.Localization.IUiTextLocalizer, UiTextLocalizer>();

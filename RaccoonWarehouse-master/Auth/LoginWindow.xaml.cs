@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using RaccoonWarehouse.Application.Service.AuthService;
+using RaccoonWarehouse.Application.Service.Audit;
 using RaccoonWarehouse.Application.Service.Cashers;
 using RaccoonWarehouse.Application.Service.FinancialTransactions;
 using RaccoonWarehouse.Application.Service.Permissions;
@@ -21,6 +22,7 @@ namespace RaccoonWarehouse.Auth
         private readonly IUserSession _userSession;
         private readonly IAuthService _authService;
         private readonly IPermissionService _permissionService;
+        private readonly RaccoonWarehouse.Core.Audit.IAuditLogService _auditLogService;
 
         public LoginWindow(
             IServiceProvider serviceProvider,
@@ -28,7 +30,8 @@ namespace RaccoonWarehouse.Auth
             IUserSession userSession,
             IAuthService authService,
             IFinancialTransactionService financialTransactionService,
-            IPermissionService permissionService)
+            IPermissionService permissionService,
+            RaccoonWarehouse.Core.Audit.IAuditLogService auditLogService)
         {
             InitializeComponent();
             _serviceProvider = serviceProvider;
@@ -36,6 +39,7 @@ namespace RaccoonWarehouse.Auth
             _userSession = userSession;
             _authService = authService;
             _permissionService = permissionService;
+            _auditLogService = auditLogService;
         }
 
         private void Window_Loaded(object sender, RoutedEventArgs e)
@@ -121,6 +125,7 @@ namespace RaccoonWarehouse.Auth
 
                 _userSession.SetCurrentUser(user);
                 await LoadSessionPermissionsAsync(user.Role);
+                await _auditLogService.WriteAsync(new RaccoonWarehouse.Core.Audit.AuditEvent("Login"));
 
                 var openSession = await _cashierSessionService.GetOpenSessionByCashierAsync(user.Id);
                 CashierSessionReadDto session;
