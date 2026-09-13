@@ -387,6 +387,20 @@ namespace RaccoonWarehouse
 
             try
             {
+                var action = new ModuleActionDefinition(actionKey, actionKey);
+                var permissionKey = ResolveDashboardPermissionKey(action);
+                if (!string.IsNullOrWhiteSpace(permissionKey) &&
+                    !(_userSession.CurrentRole is UserRole role &&
+                      await _permissionService.HasPermissionAsync(role, permissionKey)))
+                {
+                    MessageBox.Show(
+                        UiText.T("لا تملك صلاحية تنفيذ هذا الإجراء.", "You do not have permission to perform this action."),
+                        UiText.T("الصلاحيات", "Permissions"),
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    return;
+                }
+
                 await _dashboardActions.ExecuteAsync(actionKey, CreateDashboardActionContext());
             }
             catch (Exception ex)
