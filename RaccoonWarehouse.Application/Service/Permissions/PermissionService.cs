@@ -27,10 +27,10 @@ namespace RaccoonWarehouse.Application.Service.Permissions
         private readonly ApplicationDbContext _dbContext;
         private readonly IMapper _mapper;
         private readonly IUserSession _userSession;
-        private readonly IAuditLogService _auditLogService;
+        private readonly IAuditLogService? _auditLogService;
         private bool _seedEnsured;
 
-        public PermissionService(ApplicationDbContext dbContext, IMapper mapper, IUserSession userSession, IAuditLogService auditLogService)
+        public PermissionService(ApplicationDbContext dbContext, IMapper mapper, IUserSession userSession, IAuditLogService? auditLogService = null)
         {
             _dbContext = dbContext;
             _mapper = mapper;
@@ -240,11 +240,12 @@ namespace RaccoonWarehouse.Application.Service.Permissions
 
                 await _dbContext.SaveChangesAsync();
                 _userSession.ClearPermissionCache();
-                await _auditLogService.WriteAsync(new AuditEvent(
-                    "PermissionChange",
-                    PermissionKey: "Permissions.ManageRoles",
-                    EntityType: "RolePermission",
-                    EntityId: (int)role));
+                if (_auditLogService != null)
+                    await _auditLogService.WriteAsync(new AuditEvent(
+                        "PermissionChange",
+                        PermissionKey: "Permissions.ManageRoles",
+                        EntityType: "RolePermission",
+                        EntityId: (int)role));
                 return Result<bool>.Ok(true, "تم حفظ صلاحيات النظام بنجاح.");
             }
             catch (Exception ex)
