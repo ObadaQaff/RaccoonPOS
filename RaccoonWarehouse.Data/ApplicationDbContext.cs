@@ -21,6 +21,7 @@ using RaccoonWarehouse.Domain.InvoiceLines;
 using RaccoonWarehouse.Domain.Invoices;
 using RaccoonWarehouse.Domain.Integration;
 using RaccoonWarehouse.Domain.Permissions;
+using RaccoonWarehouse.Domain.Audit;
 using RaccoonWarehouse.Domain.Products;
 using RaccoonWarehouse.Domain.ProductUnits;
 using RaccoonWarehouse.Domain.Relations;
@@ -47,6 +48,7 @@ namespace RaccoonWarehouse.Data
         public DbSet<ReportPermission> ReportPermissions => Set<ReportPermission>();
         public DbSet<PermissionDefinition> PermissionDefinitions => Set<PermissionDefinition>();
         public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
+        public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
         public DbSet<AppSetting> AppSettings => Set<AppSetting>();
         public DbSet<Account> Accounts => Set<Account>();
         public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
@@ -111,6 +113,22 @@ namespace RaccoonWarehouse.Data
             modelBuilder.Entity<RolePermission>()
                 .HasIndex(x => new { x.Role, x.PermissionKey })
                 .IsUnique();
+
+            modelBuilder.Entity<AuditLog>()
+                .HasIndex(x => new { x.CreatedDate, x.UserId });
+
+            modelBuilder.Entity<AuditLog>()
+                .Property(x => x.Action)
+                .HasMaxLength(200)
+                .IsRequired();
+
+            modelBuilder.Entity<AuditLog>()
+                .Property(x => x.PermissionKey)
+                .HasMaxLength(200);
+
+            modelBuilder.Entity<AuditLog>()
+                .Property(x => x.EntityType)
+                .HasMaxLength(200);
 
             modelBuilder.Entity<AppSetting>()
                 .HasIndex(x => x.Key)

@@ -895,7 +895,7 @@ END;";
 
             //session singelton 
             services.AddSingleton<IUserSession, UserSession>();
-            services.AddSingleton<RaccoonWarehouse.Core.Audit.IAuditLogService, AuditLogService>();
+            services.AddScoped<RaccoonWarehouse.Core.Audit.IAuditLogService, AuditLogService>();
             services.AddSingleton<IReadOnlyDictionary<string, Type>>(windowMap);
             services.AddSingleton<IWindowNavigationService, WindowNavigationService>();
             services.AddSingleton<RaccoonWarehouse.Core.Localization.IUiTextLocalizer, UiTextLocalizer>();
