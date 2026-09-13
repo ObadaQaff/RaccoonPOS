@@ -4525,8 +4525,6 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
                 if (loadingShown)
                     _loading.Hide();
             }
-            /*            WindowManager.ShowDialog<PaymentWindow>(WindowSizeType.SmallRectangle);
-            */
         }
 
         #region Product search and suggestions
@@ -5792,6 +5790,8 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
             await Task.CompletedTask;
             return true;
         }
+        #region Legacy disabled financial-posting code
+        // Disabled legacy implementation retained temporarily for historical reference.
         #if false
         private FinancialSourceType MapSourceTypeByInvoiceType(InvoiceType invoiceType)
         {
@@ -5857,6 +5857,7 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
 
 
         #endif
+        #endregion
         #endregion
         #endregion
 
