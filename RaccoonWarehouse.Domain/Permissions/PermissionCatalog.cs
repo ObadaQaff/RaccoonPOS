@@ -47,6 +47,8 @@ namespace RaccoonWarehouse.Domain.Permissions
             AddResource(items, ref sort, "MasterData", "Employees", "الموظفون", "View", "Create", "Edit", "Delete");
             AddResource(items, ref sort, "MasterData", "Delegates", "المندوبون", "View", "Create", "Edit", "Delete");
             AddResource(items, ref sort, "Finance", "Vouchers", "السندات", "View", "Create", "Edit", "Delete", "Print", "Approve", "Post");
+            AddResource(items, ref sort, "Finance", "Vouchers", "Receipt Voucher", "Receipt");
+            AddResource(items, ref sort, "Finance", "Vouchers", "Payment Voucher", "Payment");
             AddResource(items, ref sort, "Finance", "CashDrawer", "الصندوق", "View", "AccessCashDrawer", "CloseShift", "ReopenShift");
             AddResource(items, ref sort, "Finance", "SensitiveFinancial", "العمليات المالية الحساسة", "ViewCost", "ViewProfit", "ApplyDiscount", "ApproveHighDiscount", "CancelPaidInvoice", "ChangePrice");
             AddResource(items, ref sort, "Administration", "Users", "المستخدمون", "View", "Create", "Edit", "Delete", "ManageUsers");

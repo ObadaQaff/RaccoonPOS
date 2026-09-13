@@ -320,6 +320,8 @@ namespace RaccoonWarehouse
                 "Stocks.In" => "StockInVoucher.Create",
                 "Stocks.Out" => "StockOutVoucher.Create",
                 "Stocks.Adjustment" => "StockAdjustment.Create",
+                "Vouchers.Receipt" => "Vouchers.Receipt",
+                "Vouchers.Payment" => "Vouchers.Payment",
                 "Accounting.Checks" => "Accounting.Checks.View",
                 "Accounting.Accounts" => "Accounting.Accounts.View",
                 "Accounting.JournalEntry.Create" => "Accounting.JournalEntry.Create",
@@ -702,7 +704,7 @@ namespace RaccoonWarehouse
             await RunSidebarNavigationAsync(async () =>
             {
                 var moduleDefinition = await _dashboardModules.GetDefinitionAsync(AccountingDashboardModule.Key);
-                ShowDashboardGroups(moduleDefinition.Groups, DashboardActionButton_Click);
+                await ShowDashboardModuleAsync(AccountingDashboardModule.Key, DashboardActionButton_Click);
             });
         }
     }
