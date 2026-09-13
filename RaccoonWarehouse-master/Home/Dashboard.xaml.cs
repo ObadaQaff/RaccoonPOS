@@ -56,6 +56,7 @@ namespace RaccoonWarehouse
         private readonly IUserSession _userSession;
         private readonly IReportPermissionService _reportPermissionService;
         private readonly IPermissionService _permissionService;
+        private readonly RaccoonWarehouse.Core.Audit.IAuditLogService _auditLogService;
         private readonly IDelegateFeatureService _delegateFeatureService;
         private readonly IEmployeeFeatureService _employeeFeatureService;
         private readonly IAccountingFeatureService _accountingFeatureService;
@@ -82,6 +83,7 @@ namespace RaccoonWarehouse
                 ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<IUserSession>(),
                 ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<IReportPermissionService>(),
                 ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<IPermissionService>(),
+                ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<RaccoonWarehouse.Core.Audit.IAuditLogService>(),
                 ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<IDelegateFeatureService>(),
                 ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<IEmployeeFeatureService>(),
                 ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<IAccountingFeatureService>(),
@@ -97,6 +99,7 @@ namespace RaccoonWarehouse
             IUserSession userSession,
             IReportPermissionService reportPermissionService,
             IPermissionService permissionService,
+            RaccoonWarehouse.Core.Audit.IAuditLogService auditLogService,
             IDelegateFeatureService delegateFeatureService,
             IEmployeeFeatureService employeeFeatureService,
             IAccountingFeatureService accountingFeatureService,
@@ -110,6 +113,7 @@ namespace RaccoonWarehouse
             _userSession = userSession;
             _reportPermissionService = reportPermissionService;
             _permissionService = permissionService;
+            _auditLogService = auditLogService;
             _delegateFeatureService = delegateFeatureService;
             _employeeFeatureService = employeeFeatureService;
             _accountingFeatureService = accountingFeatureService;
@@ -398,6 +402,11 @@ namespace RaccoonWarehouse
                         UiText.T("الصلاحيات", "Permissions"),
                         MessageBoxButton.OK,
                         MessageBoxImage.Warning);
+                    await _auditLogService.WriteAsync(new RaccoonWarehouse.Core.Audit.AuditEvent(
+                        "AuthorizationDenied",
+                        PermissionKey: permissionKey,
+                        Succeeded: false,
+                        ErrorMessage: actionKey));
                     return;
                 }
 
