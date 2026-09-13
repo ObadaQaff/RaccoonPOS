@@ -29,11 +29,13 @@ namespace RaccoonWarehouse.Auth
         private readonly ICashierSessionService _cashierSessionService;
         private readonly IFinancialTransactionService _financialService;
         private readonly IUserSession _userSession;
+        private readonly RaccoonWarehouse.Core.Audit.IAuditLogService _auditLogService;
 
         public StartCashierSessionWindow(
             ICashierSessionService cashierSessionService,
             IFinancialTransactionService financialService,
-            IUserSession userSession)
+            IUserSession userSession,
+            RaccoonWarehouse.Core.Audit.IAuditLogService auditLogService)
         {
             InitializeComponent();
             UiText.ApplyWindow(this);
@@ -42,6 +44,7 @@ namespace RaccoonWarehouse.Auth
             _cashierSessionService = cashierSessionService;
             _financialService = financialService;
             _userSession = userSession;
+            _auditLogService = auditLogService;
 
             CashierNameText.Text = _userSession.CurrentUser?.Name ?? "—";
         }
@@ -76,6 +79,10 @@ namespace RaccoonWarehouse.Auth
                 // 2) Put it in runtime session (UserSession)
                 session.CashierName = _userSession.CurrentUser.Name;
                 _userSession.AttachCashierSession(session);
+                await _auditLogService.WriteAsync(new RaccoonWarehouse.Core.Audit.AuditEvent(
+                    "CashierSession.Open",
+                    EntityType: "CashierSession",
+                    EntityId: session.Id));
 
 
                 // 3) Post Financial (Manual Cash IN) for opening float

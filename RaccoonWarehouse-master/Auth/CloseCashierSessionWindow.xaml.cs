@@ -31,6 +31,7 @@ namespace RaccoonWarehouse.Auth
         private readonly IFinancialTransactionService _financialService;
         private readonly IUserSession _userSession;
         private readonly ILoadingService _loadingService;
+        private readonly RaccoonWarehouse.Core.Audit.IAuditLogService _auditLogService;
 
         private decimal _opening;
         private decimal _expected;
@@ -42,7 +43,8 @@ namespace RaccoonWarehouse.Auth
             ICashierSessionService cashierSessionService,
             IFinancialTransactionService financialService,
             IUserSession userSession,
-            ILoadingService loadingService)
+            ILoadingService loadingService,
+            RaccoonWarehouse.Core.Audit.IAuditLogService auditLogService)
         {
             InitializeComponent();
             UiText.ApplyWindow(this);
@@ -52,6 +54,7 @@ namespace RaccoonWarehouse.Auth
             _financialService = financialService;
             _userSession = userSession;
             _loadingService = loadingService;
+            _auditLogService = auditLogService;
             Loaded += CloseCashierSessionWindow_Loaded;
         }
 
@@ -176,6 +179,10 @@ namespace RaccoonWarehouse.Auth
 
                 // 3) Clear only cashier-session runtime state
                 _userSession.ClearCashierSession();
+                await _auditLogService.WriteAsync(new RaccoonWarehouse.Core.Audit.AuditEvent(
+                    "CashierSession.Close",
+                    EntityType: "CashierSession",
+                    EntityId: sessionId));
 
                 DialogResult = true;
                 Close();
