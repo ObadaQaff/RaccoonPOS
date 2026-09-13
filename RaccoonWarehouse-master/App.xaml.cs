@@ -896,6 +896,7 @@ END;";
             //session singelton 
             services.AddSingleton<IUserSession, UserSession>();
             services.AddScoped<RaccoonWarehouse.Core.Audit.IAuditLogService, AuditLogService>();
+            services.AddScoped<RaccoonWarehouse.Application.Service.Audit.IAuditLogQueryService, RaccoonWarehouse.Application.Service.Audit.AuditLogQueryService>();
             services.AddSingleton<IReadOnlyDictionary<string, Type>>(windowMap);
             services.AddSingleton<IWindowNavigationService, WindowNavigationService>();
             services.AddSingleton<RaccoonWarehouse.Core.Localization.IUiTextLocalizer, UiTextLocalizer>();
@@ -1121,6 +1122,7 @@ END;";
             services.AddTransient<StartCashierSessionWindow>();
             services.AddTransient<CloseCashierSessionWindow>();
             services.AddTransient<ReportPermissionsManager>();
+            services.AddTransient<RaccoonWarehouse.Settings.AuditLogsWindow>();
             services.AddTransient<LanguageSettingsWindow>();
             #endregion
 

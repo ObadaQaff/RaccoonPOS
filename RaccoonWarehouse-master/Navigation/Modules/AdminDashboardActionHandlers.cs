@@ -73,6 +73,7 @@ namespace RaccoonWarehouse.Navigation.Modules
                 "Units.Create" or
                 "Units.List" or
                 "Settings.Permissions" or
+                "Settings.AuditLogs" or
                 "Settings.Delegates" or
                 "Settings.Employees" or
                 "Settings.Accounting" or
@@ -97,6 +98,15 @@ namespace RaccoonWarehouse.Navigation.Modules
                     }
 
                     WindowManager.Show<ReportPermissionsManager>(WindowSizeType.LargeRectangle);
+                    return;
+                case "Settings.AuditLogs":
+                    if (!await HasPermissionAsync("AuditLogs.View"))
+                    {
+                        MessageBox.Show(UiText.T("ليس لديك صلاحية عرض سجل المراجعة.", "You do not have permission to view audit logs."));
+                        return;
+                    }
+
+                    WindowManager.Show<AuditLogsWindow>(WindowSizeType.LargeRectangle);
                     return;
                 case "Settings.Delegates":
                     if (!await HasPermissionAsync("Settings.ManageSettings"))

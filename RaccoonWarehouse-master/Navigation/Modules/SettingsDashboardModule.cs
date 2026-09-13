@@ -37,7 +37,8 @@ namespace RaccoonWarehouse.Navigation.Modules
                             UiText.T("الصلاحيات", "Permissions"),
                             new[]
                             {
-                                new ModuleActionDefinition("Settings.Permissions", "مدير صلاحيات النظام")
+                                new ModuleActionDefinition("Settings.Permissions", "مدير صلاحيات النظام"),
+                                new ModuleActionDefinition("Settings.AuditLogs", UiText.T("سجل مراجعة النظام", "System audit log"), "AuditLogs.View")
                             })
                     }));
         }

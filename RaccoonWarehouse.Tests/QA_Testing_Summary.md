@@ -1599,3 +1599,14 @@ The solution still reports existing warnings, including package compatibility/se
 - The refactor did not introduce POS compilation errors.
 - No dedicated automated POS UI tests are present; barcode focus and return-grid editability remain manual verification items.
 - The 13 failures are existing accounting and stock-allocation failures, including FEFO ordering/expiry and accounting check/void/invoice-update scenarios; they require separate investigation before treating the full suite as green.
+
+## 2026-09-14 - Employee activity and audit viewer
+
+### Scope
+- Added server-side paged and filtered audit-log queries.
+- Added an Admin-only audit viewer from Settings and selected-employee activity from Employees.
+- Added visibility and permission guards for employee settings, shift reports, and activity actions.
+
+### Verification
+- WPF application build: passed with 0 errors; existing warning `CS4014` remains in EmployeesTable double-click flow.
+- Manual verification remains required for the AuditLogs database table and Admin/non-Admin navigation behavior.

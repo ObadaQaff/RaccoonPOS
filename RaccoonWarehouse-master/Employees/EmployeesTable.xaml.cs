@@ -1,12 +1,14 @@
 using RaccoonWarehouse.Application.Service.Permissions;
 using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Application.Service.Settings;
+using RaccoonWarehouse.Application.Service.Audit;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Users.DTOs;
 using RaccoonWarehouse.Helpers.Localization;
 using RaccoonWarehouse.Navigation;
 using RaccoonWarehouse.POS;
+using RaccoonWarehouse.Settings;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -28,6 +30,7 @@ namespace RaccoonWarehouse.Employees
         private readonly IUserSession _userSession;
         private readonly IPermissionService _permissionService;
         private readonly ILoadingService _loadingService;
+        private readonly IPermissionService _auditPermissionService;
         private readonly List<UserReadDto> _items = new();
         private ICollectionView? _view;
 
@@ -42,6 +45,7 @@ namespace RaccoonWarehouse.Employees
             _featureService = featureService;
             _userSession = userSession;
             _permissionService = permissionService;
+            _auditPermissionService = permissionService;
             _loadingService = loadingService;
             InitializeComponent();
             UiText.ApplyWindow(this);
@@ -102,6 +106,9 @@ namespace RaccoonWarehouse.Employees
                     "You can search by name, phone, or the selected role.");
 
                 CreateUserBtn.IsEnabled = true;
+                ActivityBtn.Visibility = await HasPermissionAsync("AuditLogs.View") ? Visibility.Visible : Visibility.Collapsed;
+                ViewShiftsBtn.Visibility = await HasPermissionAsync("Reports.ShiftSummary") ? Visibility.Visible : Visibility.Collapsed;
+                FeatureSettingsBtn.Visibility = await HasPermissionAsync("Settings.ManageSettings") ? Visibility.Visible : Visibility.Collapsed;
 
                 var result = await _userService.GetAllAsync();
                 _items.Clear();
@@ -172,8 +179,11 @@ namespace RaccoonWarehouse.Employees
             await LoadUsersAsync();
         }
 
-        private void ViewShiftsBtn_Click(object sender, RoutedEventArgs e)
+        private async void ViewShiftsBtn_Click(object sender, RoutedEventArgs e)
         {
+            if (!await HasPermissionAsync("Reports.ShiftSummary"))
+                return;
+
             var selected = GetSelectedUser();
             if (selected == null)
                 return;
@@ -189,6 +199,22 @@ namespace RaccoonWarehouse.Employees
             }
 
             WindowManager.Show<DailySalesReport>(WindowSizeType.LargeRectangle, window => window.InitializeForCashier(selected.Id));
+        }
+
+        private async void ActivityBtn_Click(object sender, RoutedEventArgs e)
+        {
+            var selected = GetSelectedUser();
+            if (selected == null || !await HasPermissionAsync("AuditLogs.View"))
+                return;
+
+            WindowManager.Show<AuditLogsWindow>(WindowSizeType.LargeRectangle,
+                window => window.InitializeForUser(selected.Id, selected.Name));
+        }
+
+        private async Task<bool> HasPermissionAsync(string permissionKey)
+        {
+            var role = _userSession.CurrentUser?.Role;
+            return role.HasValue && await _auditPermissionService.HasPermissionAsync(role.Value, permissionKey);
         }
 
         private UserReadDto? GetSelectedUser()
@@ -259,8 +285,11 @@ namespace RaccoonWarehouse.Employees
             VisibleUsersText.Text = _view?.Cast<object>().Count().ToString() ?? "0";
         }
 
-        private void FeatureSettingsBtn_Click(object sender, RoutedEventArgs e)
+        private async void FeatureSettingsBtn_Click(object sender, RoutedEventArgs e)
         {
+            if (!await HasPermissionAsync("Settings.ManageSettings"))
+                return;
+
             WindowManager.ShowDialog<EmployeeFeatureSettingsWindow>(WindowSizeType.SmallSquare);
         }
 

@@ -148,6 +148,14 @@
                                 </StackPanel>
                             </Button>
 
+                            <Button x:Name="ActivityBtn"
+                                    Width="150"
+                                    Margin="0,0,12,0"
+                                    Style="{StaticResource AppSecondaryButtonStyle}"
+                                    Click="ActivityBtn_Click">
+                                <TextBlock Text="سجل النشاط" VerticalAlignment="Center" />
+                            </Button>
+
                             <Button x:Name="BackBtn"
                                     Width="120"
                                     Style="{StaticResource AppSecondaryButtonStyle}"
