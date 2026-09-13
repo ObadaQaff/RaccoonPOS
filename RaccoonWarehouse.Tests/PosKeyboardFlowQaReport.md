@@ -197,6 +197,20 @@
 ## Key Findings
 - Pending manual execution.
 
+## POS Behavior Preservation Contract
+
+The following behaviors are existing product requirements and must remain unchanged during POS refactoring:
+
+1. After a product is added through barcode input or product-card selection, focus returns to the next barcode cell/input so the cashier can continue scanning without using the mouse.
+2. In normal sale mode, the invoice grid remains editable according to the existing editable-column rules, including product, quantity, price, discount, and unit interactions.
+3. In return or purchase-return mode, only the returned-quantity column is editable. Other invoice columns remain read-only, row deletion is disabled, and keyboard navigation stays inside the return-quantity column.
+4. Pressing Enter in the invoice grid preserves the current navigation rules, including moving to the next editable cell, creating/focusing the next barcode row, or returning focus to barcode input after price entry.
+5. Barcode processing preserves duplicate-line behavior, unit selection, pricing, stock validation, FEFO splitting, and focus recovery after success or validation failure.
+6. Customer selection, product search, held-invoice resume, return/exchange dialogs, payment dialogs, printing, and cashier-session dialogs preserve their existing focus recovery and loading behavior.
+7. Arabic/English labels and header-based UI behavior must continue to work without using translated display text as business logic identifiers.
+
+Every refactoring phase must be verified against this contract before proceeding to the next phase.
+
 ## Remaining Risks
 - Modal child windows may still require partial mouse interaction depending on their own internal keyboard support.
 - Customer dropdown filtering behavior should be validated with Arabic and numeric input.

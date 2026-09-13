@@ -71,6 +71,15 @@ namespace RaccoonWarehouse.Invoices
 {
     public partial class POS : Window
     {
+        // POS workflow map:
+        // 1. Window/session initialization and draft invoice state
+        // 2. Product browse, barcode lookup, and product suggestions
+        // 3. Invoice-line editing, units, pricing, totals, and focus recovery
+        // 4. Stock availability and FEFO allocation
+        // 5. Customer, return, and exchange workflows
+        // 6. Checkout validation, payment, financial posting, and printing
+        // 7. Held invoices, reports, cashier session, and shared UI helpers
+
         private sealed class ReturnInvoiceLine : InvoiceLineWriteDto
         {
             private decimal _displayQuantity;
@@ -315,7 +324,6 @@ namespace RaccoonWarehouse.Invoices
         private int _falconValidationVersion;
         private string? _lastFalconDuplicateMessageValue;
         private readonly SemaphoreSlim _falconValidationGate = new(1, 1);
-        private List<ProductWriteDto> _invoiceProducts;
         private readonly ILoadingService _loading;
         private ObservableCollection<ProductReadDto> Products { get; set; }
             = new ObservableCollection<ProductReadDto>();
@@ -354,8 +362,8 @@ namespace RaccoonWarehouse.Invoices
         private ObservableCollection<InvoiceLineWriteDto> _invoiceLines
             = new ObservableCollection<InvoiceLineWriteDto>();
 
+        #region Construction and initialization
         public POS(
-        #region ctor            
                    IServiceProvider serviceProvider, IProductService productService,
                    IProductUnitService productUnitService,
                    IStockService stockService, IUserService userService,
@@ -365,10 +373,9 @@ namespace RaccoonWarehouse.Invoices
                    IUserSession userSession,
                    IFinancialTransactionService financialService,
                    ISaleCheckoutService saleCheckoutService
-        #endregion
             )
         {
-            #region initialization
+            #region Dependency initialization
             _serviceProvider = serviceProvider;
             _productService = productService;
             _productUnitService = productUnitService;
@@ -381,7 +388,6 @@ namespace RaccoonWarehouse.Invoices
             _userSession = userSession;
             _financialService = financialService;
             _saleCheckoutService = saleCheckoutService;
-            #endregion
 
             InitializeComponent();
             this.DataContext = this;
@@ -392,8 +398,11 @@ namespace RaccoonWarehouse.Invoices
             Closed += POS_Closed;
         }
 
+        #endregion
+        #endregion
 
-        // ===================== LOAD DATA =====================
+
+        // ===================== WINDOW LIFECYCLE AND INITIAL DATA =====================
         private async void POS_Loaded(object sender, RoutedEventArgs e)
         {
             try
@@ -637,7 +646,7 @@ namespace RaccoonWarehouse.Invoices
                     MoveGridFocusToCell(grid, targetLine, returnColumn);
             }
         }
-        #region useabellty 
+        #region Keyboard navigation and grid editing
         private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
         {
             if (_isLoadingHeldInvoice)
@@ -1204,19 +1213,7 @@ namespace RaccoonWarehouse.Invoices
                     if (item.ProductId <= 0 || !_loadedProductIds.Add(item.ProductId))
                         continue;
 
-                    var product = new ProductReadDto
-                    {
-                        Id = item.ProductId,
-                        Name = item.Name,
-                        ITEMCODE = item.ItemCode,
-                        SubCategoryId = item.SubCategoryId,
-                        TaxExempt = item.TaxExempt,
-                        TaxRate = item.TaxRate,
-                        CurrentStockQuantity = item.AvailableQuantity,
-                        CurrentSalePrice = item.CurrentSalePrice,
-                        LastCostIncludingTax = item.LastCostIncludingTax,
-                        AverageCostIncludingTax = item.AverageCostIncludingTax
-                    };
+                    var product = MapBrowseItemToProduct(item);
 
                     Products.Add(product);
                     FilteredProducts.Add(product);
@@ -1330,35 +1327,42 @@ namespace RaccoonWarehouse.Invoices
                 if (item.ProductId <= 0 || !_loadedProductIds.Add(item.ProductId))
                     continue;
 
-                var product = new ProductReadDto
-                {
-                    Id = item.ProductId,
-                    Name = item.Name,
-                    ITEMCODE = item.ItemCode,
-                    SubCategoryId = item.SubCategoryId,
-                    TaxExempt = item.TaxExempt,
-                    TaxRate = item.TaxRate,
-                    CurrentStockQuantity = item.AvailableQuantity,
-                    CurrentSalePrice = item.CurrentSalePrice,
-                    LastCostIncludingTax = item.LastCostIncludingTax,
-                    AverageCostIncludingTax = item.AverageCostIncludingTax
-                };
+                var product = MapBrowseItemToProduct(item);
 
                 Products.Add(product);
                 ProductSuggestions.Add(product);
             }
         }
 
-        private async Task EnsureSelectedProductVisibleAsync(ProductReadDto? selectedProduct)
+        private Task EnsureSelectedProductVisibleAsync(ProductReadDto? selectedProduct)
         {
             if (selectedProduct == null || _loadedProductIds.Contains(selectedProduct.Id))
-                return;
+                return Task.CompletedTask;
 
             _loadedProductIds.Add(selectedProduct.Id);
             Products.Add(selectedProduct);
             ProductSuggestions.Add(selectedProduct);
-            await Task.CompletedTask;
+            return Task.CompletedTask;
         }
+
+        private static ProductReadDto MapBrowseItemToProduct(PosBrowseItemDto item)
+        {
+            return new ProductReadDto
+            {
+                Id = item.ProductId,
+                Name = item.Name,
+                ITEMCODE = item.ItemCode,
+                SubCategoryId = item.SubCategoryId,
+                TaxExempt = item.TaxExempt,
+                TaxRate = item.TaxRate,
+                CurrentStockQuantity = item.AvailableQuantity,
+                CurrentSalePrice = item.CurrentSalePrice,
+                LastCostIncludingTax = item.LastCostIncludingTax,
+                AverageCostIncludingTax = item.AverageCostIncludingTax
+            };
+        }
+
+        // ===================== INVOICE TOTALS AND LINE PRICING =====================
         private void RecalculateTotals()
         {
             var isReturnInvoice = _currentInvoice.InvoiceType is InvoiceType.Return or InvoiceType.PurchaseReturn;
@@ -1562,7 +1566,8 @@ namespace RaccoonWarehouse.Invoices
             try
             {
                 var result = await _productService.GetByIdWithUnitsAsync(productId);
-                var product = result?.Data;                if (product == null)
+                var product = result?.Data;
+                if (product == null)
                     return null;
 
                 _hydratedProducts[productId] = product;
@@ -1917,6 +1922,7 @@ namespace RaccoonWarehouse.Invoices
         }
 
 
+        // ===================== BARCODE PROCESSING AND PRODUCT INSERTION =====================
         private async void BarcodeTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
         {
             if (e.Key != Key.Enter) return;
@@ -2154,6 +2160,7 @@ namespace RaccoonWarehouse.Invoices
             var stepTiming = System.Diagnostics.Stopwatch.StartNew();
             LogPosTiming("add item start", timing, stepTiming);
 
+            // 1. Resolve the catalog product and its sale units.
             product = await ResolveProductWithUnitsAsync(product);
             LogPosTiming("add item resolve product and units", timing, stepTiming);
 
@@ -2169,6 +2176,7 @@ namespace RaccoonWarehouse.Invoices
                 return false;
             }
 
+            // 2. Merge with an existing unit line or prepare a new invoice line.
             var existingLine = _invoiceLines
                 .FirstOrDefault(l => l.ProductId == product.Id && l.ProductUnitId == selectedUnit.Id);
 
@@ -2206,6 +2214,7 @@ namespace RaccoonWarehouse.Invoices
 
                 LogPosTiming("add item apply pricing", timing, stepTiming);
             }
+            // 3. Allocate available stock using FEFO and refresh line snapshots.
             var targetUnitId = selectedUnit.Id;
             var availableAfterAllocation = await SplitDraftLinesByFefoAsync(product.Id, targetUnitId);
             LogPosTiming("add item FEFO allocation", timing, stepTiming);
@@ -2221,6 +2230,7 @@ namespace RaccoonWarehouse.Invoices
                     ?? invoiceLine.ProductUnit?.Unit?.Name;
             }
 
+            // 4. Recalculate totals and restore the cashier's expected focus.
             RecalculateTotals();
 LogPosTiming("add item UI refresh and totals", timing, stepTiming);
             PosPerformanceLogger.Write("add item total", timing.ElapsedMilliseconds, timing.ElapsedMilliseconds);
@@ -2499,6 +2509,7 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
                     };
                 });
         }
+        // ===================== CHECKOUT VALIDATION AND FEFO =====================
         private async Task<bool> ValidateStockAvailabilityAsync()
         {
             var sellableLines = _invoiceLines.Where(l => l.Quantity > 0).ToList();
@@ -3180,6 +3191,8 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
             FocusBarcodeGridCellDeferred();
         }
 
+        #region Customer, return, and exchange workflows
+        // ===================== CUSTOMER AND INVOICE ACTIONS =====================
         private void SearchProductBtn_Click(object sender, RoutedEventArgs e)
         {
             try
@@ -3643,7 +3656,7 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
         }
 
 
-        #region OnHold
+        #region Held invoices
         private async void HoldSaleBtn_Click(object sender, RoutedEventArgs e)
         {
             if (_isHoldingInvoice || _isProcessingPayment || _isLoadingHeldInvoice)
@@ -4180,6 +4193,10 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
         //==========================
         //payment method handler
         //==========================
+        #endregion
+
+        #region Payment workflow
+        // ===================== PAYMENT WORKFLOW =====================
         private async void CashPaymentBtn_Click(object sender, RoutedEventArgs e)
         {
             await ProcessPaymentAsync(PaymentType.Cash);
@@ -4249,43 +4266,7 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
             await ProcessPaymentAsync(_currentInvoice.PaymentType.Value);
         }
 
-
-        /*  private async Task ProcessPaymentAsync(PaymentType paymentType)
-          {
-              try
-              {
-                  _currentInvoice.PaymentType = paymentType;
-
-                  if (!CanSaveInvoice())
-                      return;
-
-                  PrepareInvoiceForSave();
-
-                  var result = await _invoiceService.CreateAsync(_currentInvoice);
-
-                  if (!result.Success)
-                  {
-                      MessageBox.Show(result.Message ?? "فشل حفظ الفاتورة", "خطأ");
-                      return;
-                  }
-
-                  MessageBox.Show("تم حفظ الفاتورة بنجاح ✅", "نجاح");
-
-                  _lastSavedInvoice =
-                      await _invoiceService.GetFullInvoiceByIdAsync(result.Data.Id);
-
-                  await UpdateStockAfterSaleAsync();
-                  ResetPOS();
-              }
-              catch (Exception ex)
-              {
-                  MessageBox.Show(ex.Message, "خطأ");
-              }
-          }
-  */
-
-
-        //new INvoice 
+        // Starts a fresh draft after the current draft is confirmed for removal.
         private void NewInvoiceBtn_Click(object sender, RoutedEventArgs e)
         {
             if (_invoiceLines.Count > 0)
@@ -4443,6 +4424,7 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
             RecalculateTotals();
         }
 
+        // ===================== PRINTING AND RECEIPTS =====================
         private void InvoiceGrid_LoadingRow(object? sender, DataGridRowEventArgs e)
         {
             if (string.IsNullOrWhiteSpace(_currentInvoice?.HeldColor))
@@ -4574,27 +4556,7 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
             */
         }
 
-
-        /*private void ProductNameTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
-        {
-            if (e.Key == Key.Enter)
-            {
-                // Move focus to next cell
-                if (sender is TextBox tb)
-                {
-                    var dg = FindVisualParent<DataGrid>(tb);
-                    if (dg != null)
-                    {
-                        dg.CommitEdit(DataGridEditingUnit.Cell, true);
-                        dg.CommitEdit(); // commit row
-                        dg.Focus();
-                    }
-                }
-                e.Handled = true;
-            }
-        }*/
-
-        #region Search
+        #region Product search and suggestions
         // Keep track of the current Popup for the editing cell
         public ObservableCollection<ProductReadDto> ProductSuggestions { get; set; }
     = new();
@@ -5244,7 +5206,7 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
             catch (Exception ex) { MessageBox.Show(ex.Message, UiText.T("خطأ", "Error")); }
         }
 
-        private async void ProductSuggestionsListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void ProductSuggestionsListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             /*if (sender is not ListBox lb || lb.SelectedItem is not ProductReadDto selectedProduct)
                 return;
@@ -5622,10 +5584,11 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
             FocusBarcodeInputDeferred();
         }
 
-        //search by Name Cell 
+        // ===================== PRODUCT SEARCH UI AND CELL EDITORS =====================
+        // Search by name cell.
 
         #endregion
-        #region financialhandle 
+        #region Payment and financial posting
 
         private void ShowPaymentValidationMessage(
             string message,
@@ -5674,6 +5637,7 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
                 LogPosTiming("click to processing indicator", timing, stepTiming);
                 _currentInvoice.PaymentType = paymentType;
 
+                // 1. Validate invoice number, draft lines, return rules, and cashier session.
                 if (!await ValidateFalconNumberBeforeSaveAsync())
                 {
                     StopForValidationMessage();
@@ -5719,6 +5683,7 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
                 ShowLoadingForWork();
                 LogPosTiming("stock validation", timing, stepTiming);
 
+                // 2. Prepare lines, expand FEFO allocations, and calculate final amounts.
                 PrepareInvoiceForSave();
                 var expandedLines = await ExpandInvoiceLinesByFefoAsync(_invoiceLines);
                 if (expandedLines == null)
@@ -5745,6 +5710,7 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
                 var calculatedTotal = expandedLines.Sum(l => l.Quantity * l.UnitPrice) - (_currentInvoice.DiscountAmount ?? 0m);
                 _currentInvoice.TotalAmount = signlessPurchaseReturn ? Math.Abs(calculatedTotal) : calculatedTotal;
 
+                // 3. Collect check details and validate credit-customer requirements.
                 var checkAllocation = _currentInvoice.Payments?.FirstOrDefault(payment => payment.PaymentType == PaymentType.Check);
                 if (checkAllocation != null)
                 {
@@ -5773,6 +5739,7 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
                     ShowLoadingForWork();
                 }
 
+                // 4. Complete the atomic checkout, then print and reset the draft.
                 _currentInvoice.DeferAccountingPosting = true;
                 var checkoutResult = await _saleCheckoutService.CompleteAsync(new SaleCheckoutRequest
                 {
@@ -5922,6 +5889,8 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
         {
 
         }
+
+        #endregion
 
         #region SessionManagement
         private void RefreshSessionButtons()

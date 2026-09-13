@@ -1584,3 +1584,18 @@ The solution still reports existing warnings, including package compatibility/se
 ### Remaining risks
 - The Stock Out screen does not yet provide a source-invoice selector; `SourceDocumentId` remains optional/null, so purchase-invoice and stock-in returns currently use the entered/product purchase price rather than importing a selected source line price.
 - Manual live-database verification is required for migration application, journal balancing, supplier/customer balances, and quantity effects across each operation type.
+
+## 2026-09-13 - POS readability refactor verification
+
+### Scope
+- POS code readability cleanup, workflow labels, dead-code cleanup, browse-item mapping reuse, and product hydration formatting.
+- Behavior-preservation contract reviewed for barcode focus, editable sale rows, return-column-only editing, keyboard navigation, FEFO, payments, and modal flows.
+
+### Verification
+- WPF application build: passed with 0 errors; existing warnings remain.
+- Full automated test suite: 95 passed, 13 failed, 0 skipped, 108 total.
+
+### Findings and remaining risks
+- The refactor did not introduce POS compilation errors.
+- No dedicated automated POS UI tests are present; barcode focus and return-grid editability remain manual verification items.
+- The 13 failures are existing accounting and stock-allocation failures, including FEFO ordering/expiry and accounting check/void/invoice-update scenarios; they require separate investigation before treating the full suite as green.
