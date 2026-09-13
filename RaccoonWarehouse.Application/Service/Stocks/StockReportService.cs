@@ -685,6 +685,15 @@ namespace RaccoonWarehouse.Application.Service.Stocks
             var lots = await lotRepo.GetAllAsQueryable()
                 .Where(l => l.RemainingQuantity > 0 &&
                             (!l.ExpiryDate.HasValue || l.ExpiryDate.Value <= DateTime.MinValue.AddDays(1) || l.ExpiryDate.Value >= today))
+                .Select(l => new StockLot
+                {
+                    Id = l.Id,
+                    ProductId = l.ProductId,
+                    ProductUnitId = l.ProductUnitId,
+                    RemainingQuantity = l.RemainingQuantity,
+                    ExpiryDate = l.ExpiryDate,
+                    CreatedDate = l.CreatedDate
+                })
                 .ToListAsync();
 
             return lots
@@ -704,6 +713,15 @@ namespace RaccoonWarehouse.Application.Service.Stocks
             var lots = await lotRepo.GetAllAsQueryable()
                 .Where(l => l.RemainingQuantity > 0 &&
                             (!l.ExpiryDate.HasValue || l.ExpiryDate.Value <= DateTime.MinValue.AddDays(1) || l.ExpiryDate.Value >= today))
+                .Select(l => new StockLot
+                {
+                    Id = l.Id,
+                    ProductId = l.ProductId,
+                    ProductUnitId = l.ProductUnitId,
+                    RemainingQuantity = l.RemainingQuantity,
+                    ExpiryDate = l.ExpiryDate,
+                    CreatedDate = l.CreatedDate
+                })
                 .ToListAsync();
 
             return lots
