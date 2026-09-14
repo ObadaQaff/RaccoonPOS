@@ -1610,3 +1610,14 @@ The solution still reports existing warnings, including package compatibility/se
 ### Verification
 - WPF application build: passed with 0 errors; existing warning `CS4014` remains in EmployeesTable double-click flow.
 - Manual verification remains required for the AuditLogs database table and Admin/non-Admin navigation behavior.
+
+## 2026-09-14 - POS lot availability display correction
+
+### Scope
+- Verified invoice 765 against live stock lots: two purchase lots contained 3 and 2 units; the invoice consumed 3 from the first lot and 2 remained.
+- Changed POS browse availability to calculate from active stock-lot base quantities using the selected selling-unit factor.
+- Renamed the invoice grid availability column to clarify that it shows the quantity remaining after the sale.
+
+### Verification
+- Read-only database verification confirmed the lot and stock-summary quantities agree after checkout.
+- Compilation reached source/XAML validation with no new errors; final output copy was blocked by the running POS/debugger locking the build DLLs.

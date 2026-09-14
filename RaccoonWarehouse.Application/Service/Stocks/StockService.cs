@@ -681,10 +681,32 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                     s.SalePrice,
                     AverageCost = s.ProductUnit != null ? s.ProductUnit.PurchasePrice : 0m,
                     IsDefaultSaleUnit = s.ProductUnit != null && s.ProductUnit.IsDefaultSaleUnit,
+                    QuantityPerUnit = s.ProductUnit != null && s.ProductUnit.QuantityPerUnit > 0
+                        ? s.ProductUnit.QuantityPerUnit
+                        : 1m,
                     s.Quantity,
                     s.ProductUnitId
                 })
                 .ToListAsync();
+
+            // Display availability from active lots, not summary rows. Summary rows are
+            // useful for fast stock screens, but they can be stale or contain more than
+            // one selling unit. Lots are the source of truth for available base quantity.
+            var availableBaseByProduct = await _uow.GetRepository<StockLot>().GetAllAsQueryable()
+                .AsNoTracking()
+                .Where(lot => productIdPage.Contains(lot.ProductId) &&
+                             lot.Status == BatchStatus.Active &&
+                             lot.RemainingBaseQuantity > 0 &&
+                             (!lot.ExpiryDate.HasValue ||
+                              lot.ExpiryDate.Value <= DateTime.MinValue.AddDays(1) ||
+                              lot.ExpiryDate.Value >= DateTime.Today))
+                .GroupBy(lot => lot.ProductId)
+                .Select(group => new
+                {
+                    ProductId = group.Key,
+                    TotalBaseQuantity = group.Sum(lot => lot.RemainingBaseQuantity)
+                })
+                .ToDictionaryAsync(x => x.ProductId, x => x.TotalBaseQuantity);
 
             var latestCostRows = await _uow.GetRepository<StockLot>().GetAllAsQueryable()
                 .AsNoTracking()
@@ -733,7 +755,11 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                                 preferred.AverageCost,
                                 preferred.TaxExempt,
                                 preferred.TaxRate),
-                            AvailableQuantity = g.Sum(x => x.Quantity)
+                            AvailableQuantity = availableBaseByProduct.TryGetValue(
+                                preferred.ProductId,
+                                out var totalBaseQuantity)
+                                ? Math.Max(totalBaseQuantity / preferred.QuantityPerUnit, 0m)
+                                : 0m
                         };
                     });
 
