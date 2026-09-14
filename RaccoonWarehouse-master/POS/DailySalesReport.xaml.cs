@@ -329,6 +329,7 @@ namespace RaccoonWarehouse.POS
                 _vm.TotalDocuments = rows.Count;
                 _vm.TotalIn = rows.Where(IsIncoming).Sum(x => x.Amount);
                 _vm.TotalOut = rows.Where(x => !IsIncoming(x)).Sum(x => x.Amount);
+                _vm.TotalTax = sessionInvoices.Sum(invoice => invoice.TotalTax);
 
                 _allTransactionRows = rows
                     .OrderByDescending(x => x.Date)

@@ -24,6 +24,7 @@ namespace RaccoonWarehouse.Domain.POS.VM
         private decimal _totalDiscount;
         private decimal _totalIn;
         private decimal _totalOut;
+        private decimal _totalTax;
 
         public DateTime ReportDate
         {
@@ -120,6 +121,12 @@ namespace RaccoonWarehouse.Domain.POS.VM
         }
 
         public decimal NetMovement => TotalIn - TotalOut;
+
+        public decimal TotalTax
+        {
+            get => _totalTax;
+            set { _totalTax = value; OnPropertyChanged(); }
+        }
 
         public ObservableCollection<InvoiceReadDto> Invoices { get; } = new();
         public ObservableCollection<CashierSessionReadDto> Sessions { get; } = new();

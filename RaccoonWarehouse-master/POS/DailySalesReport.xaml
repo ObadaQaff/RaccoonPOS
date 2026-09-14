@@ -155,7 +155,7 @@
             </StackPanel>
         </Border>
 
-        <UniformGrid Grid.Row="3" Columns="4" Margin="0,8,0,0">
+        <UniformGrid Grid.Row="3" Columns="5" Margin="0,8,0,0">
             <Border Background="White" CornerRadius="8" Padding="8" Margin="0,0,6,0" BorderBrush="#D0D7DD" BorderThickness="1">
                 <StackPanel>
                     <TextBlock Text="إجمالي المستندات" Foreground="#67727D" FontSize="12"/>
@@ -178,6 +178,12 @@
                 <StackPanel>
                     <TextBlock Text="الصافي" Foreground="#67727D" FontSize="12"/>
                     <TextBlock Text="{Binding NetMovement, StringFormat={}{0:N2}}" FontSize="19" FontWeight="Bold" Foreground="#2D8DCF"/>
+                </StackPanel>
+            </Border>
+            <Border Background="#FFF8E8" CornerRadius="8" Padding="8" BorderBrush="#D0D7DD" BorderThickness="1">
+                <StackPanel>
+                    <TextBlock Text="الضريبة / Tax" Foreground="#67727D" FontSize="12"/>
+                    <TextBlock Text="{Binding TotalTax, StringFormat={}{0:N2}}" FontSize="19" FontWeight="Bold" Foreground="#C27A00"/>
                 </StackPanel>
             </Border>
         </UniformGrid>
