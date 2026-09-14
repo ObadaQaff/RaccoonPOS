@@ -1621,3 +1621,19 @@ The solution still reports existing warnings, including package compatibility/se
 ### Verification
 - Read-only database verification confirmed the lot and stock-summary quantities agree after checkout.
 - Compilation reached source/XAML validation with no new errors; final output copy was blocked by the running POS/debugger locking the build DLLs.
+
+## 2026-09-14 - Report tax, payment totals, and stock history enhancements
+
+### Scope
+- Added invoice tax to the POS daily sales transaction grid.
+- Added payment-method totals and Excel export with a totals sheet to the invoice payment-method report.
+- Added available quantity after each movement to the stock movement report and product movement tab.
+- Added an optional inventory as-of date filter and increased the inventory report minimum width.
+
+### Verification
+- Full solution build: passed with 0 errors; existing nullable and legacy warnings remain.
+- Manual verification remains required for Excel file output, historical as-of quantities, and Arabic/English visual layout.
+
+### Remaining risks
+- Historical inventory pricing is intentionally shown as zero when an as-of date is selected; the quantity is calculated from stock transactions.
+- Available-after-movement values depend on stock-lot balances being consistent with the transaction history.

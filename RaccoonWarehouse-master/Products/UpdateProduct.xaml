@@ -197,6 +197,7 @@
                                 <DataGridTextColumn Header="النوع" Binding="{Binding TransactionTypeLabel}" Width="95"/>
                                 <DataGridTextColumn Header="الكمية" Binding="{Binding Quantity, StringFormat={}{0:0.00000}}" Width="85"/>
                                 <DataGridTextColumn Header="الكمية الأساسية" Binding="{Binding BaseQuantity, StringFormat={}{0:0.00000}}" Width="110"/>
+                                <DataGridTextColumn Header="Available after movement" Binding="{Binding AvailableQuantityAfterMovement, StringFormat={}{0:0.00000}}" Width="180"/>
                                 <DataGridTextColumn Header="سعر الوحدة" Binding="{Binding UnitPrice, StringFormat={}{0:0.00000}}" Width="95"/>
                                 <DataGridTemplateColumn Header="مرجع الفاتورة" Width="120">
                                     <DataGridTemplateColumn.CellTemplate>

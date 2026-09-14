@@ -22,7 +22,7 @@
         </Style>
     </Window.Resources>
     <Grid Margin="18">
-        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
         <Border Grid.Row="0" Background="#2D8DCF" CornerRadius="12" Padding="14" Margin="0,0,0,12">
             <TextBlock x:Name="TitleText" Text="Invoice Payment Methods" Foreground="White" FontSize="25" FontWeight="Bold" HorizontalAlignment="Center"/>
         </Border>
@@ -36,10 +36,27 @@
                     <TextBlock x:Name="TotalLabel" Text="Total:" VerticalAlignment="Center" Foreground="#667"/><TextBlock x:Name="TotalText" Text="0.00000" VerticalAlignment="Center" FontWeight="Bold" Margin="6,0"/>
                 </StackPanel>
                 <Button Grid.Column="3" x:Name="GenerateButton" Content="Show report" Style="{StaticResource PrimaryButtonStyle}" Click="GenerateButton_Click" Margin="6,0"/>
-                <Button Grid.Column="4" x:Name="BackButton" Content="Back" Style="{StaticResource SecondaryButtonStyle}" Click="BackButton_Click" Margin="6,0"/>
+                <StackPanel Grid.Column="4" Orientation="Horizontal">
+                    <Button x:Name="ExportExcelButton" Content="Export Excel" Style="{StaticResource SecondaryButtonStyle}" Click="ExportExcelButton_Click" Margin="6,0"/>
+                    <Button x:Name="BackButton" Content="Back" Style="{StaticResource SecondaryButtonStyle}" Click="BackButton_Click" Margin="6,0"/>
+                </StackPanel>
             </Grid>
         </Border>
-        <Border Grid.Row="2" Background="White" BorderBrush="#D0D7DD" BorderThickness="1" CornerRadius="12" Padding="10">
+        <Border Grid.Row="2" Background="White" BorderBrush="#D0D7DD" BorderThickness="1" CornerRadius="12" Padding="10" Margin="0,0,0,12">
+            <StackPanel>
+                <TextBlock x:Name="PaymentTotalsLabel" Text="Payment method totals" FontWeight="Bold" Margin="4,0,0,8"/>
+                <UniformGrid Columns="7">
+                    <StackPanel><TextBlock x:Name="CashTotalLabel" Text="Cash" HorizontalAlignment="Center"/><TextBlock x:Name="CashTotalText" Text="0.00000" HorizontalAlignment="Center" FontWeight="Bold"/></StackPanel>
+                    <StackPanel><TextBlock x:Name="VisaTotalLabel" Text="Visa" HorizontalAlignment="Center"/><TextBlock x:Name="VisaTotalText" Text="0.00000" HorizontalAlignment="Center" FontWeight="Bold"/></StackPanel>
+                    <StackPanel><TextBlock x:Name="MasterTotalLabel" Text="Master" HorizontalAlignment="Center"/><TextBlock x:Name="MasterTotalText" Text="0.00000" HorizontalAlignment="Center" FontWeight="Bold"/></StackPanel>
+                    <StackPanel><TextBlock x:Name="DebitTotalLabel" Text="Debit" HorizontalAlignment="Center"/><TextBlock x:Name="DebitTotalText" Text="0.00000" HorizontalAlignment="Center" FontWeight="Bold"/></StackPanel>
+                    <StackPanel><TextBlock x:Name="CheckTotalLabel" Text="Check" HorizontalAlignment="Center"/><TextBlock x:Name="CheckTotalText" Text="0.00000" HorizontalAlignment="Center" FontWeight="Bold"/></StackPanel>
+                    <StackPanel><TextBlock x:Name="MobileTotalLabel" Text="Mobile" HorizontalAlignment="Center"/><TextBlock x:Name="MobileTotalText" Text="0.00000" HorizontalAlignment="Center" FontWeight="Bold"/></StackPanel>
+                    <StackPanel><TextBlock x:Name="CreditTotalLabel" Text="Credit" HorizontalAlignment="Center"/><TextBlock x:Name="CreditTotalText" Text="0.00000" HorizontalAlignment="Center" FontWeight="Bold"/></StackPanel>
+                </UniformGrid>
+            </StackPanel>
+        </Border>
+        <Border Grid.Row="3" Background="White" BorderBrush="#D0D7DD" BorderThickness="1" CornerRadius="12" Padding="10">
             <DataGrid x:Name="InvoicePaymentsGrid" Style="{StaticResource ReportGridStyle}" MouseDoubleClick="InvoicePaymentsGrid_MouseDoubleClick">
                 <DataGrid.Columns>
                     <DataGridTextColumn x:Name="InvoiceNumberColumn" Header="Invoice" Binding="{Binding InvoiceNumber}" Width="110"/>
@@ -57,6 +74,6 @@
                 </DataGrid.Columns>
             </DataGrid>
         </Border>
-        <Border Grid.Row="3" Background="#E8EEF3" CornerRadius="12" Padding="10" Margin="0,12,0,0"><TextBlock Text="© 2026 Raccoon Warehouse" HorizontalAlignment="Center" Foreground="#416784"/></Border>
+        <Border Grid.Row="4" Background="#E8EEF3" CornerRadius="12" Padding="10" Margin="0,12,0,0"><TextBlock Text="© 2026 Raccoon Warehouse" HorizontalAlignment="Center" Foreground="#416784"/></Border>
     </Grid>
 </Window>

@@ -14,6 +14,7 @@ namespace RaccoonWarehouse.Domain.POS.VM
         public string? DirectionText { get; set; }
         public string? MethodText { get; set; }
         public decimal Amount { get; set; }
+        public decimal TaxAmount { get; set; }
         public string? CashierName { get; set; }
         public string? Notes { get; set; }
         public string? StatusText { get; set; }

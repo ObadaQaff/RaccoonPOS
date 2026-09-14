@@ -217,10 +217,20 @@ namespace RaccoonWarehouse.Products
 
             ProductMovements.Clear();
 
+            var availableQuantity = CurrentStockTotalBaseQuantity;
+            var movementIndex = 0;
             foreach (var movement in (result.Data ?? new List<StockTransactionReadDto>())
                 .OrderByDescending(m => m.TransactionDate)
-                .Take(200))
+                .ThenByDescending(m => m.Id))
             {
+                var availableAfterMovement = availableQuantity;
+                availableQuantity -= movement.BaseQuantity != 0
+                    ? movement.BaseQuantity
+                    : movement.Quantity * (movement.QuantityPerUnitSnapshot > 0 ? movement.QuantityPerUnitSnapshot : 1m);
+
+                if (movementIndex++ >= 200)
+                    continue;
+
                 ProductMovements.Add(new ProductMovementRow
                 {
                     TransactionDate = movement.TransactionDate,
@@ -234,7 +244,8 @@ namespace RaccoonWarehouse.Products
                     VoucherRef = movement.VoucherId?.ToString() ?? "-",
                     CashierName = movement.Casher?.Name ?? "-",
                     CustomerName = movement.Customer?.Name ?? "-",
-                    Notes = movement.Notes ?? "-"
+                    Notes = movement.Notes ?? "-",
+                    AvailableQuantityAfterMovement = availableAfterMovement
                 });
             }
         }
@@ -697,6 +708,7 @@ namespace RaccoonWarehouse.Products
             public string TransactionTypeLabel { get; set; } = "-";
             public decimal Quantity { get; set; }
             public decimal BaseQuantity { get; set; }
+            public decimal AvailableQuantityAfterMovement { get; set; }
             public decimal UnitPrice { get; set; }
             public int? InvoiceId { get; set; }
             public string InvoiceRef { get; set; } = "-";

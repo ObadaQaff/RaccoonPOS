@@ -32,8 +32,31 @@ namespace RaccoonWarehouse.Application.Service.Stocks
             _uow = uow;
         }
 
-        public async Task<List<CurrentStockDto>> GetCurrentStockAsync(string? searchText = null)
+        public async Task<List<CurrentStockDto>> GetCurrentStockAsync(string? searchText = null, DateTime? asOfDate = null)
         {
+            if (asOfDate.HasValue)
+            {
+                var balanceRows = await GetStockBalanceByDateAsync(asOfDate.Value);
+                var normalizedDateSearch = string.IsNullOrWhiteSpace(searchText) ? null : searchText.Trim();
+                return balanceRows
+                    .Where(x => normalizedDateSearch == null ||
+                                (x.ProductName?.Contains(normalizedDateSearch, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                                (x.ITEMCODE?.Contains(normalizedDateSearch, StringComparison.OrdinalIgnoreCase) ?? false))
+                    .Select(x => new CurrentStockDto
+                    {
+                        ProductId = x.ProductId,
+                        ProductName = x.ProductName,
+                        ITEMCODE = x.ITEMCODE ?? string.Empty,
+                        UnitName = x.UnitName,
+                        Quantity = x.Quantity,
+                        MinimumQuantity = x.MinimumQuantity,
+                        PurchasePrice = 0m,
+                        SalePrice = 0m,
+                        NearestExpiryDate = x.NearestExpiryDate
+                    })
+                    .OrderBy(x => x.ProductName)
+                    .ToList();
+            }
             var repo = _uow.GetRepository<Stock>();
 
             IQueryable<Stock> query = repo.AsQueryable()
@@ -138,6 +161,45 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                 })
                 .ToListAsync();
 
+            // Walk the complete product history backwards from the current lot balance.
+            // This gives the balance immediately after every movement, including rows
+            // outside the selected report date range.
+            var productIds = rows.Select(x => x.ProductId).Distinct().ToList();
+            var availableAfterMovement = new Dictionary<int, decimal>();
+            if (productIds.Count > 0)
+            {
+                var lotBalances = await _uow.GetRepository<StockLot>().AsQueryable()
+                    .AsNoTracking()
+                    .Where(x => productIds.Contains(x.ProductId) && x.RemainingBaseQuantity > 0)
+                    .GroupBy(x => x.ProductId)
+                    .Select(group => new { ProductId = group.Key, Quantity = group.Sum(x => x.RemainingBaseQuantity) })
+                    .ToDictionaryAsync(x => x.ProductId, x => x.Quantity);
+
+                var history = await transactionRepo.AsQueryable()
+                    .AsNoTracking()
+                    .Where(x => productIds.Contains(x.ProductId))
+                    .OrderByDescending(x => x.TransactionDate)
+                    .ThenByDescending(x => x.Id)
+                    .Select(x => new
+                    {
+                        x.Id,
+                        x.ProductId,
+                        Quantity = x.BaseQuantity != 0
+                            ? x.BaseQuantity
+                            : x.Quantity * (x.QuantityPerUnitSnapshot > 0
+                                ? x.QuantityPerUnitSnapshot
+                                : (x.ProductUnit.QuantityPerUnit > 0 ? x.ProductUnit.QuantityPerUnit : 1m))
+                    })
+                    .ToListAsync();
+
+                foreach (var movement in history)
+                {
+                    var available = lotBalances.TryGetValue(movement.ProductId, out var balance) ? balance : 0m;
+                    availableAfterMovement[movement.Id] = available;
+                    lotBalances[movement.ProductId] = available - movement.Quantity;
+                }
+            }
+
             return rows
                 .Select(x => new StockMovementDto
                 {
@@ -150,6 +212,9 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                     ProductName = x.ProductName,
                     UnitName = x.BaseUnitName ?? x.ProductUnitName,
                     Quantity = x.Quantity,
+                    AvailableQuantityAfterMovement = availableAfterMovement.TryGetValue(x.StockItemId, out var available)
+                        ? available
+                        : null,
                     PurchasePrice = x.PurchasePrice,
                     SalePrice = x.SalePrice,
                     ExpiryDate = x.ExpiryDate,
@@ -790,7 +855,7 @@ namespace RaccoonWarehouse.Application.Service.Stocks
 
     public interface IStockReportService
     {
-        Task<List<CurrentStockDto>> GetCurrentStockAsync(string? searchText = null);
+        Task<List<CurrentStockDto>> GetCurrentStockAsync(string? searchText = null, DateTime? asOfDate = null);
         Task<List<StockMovementDto>> GetStockMovementsAsync(DateTime? from, DateTime? to, int? productId = null);
         Task<List<LowStockDto>> GetLowStockAsync();
         Task<List<StockBalanceByDateDto>> GetStockBalanceByDateAsync(DateTime date, bool includeInvoices = true);

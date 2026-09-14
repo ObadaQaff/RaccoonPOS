@@ -434,6 +434,7 @@ namespace RaccoonWarehouse.POS
                 DirectionText = isReturn ? "صادر" : "وارد",
                 MethodText = FormatInvoicePaymentMethod(invoice),
                 Amount = invoice.TotalAmount,
+                TaxAmount = invoice.TotalTax,
                 CashierName = invoice.User?.Name ?? cashierName,
                 Notes = null,
                 StatusText = invoice.Status?.ToString() ?? "—",

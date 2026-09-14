@@ -256,6 +256,7 @@
                         <DataGridTextColumn Header="اسم الصنف" Binding="{Binding ProductName}" Width="290"/>
                         <DataGridTextColumn Header="الوحدة" Binding="{Binding UnitName}" Width="140"/>
                         <DataGridTextColumn Header="الكمية" Binding="{Binding Quantity}" Width="120"/>
+                        <DataGridTextColumn Header="Available after movement" Binding="{Binding AvailableQuantityAfterMovement, StringFormat={}{0:0.00000}}" Width="180"/>
                         <DataGridTextColumn Header="سعر الشراء" Binding="{Binding PurchasePrice}" Width="145"/>
                         <DataGridTextColumn Header="سعر البيع" Binding="{Binding SalePrice}" Width="145"/>
                         <DataGridTextColumn Header="تاريخ الانتهاء" Binding="{Binding ExpiryDate, StringFormat=yyyy-MM-dd, TargetNullValue=-}" Width="170"/>

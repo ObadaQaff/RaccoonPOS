@@ -65,7 +65,7 @@ namespace RaccoonWarehouse.Stocks
                 if (requestVersion != _searchVersion)
                     return;
 
-                var data = await _stockReportService.GetCurrentStockAsync(normalizedSearch);
+                var data = await _stockReportService.GetCurrentStockAsync(normalizedSearch, AsOfDatePicker.SelectedDate?.Date);
                 if (requestVersion != _searchVersion)
                     return;
 
@@ -244,6 +244,15 @@ namespace RaccoonWarehouse.Stocks
         {
             if (IsInitialized)
                 ApplyQuantityFilter();
+        }
+
+        private async void AsOfDatePicker_SelectedDateChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!IsInitialized)
+                return;
+
+            var searchVersion = Interlocked.Increment(ref _searchVersion);
+            await LoadStockAsync(GetSearchText(), searchVersion);
         }
 
         private void ApplyQuantityFilter()

@@ -291,6 +291,10 @@
                                         SortMemberPath="Amount"
                                         CanUserSort="True"
                                         Width="130"/>
+                    <DataGridTextColumn Header="Tax"
+                                        Binding="{Binding TaxAmount, StringFormat={}{0:N2}}"
+                                        SortMemberPath="TaxAmount"
+                                        Width="110"/>
                     <DataGridTextColumn Header="Customer"
                                         Binding="{Binding CustomerName}"
                                         SortMemberPath="CustomerName"
