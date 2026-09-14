@@ -27,12 +27,12 @@
 
                 <StackPanel VerticalAlignment="Center">
                     <TextBlock Text="إدارة الموظفين"
-                               FontSize="34"
+                               FontSize="38"
                                FontWeight="Bold"
                                Foreground="White"/>
                     <TextBlock x:Name="FeatureStateText"
                                Margin="0,10,0,0"
-                               FontSize="14"
+                               FontSize="16"
                                Foreground="#D7F1FF"/>
                 </StackPanel>
 
@@ -77,6 +77,8 @@
                         <TextBox x:Name="SearchBox"
                                  Grid.Column="0"
                                  Style="{StaticResource AppSearchTextBoxStyle}"
+                                 FontSize="16"
+                                 Height="48"
                                  TextChanged="SearchBox_TextChanged"
                                  ToolTip="ابحث بالاسم أو الهاتف أو الدور"/>
 
@@ -100,11 +102,13 @@
                                         VerticalAlignment="Center">
                                 <TextBlock x:Name="RoleFilterLabel"
                                            Text="Ø§Ù„Ø¯ÙˆØ±"
-                                           FontSize="12"
+                                           FontSize="14"
                                            Foreground="{StaticResource AppMutedTextBrush}"/>
                                 <ComboBox x:Name="RoleFilterBox"
                                           Width="180"
-                                          Margin="0,6,0,0"
+                                          Height="42"
+                                          Margin="0,8,0,0"
+                                          FontSize="15"
                                           SelectionChanged="RoleFilterBox_SelectionChanged"/>
                             </StackPanel>
                         </StackPanel>
@@ -113,7 +117,8 @@
                                     Orientation="Horizontal"
                                     HorizontalAlignment="Left">
                             <Button x:Name="FeatureSettingsBtn"
-                                    Width="150"
+                                    Width="158"
+                                    Height="48"
                                     Margin="0,0,12,0"
                                     Style="{StaticResource AppSecondaryButtonStyle}"
                                     Click="FeatureSettingsBtn_Click">
@@ -126,7 +131,8 @@
                             </Button>
 
                             <Button x:Name="CreateUserBtn"
-                                    Width="150"
+                                    Width="158"
+                                    Height="48"
                                     Margin="0,0,12,0"
                                     Style="{StaticResource AppHeroButtonStyle}"
                                     Click="CreateUserBtn_Click">
@@ -139,7 +145,8 @@
                             </Button>
 
                             <Button x:Name="ViewShiftsBtn"
-                                    Width="150"
+                                    Width="158"
+                                    Height="48"
                                     Margin="0,0,12,0"
                                     Style="{StaticResource AppSecondaryButtonStyle}"
                                     Click="ViewShiftsBtn_Click">
@@ -149,7 +156,8 @@
                             </Button>
 
                             <Button x:Name="ActivityBtn"
-                                    Width="150"
+                                    Width="158"
+                                    Height="48"
                                     Margin="0,0,12,0"
                                     Style="{StaticResource AppSecondaryButtonStyle}"
                                     Click="ActivityBtn_Click">
@@ -157,7 +165,8 @@
                             </Button>
 
                             <Button x:Name="BackBtn"
-                                    Width="120"
+                                    Width="128"
+                                    Height="48"
                                     Style="{StaticResource AppSecondaryButtonStyle}"
                                     Click="BackBtn_Click">
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
@@ -172,7 +181,7 @@
 
                     <TextBlock x:Name="AdminHintText"
                                Margin="2,16,0,0"
-                               FontSize="13"
+                               FontSize="14"
                                Foreground="{StaticResource AppMutedTextBrush}"/>
                 </StackPanel>
             </Border>
@@ -185,6 +194,9 @@
                           Style="{StaticResource AppModernDataGridStyle}"
                           SelectionMode="Single"
                           SelectionUnit="FullRow"
+                          FontSize="15"
+                          RowHeight="44"
+                          ColumnHeaderHeight="46"
                           MouseDoubleClick="UsersTable1_MouseDoubleClick">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="المعرف" Binding="{Binding Id}" Width="90"/>
