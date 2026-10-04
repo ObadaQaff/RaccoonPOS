@@ -10,16 +10,21 @@ using RaccoonWarehouse.Domain.Accounting.Enums;
 using RaccoonWarehouse.Domain.Accounting.JournalEntries;
 using RaccoonWarehouse.Domain.Accounting.JournalEntries.DTOs;
 using RaccoonWarehouse.Domain.Accounting.TaxRates;
+using RaccoonWarehouse.Domain.Checks;
+using RaccoonWarehouse.Domain.Checks.DTOs;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.FinancialTransactions.DTOs;
 using RaccoonWarehouse.Domain.InvoiceLines.DTOs;
 using RaccoonWarehouse.Domain.Invoices.DTOs;
+using RaccoonWarehouse.Domain.Invoices;
 using RaccoonWarehouse.Domain.Reports.Accounting.Dtos;
 using RaccoonWarehouse.Domain.Reports.Accounting.Filters;
 using RaccoonWarehouse.Domain.Settings;
 using RaccoonWarehouse.Domain.StockAdjustments.DTOs;
 using RaccoonWarehouse.Domain.StockDocuments.DTOs;
 using RaccoonWarehouse.Domain.Vouchers.DTOs;
+using RaccoonWarehouse.Domain.Vouchers;
+using RaccoonWarehouse.Domain.Users;
 using System.Diagnostics;
 
 namespace RaccoonWarehouse.Application.Service.Accounting
@@ -874,6 +879,7 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                     return new TrialBalanceRowDto
                     {
                         AccountId = account.Id,
+                        ParentAccountId = account.ParentAccountId,
                         AccountCode = account.Code,
                         AccountName = account.Name,
                         AccountType = account.AccountType,
@@ -885,16 +891,69 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                         ClosingCredit = closingBalance < 0 ? Math.Abs(closingBalance) : 0m
                     };
                 })
-                .Where(x => filter.IncludeZeroBalances || x.OpeningBalance != 0m || x.Debit != 0m || x.Credit != 0m || x.ClosingBalance != 0m)
                 .ToList();
+
+            var rowsById = rows.ToDictionary(x => x.AccountId);
+            var visibleAccountIds = new HashSet<int>(
+                rows.Where(x => filter.IncludeZeroBalances
+                    || x.OpeningBalance != 0m
+                    || x.Debit != 0m
+                    || x.Credit != 0m
+                    || x.ClosingBalance != 0m)
+                    .Select(x => x.AccountId));
+
+            if (!filter.IncludeZeroBalances)
+            {
+                foreach (var row in rows.Where(x => visibleAccountIds.Contains(x.AccountId)).ToList())
+                {
+                    var parentId = row.ParentAccountId;
+                    while (parentId.HasValue && rowsById.TryGetValue(parentId.Value, out var parent))
+                    {
+                        if (!visibleAccountIds.Add(parent.AccountId))
+                            break;
+
+                        parentId = parent.ParentAccountId;
+                    }
+                }
+            }
+
+            rows = rows
+                .Where(x => visibleAccountIds.Contains(x.AccountId))
+                .OrderBy(x => x.AccountCode)
+                .ToList();
+
+            var childrenByParentId = rows
+                .Where(x => x.ParentAccountId.HasValue)
+                .GroupBy(x => x.ParentAccountId!.Value)
+                .ToDictionary(group => group.Key, group => group.ToList());
+
+            void RollUpChildBalances(TrialBalanceRowDto row)
+            {
+                if (!childrenByParentId.TryGetValue(row.AccountId, out var children))
+                    return;
+
+                foreach (var child in children)
+                    RollUpChildBalances(child);
+
+                row.OpeningBalance += children.Sum(child => child.OpeningBalance);
+                row.Debit += children.Sum(child => child.Debit);
+                row.Credit += children.Sum(child => child.Credit);
+                row.ClosingBalance = row.OpeningBalance + row.Debit - row.Credit;
+                row.ClosingDebit = row.ClosingBalance > 0 ? row.ClosingBalance : 0m;
+                row.ClosingCredit = row.ClosingBalance < 0 ? Math.Abs(row.ClosingBalance) : 0m;
+            }
+
+            var topLevelRows = rows.Where(x => !x.ParentAccountId.HasValue).ToList();
+            foreach (var row in topLevelRows)
+                RollUpChildBalances(row);
 
             var summary = new TrialBalanceSummaryDto
             {
-                TotalOpeningBalance = rows.Sum(x => x.OpeningBalance),
-                TotalDebit = rows.Sum(x => x.Debit),
-                TotalCredit = rows.Sum(x => x.Credit),
-                TotalClosingDebit = rows.Sum(x => x.ClosingDebit),
-                TotalClosingCredit = rows.Sum(x => x.ClosingCredit)
+                TotalOpeningBalance = topLevelRows.Sum(x => x.OpeningBalance),
+                TotalDebit = topLevelRows.Sum(x => x.Debit),
+                TotalCredit = topLevelRows.Sum(x => x.Credit),
+                TotalClosingDebit = topLevelRows.Sum(x => x.ClosingDebit),
+                TotalClosingCredit = topLevelRows.Sum(x => x.ClosingCredit)
             };
 
             return Result<(TrialBalanceSummaryDto summary, List<TrialBalanceRowDto> rows)>.Ok((summary, rows));
@@ -927,7 +986,15 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                     })
                     .ToListAsync();
 
-                var scopedAccountIds = ResolveAccountScopeIds(selectedAccount.Id, allAccounts);
+                var scopedAccountIds = filter.AccountIds.Count > 0
+                    ? filter.AccountIds
+                        .SelectMany(accountId => ResolveAccountScopeIds(accountId, allAccounts))
+                        .ToHashSet()
+                    : ResolveAccountScopeIds(selectedAccount.Id, allAccounts);
+                var scopedAccounts = await _uow.Accounts.GetAllAsQueryable()
+                    .AsNoTracking()
+                    .Where(x => scopedAccountIds.Contains(x.Id))
+                    .ToDictionaryAsync(x => x.Id);
                 var scopedLines = await BuildLedgerLineQuery(filter.IncludePostedOnly)
                     .Where(x => scopedAccountIds.Contains(x.AccountId))
                     .Where(x => x.EntryDate <= filter.To)
@@ -959,6 +1026,9 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                     runningBalance += line.Debit - line.Credit;
                     rows.Add(new GeneralLedgerRowDto
                     {
+                        AccountLabel = scopedAccounts.TryGetValue(line.AccountId, out var openingAccount)
+                            ? $"{openingAccount.Code} - {openingAccount.Name}"
+                            : string.Empty,
                         EntryDate = line.EntryDate,
                         EntryNumber = line.EntryNumber,
                         Description = AccountingTextLocalizer.ToArabic(string.IsNullOrWhiteSpace(line.LineDescription) ? line.EntryDescription : line.LineDescription!),
@@ -1150,20 +1220,27 @@ namespace RaccoonWarehouse.Application.Service.Accounting
             if (!string.IsNullOrWhiteSpace(filter.ReferenceSearch))
             {
                 var referenceSearch = filter.ReferenceSearch.Trim();
+                var checkSearchAlias = referenceSearch.Contains("شيك", StringComparison.OrdinalIgnoreCase)
+                    ? "Check"
+                    : referenceSearch.Contains("check", StringComparison.OrdinalIgnoreCase)
+                        ? "شيك"
+                        : null;
                 if (int.TryParse(referenceSearch, out var referenceId))
                 {
                     query = query.Where(x =>
                         (x.ReferenceType != null && x.ReferenceType.Contains(referenceSearch)) ||
                         (x.ReferenceNumber != null && x.ReferenceNumber.Contains(referenceSearch)) ||
                         x.ReferenceId == referenceId ||
-                        (x.Description != null && x.Description.Contains(referenceSearch)));
+                        (x.Description != null && x.Description.Contains(referenceSearch)) ||
+                        (checkSearchAlias != null && x.Description != null && x.Description.Contains(checkSearchAlias)));
                 }
                 else
                 {
                     query = query.Where(x =>
                         (x.ReferenceType != null && x.ReferenceType.Contains(referenceSearch)) ||
                         (x.ReferenceNumber != null && x.ReferenceNumber.Contains(referenceSearch)) ||
-                        (x.Description != null && x.Description.Contains(referenceSearch)));
+                        (x.Description != null && x.Description.Contains(referenceSearch)) ||
+                        (checkSearchAlias != null && x.Description != null && x.Description.Contains(checkSearchAlias)));
                 }
             }
 
@@ -1189,7 +1266,99 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                 .ToListAsync();
 
             var result = _mapper.Map<List<JournalEntryReadDto>>(entries);
+            await EnrichJournalEntryDetailsAsync(result);
             return Result<List<JournalEntryReadDto>>.Ok(result);
+        }
+
+        private async Task EnrichJournalEntryDetailsAsync(List<JournalEntryReadDto> entries)
+        {
+            var invoiceIds = entries
+                .Where(x => string.Equals(x.ReferenceType, "Invoice", StringComparison.OrdinalIgnoreCase) && x.ReferenceId.HasValue)
+                .Select(x => x.ReferenceId!.Value)
+                .Distinct()
+                .ToList();
+            var voucherIds = entries
+                .Where(x => string.Equals(x.ReferenceType, "Voucher", StringComparison.OrdinalIgnoreCase) && x.ReferenceId.HasValue)
+                .Select(x => x.ReferenceId!.Value)
+                .Distinct()
+                .ToList();
+
+            var invoices = await _context.Set<Invoice>()
+                .AsNoTracking()
+                .Include(x => x.Payments)
+                .Include(x => x.Checks)
+                .Where(x => invoiceIds.Contains(x.Id))
+                .ToDictionaryAsync(x => x.Id);
+            var vouchers = await _context.Set<Voucher>()
+                .AsNoTracking()
+                .Include(x => x.Checks)
+                .Where(x => voucherIds.Contains(x.Id))
+                .ToDictionaryAsync(x => x.Id);
+
+            var creatorIds = entries
+                .Where(x => x.CreatedBy.HasValue)
+                .Select(x => x.CreatedBy!.Value)
+                .Distinct()
+                .ToList();
+            var creators = await _context.Set<User>()
+                .AsNoTracking()
+                .Where(x => creatorIds.Contains(x.Id))
+                .ToDictionaryAsync(x => x.Id, x => x.Name);
+
+            foreach (var entry in entries)
+            {
+                if (entry.CreatedBy.HasValue && creators.TryGetValue(entry.CreatedBy.Value, out var creatorName))
+                    entry.CreatedByName = creatorName;
+
+                if (entry.ReferenceId is not int referenceId)
+                {
+                    entry.TotalTax = entry.Lines.Sum(x => x.TaxAmount ?? 0m);
+                    entry.FinalTotal = entry.TotalDebit;
+                    continue;
+                }
+
+                if (string.Equals(entry.ReferenceType, "Invoice", StringComparison.OrdinalIgnoreCase) && invoices.TryGetValue(referenceId, out var invoice))
+                {
+                    entry.PaymentDetails = (invoice.Payments ?? new List<InvoicePayment>())
+                        .Where(x => x.Amount != 0m)
+                        .Select(x => new JournalEntryPaymentDetailDto
+                        {
+                            PaymentType = x.PaymentType,
+                            Amount = x.Amount
+                        })
+                        .ToList();
+                    entry.Subtotal = invoice.SubTotal;
+                    entry.TotalTax = invoice.TotalTax;
+                    entry.FinalTotal = invoice.TotalAmount;
+                    entry.Notes = invoice.Notes;
+                    entry.CheckDetails = FormatCheckDetails(invoice.Checks);
+                }
+                else if (string.Equals(entry.ReferenceType, "Voucher", StringComparison.OrdinalIgnoreCase) && vouchers.TryGetValue(referenceId, out var voucher))
+                {
+                    entry.PaymentDetails = new List<JournalEntryPaymentDetailDto>
+                    {
+                        new() { PaymentType = voucher.PaymentType, Amount = voucher.Amount }
+                    };
+                    entry.FinalTotal = voucher.Amount;
+                    entry.Notes = voucher.Notes;
+                    entry.CheckDetails = FormatCheckDetails(voucher.Checks);
+                }
+                else
+                {
+                    entry.TotalTax = entry.Lines.Sum(x => x.TaxAmount ?? 0m);
+                    entry.FinalTotal = entry.TotalDebit;
+                }
+            }
+        }
+
+        private static string? FormatCheckDetails(IEnumerable<Check>? checks)
+        {
+            var details = checks?
+                .Where(x => !string.IsNullOrWhiteSpace(x.CheckNumber))
+                .Select(x => $"رقم الشيك: {x.CheckNumber} | البنك: {x.BankName} | الاستحقاق: {x.DueDate:yyyy-MM-dd} | الحالة: {x.Status}")
+                .ToList();
+
+            return details is { Count: > 0 } ? string.Join("\n", details) : null;
         }
 
         public async Task<Result<JournalEntryReadDto>> ReverseJournalEntryAsync(int journalEntryId, string reason)
@@ -1566,7 +1735,7 @@ namespace RaccoonWarehouse.Application.Service.Accounting
         private static string BuildInvoiceDescription(InvoiceWriteDto invoice)
         {
             var channel = invoice.IsPOS == true ? "POS" : "Invoice";
-            return $"{channel} {invoice.InvoiceType} #{invoice.InvoiceNumber}";
+            return AppendCheckDetails($"{channel} {invoice.InvoiceType} #{invoice.InvoiceNumber}", invoice.Checks);
         }
 
         private static string BuildFinancialDescription(FinancialPostDto transaction, int transactionId)
@@ -1576,7 +1745,22 @@ namespace RaccoonWarehouse.Application.Service.Accounting
 
         private static string BuildVoucherDescription(VoucherWriteDto voucher)
         {
-            return $"Voucher {voucher.VoucherType} #{voucher.VoucherNumber ?? voucher.Id.ToString()}";
+            return AppendCheckDetails(
+                $"Voucher {voucher.VoucherType} #{voucher.VoucherNumber ?? voucher.Id.ToString()}",
+                voucher.Checks);
+        }
+
+        private static string AppendCheckDetails(string description, IEnumerable<CheckWriteDto>? checks)
+        {
+            var checkNumbers = checks?
+                .Where(x => !string.IsNullOrWhiteSpace(x.CheckNumber))
+                .Select(x => x.CheckNumber.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            return checkNumbers is { Count: > 0 }
+                ? $"{description} Check Number {string.Join(", ", checkNumbers)}"
+                : description;
         }
 
         private static string BuildStockDocumentDescription(StockDocumentWriteDto document)

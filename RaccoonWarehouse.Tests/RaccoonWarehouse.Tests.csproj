@@ -23,4 +23,10 @@
     <ProjectReference Include="..\RaccoonWarehouse.Domain\RaccoonWarehouse.Domain.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="..\RaccoonWarehouse-master\ChatAssistant\Knowledge\ROCCOPOS_HELP.json"
+          Link="ChatAssistant\Knowledge\ROCCOPOS_HELP.json"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

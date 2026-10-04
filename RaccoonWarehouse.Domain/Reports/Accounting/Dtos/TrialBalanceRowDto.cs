@@ -1,10 +1,12 @@
 using RaccoonWarehouse.Domain.Accounting.Enums;
+using System.Collections.Generic;
 
 namespace RaccoonWarehouse.Domain.Reports.Accounting.Dtos
 {
     public class TrialBalanceRowDto
     {
         public int AccountId { get; set; }
+        public int? ParentAccountId { get; set; }
         public string AccountCode { get; set; } = string.Empty;
         public string AccountName { get; set; } = string.Empty;
         public AccountType AccountType { get; set; }
@@ -23,5 +25,6 @@ namespace RaccoonWarehouse.Domain.Reports.Accounting.Dtos
         public decimal ClosingBalance { get; set; }
         public decimal ClosingDebit { get; set; }
         public decimal ClosingCredit { get; set; }
+        public List<TrialBalanceRowDto> Children { get; set; } = new();
     }
 }

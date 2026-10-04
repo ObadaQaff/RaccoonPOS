@@ -101,7 +101,12 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                 ["Increase"] = "زيادة",
                 ["Decrease"] = "نقص",
                 ["Replace"] = "استبدال",
-                ["CloseAndRecreate"] = "إغلاق وإعادة إنشاء"
+                ["CloseAndRecreate"] = "إغلاق وإعادة إنشاء",
+                ["Check payment"] = "دفع بشيك",
+                ["Check Number"] = "رقم الشيك",
+                ["Check No"] = "رقم الشيك",
+                ["Checks"] = "شيكات",
+                ["Check"] = "شيك"
             };
     }
 }

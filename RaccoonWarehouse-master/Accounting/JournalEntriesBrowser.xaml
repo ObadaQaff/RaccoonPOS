@@ -40,6 +40,7 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="1.1*"/>
                 <RowDefinition Height="0.9*"/>
             </Grid.RowDefinitions>
@@ -112,7 +113,19 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <Border Grid.Column="0" Style="{StaticResource AppCardBorderStyle}" Padding="18">
-                    <TextBlock x:Name="SelectionSummaryText" FontSize="20" FontWeight="Bold" Text="اختر قيداً لعرض تفاصيله"/>
+                    <StackPanel>
+                        <TextBlock x:Name="SelectionSummaryText" FontSize="20" FontWeight="Bold" Text="اختر قيداً لعرض تفاصيله"/>
+                        <Button x:Name="ShowEntryDetailsButton"
+                                Visibility="Collapsed"
+                                Width="190"
+                                Height="38"
+                                Margin="0,12,0,0"
+                                IsEnabled="False"
+                                Style="{StaticResource AppSecondaryButtonStyle}"
+                                Click="ShowEntryDetailsBtn_Click">
+                            <TextBlock Text="عرض تفاصيل القيد"/>
+                        </Button>
+                    </StackPanel>
                 </Border>
                 <Border Grid.Column="1" Style="{StaticResource AppCardBorderStyle}" Padding="18" Margin="12,0">
                     <StackPanel>
@@ -128,7 +141,41 @@
                 </Border>
             </Grid>
 
-            <Border Grid.Row="2" Margin="0,18,0,0" Style="{StaticResource AppCardBorderStyle}" Padding="16" MinHeight="300">
+            <Border x:Name="EntryDetailsBorder"
+                    Grid.Row="2"
+                    Margin="0,14,0,0"
+                    Padding="18"
+                    Style="{StaticResource AppCardBorderStyle}"
+                    Visibility="Collapsed">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" Margin="0,0,18,0">
+                        <TextBlock Text="تاريخ الإنشاء" FontWeight="SemiBold"/>
+                        <TextBlock x:Name="EntryCreatedDateText" Margin="0,5,0,12"/>
+                        <TextBlock Text="طريقة الدفع" FontWeight="SemiBold"/>
+                        <TextBlock x:Name="EntryPaymentMethodText" Margin="0,5,0,0" TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Margin="0,0,18,0">
+                        <TextBlock Text="الدفع المقسّم" FontWeight="SemiBold"/>
+                        <TextBlock x:Name="EntryPaymentBreakdownText" Margin="0,5,0,12" TextWrapping="Wrap"/>
+                        <TextBlock Text="الضريبة" FontWeight="SemiBold"/>
+                        <TextBlock x:Name="EntryTaxText" Margin="0,5,0,0"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="الإجماليات" FontWeight="SemiBold"/>
+                        <TextBlock x:Name="EntryTotalsText" Margin="0,5,0,12" TextWrapping="Wrap"/>
+                        <TextBlock Text="الشيك والملاحظات" FontWeight="SemiBold"/>
+                        <TextBlock x:Name="EntryCheckAndNotesText" Margin="0,5,0,0" TextWrapping="Wrap"/>
+                        <TextBlock x:Name="EntryCreatedByText" Margin="0,8,0,0" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <Border Grid.Row="3" Margin="0,18,0,0" Style="{StaticResource AppCardBorderStyle}" Padding="16" MinHeight="300">
                 <DataGrid x:Name="JournalEntriesGrid"
                           Style="{StaticResource AppModernDataGridStyle}"
                           AutoGenerateColumns="False"
@@ -150,7 +197,7 @@
                 </DataGrid>
             </Border>
 
-            <Grid Grid.Row="3" Margin="0,14,0,0" MinHeight="220">
+            <Grid Grid.Row="4" Margin="0,14,0,0" MinHeight="220">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="1.2*"/>
                     <ColumnDefinition Width="1.5*"/>

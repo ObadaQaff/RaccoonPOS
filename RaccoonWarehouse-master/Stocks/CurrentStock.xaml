@@ -4,8 +4,10 @@
         xmlns:fa="http://schemas.fontawesome.io/icons/"
         Title="تقرير الجرد"
         WindowStartupLocation="CenterScreen"
-        WindowState="Maximized"
-        MinWidth="1800"
+        Width="1280"
+        Height="800"
+        MinWidth="1000"
+        MinHeight="650"
         Background="#EEF3F7"
         FlowDirection="RightToLeft">
 
@@ -208,6 +210,8 @@
                                VerticalAlignment="Center"
                                Foreground="#6A7C8E"
                                FontSize="14"
+                               TextWrapping="Wrap"
+                               TextTrimming="CharacterEllipsis"
                                Text="ابحث بالباركود أو اسم الصنف ثم حدّث الشبكة أو صدّر النتائج مباشرة."/>
 
                     <Button Grid.Column="2"
@@ -275,6 +279,8 @@
                     Padding="14">
                 <DataGrid x:Name="StockGrid"
                           AutoGenerateColumns="False"
+                          ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                          ScrollViewer.VerticalScrollBarVisibility="Auto"
                           Style="{StaticResource ReportDataGridStyle}"
                           ItemsSource="{Binding FilteredStockItems}" MouseDoubleClick="StockGrid_MouseDoubleClick">
                     <DataGrid.Columns>

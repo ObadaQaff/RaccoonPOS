@@ -17,6 +17,8 @@ namespace RaccoonWarehouse.Navigation
             _windowMap = windowMap;
         }
 
+        public bool CanShow(string windowKey) => _windowMap.ContainsKey(windowKey);
+
         public void Show(string windowKey, WindowSizeType size = WindowSizeType.MediumRectangle)
         {
             if (_windows.TryGetValue(windowKey, out var existing))

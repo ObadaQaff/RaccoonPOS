@@ -50,6 +50,7 @@ using RaccoonWarehouse.FinancialTransactions.Reports;
 using RaccoonWarehouse.Helpers.Localization;
 using RaccoonWarehouse.Invoices;
 using RaccoonWarehouse.Invoices.Reports;
+using RaccoonWarehouse.Licensing;
 using RaccoonWarehouse.Modules.Reports;
 using RaccoonWarehouse.Navigation;
 using RaccoonWarehouse.Navigation.Modules;
@@ -882,7 +883,11 @@ END;";
                 ["profit-loss"] = typeof(ProfitLossReport),
                 ["stock-balances"] = typeof(StockBalancesReport),
                 ["material-movements"] = typeof(MaterialMovementsReport),
-                ["inactive-items"] = typeof(InactiveItemsReport)
+                ["inactive-items"] = typeof(InactiveItemsReport),
+                ["invoice-search"] = typeof(SearchSalesInvoiceWindow),
+                ["vouchers-search"] = typeof(SearchVoucherWindow),
+                ["pos"] = typeof(RaccoonWarehouse.Invoices.POS),
+                ["orders"] = typeof(OrdersTable)
             };
 
             // Database
@@ -986,7 +991,8 @@ END;";
             services.AddAppModule(new ReportsAppModule());
             services.AddSingleton<RaccoonWarehouse.Core.ChatAssistant.IChatAssistantSettingsService, RaccoonWarehouse.Application.Service.ChatAssistant.ChatAssistantSettingsService>();
             services.AddSingleton<RaccoonWarehouse.Core.ChatAssistant.IChatAssistantKnowledgeService, RaccoonWarehouse.Application.Service.ChatAssistant.ChatAssistantKnowledgeService>();
-            services.AddSingleton<RaccoonWarehouse.Core.ChatAssistant.IChatAssistantService, RaccoonWarehouse.Application.Service.ChatAssistant.GeminiChatAssistantService>();
+            services.AddScoped<RaccoonWarehouse.Core.ChatAssistant.IChatAssistantDataService, RaccoonWarehouse.Application.Service.ChatAssistant.ChatAssistantDataService>();
+            services.AddScoped<RaccoonWarehouse.Core.ChatAssistant.IChatAssistantService, RaccoonWarehouse.Application.Service.ChatAssistant.GeminiChatAssistantService>();
             services.AddTransient<IModuleDefinitionProvider, ProductsDashboardModule>();
             services.AddTransient<IModuleDefinitionProvider, CategoriesDashboardModule>();
             services.AddTransient<IModuleDefinitionProvider, SalesDashboardModule>();
@@ -1104,6 +1110,7 @@ END;";
             services.AddTransient<CreateVoucher>();
 
             services.AddTransient<SearchStockInWindow>();
+            services.AddTransient<SearchSalesInvoiceWindow>();
             services.AddTransient<SearchVoucherWindow>();
             services.AddTransient<InvoicesProfitBrowser>();
             services.AddTransient<DailySalesReport>();
@@ -1119,6 +1126,7 @@ END;";
             services.AddTransient<PaymentWindow>();
             //login window
             services.AddTransient<LoginWindow>();
+            services.AddTransient<LicenseExpiredWindow>();
             services.AddTransient<StartCashierSessionWindow>();
             services.AddTransient<CloseCashierSessionWindow>();
             services.AddTransient<ReportPermissionsManager>();

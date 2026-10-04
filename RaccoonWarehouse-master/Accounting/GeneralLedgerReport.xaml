@@ -6,14 +6,15 @@
         Height="900"
         Width="1450"
         WindowStartupLocation="CenterScreen"
+        ResizeMode="CanResize"
         FlowDirection="RightToLeft"
         Background="{StaticResource AppPageBackgroundBrush}">
     <Grid Background="{StaticResource AppPageBackgroundBrush}">
         <Grid.RowDefinitions>
-            <RowDefinition Height="220"/>
+        <RowDefinition Height="180"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
-        <Border Grid.Row="0" CornerRadius="0,0,34,34" Background="{StaticResource AppDashboardHeroBrush}">
+        <Border Grid.Row="0" Margin="24,0,24,0" CornerRadius="0,0,34,34" Background="{StaticResource AppDashboardHeroBrush}">
             <Grid Margin="34,24,34,34">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
@@ -35,6 +36,7 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
             <Border Grid.Row="0" Style="{StaticResource AppCardBorderStyle}" Padding="24">
@@ -52,6 +54,7 @@
                                   Height="40"
                                   ItemsSource="{Binding Accounts, RelativeSource={RelativeSource AncestorType=Window}}"
                                   SelectedValuePath="Id"
+                                  SelectionChanged="AccountComboBox_SelectionChanged"
                                   DisplayMemberPath="Name"/>
                     </StackPanel>
                     <StackPanel Grid.Column="1" Margin="0,0,16,0">
@@ -80,7 +83,32 @@
                     </StackPanel>
                 </Grid>
             </Border>
-            <Grid Grid.Row="1" Margin="0,18,0,0">
+            <Border x:Name="ChildAccountFilterBorder"
+                    Grid.Row="1"
+                    Margin="0,12,0,0"
+                    Padding="16,10"
+                    Style="{StaticResource AppCardBorderStyle}"
+                    Visibility="Collapsed">
+                <StackPanel>
+                    <TextBlock Text="الحسابات الفرعية" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                    <ItemsControl ItemsSource="{Binding ChildAccounts, RelativeSource={RelativeSource AncestorType=Window}}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel IsItemsHost="True"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                          Content="{Binding DisplayName}"
+                                          Margin="0,0,24,6"
+                                          FontWeight="SemiBold"/>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+            <Grid Grid.Row="2" Margin="0,18,0,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="2*"/>
                     <ColumnDefinition Width="Auto"/>
@@ -102,7 +130,7 @@
                     </StackPanel>
                 </Border>
             </Grid>
-            <Border Grid.Row="2" Margin="0,18,0,0" Style="{StaticResource AppCardBorderStyle}" Padding="16">
+            <Border Grid.Row="3" Margin="0,18,0,0" Style="{StaticResource AppCardBorderStyle}" Padding="16">
                 <DataGrid x:Name="LedgerGrid"
                           Style="{StaticResource AppModernDataGridStyle}"
                           AutoGenerateColumns="False"
@@ -112,6 +140,7 @@
                         <DataGridTextColumn Header="التاريخ" Binding="{Binding EntryDate, StringFormat=yyyy-MM-dd}" Width="130"/>
                         <DataGridTextColumn Header="رقم القيد" Binding="{Binding EntryNumber}" Width="170"/>
                         <DataGridTextColumn Header="البيان" Binding="{Binding Description}" Width="*"/>
+                        <DataGridTextColumn Header="الحساب" Binding="{Binding AccountLabel}" Width="190"/>
                         <DataGridTextColumn Header="المرجع" Binding="{Binding ReferenceLabel}" Width="190"/>
                         <DataGridTextColumn Header="مدين" Binding="{Binding Debit, StringFormat=N2}" Width="130"/>
                         <DataGridTextColumn Header="دائن" Binding="{Binding Credit, StringFormat=N2}" Width="130"/>

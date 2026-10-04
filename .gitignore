@@ -23,6 +23,7 @@ publish/
 **/_codex-build/
 **/_codex*build/
 **/_codex*/
+**/.codex-build*/
 **/_codex-report-build/
 /RaccoonWarehouse-master/build/
 /RaccoonWarehouse.Application/RaccoonWarehouse.Tests/
@@ -33,3 +34,15 @@ publish/
 /installer/ROCCOPOS-Payload.zip
 /installer/ROCCOPOS-Setup.sed
 *.log
+
+# Generated local build and verification output
+**/build-check*/
+**/isolated-*/
+**/build-verify*/
+**/_codex*/
+**/publish/
+**/artifacts/
+**/bin/
+**/obj/
+**/*.log
+**/.DS_Store

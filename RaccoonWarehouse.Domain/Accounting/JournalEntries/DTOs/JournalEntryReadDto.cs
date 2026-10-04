@@ -12,8 +12,16 @@ namespace RaccoonWarehouse.Domain.Accounting.JournalEntries.DTOs
         public JournalEntryStatus Status { get; set; }
         public string? ReferenceType { get; set; }
         public int? ReferenceId { get; set; }
+        public int? CreatedBy { get; set; }
         public decimal TotalDebit { get; set; }
         public decimal TotalCredit { get; set; }
+        public List<JournalEntryPaymentDetailDto> PaymentDetails { get; set; } = new();
+        public decimal? Subtotal { get; set; }
+        public decimal? TotalTax { get; set; }
+        public decimal? FinalTotal { get; set; }
+        public string? CheckDetails { get; set; }
+        public string? Notes { get; set; }
+        public string? CreatedByName { get; set; }
         public List<JournalEntryLineReadDto> Lines { get; set; } = new();
         public DateTime CreatedDate { get; set; }
         public DateTime UpdatedDate { get; set; }

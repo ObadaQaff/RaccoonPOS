@@ -65,6 +65,7 @@ namespace RaccoonWarehouse.Invoices
         private string _productSearchText = string.Empty;
         private bool _isRestoringProductSearchText;
         private readonly System.Threading.SemaphoreSlim _productSelectionSemaphore = new(1, 1);
+        private readonly System.Threading.SemaphoreSlim _productLoadSemaphore = new(1, 1);
         private int? _currentInvoiceId = null;   // لتحديث الفاتورة بعد الحفظ الأول
         private bool _originalCostPriceIncludesTax;
 
@@ -160,6 +161,7 @@ namespace RaccoonWarehouse.Invoices
 
         private async Task LoadProductsAsync()
         {
+            await _productLoadSemaphore.WaitAsync();
             try
             {
 
@@ -190,6 +192,10 @@ namespace RaccoonWarehouse.Invoices
             {
                 MessageBox.Show($"{UiText.T("خطأ عند تحميل المنتجات", "Error loading products")}: {ex.Message}", UiText.T("خطأ", "Error"));
             }
+            finally
+            {
+                _productLoadSemaphore.Release();
+            }
         }
 
         private async void CreateProductBtn_Click(object sender, RoutedEventArgs e)
@@ -197,7 +203,10 @@ namespace RaccoonWarehouse.Invoices
             var existingProductIds = Products.Select(product => product.Id).ToHashSet();
 
             CreateProduct? createWindow = null;
-            WindowManager.ShowDialog<CreateProduct>(WindowSizeType.LargeRectangle, window => createWindow = window);
+            using (CatalogRefreshNotifier.SuppressNotifications())
+            {
+                WindowManager.ShowDialog<CreateProduct>(WindowSizeType.LargeRectangle, window => createWindow = window);
+            }
 
             await LoadProductsAsync();
 
@@ -1538,12 +1547,15 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
         private async Task CreateProductFromSearchAsync(string searchText)
         {
             CreateProduct? createWindow = null;
-            WindowManager.ShowDialog<CreateProduct>(WindowSizeType.LargeRectangle, window =>
+            using (CatalogRefreshNotifier.SuppressNotifications())
             {
-                createWindow = window;
-                if (long.TryParse(searchText, out var barcode))
-                    window.InitialItemCode = barcode.ToString();
-            });
+                WindowManager.ShowDialog<CreateProduct>(WindowSizeType.LargeRectangle, window =>
+                {
+                    createWindow = window;
+                    if (long.TryParse(searchText, out var barcode))
+                        window.InitialItemCode = barcode.ToString();
+                });
+            }
 
             await LoadProductsAsync();
 

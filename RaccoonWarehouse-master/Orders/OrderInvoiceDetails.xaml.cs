@@ -1,9 +1,13 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using RaccoonWarehouse.Accounting;
 using RaccoonWarehouse.Application.Service.Invoices;
 using RaccoonWarehouse.Application.Service.Orders;
 using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Data;
 using RaccoonWarehouse.Domain.Orders.DTOs;
+using RaccoonWarehouse.Domain.Checks.DTOs;
+using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Helpers.Localization;
 using RaccoonWarehouse.Helpers.Pdf;
 using RaccoonWarehouse.Domain.Invoices.DTOs;
@@ -81,6 +85,7 @@ namespace RaccoonWarehouse.Orders
         private readonly IInvoiceService _invoiceService;
         private readonly IEndpointOrderStatusService _endpointOrderStatusService;
         private readonly ILoadingService _loadingService;
+        private readonly IServiceProvider _serviceProvider;
         private readonly ObservableCollection<OrderInvoiceLineRow> _lines = new();
         private readonly ObservableCollection<OrderProductOption> _products = new();
         private List<OrderLineDetailsSnapshot> _loadedLineDetails = new();
@@ -92,13 +97,15 @@ namespace RaccoonWarehouse.Orders
             ApplicationDbContext context,
             IInvoiceService invoiceService,
             IEndpointOrderStatusService endpointOrderStatusService,
-            ILoadingService loadingService)
+            ILoadingService loadingService,
+            IServiceProvider serviceProvider)
         {
             InitializeComponent();
             _context = context;
             _invoiceService = invoiceService;
             _endpointOrderStatusService = endpointOrderStatusService;
             _loadingService = loadingService;
+            _serviceProvider = serviceProvider;
             LinesGrid.ItemsSource = _lines;
             ProductComboBox.ItemsSource = _products;
             Loaded += OrderInvoiceDetails_Loaded;
@@ -111,12 +118,38 @@ namespace RaccoonWarehouse.Orders
 
         private async void OrderInvoiceDetails_Loaded(object sender, RoutedEventArgs e)
         {
-            UiText.ApplyWindow(this);
-            ExportPdfButton.Content = UiText.T("تصدير PDF", "Export PDF");
-            PrintInvoiceButton.Content = UiText.T("طباعة", "Print");
-            InitializeStatusOptions();
-            await LoadProductsAsync();
-            await LoadInvoiceAsync();
+            var loadingShown = false;
+            try
+            {
+                UiText.ApplyWindow(this);
+                ExportPdfButton.Content = UiText.T("تصدير PDF", "Export PDF");
+                PrintInvoiceButton.Content = UiText.T("طباعة", "Print");
+                CreatedDateLabel.Text = UiText.T("تاريخ الإنشاء", "Created date");
+                PaymentMethodLabel.Text = UiText.T("طريقة الدفع", "Payment method");
+                PaymentsLabel.Text = UiText.T("تفاصيل الدفع", "Payment details");
+                TaxLabel.Text = UiText.T("الضريبة", "Tax");
+                TotalsLabel.Text = UiText.T("الإجماليات", "Totals");
+                ChecksNotesLabel.Text = UiText.T("الشيك والملاحظات", "Checks and notes");
+                ShowJournalEntryButton.Content = UiText.T("عرض تفاصيل القيد", "View journal entry");
+                InitializeStatusOptions();
+                _loadingService.Show();
+                loadingShown = true;
+                await LoadProductsAsync();
+                await LoadInvoiceAsync();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"{UiText.T("تعذر تحميل تفاصيل الفاتورة", "Could not load invoice details")}: {ex.Message}",
+                    UiText.T("خطأ", "Error"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+            finally
+            {
+                if (loadingShown)
+                    _loadingService.Hide();
+            }
         }
 
         private async Task LoadProductsAsync()
@@ -198,6 +231,10 @@ namespace RaccoonWarehouse.Orders
                 return;
             }
 
+            var invoiceDetails = await _invoiceService.GetFullInvoiceByIdAsync(_invoiceId);
+            if (invoiceDetails != null)
+                UpdateInvoiceFinancialDetails(invoiceDetails);
+
             var customerName = invoice.CustomerId.HasValue
                 ? await _context.Set<RaccoonWarehouse.Domain.Users.User>()
                     .AsNoTracking()
@@ -258,6 +295,70 @@ namespace RaccoonWarehouse.Orders
             _loadedLineDetails = _lines.Select(OrderLineDetailsSnapshot.FromRow).ToList();
 
             ClearLineEditor();
+        }
+
+        private void UpdateInvoiceFinancialDetails(InvoiceReadDto invoice)
+        {
+            CreatedDateText.Text = invoice.CreatedDate.ToString("yyyy-MM-dd HH:mm");
+            var payments = (invoice.Payments ?? Array.Empty<InvoicePaymentReadDto>())
+                .Where(payment => payment.Amount > 0m)
+                .ToList();
+            if (payments.Count == 0 && invoice.PaymentType.HasValue)
+                payments.Add(new InvoicePaymentReadDto
+                {
+                    PaymentType = invoice.PaymentType.Value,
+                    Amount = invoice.TotalAmount
+                });
+
+            PaymentMethodText.Text = payments.Count == 0
+                ? UiText.T("غير محدد", "Not specified")
+                : string.Join(", ", payments.Select(payment => GetPaymentTypeLabel(payment.PaymentType)).Distinct());
+            PaymentsItems.ItemsSource = payments.Count == 0
+                ? new[] { UiText.T("لا توجد دفعات", "No payment details") }
+                : payments.Select(payment => $"{GetPaymentTypeLabel(payment.PaymentType)}: {payment.Amount:N2}").ToList();
+            TaxText.Text = invoice.TotalTax.ToString("N2");
+            TotalsText.Text = string.Join("\n", new[]
+            {
+                $"{UiText.T("قبل الضريبة", "Before tax")}: {invoice.SubTotal:N2}",
+                $"{UiText.T("الخصم", "Discount")}: {(invoice.DiscountAmount ?? 0m):N2}",
+                $"{UiText.T("الإجمالي النهائي", "Final total")}: {invoice.TotalAmount:N2}"
+            });
+            var checks = (invoice.Checks ?? Array.Empty<CheckReadDto>()).Select(check =>
+                $"{UiText.T("شيك", "Check")} {check.CheckNumber} - {check.Amount:N2} - {check.DueDate:yyyy-MM-dd}");
+            var notes = string.IsNullOrWhiteSpace(invoice.Notes) ? null : $"{UiText.T("ملاحظات", "Notes")}: {invoice.Notes}";
+            ChecksNotesText.Text = string.Join("\n", checks.Append(notes).Where(value => !string.IsNullOrWhiteSpace(value)));
+            if (string.IsNullOrWhiteSpace(ChecksNotesText.Text))
+                ChecksNotesText.Text = UiText.T("لا توجد", "None");
+        }
+
+        private static string GetPaymentTypeLabel(PaymentType paymentType) => paymentType switch
+        {
+            PaymentType.Cash => UiText.T("نقدي", "Cash"),
+            PaymentType.Visa => UiText.T("فيزا", "Visa"),
+            PaymentType.Master => UiText.T("ماستر", "Mastercard"),
+            PaymentType.Debit => UiText.T("تحويل بنكي", "Bank transfer"),
+            PaymentType.Check => UiText.T("شيك", "Check"),
+            PaymentType.MobilePayment => UiText.T("دفع إلكتروني", "Mobile payment"),
+            PaymentType.Credit => UiText.T("آجل", "Credit"),
+            _ => paymentType.ToString()
+        };
+
+        private void ShowJournalEntry_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var browser = _serviceProvider.GetRequiredService<JournalEntriesBrowser>();
+                browser.SetReferenceFilter(InvoiceNumberText.Text);
+                browser.Show();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    ex.Message,
+                    UiText.T("تعذر فتح سجل القيد", "Could not open journal entries"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
         }
 
         private void ProductComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)

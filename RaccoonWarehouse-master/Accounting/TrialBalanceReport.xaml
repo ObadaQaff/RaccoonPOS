@@ -8,6 +8,10 @@
         WindowStartupLocation="CenterScreen"
         FlowDirection="RightToLeft"
         Background="{StaticResource AppPageBackgroundBrush}">
+    <ScrollViewer x:Name="TrialBalancePageScrollViewer"
+                  PreviewMouseWheel="TrialBalancePageScrollViewer_PreviewMouseWheel"
+                  VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Auto">
     <Grid Background="{StaticResource AppPageBackgroundBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="220"/>
@@ -92,20 +96,81 @@
                     </StackPanel>
                 </Border>
             </UniformGrid>
-            <Border Grid.Row="2" Margin="0,18,0,0" Style="{StaticResource AppCardBorderStyle}" Padding="16">
-                <DataGrid x:Name="TrialBalanceGrid" Style="{StaticResource AppModernDataGridStyle}" AutoGenerateColumns="False" IsReadOnly="True">
-                    <DataGrid.Columns>
-                        <DataGridTextColumn Header="الرمز" Binding="{Binding AccountCode}" Width="120"/>
-                        <DataGridTextColumn Header="الحساب" Binding="{Binding AccountName}" Width="260"/>
-                        <DataGridTextColumn Header="النوع" Binding="{Binding AccountTypeLabel}" Width="140"/>
-                        <DataGridTextColumn Header="رصيد افتتاحي" Binding="{Binding OpeningBalance, StringFormat=N2}" Width="150"/>
-                        <DataGridTextColumn Header="مدين الفترة" Binding="{Binding Debit, StringFormat=N2}" Width="150"/>
-                        <DataGridTextColumn Header="دائن الفترة" Binding="{Binding Credit, StringFormat=N2}" Width="150"/>
-                        <DataGridTextColumn Header="رصيد مدين" Binding="{Binding ClosingDebit, StringFormat=N2}" Width="150"/>
-                        <DataGridTextColumn Header="رصيد دائن" Binding="{Binding ClosingCredit, StringFormat=N2}" Width="150"/>
-                    </DataGrid.Columns>
-                </DataGrid>
+            <Border Grid.Row="2" Margin="0,18,0,0" Style="{StaticResource AppCardBorderStyle}" Padding="16" Grid.IsSharedSizeScope="True">
+                <StackPanel>
+                    <Grid Margin="24,0,0,8">
+                        <Grid.Resources>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="FontSize" Value="15"/>
+                                <Setter Property="FontWeight" Value="Bold"/>
+                            </Style>
+                        </Grid.Resources>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="120" SharedSizeGroup="AccountCode"/>
+                            <ColumnDefinition Width="260" SharedSizeGroup="AccountName"/>
+                            <ColumnDefinition Width="140" SharedSizeGroup="AccountType"/>
+                            <ColumnDefinition Width="150" SharedSizeGroup="Opening"/>
+                            <ColumnDefinition Width="150" SharedSizeGroup="Debit"/>
+                            <ColumnDefinition Width="150" SharedSizeGroup="Credit"/>
+                            <ColumnDefinition Width="150" SharedSizeGroup="ClosingDebit"/>
+                            <ColumnDefinition Width="150" SharedSizeGroup="ClosingCredit"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="الرمز" FontWeight="Bold"/>
+                        <TextBlock Grid.Column="1" Text="الحساب" FontWeight="Bold"/>
+                        <TextBlock Grid.Column="2" Text="النوع" FontWeight="Bold"/>
+                        <TextBlock Grid.Column="3" Text="رصيد افتتاحي" FontWeight="Bold"/>
+                        <TextBlock Grid.Column="4" Text="مدين الفترة" FontWeight="Bold"/>
+                        <TextBlock Grid.Column="5" Text="دائن الفترة" FontWeight="Bold"/>
+                        <TextBlock Grid.Column="6" Text="رصيد مدين" FontWeight="Bold"/>
+                        <TextBlock Grid.Column="7" Text="رصيد دائن" FontWeight="Bold"/>
+                    </Grid>
+                    <TreeView x:Name="TrialBalanceTree"
+                          Background="Transparent"
+                          BorderThickness="0"
+                          MouseDoubleClick="TrialBalanceTree_MouseDoubleClick"
+                          ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                          ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                    <TreeView.Resources>
+                        <HierarchicalDataTemplate x:Key="TrialBalanceRowTemplate" ItemsSource="{Binding Children}">
+                            <Grid Margin="0,4" MinHeight="42">
+                                <Grid.Resources>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="FontSize" Value="16"/>
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                    </Style>
+                                </Grid.Resources>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="120" SharedSizeGroup="AccountCode"/>
+                                    <ColumnDefinition Width="260" SharedSizeGroup="AccountName"/>
+                                    <ColumnDefinition Width="140" SharedSizeGroup="AccountType"/>
+                                    <ColumnDefinition Width="150" SharedSizeGroup="Opening"/>
+                                    <ColumnDefinition Width="150" SharedSizeGroup="Debit"/>
+                                    <ColumnDefinition Width="150" SharedSizeGroup="Credit"/>
+                                    <ColumnDefinition Width="150" SharedSizeGroup="ClosingDebit"/>
+                                    <ColumnDefinition Width="150" SharedSizeGroup="ClosingCredit"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="{Binding AccountCode}" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="1" Text="{Binding AccountName}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock Grid.Column="2" Text="{Binding AccountTypeLabel}" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="3" Text="{Binding OpeningBalance, StringFormat=N2}" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="4" Text="{Binding Debit, StringFormat=N2}" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="5" Text="{Binding Credit, StringFormat=N2}" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="6" Text="{Binding ClosingDebit, StringFormat=N2}" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="7" Text="{Binding ClosingCredit, StringFormat=N2}" VerticalAlignment="Center"/>
+                            </Grid>
+                        </HierarchicalDataTemplate>
+                        <Style TargetType="TreeViewItem">
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                            <Setter Property="IsExpanded" Value="False"/>
+                        </Style>
+                    </TreeView.Resources>
+                    <TreeView.ItemTemplate>
+                        <StaticResource ResourceKey="TrialBalanceRowTemplate"/>
+                    </TreeView.ItemTemplate>
+                    </TreeView>
+                </StackPanel>
             </Border>
         </Grid>
     </Grid>
+    </ScrollViewer>
 </Window>

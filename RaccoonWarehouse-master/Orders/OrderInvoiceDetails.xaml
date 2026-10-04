@@ -11,12 +11,16 @@
     <Window.Resources>
         <local:Code39BarcodeConverter x:Key="Code39BarcodeConverter" />
     </Window.Resources>
+    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled"
+                  PanningMode="VerticalOnly">
     <Grid Margin="18">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
@@ -126,6 +130,51 @@
 
         <Border Grid.Row="3"
                 Style="{StaticResource AppCardBorderStyle}"
+                Padding="14"
+                Margin="0,0,0,14">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" Margin="0,0,18,0">
+                    <TextBlock x:Name="CreatedDateLabel" FontSize="16" FontWeight="Bold"/>
+                    <TextBlock x:Name="CreatedDateText" FontSize="17" FontWeight="Bold" Margin="0,5,0,0"/>
+                    <TextBlock x:Name="PaymentMethodLabel" FontSize="16" FontWeight="Bold" Margin="0,12,0,0"/>
+                    <TextBlock x:Name="PaymentMethodText" FontSize="17" FontWeight="Bold" Margin="0,5,0,0" TextWrapping="Wrap"/>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Margin="0,0,18,0">
+                    <TextBlock x:Name="PaymentsLabel" FontSize="16" FontWeight="Bold"/>
+                    <ItemsControl x:Name="PaymentsItems" Margin="0,5,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding}" FontSize="17" FontWeight="Bold" Margin="0,2,0,0"/>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock x:Name="TaxLabel" FontSize="16" FontWeight="Bold" Margin="0,12,0,0"/>
+                    <TextBlock x:Name="TaxText" FontSize="17" FontWeight="Bold" Margin="0,5,0,0"/>
+                </StackPanel>
+                <StackPanel Grid.Column="2" Margin="0,0,18,0">
+                    <TextBlock x:Name="TotalsLabel" FontSize="16" FontWeight="Bold"/>
+                    <TextBlock x:Name="TotalsText" FontSize="17" FontWeight="Bold" Margin="0,5,0,0" TextWrapping="Wrap"/>
+                    <TextBlock x:Name="ChecksNotesLabel" FontSize="16" FontWeight="Bold" Margin="0,12,0,0"/>
+                    <TextBlock x:Name="ChecksNotesText" FontSize="17" FontWeight="Bold" Margin="0,5,0,0" TextWrapping="Wrap"/>
+                </StackPanel>
+                <Button Grid.Column="3"
+                        x:Name="ShowJournalEntryButton"
+                        Style="{StaticResource PrimaryButtonStyle}"
+                        MinWidth="180"
+                        Height="42"
+                        VerticalAlignment="Center"
+                        Click="ShowJournalEntry_Click"/>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="4"
+                Style="{StaticResource AppCardBorderStyle}"
                 Padding="14">
             <DataGrid x:Name="LinesGrid"
                        AutoGenerateColumns="False"
@@ -161,7 +210,7 @@
             </DataGrid>
         </Border>
 
-        <StackPanel Grid.Row="4"
+        <StackPanel Grid.Row="5"
                     Orientation="Horizontal"
                     HorizontalAlignment="Right"
                     Margin="0,14,0,0">
@@ -199,4 +248,5 @@
                     Content="&#x625;&#x63A;&#x644;&#x627;&#x642;"/>
         </StackPanel>
     </Grid>
+    </ScrollViewer>
 </Window>

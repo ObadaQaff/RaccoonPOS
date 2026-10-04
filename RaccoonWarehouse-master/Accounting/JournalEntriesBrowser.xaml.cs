@@ -3,6 +3,7 @@ using RaccoonWarehouse.Application.Service.Settings;
 using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Domain.Accounting.Enums;
 using RaccoonWarehouse.Domain.Accounting.JournalEntries.DTOs;
+using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Reports.Accounting.Filters;
 using RaccoonWarehouse.Helpers.Localization;
 using RaccoonWarehouse.Navigation;
@@ -185,6 +186,8 @@ namespace RaccoonWarehouse.Accounting
         {
             if (JournalEntriesGrid.SelectedItem is not JournalEntryListItem selected)
             {
+                ShowEntryDetailsButton.IsEnabled = false;
+                EntryDetailsBorder.Visibility = Visibility.Collapsed;
                 SelectionSummaryText.Text = UiText.T("اختر قيداً لعرض تفاصيله", "Select an entry to view its details");
                 SelectedDebitText.Text = "0.00";
                 SelectedCreditText.Text = "0.00";
@@ -193,9 +196,63 @@ namespace RaccoonWarehouse.Accounting
             }
 
             SelectionSummaryText.Text = $"{selected.EntryNumber} | {selected.Description}";
+            ShowEntryDetailsButton.IsEnabled = true;
+            EntryDetailsBorder.Visibility = Visibility.Collapsed;
             SelectedDebitText.Text = selected.TotalDebit.ToString("N2");
             SelectedCreditText.Text = selected.TotalCredit.ToString("N2");
             JournalLinesGrid.ItemsSource = selected.Lines;
+        }
+
+        private void ShowEntryDetailsBtn_Click(object sender, RoutedEventArgs e)
+        {
+            if (JournalEntriesGrid.SelectedItem is not JournalEntryListItem selected)
+                return;
+
+            EntryCreatedDateText.Text = selected.CreatedDate.ToString("yyyy-MM-dd HH:mm");
+            EntryPaymentMethodText.Text = selected.PaymentDetails.Count == 0
+                ? UiText.T("غير متوفر", "Not available")
+                : string.Join("، ", selected.PaymentDetails
+                    .Select(x => x.PaymentType)
+                    .Distinct()
+                    .Select(GetPaymentTypeLabel));
+            EntryPaymentBreakdownText.Text = selected.PaymentDetails.Count == 0
+                ? UiText.T("لا يوجد دفع مقسّم", "No split payment")
+                : string.Join("\n", selected.PaymentDetails.Select(payment =>
+                    $"{GetPaymentTypeLabel(payment.PaymentType)}: {payment.Amount:N2}"));
+            EntryTaxText.Text = selected.TotalTax.HasValue
+                ? selected.TotalTax.Value.ToString("N2")
+                : UiText.T("غير منطبق", "Not applicable");
+            EntryTotalsText.Text = string.Join("\n", new[]
+            {
+                $"{UiText.T("قبل الضريبة", "Before tax")}: {selected.Subtotal?.ToString("N2") ?? "-"}",
+                $"{UiText.T("الإجمالي النهائي", "Final total")}: {selected.FinalTotal?.ToString("N2") ?? "-"}"
+            });
+            EntryCheckAndNotesText.Text = string.Join("\n", new[]
+            {
+                selected.CheckDetails,
+                string.IsNullOrWhiteSpace(selected.Notes) ? null : $"{UiText.T("ملاحظات", "Notes")}: {selected.Notes}"
+            }.Where(x => !string.IsNullOrWhiteSpace(x)));
+            EntryCreatedByText.Text = string.IsNullOrWhiteSpace(selected.CreatedByName)
+                ? string.Empty
+                : $"{UiText.T("أنشأه", "Created by")}: {selected.CreatedByName}";
+            EntryDetailsBorder.Visibility = Visibility.Visible;
+        }
+
+        private static string GetPaymentTypeLabel(PaymentType paymentType) => paymentType switch
+        {
+            PaymentType.Cash => UiText.T("نقدي", "Cash"),
+            PaymentType.Visa => UiText.T("بطاقة فيزا", "Visa"),
+            PaymentType.Master => UiText.T("بطاقة ماستر", "Mastercard"),
+            PaymentType.Debit => UiText.T("تحويل بنكي", "Bank transfer"),
+            PaymentType.Check => UiText.T("شيك", "Check"),
+            PaymentType.MobilePayment => UiText.T("دفع إلكتروني", "Mobile payment"),
+            PaymentType.Credit => UiText.T("آجل", "Credit"),
+            _ => paymentType.ToString()
+        };
+
+        public void SetReferenceFilter(string reference)
+        {
+            ReferenceSearchTextBox.Text = reference ?? string.Empty;
         }
 
         private void BackBtn_Click(object sender, RoutedEventArgs e)
@@ -248,8 +305,16 @@ namespace RaccoonWarehouse.Accounting
                 Status = source.Status;
                 ReferenceType = source.ReferenceType;
                 ReferenceId = source.ReferenceId;
+                CreatedBy = source.CreatedBy;
                 TotalDebit = source.TotalDebit;
                 TotalCredit = source.TotalCredit;
+                PaymentDetails = source.PaymentDetails;
+                Subtotal = source.Subtotal;
+                TotalTax = source.TotalTax;
+                FinalTotal = source.FinalTotal;
+                CheckDetails = source.CheckDetails;
+                Notes = source.Notes;
+                CreatedByName = source.CreatedByName;
                 foreach (var line in source.Lines)
                     line.Description = AccountingTextLocalizer.ToArabic(line.Description);
                 Lines = source.Lines;

@@ -5,6 +5,7 @@ namespace RaccoonWarehouse.Domain.Reports.Accounting.Filters
         public DateTime From { get; set; }
         public DateTime To { get; set; }
         public int? AccountId { get; set; }
+        public List<int> AccountIds { get; set; } = new();
         public bool IncludeOpeningBalance { get; set; } = true;
         public bool IncludePostedOnly { get; set; } = true;
     }

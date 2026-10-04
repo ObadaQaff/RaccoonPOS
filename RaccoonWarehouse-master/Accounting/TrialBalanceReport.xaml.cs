@@ -1,10 +1,16 @@
 using RaccoonWarehouse.Application.Service.Accounting;
 using RaccoonWarehouse.Application.Service.Settings;
 using RaccoonWarehouse.Common.Loading;
+using RaccoonWarehouse.Domain.Reports.Accounting.Dtos;
 using RaccoonWarehouse.Domain.Reports.Accounting.Filters;
 using RaccoonWarehouse.Helpers.Localization;
+using RaccoonWarehouse.Navigation;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Threading;
 
 namespace RaccoonWarehouse.Accounting
@@ -14,12 +20,18 @@ namespace RaccoonWarehouse.Accounting
         private readonly IAccountingService _accountingService;
         private readonly IAccountingFeatureService _featureService;
         private readonly ILoadingService _loadingService;
+        private readonly SourceDocumentNavigationService _sourceDocumentNavigationService;
 
-        public TrialBalanceReport(IAccountingService accountingService, IAccountingFeatureService featureService, ILoadingService loadingService)
+        public TrialBalanceReport(
+            IAccountingService accountingService,
+            IAccountingFeatureService featureService,
+            ILoadingService loadingService,
+            SourceDocumentNavigationService sourceDocumentNavigationService)
         {
             _accountingService = accountingService;
             _featureService = featureService;
             _loadingService = loadingService;
+            _sourceDocumentNavigationService = sourceDocumentNavigationService;
             InitializeComponent();
             UiText.ApplyWindow(this);
             Loaded += TrialBalanceReport_Loaded;
@@ -63,11 +75,11 @@ namespace RaccoonWarehouse.Accounting
                     return;
                 }
 
-                TrialBalanceGrid.ItemsSource = result.Data.rows;
+                TrialBalanceTree.ItemsSource = BuildAccountTree(result.Data.rows);
                 TotalDebitText.Text = result.Data.summary.TotalClosingDebit.ToString("N2");
                 TotalCreditText.Text = result.Data.summary.TotalClosingCredit.ToString("N2");
                 BalancedText.Text = result.Data.summary.IsBalanced ? UiText.T("متوازن", "Balanced") : UiText.T("غير متوازن", "Unbalanced");
-                TrialBalanceGrid.UpdateLayout();
+                TrialBalanceTree.UpdateLayout();
                 await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Render);
                 await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ContextIdle);
             }
@@ -84,6 +96,71 @@ namespace RaccoonWarehouse.Accounting
         private void BackBtn_Click(object sender, RoutedEventArgs e)
         {
             Close();
+        }
+
+        private void TrialBalancePageScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            if (sender is not ScrollViewer scrollViewer || scrollViewer.ScrollableHeight <= 0)
+                return;
+
+            var targetOffset = Math.Clamp(
+                scrollViewer.VerticalOffset - e.Delta,
+                0,
+                scrollViewer.ScrollableHeight);
+
+            if (targetOffset == scrollViewer.VerticalOffset)
+                return;
+
+            scrollViewer.ScrollToVerticalOffset(targetOffset);
+            e.Handled = true;
+        }
+
+        private void TrialBalanceTree_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+        {
+            if (TrialBalanceTree.SelectedItem is not TrialBalanceRowDto row)
+                return;
+
+            try
+            {
+                var report = new GeneralLedgerReport(
+                    _accountingService,
+                    _featureService,
+                    _loadingService,
+                    _sourceDocumentNavigationService);
+                report.OpenForAccount(row.AccountId);
+                report.Owner = this;
+                report.Show();
+                report.Activate();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"{UiText.T("تعذر فتح كشف الحساب", "Failed to open the account statement")}: {ex.Message}",
+                    UiText.T("خطأ", "Error"));
+            }
+        }
+
+        private static List<TrialBalanceRowDto> BuildAccountTree(IEnumerable<TrialBalanceRowDto> rows)
+        {
+            var rowList = rows.OrderBy(row => row.AccountCode).ToList();
+            var rowsById = rowList.ToDictionary(row => row.AccountId);
+
+            foreach (var row in rowList)
+                row.Children.Clear();
+
+            var roots = new List<TrialBalanceRowDto>();
+            foreach (var row in rowList)
+            {
+                if (row.ParentAccountId.HasValue && rowsById.TryGetValue(row.ParentAccountId.Value, out var parent))
+                    parent.Children.Add(row);
+                else
+                    roots.Add(row);
+            }
+
+            foreach (var row in rowList)
+                row.Children.Sort((left, right) => string.Compare(left.AccountCode, right.AccountCode, StringComparison.Ordinal));
+
+            return roots;
         }
     }
 }

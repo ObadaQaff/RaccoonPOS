@@ -2,6 +2,7 @@ namespace RaccoonWarehouse.Domain.Reports.Accounting.Dtos
 {
     public class GeneralLedgerRowDto
     {
+        public string AccountLabel { get; set; } = string.Empty;
         public DateTime EntryDate { get; set; }
         public string EntryNumber { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;

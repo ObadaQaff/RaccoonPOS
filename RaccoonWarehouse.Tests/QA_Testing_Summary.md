@@ -1,5 +1,51 @@
 # QA Testing Summary
 
+## 2026-09-19 - Current stock report responsive layout
+
+### Scope
+- Replaced the maximized, 1800-pixel minimum layout with a resizable 1280x800 default and 1000-pixel minimum width.
+- Enabled automatic horizontal and vertical scrolling for the inventory table.
+- Wrapped and truncated the filter helper text to prevent it from overflowing the report window.
+
+### Verification
+- WPF application build: passed with 0 errors.
+- Full automated test suite: 112 passed, 13 failed, 0 skipped, 125 total.
+- The 13 failures remain the existing purchase-validation, stock-FEFO, accounting, voucher, and sales-report failures.
+
+### Remaining risks
+- Manual visual verification is required at normal, narrow, and maximized window sizes.
+
+## 2026-09-19 - Purchase invoice product-load serialization
+
+### Scope
+- Added a purchase-invoice-only semaphore around `PayInvoice.LoadProductsAsync`.
+- Serialized initial loading, catalog refresh loading, and product-creation reloads that share the purchase invoice service scope.
+
+### Verification
+- WPF application build: passed with 0 errors when run sequentially.
+- Full automated test suite: 112 passed, 13 failed, 0 skipped, 125 total.
+- The 13 failures remain the existing purchase-validation, stock-FEFO, accounting, voucher, and sales-report failures.
+
+### Remaining risks
+- Manual verification is still required using the exact workflow from the screenshot: search for a missing product, create it, return to the search window, and search again.
+
+## 2026-09-19 - Purchase invoice product creation DbContext concurrency fix
+
+### Scope
+- Limited the fix to the purchase-invoice workflow (`PayInvoice`).
+- Suppressed the global catalog-refresh notification only while creating a product from the purchase invoice.
+- Let the purchase invoice perform one awaited product reload after the product dialog closes.
+- Prevented the product-search callback and the purchase-invoice refresh notification from querying the shared EF `DbContext` concurrently.
+
+### Verification
+- WPF application build: passed with 0 errors.
+- Full automated test suite: 112 passed, 13 failed, 0 skipped, 125 total.
+- The 13 failures remain the existing purchase-validation, stock-FEFO, accounting, voucher, and sales-report failures.
+
+### Remaining risks
+- Manual verification is required: open a purchase invoice, open product search, create a missing product, return to search, and search again.
+- Other application windows still use the existing global catalog-refresh event behavior; this change intentionally does not alter those workflows.
+
 ## 2026-09-01 Invoice Payment Methods Report
 - Scope:
   - date-filtered finalized sales, returns, and endpoint-order invoices
@@ -1637,3 +1683,146 @@ The solution still reports existing warnings, including package compatibility/se
 ### Remaining risks
 - Historical inventory pricing is intentionally shown as zero when an as-of date is selected; the quantity is calculated from stock transactions.
 - Available-after-movement values depend on stock-lot balances being consistent with the transaction history.
+
+## 2026-09-15 - Chat assistant live product and stock lookup
+
+### Scope
+- Added a read-only assistant data service for product lookup and current-stock lookup.
+- Applied existing `Products.List` and `current-stock` permission checks before returning data.
+- Limited data sent to Gemini to selected product/stock fields and capped result sizes.
+- Added live-data prompting and navigation actions for the Products and Current Stock screens.
+- No database schema, migration, or write operation was changed.
+
+### Verification
+- Isolated WPF application build: `dotnet build RaccoonWarehouse.csproj --no-restore -p:OutDir=build-check\\` — passed, 0 errors.
+- Full automated test suite: 95 passed, 13 failed, 0 skipped, 108 total.
+- The 13 failures are existing invoice, voucher, accounting, stock-allocation, and sales-report failures; none reference the assistant changes.
+
+### Remaining risks
+- Manual UI verification is still required for English/Arabic live product and stock questions, permission-denied behavior, empty results, Gemini responses, and navigation buttons.
+- The test project has no dedicated automated tests for `ChatAssistantDataService` yet.
+
+## 2026-09-15 - Chat assistant customer, invoice, and sales lookup
+
+### Scope
+- Added read-only customer balance lookup with customer self-service restrictions and staff permission checks.
+- Added sales invoice lookup by invoice number or customer name with selected fields and result limits.
+- Added date-aware sales summaries for today, this month, or the default recent period.
+- Added navigation metadata for customer, invoice search, and sales report screens.
+- Corrected the invoice navigation action to the existing `invoice-search` registry key.
+- No database schema, migration, or write operation was changed.
+
+### Verification
+- Isolated WPF application build: passed with 0 errors; existing warnings remain.
+- Full automated test suite: 95 passed, 13 failed, 0 skipped, 108 total.
+- The 13 failures are existing purchase-validation, stock-FEFO, accounting, voucher, and sales-report failures; none reference the assistant changes.
+
+### Remaining risks
+- Manual live-database verification is required for customer identity mapping, customer-only data isolation, invoice search results, date ranges, Arabic/English responses, and navigation buttons.
+- The test project has no dedicated automated tests for `ChatAssistantDataService` yet.
+
+## 2026-09-15 - Chat assistant offline help and typo tolerance
+
+### Scope
+- Added offline documented-workflow answers when no Gemini API key is configured.
+- Added direct offline display of matched live ERP JSON data, with the existing navigation action preserved.
+- Improved fuzzy keyword matching for common one- and two-character spelling mistakes.
+- Updated the assistant welcome message to describe offline documented help accurately.
+- No database schema, migration, package, or external API change was added.
+
+### Verification
+- Isolated WPF application build: passed with 0 errors; existing warnings remain.
+- Full automated test suite: 95 passed, 13 failed, 0 skipped, 108 total.
+- The 13 failures remain unrelated purchase-validation, stock-FEFO, accounting, voucher, and sales-report failures.
+
+### Remaining risks
+- Manual verification is still required for misspelled English and Arabic questions, ambiguous matches, no-key live-data display, and localized UI behavior.
+- The test project has no dedicated automated assistant tests yet.
+
+## 2026-09-15 - Chat assistant readable offline data and spelling regression tests
+
+### Scope
+- Replaced raw offline JSON output with readable field/value lines for live products, stock, invoices, balances, and summaries.
+- Added assistant knowledge tests for English typos, Arabic wording, invoice-search matching, and unknown questions.
+- Added adjacent-character transposition support for common mistakes such as `stcok`.
+- No database schema, migration, package, or external API change was added.
+
+### Verification
+- Focused assistant tests: 5 passed, 0 failed, 0 skipped.
+- Isolated WPF application build: passed with 0 errors; existing warnings remain.
+- Full automated test suite: 100 passed, 13 failed, 0 skipped, 113 total.
+- The 13 failures remain unrelated purchase-validation, stock-FEFO, accounting, voucher, and sales-report failures.
+
+### Remaining risks
+- Manual verification is still required for real customer data, Arabic UI rendering, ambiguous wording, permission-denied responses, and live-data field formatting.
+- Gemini/API-key responses still require a configured key and network access for natural-language explanations.
+
+## 2026-09-15 - Assistant Arabic routing and greeting correction
+
+### Scope
+- Reviewed the supplied Arabic screenshot showing greetings routed to undocumented-workflow messaging.
+- Prevented create/add/new product requests from being intercepted by live product lookup.
+- Added localized greeting responses and a friendly localized unknown-question response.
+- Added regression coverage for English and Arabic greetings and create-product matching.
+
+### Verification
+- Focused assistant tests: 7 passed, 0 failed, 0 skipped.
+- WPF application build: passed with 0 errors; existing warnings remain.
+- Full automated test suite: 102 passed, 13 failed, 0 skipped, 115 total.
+- The 13 failures remain unrelated purchase-validation, stock-FEFO, accounting, voucher, and sales-report failures.
+
+### Remaining risks
+- Manual verification is still required in the running Arabic app for greeting text, `إضافة منتج جديد`, misspelled create requests, and live product lookup wording.
+- The current UI displays assistant replies as text; richer tabular rendering can be a later UX enhancement.
+
+## 2026-09-15 - Dashboard aliases and meaning-based assistant matching
+
+### Scope
+- Reviewed dashboard module/action definitions across sales, inventory, products, customers, accounting, reports, settings, users, warehouses, categories, brands, and units.
+- Added natural English and Arabic aliases for sales and purchase invoices, receipt/payment vouchers, stock in/out, and stock adjustment.
+- Added meaning-based token groups for create/add/register, supplier/vendor, customer/client, product/item, receive/collect, pay/payment, stock/inventory, and voucher/slip.
+- Added explicit create-intent weighting so create operations outrank generic overview topics.
+- Added regression coverage using reworded requests rather than only stored catalog phrases.
+
+### Verification
+- Focused assistant tests: 15 passed, 0 failed, 0 skipped.
+- WPF application build: passed with 0 errors; existing warnings remain.
+- Full automated test suite: 110 passed, 13 failed, 0 skipped, 123 total.
+- The 13 failures remain unrelated purchase-validation, stock-FEFO, accounting, voucher, and sales-report failures.
+
+### Remaining risks
+- Manual Arabic UI verification is still required for colloquial create, voucher, stock-in, stock-out, and report requests.
+- Some dashboard actions do not currently have executable assistant navigation handlers, especially certain POS and search/list workflows; they can answer from documentation but may not show an Open button.
+
+## 2026-09-15 - Assistant action buttons and window navigation
+
+### Scope
+- Added executable assistant actions for POS, orders, invoice search, and voucher search.
+- Added window-navigation fallback for supported report and search action keys already registered by the application.
+- Added capability checks before dispatching an action, so unsupported or ambiguous requests remain text-only.
+- Preserved the existing dashboard action registry for actions that require dashboard-specific behavior.
+
+### Verification
+- Focused assistant tests: 15 passed, 0 failed, 0 skipped.
+- WPF application build: passed with 0 errors and 5 reported warnings in the direct build output.
+- Full automated test suite: 110 passed, 13 failed, 0 skipped, 123 total.
+- The 13 failures remain unrelated purchase-validation, stock-FEFO, accounting, voucher, and sales-report failures.
+
+### Remaining risks
+- POS-related buttons open the POS window; they do not yet select a specific POS subview such as open session or return.
+- Permission and module guards still apply when a target window opens.
+- Manual Arabic UI verification is still required for button visibility and click navigation across the supported workflows.
+
+## 2026-09-15 - Receipt voucher ambiguity fix
+
+### Scope
+- Removed receipt/payment-specific phrases from the general voucher-overview keywords.
+- Preserved specific matching for receipt and payment voucher creation.
+- Added regression coverage for the Arabic request "أريد إنشاء سند قبض جديد".
+
+### Verification
+- Focused assistant tests: 17 passed, 0 failed, 0 skipped.
+- WPF application build: passed with 0 errors.
+
+### Remaining risks
+- Manual Arabic UI verification is still recommended to confirm the visible "فتح سند القبض" button in the running application.

@@ -19,5 +19,7 @@ namespace RaccoonWarehouse.Navigation.Modules
 
             return handler.ExecuteAsync(actionKey, context);
         }
+
+        public bool CanHandle(string actionKey) => _handlers.Any(x => x.CanHandle(actionKey));
     }
 }

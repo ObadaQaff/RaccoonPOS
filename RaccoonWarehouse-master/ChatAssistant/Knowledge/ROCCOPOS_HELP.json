@@ -23,7 +23,7 @@
   },
   {
     "id": "invoices.sales",
-    "keywords": ["sales invoice", "new invoice", "create invoice", "فاتورة مبيعات", "فاتورة بيع", "انشاء فاتورة", "إنشاء فاتورة"],
+    "keywords": ["sales invoice", "new invoice", "create invoice", "new sales invoice", "create sales invoice", "sell something", "فاتورة مبيعات", "فاتورة بيع", "انشاء فاتورة", "إنشاء فاتورة", "انشاء فاتورة بيع", "إنشاء فاتورة بيع", "بيع جديد"],
     "titleEn": "Create a sales invoice",
     "titleAr": "إنشاء فاتورة مبيعات",
     "stepsEn": ["From the main sidebar, select Invoices and Vouchers.", "Under Invoices and Sales, select Sales Invoice.", "Select the customer when the sale is linked to a customer.", "Add the products and enter their quantities.", "Review prices, totals, and payment information, then save or complete the invoice."],
@@ -45,7 +45,7 @@
   },
   {
     "id": "invoices.purchase",
-    "keywords": ["purchase invoice", "supplier invoice", "فاتورة مشتريات", "فاتورة شراء", "فاتورة مورد"],
+    "keywords": ["purchase invoice", "supplier invoice", "new purchase invoice", "create purchase invoice", "record a purchase", "فاتورة مشتريات", "فاتورة شراء", "فاتورة مورد", "انشاء فاتورة شراء", "إنشاء فاتورة شراء", "تسجيل مشتريات"],
     "titleEn": "Create a purchase invoice",
     "titleAr": "إنشاء فاتورة مشتريات",
     "stepsEn": ["From the main sidebar, select Invoices and Vouchers.", "Under Invoices and Sales, select Purchase Invoice.", "Select the supplier or enter the required supplier information.", "Add the purchased products and quantities.", "Review costs, totals, and payment information, then save the invoice."],
@@ -56,7 +56,7 @@
   },
   {
     "id": "stocks.in",
-    "keywords": ["stock in", "add stock", "receive stock", "ادخال مخزون", "إدخال مخزون", "زيادة مخزون"],
+    "keywords": ["stock in", "add stock", "receive stock", "goods receipt", "receive goods", "incoming goods", "stock entry", "create stock entry", "ادخال مخزون", "إدخال مخزون", "زيادة مخزون", "سند ادخال", "سند إدخال", "سند ادخال بضاعة", "سند إدخال بضاعة", "ادخال بضاعة", "إدخال بضاعة", "استلام بضاعة", "انشاء سند ادخال", "إنشاء سند إدخال"],
     "titleEn": "Record stock in",
     "titleAr": "تسجيل إدخال مخزون",
     "stepsEn": ["From the main sidebar, select Invoices and Vouchers.", "Under Inventory, select Stock In.", "Select the warehouse and product.", "Enter the incoming quantity and required reference information.", "Review and save the stock movement."],
@@ -67,7 +67,7 @@
   },
   {
     "id": "stocks.out",
-    "keywords": ["stock out", "remove stock", "issue stock", "اخراج مخزون", "إخراج مخزون", "صرف مخزون"],
+    "keywords": ["stock out", "remove stock", "issue stock", "goods issue", "issue goods", "outgoing goods", "stock release", "create stock out", "اخراج مخزون", "إخراج مخزون", "صرف مخزون", "سند اخراج", "سند إخراج", "سند اخراج بضاعة", "سند إخراج بضاعة", "اخراج بضاعة", "إخراج بضاعة", "صرف بضاعة", "انشاء سند اخراج", "إنشاء سند إخراج"],
     "titleEn": "Record stock out",
     "titleAr": "تسجيل إخراج مخزون",
     "stepsEn": ["From the main sidebar, select Invoices and Vouchers.", "Under Inventory, select Stock Out.", "Select the warehouse and product.", "Enter the outgoing quantity and required reference information.", "Review and save the stock movement."],
@@ -78,7 +78,7 @@
   },
   {
     "id": "stocks.adjustment",
-    "keywords": ["stock adjustment", "adjust stock", "correct stock", "تسوية مخزون", "تعديل مخزون", "تصحيح مخزون"],
+    "keywords": ["stock adjustment", "adjust stock", "correct stock", "inventory correction", "stock correction", "تسوية مخزون", "تعديل مخزون", "تصحيح مخزون", "تسوية بضاعة", "تعديل كمية المخزون", "تصحيح كمية المخزون"],
     "titleEn": "Adjust stock",
     "titleAr": "تسوية المخزون",
     "stepsEn": ["From the main sidebar, select Invoices and Vouchers.", "Under Inventory, select Stock Adjustment.", "Select the warehouse and product.", "Enter the corrected quantity and the reason or reference when required.", "Review and save the adjustment."],
@@ -100,7 +100,7 @@
   },
   {
     "id": "vouchers.receipt",
-    "keywords": ["receipt voucher", "receive payment", "سند قبض", "قبض دفعة"],
+    "keywords": ["receipt voucher", "receive payment", "cash receipt", "record money received", "collect payment", "create receipt", "create a receipt voucher", "سند قبض", "قبض دفعة", "قبض مبلغ", "استلام دفعة", "استلام مبلغ", "انشاء سند قبض", "إنشاء سند قبض", "تسجيل قبض"],
     "titleEn": "Create a receipt voucher",
     "titleAr": "إنشاء سند قبض",
     "stepsEn": ["From the main sidebar, select Invoices and Vouchers.", "Under Receipts and Payments, select Receipt Voucher.", "Select the related account or party.", "Enter the amount, date, payment method, and reference details.", "Review and save the voucher."],
@@ -111,7 +111,7 @@
   },
   {
     "id": "vouchers.payment",
-    "keywords": ["payment voucher", "make payment", "سند صرف", "سند دفع", "صرف دفعة"],
+    "keywords": ["payment voucher", "make payment", "cash payment", "pay supplier", "record money paid", "create payment", "create a payment voucher", "سند صرف", "سند دفع", "صرف دفعة", "صرف مبلغ", "دفع للمورد", "دفع مبلغ", "انشاء سند دفع", "إنشاء سند دفع", "تسجيل صرف"],
     "titleEn": "Create a payment voucher",
     "titleAr": "إنشاء سند صرف",
     "stepsEn": ["From the main sidebar, select Invoices and Vouchers.", "Under Receipts and Payments, select Payment Voucher.", "Select the related account or party.", "Enter the amount, date, payment method, and reference details.", "Review and save the voucher."],
@@ -143,7 +143,7 @@
     "actionLabelAr": "فتح تقرير المبيعات"
   },
   {
-    "id": "pos.open-session",
+    "id": "pos.open-session", "actionKey": "pos", "actionLabelEn": "Open POS", "actionLabelAr": "فتح نقطة البيع",
     "keywords": ["open pos session", "start pos", "open cashier session", "فتح جلسة", "بدء نقطة البيع", "تشغيل نقطة البيع"],
     "titleEn": "Open a POS cashier session",
     "titleAr": "فتح جلسة كاشير في نقطة البيع",
@@ -151,7 +151,7 @@
     "stepsAr": ["من القائمة الجانبية الرئيسية اختر نقطة البيع.", "من الشريط الجانبي الأيسر في شاشة نقطة البيع اختر فتح جلسة.", "أدخل معلومات الافتتاح التي تطلبها نافذة الجلسة.", "أكد فتح الجلسة قبل إنشاء المبيعات."]
   },
   {
-    "id": "pos.new-sale",
+    "id": "pos.new-sale", "actionKey": "pos", "actionLabelEn": "Open POS", "actionLabelAr": "فتح نقطة البيع",
     "keywords": ["pos sale", "new pos invoice", "sell in pos", "cash sale", "بيع نقطة البيع", "فاتورة نقطة البيع", "فاتورة كاش", "بيع كاش"],
     "titleEn": "Create a sale in POS",
     "titleAr": "إنشاء عملية بيع في نقطة البيع",
@@ -159,7 +159,7 @@
     "stepsAr": ["من القائمة الجانبية الرئيسية اختر نقطة البيع.", "تأكد من وجود جلسة كاشير مفتوحة.", "من الشريط الجانبي في نقطة البيع اختر فاتورة جديدة (F1).", "امسح الباركود أو استخدم بحث عن مادة (F2)، ثم أضف المنتجات والكميات المطلوبة.", "راجع إجمالي الفاتورة ثم اختر إنهاء كاش (F4)."]
   },
   {
-    "id": "pos.search-product",
+    "id": "pos.search-product", "actionKey": "pos", "actionLabelEn": "Open POS", "actionLabelAr": "فتح نقطة البيع",
     "keywords": ["pos search product", "find item in pos", "search item", "بحث مادة نقطة البيع", "البحث عن صنف", "بحث عن مادة"],
     "titleEn": "Search for a product in POS",
     "titleAr": "البحث عن مادة في نقطة البيع",
@@ -167,7 +167,7 @@
     "stepsAr": ["من القائمة الجانبية الرئيسية اختر نقطة البيع.", "ابدأ الفاتورة التي تريد العمل عليها أو افتحها.", "من الشريط الجانبي في نقطة البيع اختر بحث عن مادة (F2).", "ابحث عن المنتج المطلوب وحدده ثم أدخل كميته."]
   },
   {
-    "id": "pos.hold-resume",
+    "id": "pos.hold-resume", "actionKey": "pos", "actionLabelEn": "Open POS", "actionLabelAr": "فتح نقطة البيع",
     "keywords": ["hold sale", "resume sale", "park invoice", "held invoice", "انتظار فاتورة", "استئناف فاتورة", "تعليق فاتورة"],
     "titleEn": "Hold or resume a POS sale",
     "titleAr": "تعليق أو استئناف فاتورة نقطة البيع",
@@ -175,7 +175,7 @@
     "stepsAr": ["أثناء العمل على فاتورة نقطة البيع اختر انتظار (F5) من الشريط الجانبي لتعليقها.", "للمتابعة لاحقاً اختر استئناف (F6).", "حدد الفاتورة المعلقة التي تريد متابعتها.", "راجع منتجاتها قبل إكمال البيع."]
   },
   {
-    "id": "pos.return",
+    "id": "pos.return", "actionKey": "pos", "actionLabelEn": "Open POS", "actionLabelAr": "فتح نقطة البيع",
     "keywords": ["pos return", "return pos invoice", "refund pos", "مرتجع نقطة البيع", "إرجاع كاش", "مرتجع كاش"],
     "titleEn": "Process a return from POS",
     "titleAr": "تنفيذ مرتجع من نقطة البيع",
@@ -183,7 +183,7 @@
     "stepsAr": ["من القائمة الجانبية الرئيسية اختر نقطة البيع.", "من الشريط الجانبي في نقطة البيع اختر مرتجع.", "ابحث عن الفاتورة الأصلية التي يطلبها مسار المرتجع.", "حدد المنتجات والكميات المرتجعة.", "راجع المرتجع ثم أكده."]
   },
   {
-    "id": "pos.receipts-payments",
+    "id": "pos.receipts-payments", "actionKey": "pos", "actionLabelEn": "Open POS", "actionLabelAr": "فتح نقطة البيع",
     "keywords": ["pos receipt", "pos payment", "cash receipt pos", "cash payment pos", "مقبوضات نقطة البيع", "مدفوعات نقطة البيع"],
     "titleEn": "Open receipts or payments from POS",
     "titleAr": "فتح المقبوضات أو المدفوعات من نقطة البيع",
@@ -191,7 +191,7 @@
     "stepsAr": ["من القائمة الجانبية الرئيسية اختر نقطة البيع.", "من الشريط الجانبي اختر مقبوضات (F7) لتسجيل مبلغ مقبوض، أو مدفوعات (F8) لتسجيل مبلغ مدفوع.", "أكمل المعلومات التي تطلبها نافذة السند المفتوحة.", "راجع السند ثم احفظه."]
   },
   {
-    "id": "pos.shift-summary",
+    "id": "pos.shift-summary", "actionKey": "pos", "actionLabelEn": "Open POS", "actionLabelAr": "فتح نقطة البيع",
     "keywords": ["pos shift summary", "cashier summary", "shift report", "ملخص الشفت", "تقرير الكاشير"],
     "titleEn": "View the POS shift summary",
     "titleAr": "عرض ملخص شفت نقطة البيع",
@@ -199,7 +199,7 @@
     "stepsAr": ["من القائمة الجانبية الرئيسية اختر نقطة البيع.", "من الشريط الجانبي في نقطة البيع اختر ملخص الشفت (F10).", "راجع إجماليات وتفاصيل جلسة الكاشير المعروضة."]
   },
   {
-    "id": "pos.close-session",
+    "id": "pos.close-session", "actionKey": "pos", "actionLabelEn": "Open POS", "actionLabelAr": "فتح نقطة البيع",
     "keywords": ["close pos session", "end cashier session", "close shift", "إغلاق جلسة", "انهاء جلسة", "إنهاء الشفت"],
     "titleEn": "Close a POS cashier session",
     "titleAr": "إغلاق جلسة كاشير نقطة البيع",
@@ -297,7 +297,7 @@
     "actionKey": "Delegates.List", "actionLabelEn": "Open Delegates", "actionLabelAr": "فتح المندوبين"
   },
   {
-    "id": "orders.manage",
+    "id": "orders.manage", "actionKey": "orders", "actionLabelEn": "Open Orders", "actionLabelAr": "فتح الطلبيات",
     "keywords": ["orders list", "search order", "order details", "filter orders", "قائمة الطلبيات", "بحث طلبية", "تفاصيل الطلبية", "فلترة الطلبيات"],
     "titleEn": "Search and review orders",
     "titleAr": "البحث عن الطلبيات ومراجعتها",
@@ -323,7 +323,7 @@
     "actionKey": "current-stock", "actionLabelEn": "Open Current Stock", "actionLabelAr": "فتح المخزون الحالي"
   },
   {
-    "id": "invoices.search",
+    "id": "invoices.search", "actionKey": "invoice-search", "actionLabelEn": "Open Invoice Search", "actionLabelAr": "فتح بحث الفواتير",
     "keywords": ["search invoice", "find sales invoice", "invoice details", "بحث فاتورة", "البحث عن فاتورة", "تفاصيل الفاتورة"],
     "titleEn": "Search for an existing invoice",
     "titleAr": "البحث عن فاتورة موجودة",
@@ -331,7 +331,7 @@
     "stepsAr": ["افتح مسار العمل الذي يوفر البحث عن الفواتير مثل مرتجع المبيعات أو مرتجع نقطة البيع.", "افتح بحث الفاتورة عند الطلب.", "استخدم رقم الفاتورة أو الزبون أو التاريخ المتاح.", "حدد الفاتورة لعرضها أو متابعة العملية المرتبطة."]
   },
   {
-    "id": "vouchers.search",
+    "id": "vouchers.search", "actionKey": "vouchers-search", "actionLabelEn": "Open Voucher Search", "actionLabelAr": "فتح بحث السندات",
     "keywords": ["search voucher", "find receipt voucher", "find payment voucher", "بحث سند", "البحث عن سند قبض", "البحث عن سند دفع"],
     "titleEn": "Search for a voucher",
     "titleAr": "البحث عن سند",
@@ -601,7 +601,7 @@
   },
   {
     "id": "vouchers.overview",
-    "keywords": ["voucher overview", "receipt voucher", "payment voucher", "cash receipt", "cash payment", "voucher accounting", "voucher reference", "السندات", "سند قبض", "سند صرف", "قبض نقدي", "صرف نقدي", "مرجع السند"],
+    "keywords": ["voucher overview", "voucher accounting", "voucher reference", "السندات", "أنواع السندات", "مرجع السند"],
     "titleEn": "Understand receipts and payment vouchers",
     "titleAr": "فهم سندات القبض والصرف",
     "stepsEn": [
