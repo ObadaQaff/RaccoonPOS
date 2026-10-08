@@ -66,8 +66,10 @@ namespace RaccoonWarehouse.Accounting.ViewModels
             AccountNature = request.DefaultNature;
             AccountCategory = request.DefaultCategory;
             AccountType = ResolveTypeFromCategory(AccountCategory);
-            IsPosting = _level >= 5;
-            IsPostingEnabled = _level >= 5;
+            // Level 4 is a postable detail under the new level-3 chart groups
+            // (cash, banks, incoming cheques, and taxes payable).
+            IsPosting = _level >= 4;
+            IsPostingEnabled = _level >= 4;
             Description = null;
             CreatedAccount = null;
 

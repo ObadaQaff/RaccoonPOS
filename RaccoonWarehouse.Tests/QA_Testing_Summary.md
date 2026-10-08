@@ -1,5 +1,19 @@
 # QA Testing Summary
 
+## 2026-10-04 - Manual journal account refresh fix
+
+### Scope
+- Corrected new level-4 detail accounts so they are saved as postable accounts.
+- Refreshed manual-journal account choices when the account dropdown opens, including when an account is created while the journal window remains open.
+
+### Verification
+- WPF application build: passed with 0 errors; existing warnings remain.
+- `git diff --check`: passed.
+- Manual UI scenario: not executable in the headless test environment.
+
+### Remaining risks
+- Run the manual flow in the desktop app: create a detail account under a chart group, keep/reopen Create Journal Entry, open the account dropdown, and confirm the account is visible and can be posted.
+
 ## 2026-09-19 - Current stock report responsive layout
 
 ### Scope
@@ -1823,6 +1837,29 @@ The solution still reports existing warnings, including package compatibility/se
 ### Verification
 - Focused assistant tests: 17 passed, 0 failed, 0 skipped.
 - WPF application build: passed with 0 errors.
+
+## 2026-10-04 - Chart of accounts and journal mapping update
+
+### Scope
+- Added idempotent Cash, Banks, Incoming Cheques, and Taxes Payable groups.
+- Reparented existing detail accounts without replacing their IDs or history.
+- Renamed cheque holding, recoverable input tax, and output tax accounts.
+- Added Cheques Under Collection and Sales Tax Payable for Settlement accounts without introducing new workflows.
+- Prevented purchase-price discounts from generating new Purchase Discounts revenue lines; purchase journal inventory uses the saved net acquisition amount while preserving saved tax and supplier totals.
+- Preserved historical Purchase Discounts entries and existing invoice, voucher, stock, tax, and payment calculations.
+- Added integration-style accounting tests for chart structure, purchase discount posting, and group-account rejection.
+
+### Verification
+- Focused accounting tests: 20 total, 18 passed, 2 failed.
+- New chart/purchase-discount/group-posting tests: 5 passed, 0 failed.
+- Full automated test suite: 118 passed, 10 failed, 0 skipped, 128 total.
+- Solution build: passed with 0 errors; existing compiler/package warnings remain.
+
+### Remaining failures and risks
+- The two focused accounting failures depend on existing test fixtures that omit a required cashier session or fail invoice validation before journal posting.
+- The full-suite failures also include existing purchase-validation, stock-FEFO, voucher, and sales-report failures.
+- No live production database was modified or queried. Existing posted journals remain unchanged; upgraded databases receive the idempotent chart update on the existing account initialization path.
+- Manual verification remains required for live account IDs, bank-account associations, cheque stages, and any explicit tax-settlement workflow if one is added later.
 
 ### Remaining risks
 - Manual Arabic UI verification is still recommended to confirm the visible "فتح سند القبض" button in the running application.

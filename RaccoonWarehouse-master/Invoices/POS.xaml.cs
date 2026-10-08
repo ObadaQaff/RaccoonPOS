@@ -2905,8 +2905,8 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
                     .ToList();
 
                 var searchWindow = new ProductSearchWindow(
+                    _productService,
                     _stockService,
-                    _productUnitService,
                     async row =>
                     {
                         if (row == null || row.Quantity <= 0)

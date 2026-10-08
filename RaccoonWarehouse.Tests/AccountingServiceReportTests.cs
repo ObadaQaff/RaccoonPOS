@@ -151,11 +151,11 @@ public class AccountingServiceReportTests
         var service = CreateService(nameof(GetBalanceSheetAsync_ShouldIncludeCurrentPeriodEarningsInEquity), out var context);
         await service.EnsureDefaultAccountsAsync();
         var cashAccountId = await context.Set<Account>()
-            .Where(x => x.Code == "1000")
+            .Where(x => x.Code == "1110000000")
             .Select(x => x.Id)
             .FirstAsync();
         var salesAccountId = await context.Set<Account>()
-            .Where(x => x.Code == "4000")
+            .Where(x => x.Code == "4110000000")
             .Select(x => x.Id)
             .FirstAsync();
 
@@ -276,6 +276,90 @@ public class AccountingServiceReportTests
         var settlementLine = Assert.Single(entry!.Lines, x => x.Credit == 600m);
         Assert.Equal("2140000000", settlementLine.Account.Code);
         Assert.Null(settlementLine.SupplierId);
+    }
+
+    [Fact]
+    public async Task EnsureDefaultAccountsAsync_ShouldCreatePostingGroupsWithoutChangingDetailIds()
+    {
+        var service = CreateService(nameof(EnsureDefaultAccountsAsync_ShouldCreatePostingGroupsWithoutChangingDetailIds), out var context);
+        await service.EnsureDefaultAccountsAsync();
+
+        var accounts = await context.Accounts.AsNoTracking().ToListAsync();
+        var cashGroup = accounts.Single(x => x.Code == "1101000000");
+        var bankGroup = accounts.Single(x => x.Code == "1102000000");
+        var chequeGroup = accounts.Single(x => x.Code == "1103000000");
+        var taxGroup = accounts.Single(x => x.Code == "2105000000");
+
+        Assert.False(cashGroup.IsPosting);
+        Assert.False(bankGroup.IsPosting);
+        Assert.False(chequeGroup.IsPosting);
+        Assert.False(taxGroup.IsPosting);
+        Assert.Equal(cashGroup.Id, accounts.Single(x => x.Code == "1110000000").ParentAccountId);
+        Assert.Equal(bankGroup.Id, accounts.Single(x => x.Code == "1130000000").ParentAccountId);
+        Assert.Equal(chequeGroup.Id, accounts.Single(x => x.Code == "1180000000").ParentAccountId);
+        Assert.Equal(taxGroup.Id, accounts.Single(x => x.Code == "2120000000").ParentAccountId);
+        Assert.Equal("صندوق الشيكات", accounts.Single(x => x.Code == "1180000000").Name);
+        Assert.Equal("ضريبة المخرجات", accounts.Single(x => x.Code == "2120000000").Name);
+        Assert.True(accounts.Single(x => x.Code == "1181000000").IsPosting);
+        Assert.True(accounts.Single(x => x.Code == "2121000000").IsPosting);
+    }
+
+    [Fact]
+    public async Task PostInvoiceEntryAsync_PurchaseDiscount_ShouldReduceInventoryWithoutRevenueLine()
+    {
+        var service = CreateService(nameof(PostInvoiceEntryAsync_PurchaseDiscount_ShouldReduceInventoryWithoutRevenueLine), out var context);
+        await service.EnsureDefaultAccountsAsync();
+
+        var result = await service.PostInvoiceEntryAsync(new InvoiceWriteDto
+        {
+            Id = 204,
+            InvoiceNumber = "PI-204",
+            InvoiceType = InvoiceType.Purchase,
+            PaymentType = PaymentType.Credit,
+            SupplierId = 88,
+            SubTotal = 433.06m,
+            DiscountAmount = 8.47m,
+            TotalTax = 67.93m,
+            TotalAmount = 492.52m,
+            CreatedDate = new DateTime(2026, 8, 4),
+            Status = InvoiceStatus.Posted
+        });
+
+        var entry = await context.JournalEntries
+            .Include(x => x.Lines)
+            .ThenInclude(x => x.Account)
+            .SingleAsync(x => x.ReferenceType == "Invoice" && x.ReferenceId == 204);
+
+        Assert.True(result.Success);
+        Assert.Equal(492.52m, entry.Lines.Sum(x => x.Debit));
+        Assert.Equal(492.52m, entry.Lines.Sum(x => x.Credit));
+        Assert.Equal(424.59m, entry.Lines.Single(x => x.Account!.Code == "1150000000").Debit);
+        Assert.Equal(67.93m, entry.Lines.Single(x => x.Account!.Code == "1160000000").Debit);
+        Assert.Equal(492.52m, entry.Lines.Single(x => x.Account!.Code == "2110000000").Credit);
+        Assert.DoesNotContain(entry.Lines, x => x.Account!.Code == "4150000000");
+    }
+
+    [Fact]
+    public async Task PostJournalEntryAsync_ShouldRejectGroupAccountLines()
+    {
+        var service = CreateService(nameof(PostJournalEntryAsync_ShouldRejectGroupAccountLines), out var context);
+        await service.EnsureDefaultAccountsAsync();
+
+        var cashGroup = await context.Accounts.SingleAsync(x => x.Code == "1101000000");
+        var sales = await context.Accounts.SingleAsync(x => x.Code == "4110000000");
+        var result = await service.PostJournalEntryAsync(new JournalEntryWriteDto
+        {
+            EntryDate = new DateTime(2026, 8, 4),
+            Description = "Group account rejection",
+            Lines =
+            [
+                new JournalEntryLineWriteDto { AccountId = cashGroup.Id, Debit = 10m },
+                new JournalEntryLineWriteDto { AccountId = sales.Id, Credit = 10m }
+            ]
+        });
+
+        Assert.False(result.Success);
+        Assert.Contains("posting", result.Message ?? string.Empty, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

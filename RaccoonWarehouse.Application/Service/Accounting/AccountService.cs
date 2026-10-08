@@ -94,11 +94,12 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                 throw new InvalidOperationException("Parent account was not found.");
             }
 
-            var parentLevel = parent.AccountLevel ?? 1;
-            if (parentLevel >= 3)
+            if (parent.IsPosting)
             {
-                throw new InvalidOperationException("Cannot create child account under level 3 account.");
+                throw new InvalidOperationException("Posting accounts cannot have child accounts.");
             }
+
+            var parentLevel = parent.AccountLevel ?? 1;
 
             var siblingCount = await dbContext.Accounts.CountAsync(x => x.ParentAccountId == parent.Id);
             var level = parentLevel + 1;
@@ -128,7 +129,7 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                 AccountNature = nature,
                 AccountCategory = category,
                 AccountTypeCode = resolvedTypeCode,
-                IsPosting = level == 3 ? true : (isPosting ?? false),
+                IsPosting = isPosting ?? level >= 3,
                 IsActive = true,
                 Code = code,
                 AccountType = ResolveAccountType(category),

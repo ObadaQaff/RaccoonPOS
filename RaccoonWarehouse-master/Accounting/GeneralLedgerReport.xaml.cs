@@ -200,6 +200,18 @@ namespace RaccoonWarehouse.Accounting
             Close();
         }
 
+        private void LedgerGrid_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (ItemsControl.ContainerFromElement(LedgerGrid, e.OriginalSource as DependencyObject) is DataGridRow row)
+            {
+                LedgerGrid.SelectedItem = row.Item;
+                row.Focus();
+                return;
+            }
+
+            LedgerGrid.SelectedItem = null;
+        }
+
         private async void LedgerGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
         {
             if (LedgerGrid.SelectedItem is not Domain.Reports.Accounting.Dtos.GeneralLedgerRowDto row)
@@ -215,6 +227,47 @@ namespace RaccoonWarehouse.Accounting
             catch (Exception ex)
             {
                 MessageBox.Show(ex.Message);
+            }
+        }
+
+        private void OpenOriginalEntry_Click(object sender, RoutedEventArgs e)
+        {
+            if (LedgerGrid.SelectedItem is not Domain.Reports.Accounting.Dtos.GeneralLedgerRowDto row)
+            {
+                return;
+            }
+
+            LedgerGrid.SelectedItem = row;
+
+            if (!row.JournalEntryId.HasValue)
+            {
+                MessageBox.Show(
+                    UiText.T("لا يوجد قيد أصلي مرتبط بهذا الصف.", "This row has no linked original journal entry."),
+                    UiText.T("تنبيه", "Notice"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+
+            try
+            {
+                var journalEntriesBrowser = new JournalEntriesBrowser(
+                    _accountingService,
+                    _featureService,
+                    _loadingService,
+                    _sourceDocumentNavigationService);
+                journalEntriesBrowser.OpenForEntry(row.JournalEntryId.Value);
+                journalEntriesBrowser.Owner = this;
+                journalEntriesBrowser.Show();
+                journalEntriesBrowser.Activate();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    ex.Message,
+                    UiText.T("تعذر فتح القيد الأصلي", "Could not open the original journal entry"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
             }
         }
 

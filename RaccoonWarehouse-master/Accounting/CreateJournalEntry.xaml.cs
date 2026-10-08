@@ -237,10 +237,13 @@ namespace RaccoonWarehouse.Accounting
             }
         }
 
-        private void AccountComboBox_DropDownOpened(object sender, EventArgs e)
+        private async void AccountComboBox_DropDownOpened(object sender, EventArgs e)
         {
             if (sender is ComboBox combo)
             {
+                // Accounts can be created while this window remains open. Refresh
+                // the postable lookup before showing the choices.
+                await LoadAccountsAsync();
                 RestoreAccountChoices(combo);
                 combo.IsDropDownOpen = AccountsSource.Count > 0;
             }

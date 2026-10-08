@@ -22,6 +22,7 @@ namespace RaccoonWarehouse.Accounting
         private readonly IAccountingFeatureService _featureService;
         private readonly ILoadingService _loadingService;
         private readonly SourceDocumentNavigationService _sourceDocumentNavigationService;
+        private int? _initialEntryId;
 
         public ObservableCollection<JournalEntryListItem> Entries { get; } = new();
 
@@ -46,6 +47,11 @@ namespace RaccoonWarehouse.Accounting
             FromDatePicker.SelectedDate = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
             ToDatePicker.SelectedDate = DateTime.Today;
             await LoadEntriesAsync();
+        }
+
+        public void OpenForEntry(int entryId)
+        {
+            _initialEntryId = entryId;
         }
 
         private async void LoadBtn_Click(object sender, RoutedEventArgs e)
@@ -88,10 +94,12 @@ namespace RaccoonWarehouse.Accounting
                 }
 
                 _loadingService.Show();
+                var initialEntryId = _initialEntryId;
                 var result = await _accountingService.GetJournalEntriesAsync(new JournalEntryFilterDto
                 {
-                    From = FromDatePicker.SelectedDate?.Date,
-                    To = ToDatePicker.SelectedDate?.Date.AddDays(1).AddTicks(-1),
+                    EntryId = initialEntryId,
+                    From = initialEntryId.HasValue ? null : FromDatePicker.SelectedDate?.Date,
+                    To = initialEntryId.HasValue ? null : ToDatePicker.SelectedDate?.Date.AddDays(1).AddTicks(-1),
                     Status = ParseStatus(StatusComboBox.SelectedItem as ComboBoxItem),
                     ReferenceSearch = string.IsNullOrWhiteSpace(ReferenceSearchTextBox.Text) ? null : ReferenceSearchTextBox.Text.Trim(),
                     AccountSearch = string.IsNullOrWhiteSpace(AccountSearchTextBox.Text) ? null : AccountSearchTextBox.Text.Trim()
@@ -106,6 +114,18 @@ namespace RaccoonWarehouse.Accounting
                 Entries.Clear();
                 foreach (var entry in result.Data)
                     Entries.Add(new JournalEntryListItem(entry));
+
+                if (_initialEntryId.HasValue)
+                {
+                    var initialEntry = Entries.FirstOrDefault(x => x.Id == _initialEntryId.Value);
+                    _initialEntryId = null;
+
+                    if (initialEntry != null)
+                    {
+                        JournalEntriesGrid.SelectedItem = initialEntry;
+                        ShowEntryDetailsForSelectedEntry();
+                    }
+                }
 
                 ResultCountText.Text = string.Format(
                     UiText.T("عدد النتائج: {0}", "Results: {0}"),
@@ -204,6 +224,11 @@ namespace RaccoonWarehouse.Accounting
         }
 
         private void ShowEntryDetailsBtn_Click(object sender, RoutedEventArgs e)
+        {
+            ShowEntryDetailsForSelectedEntry();
+        }
+
+        private void ShowEntryDetailsForSelectedEntry()
         {
             if (JournalEntriesGrid.SelectedItem is not JournalEntryListItem selected)
                 return;

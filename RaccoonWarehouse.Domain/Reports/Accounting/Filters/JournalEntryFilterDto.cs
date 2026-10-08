@@ -4,6 +4,7 @@ namespace RaccoonWarehouse.Domain.Reports.Accounting.Filters
 {
     public class JournalEntryFilterDto
     {
+        public int? EntryId { get; set; }
         public DateTime? From { get; set; }
         public DateTime? To { get; set; }
         public JournalEntryStatus? Status { get; set; }

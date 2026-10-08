@@ -118,11 +118,12 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                     return Result<AccountTreeNodeDto>.Fail("Parent account was not found.");
                 }
 
-                parentLevel = parent.AccountLevel ?? 1;
-                if (parentLevel >= 3)
+                if (parent.IsPosting)
                 {
-                    return Result<AccountTreeNodeDto>.Fail("Cannot create child account under level 3 posting account.");
+                    return Result<AccountTreeNodeDto>.Fail("Posting accounts cannot have child accounts.");
                 }
+
+                parentLevel = parent.AccountLevel ?? 1;
 
                 var siblingCount = await _uow.Accounts.GetAllAsQueryable()
                     .Where(x => x.ParentAccountId == parent.Id)
@@ -147,7 +148,10 @@ namespace RaccoonWarehouse.Application.Service.Accounting
             }
 
             var level = parentLevel + 1;
-            var isPosting = level == 3;
+            // A child under a level-2 group is a normal posting detail. A child
+            // under a level-3 grouping account is also a posting detail; seeded
+            // grouping accounts explicitly remain non-postable.
+            var isPosting = parent?.AccountLevel is 2 or 3;
 
             var account = new Account
             {

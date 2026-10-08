@@ -456,7 +456,6 @@ namespace RaccoonWarehouse.Application.Service.Accounting
             var salesRevenueId = accountIds[SalesRevenueAccountCodeKey];
             var salesReturnsId = accountIds[SalesReturnsAccountCodeKey];
             var salesDiscountId = accountIds[SalesDiscountAccountCodeKey];
-            var purchaseDiscountId = accountIds[PurchaseDiscountAccountCodeKey];
             var inventoryId = accountIds[InventoryAccountCodeKey];
             var cogsId = accountIds[CostOfGoodsSoldAccountCodeKey];
             var outputTaxId = accountIds[OutputTaxAccountCodeKey];
@@ -566,11 +565,16 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                     break;
 
                 case InvoiceType.Purchase:
-                    AddDebit(lines, inventoryId, invoice.SubTotal, $"Purchase invoice #{invoice.InvoiceNumber} inventory");
+                    // Invoice.SubTotal is the saved purchase amount before the invoice-level
+                    // discount. Keep the existing tax and supplier totals unchanged, but
+                    // capitalize the purchase at its net acquisition amount.
+                    var purchaseDiscount = Math.Max(0m, invoice.DiscountAmount ?? 0m);
+                    var purchaseInventoryAmount = invoice.SubTotal > 0m
+                        ? Math.Max(0m, invoice.SubTotal - purchaseDiscount)
+                        : Math.Max(0m, invoice.NetSales);
+                    AddDebit(lines, inventoryId, purchaseInventoryAmount, $"Purchase invoice #{invoice.InvoiceNumber} inventory");
                     if (invoice.TotalTax > 0)
                         AddDebit(lines, inputTaxId, invoice.TotalTax, $"Purchase invoice #{invoice.InvoiceNumber} input tax");
-                    if ((invoice.DiscountAmount ?? 0m) > 0)
-                        AddCredit(lines, purchaseDiscountId, invoice.DiscountAmount!.Value, $"Purchase invoice #{invoice.InvoiceNumber} discount");
                     AddSettlementCredit(invoice.TotalAmount, $"Purchase invoice #{invoice.InvoiceNumber} payment");
                     break;
 
@@ -674,7 +678,6 @@ namespace RaccoonWarehouse.Application.Service.Accounting
 
             var inventoryId = await ResolveSystemAccountIdAsync(InventoryAccountCodeKey, "1150000000");
             var stockGainId = await ResolveSystemAccountIdAsync(StockGainAccountCodeKey, "4140000000");
-            var purchaseDiscountId = await ResolveSystemAccountIdAsync(PurchaseDiscountAccountCodeKey, "4150000000");
             var stockLossId = await ResolveSystemAccountIdAsync(StockLossAccountCodeKey, "5120000000");
             var internalConsumptionId = await ResolveSystemAccountIdAsync(InternalConsumptionAccountCodeKey, "5140000000");
             var accountsPayableId = await ResolveSystemAccountIdAsync(AccountsPayableAccountCodeKey, "2110000000");
@@ -686,8 +689,6 @@ namespace RaccoonWarehouse.Application.Service.Accounting
             if (document.Type == StockVoucherType.In)
             {
                 AddDebit(lines, inventoryId, totalAmount, description);
-                if (discount > 0)
-                    AddCredit(lines, purchaseDiscountId, discount, description + " purchase discount");
 
                 var settlementAccountId = document.PaymentType.HasValue
                     ? await ResolveSettlementAccountIdAsync(document.PaymentType, isPurchaseSide: true)
@@ -1029,6 +1030,7 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                         AccountLabel = scopedAccounts.TryGetValue(line.AccountId, out var openingAccount)
                             ? $"{openingAccount.Code} - {openingAccount.Name}"
                             : string.Empty,
+                        JournalEntryId = line.JournalEntryId,
                         EntryDate = line.EntryDate,
                         EntryNumber = line.EntryNumber,
                         Description = AccountingTextLocalizer.ToArabic(string.IsNullOrWhiteSpace(line.LineDescription) ? line.EntryDescription : line.LineDescription!),
@@ -1110,6 +1112,7 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                     rows.Add(new GeneralLedgerRowDto
                     {
                         EntryDate = line.EntryDate,
+                        JournalEntryId = line.JournalEntryId,
                         EntryNumber = line.EntryNumber,
                         Description = AccountingTextLocalizer.ToArabic(string.IsNullOrWhiteSpace(line.LineDescription) ? line.EntryDescription : line.LineDescription!),
                         ReferenceType = line.ReferenceType,
@@ -1205,6 +1208,11 @@ namespace RaccoonWarehouse.Application.Service.Accounting
             if (filter.To.HasValue)
             {
                 query = query.Where(x => x.EntryDate <= filter.To.Value);
+            }
+
+            if (filter.EntryId.HasValue)
+            {
+                query = query.Where(x => x.Id == filter.EntryId.Value);
             }
 
             if (filter.Status.HasValue)
@@ -1520,6 +1528,7 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                 .Select(x => new LedgerLineProjection
                 {
                     AccountId = x.AccountId,
+                    JournalEntryId = x.JournalEntryId,
                     EntryDate = x.JournalEntry.EntryDate,
                     EntryNumber = x.JournalEntry.EntryNumber,
                     EntryDescription = x.JournalEntry.Description,
@@ -1542,6 +1551,7 @@ namespace RaccoonWarehouse.Application.Service.Accounting
         private sealed class LedgerLineProjection
         {
             public int AccountId { get; set; }
+            public int JournalEntryId { get; set; }
             public DateTime EntryDate { get; set; }
             public string EntryNumber { get; set; } = string.Empty;
             public string EntryDescription { get; set; } = string.Empty;
@@ -1974,19 +1984,25 @@ namespace RaccoonWarehouse.Application.Service.Accounting
             {
                 new { Code = "1000000000", LegacyCode = "1", ParentCode = (string?)null, NameAr = "الأصول", NameEn = "Assets", Description = "الحساب الرئيسي للأصول", AccountType = AccountType.Asset, NormalBalance = NormalBalanceType.Debit, Level = 1, IsPosting = false, AllowManualEntry = false },
                 new { Code = "1100000000", LegacyCode = "11", ParentCode = (string?)"1000000000", NameAr = "الأصول المتداولة", NameEn = "Current Assets", Description = "الأصول المتداولة", AccountType = AccountType.Asset, NormalBalance = NormalBalanceType.Debit, Level = 2, IsPosting = false, AllowManualEntry = false },
-                new { Code = "1110000000", LegacyCode = "1101", ParentCode = (string?)"1100000000", NameAr = "الصندوق الرئيسي", NameEn = "Main Cash", Description = "الصندوق الرئيسي للمنشأة", AccountType = AccountType.Asset, NormalBalance = NormalBalanceType.Debit, Level = 3, IsPosting = true, AllowManualEntry = true },
-                new { Code = "1120000000", LegacyCode = "1102", ParentCode = (string?)"1100000000", NameAr = "صندوق نقطة البيع", NameEn = "POS Cash", Description = "صندوق نقطة البيع", AccountType = AccountType.Asset, NormalBalance = NormalBalanceType.Debit, Level = 3, IsPosting = true, AllowManualEntry = true },
-                new { Code = "1130000000", LegacyCode = "1103", ParentCode = (string?)"1100000000", NameAr = "البنك", NameEn = "Bank", Description = "الحسابات البنكية", AccountType = AccountType.Asset, NormalBalance = NormalBalanceType.Debit, Level = 3, IsPosting = true, AllowManualEntry = true },
-                new { Code = "1180000000", LegacyCode = "1118", ParentCode = (string?)"1100000000", NameAr = "الشيكات في اليد", NameEn = "Checks in Hand", Description = "الشيكات المحصلة قبل الإيداع", AccountType = AccountType.Asset, NormalBalance = NormalBalanceType.Debit, Level = 3, IsPosting = true, AllowManualEntry = true },
+                new { Code = "1101000000", LegacyCode = "111", ParentCode = (string?)"1100000000", NameAr = "الصناديق", NameEn = "Cash", Description = "مجموعة الصناديق النقدية", AccountType = AccountType.Asset, NormalBalance = NormalBalanceType.Debit, Level = 3, IsPosting = false, AllowManualEntry = false },
+                new { Code = "1102000000", LegacyCode = "112", ParentCode = (string?)"1100000000", NameAr = "البنوك", NameEn = "Banks", Description = "مجموعة الحسابات البنكية", AccountType = AccountType.Asset, NormalBalance = NormalBalanceType.Debit, Level = 3, IsPosting = false, AllowManualEntry = false },
+                new { Code = "1103000000", LegacyCode = "113", ParentCode = (string?)"1100000000", NameAr = "الشيكات الواردة", NameEn = "Incoming Cheques", Description = "مجموعة الشيكات الواردة", AccountType = AccountType.Asset, NormalBalance = NormalBalanceType.Debit, Level = 3, IsPosting = false, AllowManualEntry = false },
+                new { Code = "1110000000", LegacyCode = "1101", ParentCode = (string?)"1101000000", NameAr = "الصندوق الرئيسي", NameEn = "Main Cash", Description = "الصندوق الرئيسي للمنشأة", AccountType = AccountType.Asset, NormalBalance = NormalBalanceType.Debit, Level = 4, IsPosting = true, AllowManualEntry = true },
+                new { Code = "1120000000", LegacyCode = "1102", ParentCode = (string?)"1101000000", NameAr = "صندوق نقطة البيع", NameEn = "POS Cash", Description = "صندوق نقطة البيع", AccountType = AccountType.Asset, NormalBalance = NormalBalanceType.Debit, Level = 4, IsPosting = true, AllowManualEntry = true },
+                new { Code = "1130000000", LegacyCode = "1103", ParentCode = (string?)"1102000000", NameAr = "البنك", NameEn = "Bank", Description = "الحسابات البنكية", AccountType = AccountType.Asset, NormalBalance = NormalBalanceType.Debit, Level = 4, IsPosting = true, AllowManualEntry = true },
+                new { Code = "1180000000", LegacyCode = "1118", ParentCode = (string?)"1103000000", NameAr = "صندوق الشيكات", NameEn = "Cheque Holding", Description = "الشيكات الواردة قبل الإيداع", AccountType = AccountType.Asset, NormalBalance = NormalBalanceType.Debit, Level = 4, IsPosting = true, AllowManualEntry = true },
+                new { Code = "1181000000", LegacyCode = "1119", ParentCode = (string?)"1103000000", NameAr = "شيكات تحت التحصيل", NameEn = "Cheques Under Collection", Description = "الشيكات المودعة قيد التحصيل", AccountType = AccountType.Asset, NormalBalance = NormalBalanceType.Debit, Level = 4, IsPosting = true, AllowManualEntry = true },
                 new { Code = "1140000000", LegacyCode = "1104", ParentCode = (string?)"1100000000", NameAr = "الذمم المدينة - الزبائن", NameEn = "Accounts Receivable - Customers", Description = "ذمم الزبائن", AccountType = AccountType.Asset, NormalBalance = NormalBalanceType.Debit, Level = 3, IsPosting = true, AllowManualEntry = true },
                 new { Code = "1150000000", LegacyCode = "1105", ParentCode = (string?)"1100000000", NameAr = "المخزون", NameEn = "Inventory", Description = "قيمة المخزون", AccountType = AccountType.Asset, NormalBalance = NormalBalanceType.Debit, Level = 3, IsPosting = true, AllowManualEntry = true },
-                new { Code = "1160000000", LegacyCode = "1106", ParentCode = (string?)"1100000000", NameAr = "ضريبة المدخلات", NameEn = "Input Tax", Description = "ضريبة مدخلات المشتريات", AccountType = AccountType.Asset, NormalBalance = NormalBalanceType.Debit, Level = 3, IsPosting = true, AllowManualEntry = true },
+                new { Code = "1160000000", LegacyCode = "1106", ParentCode = (string?)"1100000000", NameAr = "ضريبة المدخلات القابلة للخصم", NameEn = "Recoverable Input Tax", Description = "ضريبة مدخلات المشتريات القابلة للخصم", AccountType = AccountType.Asset, NormalBalance = NormalBalanceType.Debit, Level = 3, IsPosting = true, AllowManualEntry = true },
                 new { Code = "1170000000", LegacyCode = "1107", ParentCode = (string?)"1100000000", NameAr = "ذمم مدينة أخرى", NameEn = "Other Receivables", Description = "ذمم مدينة أخرى", AccountType = AccountType.Asset, NormalBalance = NormalBalanceType.Debit, Level = 3, IsPosting = true, AllowManualEntry = true },
 
                 new { Code = "2000000000", LegacyCode = "2", ParentCode = (string?)null, NameAr = "الخصوم", NameEn = "Liabilities", Description = "الحساب الرئيسي للخصوم", AccountType = AccountType.Liability, NormalBalance = NormalBalanceType.Credit, Level = 1, IsPosting = false, AllowManualEntry = false },
                 new { Code = "2100000000", LegacyCode = "21", ParentCode = (string?)"2000000000", NameAr = "الخصوم المتداولة", NameEn = "Current Liabilities", Description = "الخصوم المتداولة", AccountType = AccountType.Liability, NormalBalance = NormalBalanceType.Credit, Level = 2, IsPosting = false, AllowManualEntry = false },
+                new { Code = "2105000000", LegacyCode = "215", ParentCode = (string?)"2100000000", NameAr = "ضرائب مستحقة", NameEn = "Taxes Payable", Description = "مجموعة الضرائب المستحقة", AccountType = AccountType.Liability, NormalBalance = NormalBalanceType.Credit, Level = 3, IsPosting = false, AllowManualEntry = false },
                 new { Code = "2110000000", LegacyCode = "2101", ParentCode = (string?)"2100000000", NameAr = "الذمم الدائنة - الموردين", NameEn = "Accounts Payable - Suppliers", Description = "ذمم الموردين", AccountType = AccountType.Liability, NormalBalance = NormalBalanceType.Credit, Level = 3, IsPosting = true, AllowManualEntry = true },
-                new { Code = "2120000000", LegacyCode = "2102", ParentCode = (string?)"2100000000", NameAr = "ضريبة مستحقة", NameEn = "Output Tax", Description = "ضريبة مستحقة على المبيعات", AccountType = AccountType.Liability, NormalBalance = NormalBalanceType.Credit, Level = 3, IsPosting = true, AllowManualEntry = true },
+                new { Code = "2120000000", LegacyCode = "2102", ParentCode = (string?)"2105000000", NameAr = "ضريبة المخرجات", NameEn = "Output Tax", Description = "ضريبة المخرجات المستحقة على المبيعات", AccountType = AccountType.Liability, NormalBalance = NormalBalanceType.Credit, Level = 4, IsPosting = true, AllowManualEntry = true },
+                new { Code = "2121000000", LegacyCode = "2105", ParentCode = (string?)"2105000000", NameAr = "ضريبة مبيعات مستحقة التسديد", NameEn = "Sales Tax Payable for Settlement", Description = "حساب تسوية ضريبة المبيعات عند وجود عملية تسوية صريحة", AccountType = AccountType.Liability, NormalBalance = NormalBalanceType.Credit, Level = 4, IsPosting = true, AllowManualEntry = true },
                 new { Code = "2130000000", LegacyCode = "2103", ParentCode = (string?)"2100000000", NameAr = "ذمم دائنة أخرى", NameEn = "Other Payables", Description = "ذمم دائنة أخرى", AccountType = AccountType.Liability, NormalBalance = NormalBalanceType.Credit, Level = 3, IsPosting = true, AllowManualEntry = true },
                 new { Code = "2140000000", LegacyCode = "2104", ParentCode = (string?)"2100000000", NameAr = "شيكات صادرة مستحقة", NameEn = "Issued Checks Payable", Description = "الشيكات الصادرة التي لم تتم تصفيتها بعد", AccountType = AccountType.Liability, NormalBalance = NormalBalanceType.Credit, Level = 3, IsPosting = true, AllowManualEntry = true },
 
