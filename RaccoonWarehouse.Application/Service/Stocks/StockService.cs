@@ -8,6 +8,7 @@ using RaccoonWarehouse.Core.Interface;
 using RaccoonWarehouse.Data;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Products;
+using RaccoonWarehouse.Domain.Products.DTOs;
 using RaccoonWarehouse.Domain.ProductUnits;
 using RaccoonWarehouse.Domain.Stock;
 using RaccoonWarehouse.Domain.Stock.DTOs;
@@ -772,6 +773,72 @@ namespace RaccoonWarehouse.Application.Service.Stocks
             return Result<PagedResult<PosBrowseItemDto>>.Ok(new PagedResult<PosBrowseItemDto>(items, totalCount, pageNumber, pageSize));
         }
 
+        public async Task<Result<List<PosProductSearchResultDto>>> SearchPosProductsAsync(
+            string searchText,
+            int maxResults = 100)
+        {
+            var terms = (searchText ?? string.Empty)
+                .Trim()
+                .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+            if (terms.Length == 0 || maxResults <= 0)
+                return Result<List<PosProductSearchResultDto>>.Ok(new List<PosProductSearchResultDto>());
+
+            var query = _uow.GetRepository<Stock>()
+                .GetAllAsQueryable()
+                .AsNoTracking()
+                .Where(stock => stock.Quantity > 0 &&
+                                stock.Product != null &&
+                                !stock.Product.IsDeleted &&
+                                stock.ProductUnit != null);
+
+            foreach (var term in terms)
+            {
+                var databaseTerm = term;
+                query = query.Where(stock =>
+                    (stock.Product!.Name != null &&
+                     EF.Functions.Like(stock.Product.Name, $"%{databaseTerm}%")) ||
+                    stock.Product.ITEMCODE.ToString().Contains(databaseTerm) ||
+                    stock.Product.ProductUnits!.Any(unit =>
+                        unit.AlternateBarcode != null &&
+                        EF.Functions.Like(unit.AlternateBarcode, $"%{databaseTerm}%")));
+            }
+
+            var rows = await query
+                .OrderBy(stock => stock.Product!.Name)
+                .ThenByDescending(stock => stock.ProductUnit!.IsDefaultSaleUnit)
+                .ThenBy(stock => stock.ProductUnitId)
+                .Take(maxResults * 4)
+                .Select(stock => new PosProductSearchResultDto
+                {
+                    ProductId = stock.ProductId,
+                    ProductName = stock.Product!.Name,
+                    ItemCode = stock.Product.ITEMCODE,
+                    TaxExempt = stock.Product.TaxExempt,
+                    TaxRate = stock.Product.TaxRate,
+                    ProductUnitId = stock.ProductUnitId,
+                    AlternateBarcode = stock.ProductUnit!.AlternateBarcode,
+                    UnitName = stock.ProductUnit.Unit != null ? stock.ProductUnit.Unit.Name : null,
+                    UnitSalePrice = stock.ProductUnit.SalePrice,
+                    UnitPurchasePrice = stock.ProductUnit.PurchasePrice,
+                    QuantityPerUnit = stock.ProductUnit.QuantityPerUnit,
+                    IsBaseUnit = stock.ProductUnit.IsBaseUnit,
+                    IsDefaultSaleUnit = stock.ProductUnit.IsDefaultSaleUnit,
+                    IsDefaultPurchaseUnit = stock.ProductUnit.IsDefaultPurchaseUnit,
+                    StockQuantity = stock.Quantity,
+                    StockPurchasePrice = stock.PurchasePrice,
+                    StockSalePrice = stock.SalePrice,
+                    ExpiryDate = null
+                })
+                .ToListAsync();
+
+            return Result<List<PosProductSearchResultDto>>.Ok(
+                rows.GroupBy(row => row.ProductId)
+                    .Take(maxResults)
+                    .SelectMany(group => group)
+                    .ToList());
+        }
+
         private static decimal ToTaxInclusiveCost(decimal cost, bool? taxExempt, decimal? taxRate)
         {
             if (cost <= 0 || taxExempt == true)
@@ -1442,6 +1509,7 @@ namespace RaccoonWarehouse.Application.Service.Stocks
         Task<Result<decimal>> GetAvailableQuantityInUnitAsync(int productId, int productUnitId);
         Task<Result<List<StockAvailabilityDto>>> GetAvailableQuantitiesInUnitsAsync(IEnumerable<StockAllocationRequestDto> requests);
         Task<Result<PagedResult<PosBrowseItemDto>>> GetPosBrowsePageAsync(int pageNumber, int pageSize, string? searchText, int? subCategoryId);
+        Task<Result<List<PosProductSearchResultDto>>> SearchPosProductsAsync(string searchText, int maxResults = 100);
         Task<Result<List<SubCategoryReadDto>>> GetPosBrowseSubCategoriesAsync();
         Task<Result<List<StockBatchLookupDto>>> GetBatchLookupAsync(int? productId = null);
         Task<Result<StockLotUpdateDto>> UpdateBatchMetadataAsync(StockLotUpdateDto dto);

@@ -1,10 +1,13 @@
+using RaccoonWarehouse.Application.Service.Products;
 using RaccoonWarehouse.Application.Service.Stocks;
-using RaccoonWarehouse.Application.Service.ProductUnits;
 using RaccoonWarehouse.Domain.Products.DTOs;
 using RaccoonWarehouse.Domain.ProductUnits;
 using RaccoonWarehouse.Domain.ProductUnits.DTOs;
 using RaccoonWarehouse.Domain.Stock;
 using RaccoonWarehouse.Domain.Stock.DTOs;
+using RaccoonWarehouse.Domain.Units;
+using RaccoonWarehouse.Domain.Units.DTOs;
+using Microsoft.EntityFrameworkCore;
 using System;
 using System.Globalization;
 using System.Collections.Generic;
@@ -71,12 +74,14 @@ namespace RaccoonWarehouse.Invoices
     public partial class ProductSearchWindow : Window
     {
         private const decimal MinimumSellableQuantity = 0m;
+        private const int MaxSearchResults = 100;
+        private readonly IProductService _productService;
         private readonly IStockService _stockService;
-        private readonly IProductUnitService _productUnitService;
         private readonly Func<ProductSearchRow, Task<bool>>? _onAddProduct;
         private readonly HashSet<string> _disabledProductKeys;
         private readonly DispatcherTimer _searchDebounceTimer = new() { Interval = TimeSpan.FromMilliseconds(150) };
         private readonly SemaphoreSlim _serviceCallLock = new(1, 1);
+        private int _searchVersion;
         private bool _isAddingProduct;
 
         public ProductReadDto SelectedProduct { get; private set; }
@@ -85,15 +90,15 @@ namespace RaccoonWarehouse.Invoices
             = new ObservableCollection<ProductSearchRow>();
 
         public ProductSearchWindow(
+            IProductService productService,
             IStockService stockService,
-            IProductUnitService productUnitService,
             Func<ProductSearchRow, Task<bool>>? onAddProduct = null,
             IEnumerable<string>? disabledProductKeys = null)
         {
             InitializeComponent();
             UiText.ApplyWindow(this);
+            _productService = productService;
             _stockService = stockService;
-            _productUnitService = productUnitService;
             _onAddProduct = onAddProduct;
             _disabledProductKeys = disabledProductKeys != null
                 ? new HashSet<string>(disabledProductKeys)
@@ -239,6 +244,7 @@ namespace RaccoonWarehouse.Invoices
                 return;
 
             var text = SearchTextBox.Text.Trim();
+            var searchVersion = ++_searchVersion;
             if (text.Length < 2)
             {
                 _products.Clear();
@@ -251,75 +257,98 @@ namespace RaccoonWarehouse.Invoices
             {
                 await _serviceCallLock.WaitAsync();
 
-                var result = await _stockService.GetAllWithFilteringAndIncludeAsync(
-                    s =>
-                        s.Quantity > 0 &&
-                        s.Product != null &&
-                        (s.Product.Name != null && s.Product.Name.Contains(text) ||
-                         s.Product.ITEMCODE.ToString().Contains(text) ||
-                         s.Product.ProductUnits != null &&
-                         s.Product.ProductUnits.Any(unit => unit.AlternateBarcode != null && unit.AlternateBarcode.Contains(text))),
-                    new Expression<Func<Stock, object>>[]
-                    {
-                        s => s.Product,
-                        s => s.Product.ProductUnits,
-                        s => s.ProductUnit,
-                        s => s.ProductUnit.Unit
-                    });
+                var searchResult = await _stockService.SearchPosProductsAsync(text, MaxSearchResults);
 
-                var rows = (result?.Data ?? new List<StockReadDto>())
-                    .Where(s => s.Product != null && s.ProductUnit != null && s.Quantity > 0)
-                    .GroupBy(s => s.ProductId)
-                    .Where(g => g.Sum(stock => stock.Quantity) > MinimumSellableQuantity)
-                    .Select(g => new
+                if (searchVersion != _searchVersion)
+                    return;
+
+                _products.Clear();
+                foreach (var productRows in (searchResult?.Data ?? new List<PosProductSearchResultDto>())
+                    .GroupBy(row => row.ProductId)
+                    .OrderBy(group => group.First().ProductName))
+                {
+                    var firstRow = productRows.First();
+                    var productUnits = productRows
+                        .GroupBy(row => row.ProductUnitId)
+                        .Select(group => group.First())
+                        .Select(row => new ProductUnitReadDto
+                        {
+                            Id = row.ProductUnitId,
+                            ProductId = row.ProductId,
+                            AlternateBarcode = row.AlternateBarcode,
+                            SalePrice = row.UnitSalePrice,
+                            PurchasePrice = row.UnitPurchasePrice,
+                            QuantityPerUnit = row.QuantityPerUnit,
+                            IsBaseUnit = row.IsBaseUnit,
+                            IsDefaultSaleUnit = row.IsDefaultSaleUnit,
+                            IsDefaultPurchaseUnit = row.IsDefaultPurchaseUnit,
+                            Unit = new UnitReadDto { Id = 0, Name = row.UnitName }
+                        })
+                        .ToList();
+                    var product = new ProductReadDto
                     {
-                        Product = g.First().Product!,
-                        CurrentStock = ResolvePreferredStock(g),
-                        StockSalePrices = g
+                        Id = firstRow.ProductId,
+                        Name = firstRow.ProductName,
+                        ITEMCODE = firstRow.ItemCode,
+                        TaxExempt = firstRow.TaxExempt,
+                        TaxRate = firstRow.TaxRate,
+                        ProductUnits = productUnits
+                    };
+                    var stocksByProductId = productRows
+                        .GroupBy(row => row.ProductUnitId)
+                        .Select(group => group.OrderByDescending(row => row.StockQuantity).First())
+                        .Where(row => row.StockQuantity > MinimumSellableQuantity)
+                        .Select(row => new StockReadDto
+                        {
+                            ProductId = row.ProductId,
+                            Product = product,
+                            ProductUnitId = row.ProductUnitId,
+                            ProductUnit = new ProductUnit
+                            {
+                                Id = row.ProductUnitId,
+                                ProductId = row.ProductId,
+                                SalePrice = row.UnitSalePrice,
+                                PurchasePrice = row.UnitPurchasePrice,
+                                QuantityPerUnit = row.QuantityPerUnit,
+                                IsBaseUnit = row.IsBaseUnit,
+                                IsDefaultSaleUnit = row.IsDefaultSaleUnit,
+                                IsDefaultPurchaseUnit = row.IsDefaultPurchaseUnit,
+                                Unit = new Unit { Name = row.UnitName }
+                            },
+                            Quantity = row.StockQuantity,
+                            PurchasePrice = row.StockPurchasePrice,
+                            SalePrice = row.StockSalePrice,
+                            ExpiryDate = row.ExpiryDate
+                        })
+                        .ToList();
+
+                    if (stocksByProductId.Count == 0)
+                        continue;
+
+                    var currentStock = ResolvePreferredStock(stocksByProductId);
+                    product.CurrentSalePrice = product.DefaultSalePrice;
+                    product.CurrentPurchasePrice = currentStock?.PurchasePrice ?? 0m;
+                    product.CurrentExpiryDate = currentStock?.ExpiryDate;
+                    var searchRow = new ProductSearchRow
+                    {
+                        Product = product,
+                        Units = new ObservableCollection<ProductUnitReadDto>(productUnits),
+                        SalePricesByUnitId = stocksByProductId
                             .GroupBy(stock => stock.ProductUnitId)
                             .ToDictionary(group => group.Key, group => group
                                 .OrderByDescending(stock => stock.Quantity)
                                 .Select(stock => stock.SalePrice)
-                                .FirstOrDefault())
-                    })
-                    .OrderBy(x => x.Product.Name)
-                    .ToList();
-
-                var productIds = rows
-                    .Select(row => row.Product.Id)
-                    .Distinct()
-                    .ToList();
-                var unitResult = await _productUnitService.GetAllWithFilteringAndIncludeAsync(
-                    unit => productIds.Contains(unit.ProductId),
-                    unit => unit.Unit);
-                var unitsByProductId = (unitResult?.Data ?? new List<ProductUnitReadDto>())
-                    .GroupBy(unit => unit.ProductId)
-                    .ToDictionary(group => group.Key, group => group.ToList());
-
-                _products.Clear();
-                foreach (var item in rows)
-                {
-                    item.Product.CurrentSalePrice = item.Product.DefaultSalePrice;
-                    item.Product.CurrentPurchasePrice = item.CurrentStock?.PurchasePrice ?? 0m;
-                    item.Product.CurrentExpiryDate = item.CurrentStock?.ExpiryDate;
-                    var productUnits = unitsByProductId.TryGetValue(item.Product.Id, out var hydratedUnits)
-                        ? hydratedUnits
-                        : (item.Product.ProductUnits ?? Array.Empty<ProductUnitReadDto>()).ToList();
-                    var searchRow = new ProductSearchRow
-                    {
-                        Product = item.Product,
-                        Units = new ObservableCollection<ProductUnitReadDto>(productUnits),
-                        SalePricesByUnitId = item.StockSalePrices,
+                                .FirstOrDefault()),
                         CanAdd = productUnits.Any(unit =>
-                            !_disabledProductKeys.Contains(BuildProductKey(item.Product, unit.Id)))
+                            !_disabledProductKeys.Contains(BuildProductKey(product, unit.Id)))
                     };
                     var defaultSaleUnitId = ProductUnitSelector.GetDefaultSaleUnit(
-                        item.Product.ProductUnits ?? Array.Empty<ProductUnitReadDto>())?.Id;
+                        productUnits)?.Id;
                     searchRow.SelectedUnit = productUnits.FirstOrDefault(unit =>
                         unit.Id == defaultSaleUnitId)
                         ?? productUnits.FirstOrDefault();
                     if (searchRow.SelectedUnit == null)
-                        searchRow.SalePrice = item.Product.CurrentSalePrice;
+                        searchRow.SalePrice = product.CurrentSalePrice;
                     _products.Add(searchRow);
                 }
 
@@ -414,6 +443,21 @@ private void ClearBtn_Click(object sender, RoutedEventArgs e)
                 .OrderByDescending(stock => stock.Quantity)
                 .ThenBy(stock => stock.ProductUnit?.Unit?.Name)
                 .FirstOrDefault();
+        }
+
+        private static bool MatchesSearch(ProductReadDto product, string[] searchTerms)
+        {
+            var name = product.Name ?? string.Empty;
+            var itemCode = product.ITEMCODE.ToString();
+            var alternateBarcodes = product.ProductUnits?
+                .Where(unit => !string.IsNullOrWhiteSpace(unit.AlternateBarcode))
+                .Select(unit => unit.AlternateBarcode!)
+                .ToArray() ?? Array.Empty<string>();
+
+            return searchTerms.All(term =>
+                name.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                itemCode.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                alternateBarcodes.Any(barcode => barcode.Contains(term, StringComparison.OrdinalIgnoreCase)));
         }
 
         public class ProductSearchRow : INotifyPropertyChanged
