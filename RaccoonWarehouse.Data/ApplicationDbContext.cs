@@ -21,6 +21,7 @@ using RaccoonWarehouse.Domain.InvoiceLines;
 using RaccoonWarehouse.Domain.Invoices;
 using RaccoonWarehouse.Domain.Integration;
 using RaccoonWarehouse.Domain.Permissions;
+using RaccoonWarehouse.Domain.PurchaseOrders;
 using RaccoonWarehouse.Domain.Audit;
 using RaccoonWarehouse.Domain.Products;
 using RaccoonWarehouse.Domain.ProductUnits;
@@ -48,6 +49,9 @@ namespace RaccoonWarehouse.Data
         public DbSet<ReportPermission> ReportPermissions => Set<ReportPermission>();
         public DbSet<PermissionDefinition> PermissionDefinitions => Set<PermissionDefinition>();
         public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
+        public DbSet<UserPermission> UserPermissions => Set<UserPermission>();
+        public DbSet<PurchaseOrder> PurchaseOrders => Set<PurchaseOrder>();
+        public DbSet<PurchaseOrderLine> PurchaseOrderLines => Set<PurchaseOrderLine>();
         public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
         public DbSet<AppSetting> AppSettings => Set<AppSetting>();
         public DbSet<Account> Accounts => Set<Account>();
@@ -113,6 +117,20 @@ namespace RaccoonWarehouse.Data
             modelBuilder.Entity<RolePermission>()
                 .HasIndex(x => new { x.Role, x.PermissionKey })
                 .IsUnique();
+
+            modelBuilder.Entity<UserPermission>()
+                .HasIndex(x => new { x.UserId, x.PermissionKey })
+                .IsUnique();
+
+            modelBuilder.Entity<PurchaseOrder>()
+                .HasIndex(x => x.OrderNumber)
+                .IsUnique();
+
+            modelBuilder.Entity<PurchaseOrderLine>()
+                .HasOne(x => x.PurchaseOrder)
+                .WithMany(x => x.Lines)
+                .HasForeignKey(x => x.PurchaseOrderId)
+                .OnDelete(DeleteBehavior.Cascade);
 
             modelBuilder.Entity<AuditLog>()
                 .HasIndex(x => new { x.CreatedDate, x.UserId });

@@ -294,6 +294,7 @@
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Grid.Column="0"
                                                    Text="{Binding ITEMCODE}"
+                                                   FlowDirection="LeftToRight"
                                                    VerticalAlignment="Center"
                                                    TextAlignment="Center"/>
                                         <Button Grid.Column="1"
@@ -310,7 +311,7 @@
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
-                        <DataGridTextColumn Header="المنتج" Binding="{Binding ProductName}" Width="260"/>
+                        <DataGridTextColumn Header="المنتج" Binding="{Binding ProductName}" ElementStyle="{StaticResource ProductValueTextStyle}" Width="260"/>
                         <DataGridTextColumn Header="الوحدة" Binding="{Binding UnitName}" Width="120"/>
                         <DataGridTextColumn Header="الكمية" Binding="{Binding Quantity}" Width="120"/>
                         <DataGridTextColumn Header="تكلفة المخزون" Binding="{Binding PurchasePrice}" Width="130"/>

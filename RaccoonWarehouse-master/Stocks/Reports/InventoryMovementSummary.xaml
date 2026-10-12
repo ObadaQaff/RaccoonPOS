@@ -235,8 +235,8 @@
                           AutoGenerateColumns="False"
                           Style="{StaticResource ReportDataGridStyle}">
                     <DataGrid.Columns>
-                        <DataGridTextColumn Header="كود" Binding="{Binding ITEMCODE}" Width="120"/>
-                        <DataGridTextColumn Header="الصنف" Binding="{Binding ProductName}" Width="260"/>
+                        <DataGridTextColumn Header="كود" Binding="{Binding ITEMCODE}" ElementStyle="{StaticResource ProductValueTextStyle}" Width="120"/>
+                        <DataGridTextColumn Header="الصنف" Binding="{Binding ProductName}" ElementStyle="{StaticResource ProductValueTextStyle}" Width="260"/>
                         <DataGridTextColumn Header="الوحدة" Binding="{Binding UnitName}" Width="140"/>
                         <DataGridTextColumn Header="داخل" Binding="{Binding InQty}" Width="120"/>
                         <DataGridTextColumn Header="خارج" Binding="{Binding OutQty}" Width="120"/>

@@ -509,6 +509,7 @@
 
                             <DataGridTextColumn Header="المنتج"
                                                 Binding="{Binding ProductName}"
+                                                ElementStyle="{StaticResource ProductValueTextStyle}"
                                                 Width="180"/>
 
                             <DataGridTextColumn Header="الوحدة"

@@ -31,6 +31,8 @@ namespace RaccoonWarehouse.Domain.Permissions
             var items = new List<PermissionCatalogItem>();
             var sort = 1;
 
+            AddResource(items, ref sort, "Purchases", "PurchaseOrder", "Purchase Orders", "View", "Create", "Edit", "Submit", "Approve", "Reject", "Cancel", "Print");
+
             AddResource(items, ref sort, "Dashboard", "Dashboard", "لوحة التحكم", "View");
             AddResource(items, ref sort, "Sales", "SalesInvoice", "فاتورة المبيعات", "View", "Create", "Edit", "Delete", "Print", "Cancel", "Return", "Post", "ApplyDiscount", "ChangePrice", "Reopen");
             AddResource(items, ref sort, "Sales", "POS", "نقطة البيع", "View", "Create", "Print", "ApplyDiscount", "ChangePrice", "CloseShift", "ReopenShift");
@@ -39,6 +41,7 @@ namespace RaccoonWarehouse.Domain.Permissions
             AddResource(items, ref sort, "Inventory", "StockOutVoucher", "سند إخراج بضاعة", "View", "Create", "Edit", "Delete", "Print", "Approve", "Post");
             AddResource(items, ref sort, "Inventory", "StockTransferVoucher", "سند نقل مخزني", "View", "Create", "Edit", "Delete", "Print", "Approve", "Post");
             AddResource(items, ref sort, "Inventory", "StockAdjustment", "التسويات المخزنية", "View", "Create", "Edit", "Delete", "Print", "Approve", "Post");
+            AddResource(items, ref sort, "Inventory", "StockLots", "دفعات المخزون", "View", "Edit", "Adjust", "Close", "ViewHistory");
             AddResource(items, ref sort, "MasterData", "Customers", "العملاء", "View", "Create", "Edit", "Delete");
             AddResource(items, ref sort, "MasterData", "Suppliers", "الموردون", "View", "Create", "Edit", "Delete");
             AddResource(items, ref sort, "MasterData", "Products", "الأصناف", "View", "Create", "Edit", "Delete", "ChangePrice", "ViewCost");
@@ -96,6 +99,7 @@ namespace RaccoonWarehouse.Domain.Permissions
                 "Brands.Create", "Brands.List", "Products.Create", "Products.List", "Products.PriceList",
                 "Products.ItemCostDetails", "Products.ProfitReport", "Products.InactiveReport",
                 "Stocks.BalancesReport", "Stocks.LowStockReport", "Stocks.MaterialMovementsReport",
+                "Stocks.Lots",
                 "Units.Create", "Units.List", "Settings.Delegates", "Settings.Employees",
                 "Settings.Accounting", "Settings.Language", "Settings.Permissions", "Delegates.List",
                 "Employees.List", "Warehouses.Create", "Warehouses.List", "Invoices.Sales",

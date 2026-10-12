@@ -121,8 +121,8 @@
                           FlowDirection="RightToLeft">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="الرقم التعريفي" Binding="{Binding Id}" Width="120"/>
-                        <DataGridTextColumn Header="الباركود" Binding="{Binding ITEMCODE}" Width="200"/>
-                        <DataGridTextColumn Header="اسم المنتج" Binding="{Binding Name}" Width="250"/>
+                        <DataGridTextColumn Header="الباركود" Binding="{Binding ITEMCODE}" ElementStyle="{StaticResource ProductValueTextStyle}" Width="200"/>
+                        <DataGridTextColumn Header="اسم المنتج" Binding="{Binding Name}" ElementStyle="{StaticResource ProductValueTextStyle}" Width="250"/>
                         <DataGridTextColumn Header="الفئة الفرعية" Binding="{Binding SubCategory.Name}" Width="170"/>
                         <DataGridTextColumn Header="البراند" Binding="{Binding Brand.Name}" Width="150"/>
                         <DataGridTextColumn Header="سعر البيع" Binding="{Binding DefaultSalePrice}" Width="140"/>

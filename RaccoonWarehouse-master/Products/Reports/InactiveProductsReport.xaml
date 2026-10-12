@@ -216,8 +216,8 @@
                           AutoGenerateColumns="False"
                           Style="{StaticResource ReportDataGridStyle}">
                     <DataGrid.Columns>
-                        <DataGridTextColumn Header="كود" Binding="{Binding ITEMCODE}" Width="120"/>
-                        <DataGridTextColumn Header="الصنف" Binding="{Binding ProductName}" Width="300"/>
+                        <DataGridTextColumn Header="كود" Binding="{Binding ITEMCODE}" ElementStyle="{StaticResource ProductValueTextStyle}" Width="120"/>
+                        <DataGridTextColumn Header="الصنف" Binding="{Binding ProductName}" ElementStyle="{StaticResource ProductValueTextStyle}" Width="300"/>
                         <DataGridTextColumn Header="الرصيد الحالي" Binding="{Binding CurrentStock}" Width="140"/>
                         <DataGridTextColumn Header="الحد الأدنى" Binding="{Binding MinimumQuantity}" Width="140"/>
                         <DataGridTextColumn Header="آخر حركة" Binding="{Binding LastMovementDate, StringFormat=yyyy-MM-dd}" Width="150"/>

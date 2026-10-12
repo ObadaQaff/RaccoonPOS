@@ -206,7 +206,7 @@
         </Grid.RowDefinitions>
 
         <!-- HEADER -->
-        <Border Background="#3396D3" Grid.Row="0">
+        <Border x:Name="HeaderBorder" Background="#3396D3" Grid.Row="0">
             <TextBlock Text="فاتورة مشتريات"
                        Foreground="White"
                        FontSize="26"
@@ -234,11 +234,11 @@
 
                     <!-- رقم الفاتورة -->
                     <StackPanel Margin="6" Grid.Column="0">
-                        <TextBlock Text="رقم الفاتورة" FontSize="14" FontWeight="SemiBold"/>
+                        <TextBlock x:Name="InvoiceNumberLabel" Text="رقم الفاتورة" FontSize="14" FontWeight="SemiBold"/>
                         <TextBox x:Name="InvoiceNumberTextBox" Style="{StaticResource InputBoxStyle}"/>
                     </StackPanel>
 
-                    <StackPanel Margin="6" Grid.Column="3">
+                    <StackPanel x:Name="FalconInvoicePanel" Margin="6" Grid.Column="3">
                         <TextBlock Text="رقم فاتورة فالكون / Falcon Invoice No."
                                    FontSize="14"
                                    FontWeight="SemiBold"
@@ -284,7 +284,7 @@
                     </Grid.ColumnDefinitions>
 
                     <!-- طريقة الدفع -->
-                    <StackPanel Margin="6" Grid.Column="0">
+                    <StackPanel x:Name="PaymentMethodPanel" Margin="6" Grid.Column="0">
                         <TextBlock Text="طريقة الدفع" FontSize="14" FontWeight="SemiBold"/>
                         <ComboBox x:Name="PaymentMethodComboBox"
                                   Style="{StaticResource ComboBoxStyleModern}"
@@ -487,6 +487,7 @@
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="المنتج"
                                                 Binding="{Binding ProductName}"
+                                                ElementStyle="{StaticResource ProductValueTextStyle}"
                                                 Width="3*"/>
 
                             <DataGridTextColumn Header="الوحدة"

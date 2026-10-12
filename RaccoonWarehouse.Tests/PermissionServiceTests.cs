@@ -94,4 +94,39 @@ public class PermissionServiceTests
         Assert.True(usersRow.Actions.ContainsKey("Create"));
         Assert.True(usersRow.Actions.ContainsKey("Delete"));
     }
+
+    [Fact]
+    public async Task CurrentUserPermission_ShouldOverrideRolePermission()
+    {
+        var service = CreateService(nameof(CurrentUserPermission_ShouldOverrideRolePermission), UserRole.Casher, out var context);
+        await context.Set<UserPermission>().AddAsync(new UserPermission
+        {
+            UserId = 1,
+            PermissionKey = "PurchaseOrder.Approve",
+            IsAllowed = false
+        });
+        await context.SaveChangesAsync();
+
+        Assert.False(await service.HasCurrentUserPermissionAsync("PurchaseOrder.Approve"));
+    }
+
+    [Fact]
+    public async Task SaveUserPermission_ShouldAllowAdminToOverrideOneUser()
+    {
+        var service = CreateService(nameof(SaveUserPermission_ShouldAllowAdminToOverrideOneUser), UserRole.Admin, out var context);
+
+        var result = await service.SaveUserPermissionAsync(42, "PurchaseOrder.Approve", false);
+        var saved = await context.Set<UserPermission>().SingleAsync(x => x.UserId == 42);
+
+        Assert.True(result.Success);
+        Assert.False(saved.IsAllowed);
+    }
+
+    [Fact]
+    public async Task PurchaseOrderApproval_ShouldBeOptInForAdminAndCasher()
+    {
+        var service = CreateService(nameof(PurchaseOrderApproval_ShouldBeOptInForAdminAndCasher), UserRole.Admin, out _);
+
+        Assert.False(await service.HasCurrentUserPermissionAsync("PurchaseOrder.Approve"));
+    }
 }

@@ -79,6 +79,14 @@ namespace RaccoonWarehouse
                 CreditStatus.SelectedItem = _user.CreditStatus;
                 Role.ItemsSource = Enum.GetValues(typeof(UserRole));
                 Role.SelectedItem = _user.Role;
+
+                var currentUser = _userSession.CurrentUser;
+                var canEditUserPermission = currentUser?.Role == UserRole.Admin;
+                CanApprovePurchaseOrders.IsEnabled = canEditUserPermission &&
+                    (_user.Role == UserRole.Admin || _user.Role == UserRole.Casher);
+                var explicitPermission = await _permissionService.GetUserPermissionAsync(
+                    userId, "PurchaseOrder.Approve");
+                CanApprovePurchaseOrders.IsChecked = explicitPermission ?? false;
             }
             finally
             {
@@ -140,6 +148,20 @@ namespace RaccoonWarehouse
                     _loadingService.Hide();
                     MessageBox.Show(result.Message);
                     return;
+                }
+
+                if (CanApprovePurchaseOrders.IsEnabled &&
+                    (_user.Role == UserRole.Admin || _user.Role == UserRole.Casher))
+                {
+                    var permissionResult = await _permissionService.SaveUserPermissionAsync(
+                        UserId,
+                        "PurchaseOrder.Approve",
+                        CanApprovePurchaseOrders.IsChecked == true);
+                    if (!permissionResult.Success)
+                    {
+                        MessageBox.Show(permissionResult.Message);
+                        return;
+                    }
                 }
 
                 _loadingService.Hide();

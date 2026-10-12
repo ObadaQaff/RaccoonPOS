@@ -2369,15 +2369,6 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
 
         private bool CanSaveInvoice()
         {
-            if (string.IsNullOrWhiteSpace(FalconInvoiceNumberTextBox.Text))
-            {
-                ShowPaymentValidationMessage(
-                    UiText.T("رقم فالكون مطلوب.", "Falcon invoice number is required."),
-                    UiText.T("تنبيه", "Notice"));
-                FalconInvoiceNumberTextBox.Focus();
-                return false;
-            }
-
             if (_currentInvoice.InvoiceType is InvoiceType.Return or InvoiceType.PurchaseReturn)
             {
                 if (!_invoiceLines.OfType<ReturnInvoiceLine>().Any(line => line.ReturnedQuantity > 0))
@@ -2485,7 +2476,7 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
         {
             var value = FalconInvoiceNumberTextBox.Text?.Trim();
             if (string.IsNullOrWhiteSpace(value))
-                return false;
+                return true;
 
             // Stop the debounce check and wait for any already-running lookup so the
             // save-time validation never uses the shared DbContext concurrently.
@@ -2842,7 +2833,9 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
             else if (string.IsNullOrWhiteSpace(CustomerComboBox.Text))
                 _currentInvoice.CustomerId = null;
             _currentInvoice.IsPOS = true;
-            _currentInvoice.FalconInvoiceNumber = FalconInvoiceNumberTextBox.Text.Trim();
+            _currentInvoice.FalconInvoiceNumber = string.IsNullOrWhiteSpace(FalconInvoiceNumberTextBox.Text)
+                ? null
+                : FalconInvoiceNumberTextBox.Text.Trim();
             _currentInvoice.Status = InvoiceStatus.Completed;
             _currentInvoice.ClosedAt = DateTime.Now;
             RecalculateTotals();
@@ -3400,7 +3393,9 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
                 _currentInvoice.InvoiceLines = linesToHold;
                 _currentInvoice.Status = InvoiceStatus.OnHold;
                 _currentInvoice.IsPOS = true;
-                _currentInvoice.FalconInvoiceNumber = FalconInvoiceNumberTextBox.Text.Trim();
+            _currentInvoice.FalconInvoiceNumber = string.IsNullOrWhiteSpace(FalconInvoiceNumberTextBox.Text)
+                ? null
+                : FalconInvoiceNumberTextBox.Text.Trim();
                 _currentInvoice.ClosedAt = null;
                 _currentInvoice.HeldColor = heldColor;
                 _currentInvoice.DeferAccountingPosting = true;

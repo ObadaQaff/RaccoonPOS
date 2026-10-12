@@ -464,8 +464,9 @@ namespace RaccoonWarehouse.Application.Service.Orders
                 return Result<bool>.Fail("Endpoint order has no stock lines.");
 
             var allocationResult = await _stockService.AllocateOutgoingAsync(
-                lines.Select(line => new StockAllocationRequestDto
+                lines.Select((line, index) => new StockAllocationRequestDto
                 {
+                    RequestIndex = index,
                     ProductId = line.ProductId,
                     ProductUnitId = line.ProductUnitId,
                     Quantity = line.Quantity
@@ -473,6 +474,24 @@ namespace RaccoonWarehouse.Application.Service.Orders
 
             if (!allocationResult.Success)
                 return Result<bool>.Fail(allocationResult.Message, allocationResult.Errors);
+
+            var allocationsByRequest = allocationResult.Data!
+                .GroupBy(allocation => allocation.RequestIndex)
+                .ToDictionary(group => group.Key, group => group.ToList());
+
+            for (var index = 0; index < lines.Count; index++)
+            {
+                if (!allocationsByRequest.TryGetValue(index, out var lineAllocations) || lineAllocations.Count == 0)
+                    return Result<bool>.Fail("Stock allocation did not return a cost for every order line.");
+
+                var allocatedQuantity = lineAllocations.Sum(allocation => allocation.Quantity);
+                if (allocatedQuantity <= 0)
+                    return Result<bool>.Fail("Stock allocation returned an invalid quantity.");
+
+                lines[index].UnitCost = Math.Round(
+                    lineAllocations.Sum(allocation => allocation.Quantity * allocation.PurchasePrice) / allocatedQuantity,
+                    3);
+            }
 
             var movementResult = await _stockService.PostMovementsAsync(lines.Select(line =>
             {

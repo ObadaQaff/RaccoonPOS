@@ -151,8 +151,8 @@
             <Border Grid.Row="1" Background="White" BorderBrush="{StaticResource PanelBorderBrush}" BorderThickness="1" CornerRadius="24" Padding="14">
                 <DataGrid x:Name="StockBalancesGrid" AutoGenerateColumns="False" Style="{StaticResource ReportDataGridStyle}">
                     <DataGrid.Columns>
-                        <DataGridTextColumn Header="كود الصنف" Binding="{Binding ITEMCODE}" Width="140"/>
-                        <DataGridTextColumn Header="اسم الصنف" Binding="{Binding ProductName}" Width="280"/>
+                        <DataGridTextColumn Header="كود الصنف" Binding="{Binding ITEMCODE}" ElementStyle="{StaticResource ProductValueTextStyle}" Width="140"/>
+                        <DataGridTextColumn Header="اسم الصنف" Binding="{Binding ProductName}" ElementStyle="{StaticResource ProductValueTextStyle}" Width="280"/>
                         <DataGridTextColumn Header="الوحدة" Binding="{Binding UnitName}" Width="140"/>
                         <DataGridTextColumn Header="الرصيد الحالي" Binding="{Binding CurrentQuantity}" Width="140"/>
                         <DataGridTextColumn Header="الحد الأدنى" Binding="{Binding MinimumQuantity}" Width="140"/>

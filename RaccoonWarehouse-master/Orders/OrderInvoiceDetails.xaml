@@ -200,7 +200,7 @@
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
-                    <DataGridTextColumn Header="&#x627;&#x644;&#x635;&#x646;&#x641;" Binding="{Binding ProductName}" IsReadOnly="True" Width="*"/>
+                    <DataGridTextColumn Header="&#x627;&#x644;&#x635;&#x646;&#x641;" Binding="{Binding ProductName}" ElementStyle="{StaticResource ProductValueTextStyle}" IsReadOnly="True" Width="*"/>
                     <DataGridTextColumn Header="&#x627;&#x644;&#x648;&#x62D;&#x62F;&#x629;" Binding="{Binding UnitName}" IsReadOnly="True" Width="150"/>
                     <DataGridTextColumn Header="&#x627;&#x644;&#x643;&#x645;&#x64A;&#x629;" Binding="{Binding Quantity, UpdateSourceTrigger=PropertyChanged}" Width="130"/>
                     <DataGridTextColumn Header="&#x627;&#x644;&#x633;&#x639;&#x631;" Binding="{Binding UnitPrice, UpdateSourceTrigger=PropertyChanged}" Width="130"/>

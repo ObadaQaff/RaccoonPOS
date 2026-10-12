@@ -1,5 +1,106 @@
 # QA Testing Summary
 
+## 2026-10-12 - Stock-lot management dashboard
+
+### Scope
+- Added a dedicated Inventory > Lot Management dashboard action.
+- Added searchable lot review with Active, Closed, and Replaced status filters.
+- Added quantity, purchase-cost, sale-price, expiry, usage, and status columns.
+- Added a details view for the selected lot and a safe handoff to the existing stock-adjustment workflow.
+- Reused the existing lot lookup and adjustment protections; no database migration is required.
+
+### Verification
+- Full WPF solution build: passed with 0 errors; existing compiler/package warnings remain.
+- Focused inventory and costing tests: 26 passed, 0 failed.
+- `git diff --check`: passed.
+
+### Remaining risks and manual checks
+- The current lot model is database-wide and has no `WarehouseId`; warehouse-specific lot management needs a separate schema phase before enabling multiple physical warehouses.
+- Verify the dashboard entry, filters, details dialog, and adjustment handoff in both Arabic and English layouts.
+
+## 2026-10-12 - Inventory costing policy foundation
+
+### Scope
+- Added the `WeightedAverage`, `FIFO`, and `FEFO` costing-method enum for the next stock-costing phase.
+- Added an `AppSettings`-backed inventory costing setting with Weighted Average as the safe default and fallback for invalid stored values.
+- Added the Settings dashboard entry, protected by the existing `Settings.ManageSettings` permission.
+- Added Arabic/English settings UI with a warning that historical invoices and transactions are not recalculated.
+- FIFO and FEFO now drive lot ordering and lot-based unit costs during outgoing allocation and stock posting.
+- Endpoint orders snapshot the allocation-derived blended unit cost onto their invoice lines before stock deduction.
+
+### Verification
+- Inventory costing, stock costing, and historical-cost tests: 7 passed, 0 failed.
+- Full WPF solution build: passed with 0 errors; existing compiler/package warnings remain.
+- `git diff --check`: passed.
+
+### Full-suite note
+- Full test run: 132 passed, 8 failed. The remaining failures are existing sales-report, voucher, purchase-validation, and accounting tests; none are in the new costing tests. The stock-rule fixture/date failures were corrected and that suite now passes 19/19.
+
+### Database
+- No schema migration or manual SQL query is required. The default setting is created automatically in `AppSettings` when the settings service first runs.
+
+## 2026-10-12 - Purchase-order invoice-number conversion fix
+
+### Scope
+- Fixed PO approval conversion failing because generated invoice numbers used the `PI-` prefix.
+- Purchase invoice numbers now remain compatible with the existing numeric 3–5 digit validation.
+- Numeric PO numbers are reused when available; otherwise an unused numeric number is generated.
+- The PO-to-invoice relationship remains available through `ConvertedInvoiceId` and invoice notes.
+
+### Verification
+- Focused PO and permission tests: 9 passed, 0 failed.
+- Application and test projects compiled successfully.
+- Full WPF solution rebuild was blocked by the running `RaccoonWarehouse` process locking output DLLs.
+
+### Manual check
+- Stop the running application, rebuild `main`, approve PO `47054`, and confirm the resulting purchase invoice number is numeric and conversion completes.
+
+## 2026-10-12 - Purchase order review, payment terms, and loading-state fixes
+
+### Scope
+- Added purchase-order detail review from the order list by double-click or View Details.
+- Displayed supplier, payment term, status, dates, notes, totals, invoice reference, and line-level product/unit details.
+- Preserved the selected payment method as a planned purchase-order term instead of hardcoding Credit.
+- Kept payment execution deferred until purchase-order approval/conversion.
+- Fixed loading overlays appearing behind success/error message boxes during PO save, approval, rejection, and detail loading.
+
+### Verification
+- Focused PO and permission tests: 9 passed, 0 failed.
+- Solution build: passed with 0 errors; existing compiler/package warnings remain.
+
+### Remaining risks and manual checks
+- Run the desktop flow and verify row double-click, View Details, Arabic/English labels, and normal/maximized window layouts.
+- Verify the selected PO payment term is visible in details and is preserved on the converted invoice.
+- Check payment details still need to be entered during approval for check payments; no payment transaction is posted when a PO is created.
+
+## 2026-10-12 - Purchase order approval and conversion
+
+### Scope
+- Separate purchase-order and purchase-order-line persistence with submitted, approved, rejected, cancelled, and converted states.
+- Purchase-order creation through the existing purchase-entry workflow, preserving supplier, product, quantity, cost, tax, discount, and expiry details.
+- Per-user purchase-order approval overrides for Admin and Casher profiles.
+- Approval conversion into a purchase invoice with accounting posting and stock movements.
+- Duplicate-conversion and invalid-state guards.
+
+### Verification
+- Focused PO and permission tests: 9 passed, 0 failed.
+- Full automated test suite: 122 passed, 10 failed, 0 skipped, 132 total.
+- Solution build: passed with 0 errors; existing compiler/package warnings remain.
+- EF migration generation: passed using the data project's design-time context factory.
+
+### Existing failures not caused by this change
+- `SalesReportServiceTests.GetSalesReportAsync_ShouldDisplayEndpointOrdersButOnlyTotalCompletedOnes`
+- `VoucherServiceCrudTests` nullable/check persistence cases
+- `StockServiceStockOutRulesTests` expired-lot and soonest-expiry cases
+- `PurchaseExpiryValidationTests` invoice-number validation ordering cases
+- `AccountingServiceReportTests` financial-transaction void and invoice-update journal cases
+
+### Remaining risks and manual checks
+- Apply the migration against a backed-up development database before production use.
+- Manually create a PO, submit it, approve it with an authorized user, and verify invoice, stock lot, supplier payable, and journal records.
+- Verify an Admin/Casher user without the profile override cannot approve, while an authorized user can.
+- Confirm Arabic/English labels and the approval window at supported window sizes.
+
 ## 2026-10-04 - Manual journal account refresh fix
 
 ### Scope

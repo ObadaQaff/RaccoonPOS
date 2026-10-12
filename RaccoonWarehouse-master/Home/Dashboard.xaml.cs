@@ -522,6 +522,9 @@ namespace RaccoonWarehouse
             await ShowDashboardModuleAsync(SalesDashboardModule.Key, DashboardActionButton_Click);
         }
 
+        private async void PurchaseOrders_Click(object sender, RoutedEventArgs e) =>
+            await RunSidebarNavigationAsync(() => ShowDashboardModuleAsync("PurchaseOrders", DashboardActionButton_Click));
+
         private async void Orders_Click(object sender, RoutedEventArgs e) =>
             await RunSidebarNavigationAsync(() =>
             {

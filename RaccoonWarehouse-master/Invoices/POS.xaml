@@ -258,7 +258,7 @@
                                                   AlternatingRowBackground="#F7F9FB" Background="White" BorderThickness="0">
                                             <DataGrid.Columns>
                                                 <DataGridTextColumn Header="الاسم"           Width="220" Binding="{Binding Name, TargetNullValue=---}"/>
-                                                <DataGridTextColumn Header="الباركود"        Width="130" Binding="{Binding ITEMCODE, TargetNullValue=---}"/>
+                                                <DataGridTextColumn Header="الباركود"        Width="130" Binding="{Binding ITEMCODE, TargetNullValue=---}" ElementStyle="{StaticResource ProductValueTextStyle}"/>
                                                 <DataGridTextColumn Header="الفئة"           Width="160" Binding="{Binding SubCategory.Name, TargetNullValue=---}"/>
                                                 <DataGridTextColumn Header="العلامة التجارية" Width="160" Binding="{Binding Brand.Name, TargetNullValue=---}"/>
                                                 <DataGridTextColumn Header="الوصف"           Width="320" Binding="{Binding Description, TargetNullValue=---}"/>
@@ -664,7 +664,7 @@
                     </StackPanel>
 
                     <!-- Invoice # badge -->
-                    <StackPanel Grid.Column="4" Margin="0,0,12,0" VerticalAlignment="Center">
+                    <StackPanel Grid.Column="4" Margin="0,0,12,0" VerticalAlignment="Center" Visibility="Collapsed">
                         <TextBlock Text="رقم فاتورة فالكون / Falcon Invoice No."
                                    Width="150"
                                    FontSize="10"
@@ -938,19 +938,19 @@
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <TextBlock Text="{Binding SelectedProduct.ITEMCODE, TargetNullValue=---}"
+                                                   FlowDirection="LeftToRight"
                                                    VerticalAlignment="Center"
-                                                   Padding="4,0"
-                                                   FlowDirection="LeftToRight"/>
+                                                   Padding="4,0"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                                 <DataGridTemplateColumn.CellEditingTemplate>
                                     <DataTemplate>
                                         <TextBox Text="{Binding SelectedProduct.ITEMCODE, Mode=OneWay}"
+                                                 FlowDirection="LeftToRight"
                                                  Padding="4,2"
                                                  BorderThickness="0"
                                                  Background="Transparent"
                                                  VerticalContentAlignment="Center"
-                                                 FlowDirection="LeftToRight"
                                                  PreviewKeyDown="ProductBarcodeTextBox_PreviewKeyDown"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellEditingTemplate>
@@ -959,6 +959,7 @@
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <TextBlock Text="{Binding ProductName, TargetNullValue='---'}"
+                                                   FlowDirection="LeftToRight"
                                                    VerticalAlignment="Center" Padding="6,0"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>

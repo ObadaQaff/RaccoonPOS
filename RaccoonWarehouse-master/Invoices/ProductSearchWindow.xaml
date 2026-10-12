@@ -9,6 +9,10 @@
         Background="#F2F6FA">
     <Window.Resources>
         <local:FlexibleDecimalConverter x:Key="FlexibleDecimalConverter"/>
+        <Style x:Key="ProductValueTextStyle" TargetType="TextBlock">
+            <Setter Property="FlowDirection" Value="LeftToRight"/>
+            <Setter Property="TextAlignment" Value="Left"/>
+        </Style>
     </Window.Resources>
     <Grid Margin="20">
         <Grid.RowDefinitions>
@@ -31,8 +35,8 @@
         <Border Grid.Row="1" Margin="0,15,0,10" Background="White" CornerRadius="12" Padding="10" BorderBrush="#D0D7DD" BorderThickness="1">
             <DataGrid x:Name="ProductsGrid" AutoGenerateColumns="False" IsReadOnly="False" SelectionMode="Single" SelectionUnit="CellOrRowHeader" FlowDirection="RightToLeft" CanUserAddRows="False" PreviewKeyDown="ProductsGrid_PreviewKeyDown">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="الكود" Binding="{Binding ItemCode}" IsReadOnly="True" Width="140"/>
-                    <DataGridTextColumn Header="اسم الصنف" Binding="{Binding ProductName}" IsReadOnly="True" Width="*"/>
+                    <DataGridTextColumn Header="الكود" Binding="{Binding ItemCode}" ElementStyle="{StaticResource ProductValueTextStyle}" IsReadOnly="True" Width="140"/>
+                    <DataGridTextColumn Header="اسم الصنف" Binding="{Binding ProductName}" ElementStyle="{StaticResource ProductValueTextStyle}" IsReadOnly="True" Width="*"/>
                     <DataGridTemplateColumn Header="الوحدة" Width="150">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>

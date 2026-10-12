@@ -798,6 +798,58 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.ToTable("TaxRates");
                 });
 
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Audit.AuditLog", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("EntityId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("EntityType")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PermissionKey")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int?>("Role")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("SessionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("Succeeded")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedDate", "UserId");
+
+                    b.ToTable("AuditLogs");
+                });
+
             modelBuilder.Entity("RaccoonWarehouse.Domain.Branches.Branch", b =>
                 {
                     b.Property<int>("Id")
@@ -1896,6 +1948,38 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.ToTable("RolePermissions");
                 });
 
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Permissions.UserPermission", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsAllowed")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("PermissionKey")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTime>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "PermissionKey")
+                        .IsUnique();
+
+                    b.ToTable("UserPermissions");
+                });
+
             modelBuilder.Entity("RaccoonWarehouse.Domain.ProductUnits.ProductUnit", b =>
                 {
                     b.Property<int>("Id")
@@ -2020,6 +2104,177 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("SubCategoryId");
 
                     b.ToTable("Product");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.PurchaseOrders.PurchaseOrder", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("ApprovedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("ApprovedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("ConvertedInvoiceId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("CostPriceIncludesTax")
+                        .HasColumnType("bit");
+
+                    b.Property<int?>("CreatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("CurrencyId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("DiscountAmount")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<DateTime?>("DocumentDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DueDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("OrderNumber")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int?>("PaymentType")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("RejectedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("RejectedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("RejectionReason")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("SubTotal")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<int?>("SubmittedBy")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("SupplierId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("TotalAmount")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<decimal>("TotalTax")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<DateTime>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("WarehouseId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderNumber")
+                        .IsUnique();
+
+                    b.HasIndex("SupplierId");
+
+                    b.ToTable("PurchaseOrders");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.PurchaseOrders.PurchaseOrderLine", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("BaseQuantity")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("ExpiryDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("FreeQuantity")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<decimal>("LineDiscountAmount")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<decimal>("LineSubTotal")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<int>("ProductId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ProductUnitId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("PurchaseOrderId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<decimal>("QuantityPerUnitSnapshot")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<decimal>("TaxAmount")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<bool>("TaxExempt")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal>("TaxRate")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<decimal>("UnitCost")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<DateTime>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PurchaseOrderId");
+
+                    b.ToTable("PurchaseOrderLines");
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Relations.SubCategoryBrand", b =>
@@ -3177,6 +3432,17 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Navigation("Invoice");
                 });
 
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Permissions.UserPermission", b =>
+                {
+                    b.HasOne("RaccoonWarehouse.Domain.Users.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("RaccoonWarehouse.Domain.ProductUnits.ProductUnit", b =>
                 {
                     b.HasOne("RaccoonWarehouse.Domain.Products.Product", "Product")
@@ -3215,6 +3481,26 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Navigation("Brand");
 
                     b.Navigation("SubCategory");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.PurchaseOrders.PurchaseOrder", b =>
+                {
+                    b.HasOne("RaccoonWarehouse.Domain.Users.User", "Supplier")
+                        .WithMany()
+                        .HasForeignKey("SupplierId");
+
+                    b.Navigation("Supplier");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.PurchaseOrders.PurchaseOrderLine", b =>
+                {
+                    b.HasOne("RaccoonWarehouse.Domain.PurchaseOrders.PurchaseOrder", "PurchaseOrder")
+                        .WithMany("Lines")
+                        .HasForeignKey("PurchaseOrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("PurchaseOrder");
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Relations.SubCategoryBrand", b =>
@@ -3525,6 +3811,11 @@ namespace RaccoonWarehouse.Data.Migrations
             modelBuilder.Entity("RaccoonWarehouse.Domain.Products.Product", b =>
                 {
                     b.Navigation("ProductUnits");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.PurchaseOrders.PurchaseOrder", b =>
+                {
+                    b.Navigation("Lines");
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.StockDocuments.StockDocument", b =>

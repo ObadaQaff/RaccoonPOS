@@ -17,6 +17,9 @@ namespace RaccoonWarehouse.Application.Service.Permissions
         Task<List<string>> GetModuleNamesAsync();
         Task<List<PermissionMatrixRowDto>> GetPermissionMatrixAsync(UserRole role, string? searchText = null, string? module = null);
         Task<bool> HasPermissionAsync(UserRole role, string permissionKey);
+        Task<bool> HasCurrentUserPermissionAsync(string permissionKey);
+        Task<bool?> GetUserPermissionAsync(int userId, string permissionKey);
+        Task<Result<bool>> SaveUserPermissionAsync(int userId, string permissionKey, bool isAllowed);
         Task<Dictionary<string, bool>> GetPermissionMapAsync(UserRole role, IEnumerable<string> permissionKeys);
         Task<HashSet<string>> GetDeniedPermissionKeysAsync(UserRole role, string module);
         Task<Result<bool>> SavePermissionsAsync(UserRole role, IEnumerable<RolePermissionWriteDto> permissions);
@@ -156,6 +159,61 @@ namespace RaccoonWarehouse.Application.Service.Permissions
                 _userSession.CachePermissions(new[] { new KeyValuePair<string, bool>(permissionKey, isAllowed) });
 
             return isAllowed;
+        }
+
+        public async Task<bool> HasCurrentUserPermissionAsync(string permissionKey)
+        {
+            var user = _userSession.CurrentUser;
+            if (user == null)
+                return false;
+
+            await EnsureSeedDataAsync();
+            var userPermission = await _dbContext.Set<UserPermission>()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.UserId == user.Id && x.PermissionKey == permissionKey);
+            if (userPermission == null &&
+                string.Equals(permissionKey, "PurchaseOrder.Approve", StringComparison.OrdinalIgnoreCase) &&
+                (user.Role == UserRole.Admin || user.Role == UserRole.Casher))
+                return false;
+            return userPermission?.IsAllowed ?? await HasPermissionAsync(user.Role, permissionKey);
+        }
+
+        public async Task<bool?> GetUserPermissionAsync(int userId, string permissionKey)
+        {
+            var permission = await _dbContext.Set<UserPermission>()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.UserId == userId && x.PermissionKey == permissionKey);
+            return permission?.IsAllowed;
+        }
+
+        public async Task<Result<bool>> SaveUserPermissionAsync(int userId, string permissionKey, bool isAllowed)
+        {
+            if (_userSession.CurrentUser?.Role != UserRole.Admin)
+                return Result<bool>.Fail("Only an administrator can edit user permissions.");
+
+            await EnsureSeedDataAsync();
+            var permission = await _dbContext.Set<UserPermission>()
+                .FirstOrDefaultAsync(x => x.UserId == userId && x.PermissionKey == permissionKey);
+            if (permission == null)
+            {
+                await _dbContext.Set<UserPermission>().AddAsync(new UserPermission
+                {
+                    UserId = userId,
+                    PermissionKey = permissionKey,
+                    IsAllowed = isAllowed,
+                    CreatedDate = DateTime.Now,
+                    UpdatedDate = DateTime.Now
+                });
+            }
+            else
+            {
+                permission.IsAllowed = isAllowed;
+                permission.UpdatedDate = DateTime.Now;
+            }
+
+            await _dbContext.SaveChangesAsync();
+            _userSession.ClearPermissionCache();
+            return Result<bool>.Ok(true, "User permission saved successfully.");
         }
 
         public async Task<Dictionary<string, bool>> GetPermissionMapAsync(UserRole role, IEnumerable<string> permissionKeys)

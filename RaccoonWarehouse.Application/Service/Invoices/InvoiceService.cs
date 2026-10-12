@@ -70,10 +70,7 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 var checkRepo = _uow.GetRepository<Check>();
 
                 var normalizedFalconInvoiceNumber = dto.FalconInvoiceNumber?.Trim();
-                if (dto.IsPOS == true && string.IsNullOrWhiteSpace(normalizedFalconInvoiceNumber))
-                    return Result<InvoiceWriteDto>.Fail("Falcon invoice number is required / رقم فالكون مطلوب.");
-
-                if (dto.IsPOS == true)
+                if (dto.IsPOS == true && !string.IsNullOrWhiteSpace(normalizedFalconInvoiceNumber))
                 {
                     var falconNumberExists = await invoiceRepo.GetAllAsQueryable()
                         .AnyAsync(invoice =>
@@ -84,8 +81,10 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                     if (falconNumberExists)
                         return Result<InvoiceWriteDto>.Fail("Falcon invoice number already exists / رقم فالكون موجود مسبقاً.");
 
-                    dto.FalconInvoiceNumber = normalizedFalconInvoiceNumber;
                 }
+                dto.FalconInvoiceNumber = string.IsNullOrWhiteSpace(normalizedFalconInvoiceNumber)
+                    ? null
+                    : normalizedFalconInvoiceNumber;
 
                 if (dto.Id <= 0)
                 {
@@ -276,10 +275,7 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 var invoiceRepo = _uow.GetRepository<Invoice>();
                 var lineRepo = _uow.GetRepository<InvoiceLine>();
                 var normalizedFalconInvoiceNumber = dto.FalconInvoiceNumber?.Trim();
-                if (dto.IsPOS == true && string.IsNullOrWhiteSpace(normalizedFalconInvoiceNumber))
-                    return Result<InvoiceWriteDto>.Fail("Falcon invoice number is required / رقم فالكون مطلوب.");
-
-                if (dto.IsPOS == true)
+                if (dto.IsPOS == true && !string.IsNullOrWhiteSpace(normalizedFalconInvoiceNumber))
                 {
                     var falconNumberExists = await invoiceRepo.GetAllAsQueryable()
                         .AnyAsync(invoice =>
@@ -290,8 +286,10 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                     if (falconNumberExists)
                         return Result<InvoiceWriteDto>.Fail("Falcon invoice number already exists / رقم فالكون موجود مسبقاً.");
 
-                    dto.FalconInvoiceNumber = normalizedFalconInvoiceNumber;
                 }
+                dto.FalconInvoiceNumber = string.IsNullOrWhiteSpace(normalizedFalconInvoiceNumber)
+                    ? null
+                    : normalizedFalconInvoiceNumber;
 
                 var existingInvoice = await invoiceRepo.GetAllAsQueryable()
                     .Include(x => x.InvoiceLines)

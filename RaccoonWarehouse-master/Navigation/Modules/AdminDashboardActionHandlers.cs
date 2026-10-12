@@ -77,6 +77,7 @@ namespace RaccoonWarehouse.Navigation.Modules
                 "Settings.Delegates" or
                 "Settings.Employees" or
                 "Settings.Accounting" or
+                "Settings.InventoryCosting" or
                 "Settings.Language";
         }
 
@@ -135,6 +136,15 @@ namespace RaccoonWarehouse.Navigation.Modules
 
                     WindowManager.ShowDialog<AccountingFeatureSettingsWindow>(WindowSizeType.SmallSquare);
                     await context.RefreshAccountingNavigationAsync();
+                    return;
+                case "Settings.InventoryCosting":
+                    if (!await HasPermissionAsync("Settings.ManageSettings"))
+                    {
+                        MessageBox.Show(UiText.T("ليس لديك صلاحية تعديل الإعدادات.", "You do not have permission to edit settings."));
+                        return;
+                    }
+
+                    WindowManager.ShowDialog<InventoryCostingSettingsWindow>(WindowSizeType.SmallSquare);
                     return;
                 case "Settings.Language":
                     if (!await HasPermissionAsync("Settings.ManageSettings"))

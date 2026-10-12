@@ -47,7 +47,7 @@ Current roles include `Admin`, `Casher`, `Customer`, `Supplier`, `Manager`, and 
 
 - Receive and issue inventory through stock documents.
 - Track lots, expiry, purchase cost, sale price, and movement history.
-- Allocate outbound stock using FEFO and exclude expired lots.
+- Allocate outbound stock using the configured Weighted Average, FIFO, or FEFO costing policy and exclude expired lots.
 - Support controlled batch adjustments without rewriting historical movements.
 - Provide current-stock, movement, valuation, low-stock, and balance reports.
 
