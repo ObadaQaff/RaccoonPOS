@@ -88,7 +88,19 @@ namespace RaccoonWarehouse.Domain.InvoiceLines.DTOs
                 }
             }
         }
-        public string? ProductName { get; set; }
+        private string? _productName;
+        public string? ProductName
+        {
+            get => _productName;
+            set
+            {
+                if (_productName != value)
+                {
+                    _productName = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
         private string? _unitName;
         public string? UnitName
         {
@@ -112,7 +124,19 @@ namespace RaccoonWarehouse.Domain.InvoiceLines.DTOs
 
         public DateTime CreatedDate { get; set; }
         public DateTime UpdatedDate { get; set; }
-        public ProductReadDto? SelectedProduct { get; set; }
+        private ProductReadDto? _selectedProduct;
+        public ProductReadDto? SelectedProduct
+        {
+            get => _selectedProduct;
+            set
+            {
+                if (!ReferenceEquals(_selectedProduct, value))
+                {
+                    _selectedProduct = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
         public decimal UnitCost { get; set; }          // PurchasePrice at time of invoice
         public decimal CostTotal => Quantity * UnitCost; // optional computed
 

@@ -327,8 +327,10 @@ namespace RaccoonWarehouse.POS
                 UpdatePaymentTotals(sessionInvoices);
                 UpdateVoucherTotals(sessionVouchers, sessionInvoices);
                 _vm.TotalDocuments = rows.Count;
-                _vm.TotalIn = rows.Where(IsIncoming).Sum(x => x.Amount);
-                _vm.TotalOut = rows.Where(x => !IsIncoming(x)).Sum(x => x.Amount);
+                // Display movement totals as positive incoming/outgoing values.
+                // The direction determines the sign in NetMovement.
+                _vm.TotalIn = rows.Where(IsIncoming).Sum(x => Math.Abs(x.Amount));
+                _vm.TotalOut = rows.Where(x => !IsIncoming(x)).Sum(x => Math.Abs(x.Amount));
                 _vm.TotalTax = sessionInvoices.Sum(invoice => invoice.TotalTax);
 
                 _allTransactionRows = rows
@@ -649,10 +651,27 @@ namespace RaccoonWarehouse.POS
             IEnumerable<InvoiceReadDto> invoices,
             PaymentType paymentType)
             => invoices
-                .SelectMany(invoice => invoice.Payments ?? new List<InvoicePaymentReadDto>())
-                .Where(payment => payment.PaymentType == paymentType && payment.Amount > 0m)
-                .Sum(payment => payment.Amount)
+                .Sum(invoice => GetSignedInvoicePaymentAmount(invoice, paymentType))
                 .ToString("N2");
+
+        private static decimal GetSignedInvoicePaymentAmount(
+            InvoiceReadDto invoice,
+            PaymentType paymentType)
+        {
+            var allocations = (invoice.Payments ?? new List<InvoicePaymentReadDto>())
+                .Where(payment => payment.PaymentType == paymentType && payment.Amount > 0m)
+                .Sum(payment => payment.Amount);
+
+            // Older invoices may not have InvoicePayments rows. Preserve their
+            // original single payment method as a safe fallback.
+            if (allocations <= 0m && invoice.PaymentType == paymentType)
+                allocations = Math.Abs(invoice.TotalAmount);
+
+            if (invoice.InvoiceType == InvoiceType.Return)
+                return -allocations;
+
+            return allocations;
+        }
 
         private static string FormatPaymentTotal(
             IEnumerable<VoucherReadDto> vouchers,

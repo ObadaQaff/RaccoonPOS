@@ -356,6 +356,7 @@ namespace RaccoonWarehouse.Invoices
         private bool _suppressUnitSelectionChanged;
         private bool _isLoadingHeldInvoice;
         private bool _isLoadingReturnInvoice;
+        private Dictionary<PaymentType, decimal>? _returnPaymentLimits;
         private ObservableCollection<InvoiceLineWriteDto> _invoiceLines
             = new ObservableCollection<InvoiceLineWriteDto>();
 
@@ -976,6 +977,21 @@ namespace RaccoonWarehouse.Invoices
                     return;
                 }
 
+                var isPriceColumn = HeaderMatches(currentColumn, "السعر");
+                if (isPriceColumn && currentItem is InvoiceLineWriteDto priceLine)
+                {
+                    var priceCell = FindCell(grid, priceLine, currentColumn);
+                    var priceEditor = Keyboard.FocusedElement as TextBox
+                        ?? (priceCell == null ? null : FindVisualChild<TextBox>(priceCell));
+
+                    if (priceEditor != null && TryParseDecimalInput(priceEditor.Text, out var enteredPrice))
+                    {
+                        priceEditor.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
+                        priceLine.UnitPrice = enteredPrice;
+                        RecalculateLineFromCurrentValues(priceLine);
+                    }
+                }
+
                 try
                 {
                     grid.CommitEdit(DataGridEditingUnit.Cell, true);
@@ -984,6 +1000,13 @@ namespace RaccoonWarehouse.Invoices
                 catch { }
 
                 RecalculateTotals();
+
+                if (isPriceColumn)
+                {
+                    FocusBarcodeInputDeferred();
+                    e.Handled = true;
+                    return;
+                }
 
                 if (currentItem is InvoiceLineWriteDto currentLine &&
                     HeaderMatches(currentColumn, "Ø§Ù„ÙƒÙ…ÙŠØ©"))
@@ -1814,6 +1837,23 @@ namespace RaccoonWarehouse.Invoices
 
                 if (targetLine != null)
                 {
+                    var selectedUnitId = preferredUnitId
+                        ?? ProductUnitSelector.GetDefaultSaleUnit(product.ProductUnits ?? Array.Empty<ProductUnitReadDto>())?.Id
+                        ?? product.ProductUnits?.FirstOrDefault()?.Id;
+
+                    if (IsEmptyBarcodeLine(targetLine) &&
+                        selectedUnitId.HasValue &&
+                        _invoiceLines.Any(line =>
+                            !ReferenceEquals(line, targetLine) &&
+                            line.ProductId == product.Id &&
+                            line.ProductUnitId == selectedUnitId.Value))
+                    {
+                        return await AddProductToInvoiceCoreAsync(
+                            product,
+                            moveFocusToQuantity: false,
+                            preferredUnitId: selectedUnitId.Value);
+                    }
+
                     targetLine.Quantity = 1m;
                     if (!await ApplyLinePricingFromProductAsync(targetLine, product, preferredUnitId))
                         return false;
@@ -1825,7 +1865,7 @@ namespace RaccoonWarehouse.Invoices
                         availableQuantity - Math.Abs(targetLine.Quantity),
                         0m);
                     targetLine.RefreshCalculatedProperties();
-                    InvoiceGrid.Items.Refresh();
+                    RefreshInvoiceGridAfterEdit();
                     RecalculateTotals();
                     return true;
                 }
@@ -2454,7 +2494,8 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
 
             var result = await _invoiceService.GetAllWriteDtoWithFilteringAndIncludeAsync(
                 invoice => invoice.InvoiceNumber == invoiceNumber,
-                invoice => invoice.InvoiceLines);
+                invoice => invoice.InvoiceLines,
+                invoice => invoice.Payments);
 
             var invoice = result?.Data?.FirstOrDefault();
             if (invoice != null)
@@ -2468,6 +2509,102 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
             return stockDocument == null
                 ? null
                 : ConvertStockDocumentToReturnSource(stockDocument, invoiceNumber);
+        }
+
+        private async Task<Dictionary<PaymentType, decimal>> BuildReturnPaymentLimitsAsync(InvoiceWriteDto originalInvoice)
+        {
+            var originalPayments = originalInvoice.Payments?
+                .Where(payment => payment.Amount > 0m)
+                .GroupBy(payment => payment.PaymentType)
+                .ToDictionary(group => group.Key, group => group.Sum(payment => payment.Amount))
+                ?? new Dictionary<PaymentType, decimal>();
+
+            if (originalPayments.Count == 0 && originalInvoice.PaymentType.HasValue)
+            {
+                originalPayments[originalInvoice.PaymentType.Value] = Math.Abs(originalInvoice.TotalAmount);
+            }
+
+            if (originalPayments.Count == 0)
+                return originalPayments;
+
+            var previousReturns = await _invoiceService.GetAllWriteDtoWithFilteringAndIncludeAsync(
+                invoice => invoice.OriginalInvoiceId == originalInvoice.InvoiceNumber &&
+                           (invoice.InvoiceType == InvoiceType.Return ||
+                            invoice.InvoiceType == InvoiceType.PurchaseReturn),
+                invoice => invoice.Payments);
+
+            foreach (var previousReturn in previousReturns?.Data ?? new List<InvoiceWriteDto>())
+            {
+                var payments = previousReturn.Payments?.Where(payment => payment.Amount > 0m).ToList()
+                    ?? new List<InvoicePaymentWriteDto>();
+
+                if (payments.Count == 0 && previousReturn.PaymentType.HasValue)
+                {
+                    payments.Add(new InvoicePaymentWriteDto
+                    {
+                        PaymentType = previousReturn.PaymentType.Value,
+                        Amount = Math.Abs(previousReturn.TotalAmount)
+                    });
+                }
+
+                foreach (var payment in payments)
+                {
+                    if (originalPayments.ContainsKey(payment.PaymentType))
+                        originalPayments[payment.PaymentType] -= payment.Amount;
+                }
+            }
+
+            return originalPayments
+                .Where(pair => pair.Value > 0.0005m)
+                .ToDictionary(pair => pair.Key, pair => Math.Round(pair.Value, 3));
+        }
+
+        private async Task<bool> ConfigureReturnPaymentAllocationsAsync()
+        {
+            if (_currentInvoice.InvoiceType is not (InvoiceType.Return or InvoiceType.PurchaseReturn))
+                return true;
+
+            var limits = _returnPaymentLimits ?? new Dictionary<PaymentType, decimal>();
+            var returnTotal = Math.Round(Math.Abs(_currentInvoice.TotalAmount), 3);
+            if (returnTotal <= 0m)
+            {
+                ShowPaymentValidationMessage(
+                    UiText.T("يرجى إدخال كمية مرتجعة أكبر من صفر قبل اختيار طريقة الدفع.", "Enter a returned quantity greater than zero before selecting a payment method."),
+                    UiText.T("لا يوجد مبلغ للإرجاع", "No refund amount"));
+                return false;
+            }
+
+            if (limits.Count == 0 || limits.Values.Sum() + 0.0005m < returnTotal)
+            {
+                ShowPaymentValidationMessage(
+                    UiText.T("لا يوجد رصيد كافٍ من طرق الدفع الأصلية لإتمام هذا الإرجاع.", "The original payment methods do not have enough remaining refundable balance for this return."),
+                    UiText.T("تنبيه", "Notice"));
+                return false;
+            }
+
+            var paymentWindow = new ChangeInvoicePaymentWindow(
+                _currentInvoice.PaymentType,
+                _allCustomers ?? Enumerable.Empty<UserReadDto>(),
+                _currentInvoice.CustomerId,
+                returnTotal,
+                null,
+                limits)
+            {
+                Owner = this
+            };
+
+            if (paymentWindow.ShowDialog() != true || paymentWindow.SelectedPayments.Count == 0)
+                return false;
+
+            _currentInvoice.Payments = paymentWindow.SelectedPayments
+                .Select(payment => new InvoicePaymentWriteDto
+                {
+                    PaymentType = payment.PaymentType,
+                    Amount = payment.Amount
+                })
+                .ToList();
+            _currentInvoice.PaymentType = paymentWindow.SelectedPayments[0].PaymentType;
+            return true;
         }
 
         private bool IsNegativeLineAllowedByOriginalInvoice(
@@ -2769,6 +2906,7 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
             _pendingFefoEditedLine = null;
             _hasPendingFefoSplit = false;
             _isProcessingPendingFefoSplit = false;
+            _returnPaymentLimits = null;
 
             _invoiceLines.Clear();
             InvoiceGrid.SelectedItem = null;
@@ -3679,7 +3817,8 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
                 var result = await _invoiceService
                     .GetAllWriteDtoWithFilteringAndIncludeAsync(
                         i => i.InvoiceNumber == win.OriginalInvoiceId,
-                        i => i.InvoiceLines
+                        i => i.InvoiceLines,
+                        i => i.Payments
                     );
 
                 var originalInvoice = result?.Data?.FirstOrDefault();
@@ -3723,6 +3862,7 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
                 }
 
                 var previouslyReturned = await LoadPreviouslyReturnedQuantitiesAsync(win.OriginalInvoiceId);
+                _returnPaymentLimits = await BuildReturnPaymentLimitsAsync(originalInvoice);
 
                 _loading.Hide();
                 loadingShown = false;
@@ -5223,6 +5363,18 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
             MessageBox.Show(message, title, buttons, image);
         }
 
+        private static string GetPaymentTypeDisplayName(PaymentType paymentType) => paymentType switch
+        {
+            PaymentType.Cash => UiText.T("نقدي", "Cash"),
+            PaymentType.Visa => "Visa",
+            PaymentType.Master => "Master",
+            PaymentType.Debit => UiText.T("تحويل بنكي", "Bank transfer"),
+            PaymentType.Check => UiText.T("شيك", "Check"),
+            PaymentType.MobilePayment => UiText.T("دفع إلكتروني", "Mobile payment"),
+            PaymentType.Credit => UiText.T("آجل", "Credit"),
+            _ => paymentType.ToString()
+        };
+
         private async Task ProcessPaymentAsync(PaymentType paymentType)
         {
             if (_isProcessingPayment)
@@ -5255,9 +5407,41 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
                     HideLoadingForDialog();
                 }
 
+                // Commit an active return-quantity cell before reading the invoice total.
+                // Otherwise a cashier can click a payment button while the DataGrid still
+                // contains the old zero quantity.
+                InvoiceGrid.CommitEdit(DataGridEditingUnit.Cell, true);
+                InvoiceGrid.CommitEdit(DataGridEditingUnit.Row, true);
+                if (_currentInvoice.InvoiceType is InvoiceType.Return or InvoiceType.PurchaseReturn)
+                    RecalculateTotals();
+
                 _loading.Show();
                 loadingShown = true;
                 LogPosTiming("click to processing indicator", timing, stepTiming);
+
+                if (_currentInvoice.InvoiceType is InvoiceType.Return or InvoiceType.PurchaseReturn)
+                {
+                    HideLoadingForDialog();
+                    if (_returnPaymentLimits == null || !_returnPaymentLimits.ContainsKey(paymentType))
+                    {
+                        var allowedMethods = _returnPaymentLimits?.Keys
+                            .Select(GetPaymentTypeDisplayName)
+                            .ToList() ?? new List<string>();
+                        ShowPaymentValidationMessage(
+                            UiText.T(
+                                $"طريقة الدفع المختارة غير موجودة في الفاتورة الأصلية. الطرق المسموحة: {string.Join("، ", allowedMethods)}.",
+                                $"The selected payment method was not used on the original invoice. Allowed methods: {string.Join(", ", allowedMethods)}."),
+                            UiText.T("طريقة دفع غير صحيحة", "Invalid payment method"));
+                        return;
+                    }
+
+                    if (!await ConfigureReturnPaymentAllocationsAsync())
+                        return;
+
+                    paymentType = _currentInvoice.PaymentType ?? paymentType;
+                    ShowLoadingForWork();
+                }
+
                 _currentInvoice.PaymentType = paymentType;
 
                 // 1. Validate draft lines, return rules, and cashier session.

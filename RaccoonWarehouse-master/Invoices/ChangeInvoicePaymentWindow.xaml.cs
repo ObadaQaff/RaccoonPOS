@@ -29,9 +29,22 @@ namespace RaccoonWarehouse.Invoices
             }, PaymentType.ToString());
         }
 
-        private sealed record PaymentChoice(PaymentType Value, string Arabic, string English)
+        private sealed record PaymentChoice(PaymentType Value, string Arabic, string English, decimal? MaximumAmount = null)
         {
+            #if false
+            public string DisplayName
+            {
+                get
+                {
+                    var name = UiText.T(Arabic, English);
+                    return MaximumAmount.HasValue
+                        ? $"{name} ({UiText.T(\"المتاح\", \"Available\")}: {MaximumAmount.Value:0.000})"
+                        : name;
+                }
+            }
+            #else
             public string DisplayName => UiText.T(Arabic, English);
+            #endif
         }
 
         private readonly List<PaymentChoice> _choices = new()
@@ -50,6 +63,7 @@ namespace RaccoonWarehouse.Invoices
         private bool _isNavigatingCustomerChoices;
         private readonly decimal _invoiceTotal;
         private readonly List<PaymentLine> _payments = new();
+        private readonly IReadOnlyDictionary<PaymentType, decimal>? _allowedPaymentAmounts;
 
         public IReadOnlyList<PaymentLine> SelectedPayments => _payments;
 
@@ -63,7 +77,8 @@ namespace RaccoonWarehouse.Invoices
             IEnumerable<UserReadDto>? customers = null,
             int? currentCustomerId = null,
             decimal invoiceTotal = 0m,
-            IEnumerable<InvoicePaymentReadDto>? payments = null)
+            IEnumerable<InvoicePaymentReadDto>? payments = null,
+            IReadOnlyDictionary<PaymentType, decimal>? allowedPaymentAmounts = null)
         {
             InitializeComponent();
             UiText.ApplyWindow(this);
@@ -71,10 +86,17 @@ namespace RaccoonWarehouse.Invoices
             SaveButton.Content = UiText.T("حفظ", "Save");
             CancelButton.Content = UiText.T("إلغاء", "Cancel");
             CustomerLabel.Text = UiText.T("العميل", "Customer");
-            PaymentMethodComboBox.ItemsSource = _choices;
+            _allowedPaymentAmounts = allowedPaymentAmounts;
+            var visibleChoices = _allowedPaymentAmounts == null
+                ? _choices
+                : _choices
+                    .Where(choice => _allowedPaymentAmounts.TryGetValue(choice.Value, out var amount) && amount > 0.0005m)
+                    .Select(choice => choice with { MaximumAmount = _allowedPaymentAmounts[choice.Value] })
+                    .ToList();
+            PaymentMethodComboBox.ItemsSource = visibleChoices;
             PaymentMethodComboBox.DisplayMemberPath = nameof(PaymentChoice.DisplayName);
-            PaymentMethodComboBox.SelectedItem = _choices.FirstOrDefault(x => x.Value == currentPaymentType)
-                ?? _choices.First();
+            PaymentMethodComboBox.SelectedItem = visibleChoices.FirstOrDefault(x => x.Value == currentPaymentType)
+                ?? visibleChoices.FirstOrDefault();
             _allCustomers = (customers ?? Enumerable.Empty<UserReadDto>())
                 .Where(x => x.Id > 0 && !string.IsNullOrWhiteSpace(x.Name))
                 .GroupBy(x => x.Id)
@@ -89,7 +111,10 @@ namespace RaccoonWarehouse.Invoices
                     PaymentType = payment.PaymentType,
                     Amount = payment.Amount
                 }));
-            if (_payments.Count == 0 && currentPaymentType.HasValue && _invoiceTotal > 0m)
+            if (_payments.Count == 0 && currentPaymentType.HasValue && _invoiceTotal > 0m &&
+                (_allowedPaymentAmounts == null ||
+                 (_allowedPaymentAmounts.TryGetValue(currentPaymentType.Value, out var currentPaymentLimit) &&
+                  currentPaymentLimit > 0.0005m)))
                 _payments.Add(new PaymentLine { PaymentType = currentPaymentType.Value, Amount = _invoiceTotal });
             PaymentsGrid.ItemsSource = _payments;
             ((DataGridTextColumn)PaymentsGrid.Columns[0]).Header = UiText.T("طريقة", "Payment");
@@ -224,6 +249,18 @@ namespace RaccoonWarehouse.Invoices
             if (_payments.Count == 0)
                 return;
 
+            if (_allowedPaymentAmounts != null && _payments.Any(payment =>
+                    !_allowedPaymentAmounts.TryGetValue(payment.PaymentType, out var allowed) ||
+                    payment.Amount > allowed + 0.0005m))
+            {
+                MessageBox.Show(
+                    UiText.T("لا يمكن أن يتجاوز مبلغ الإرجاع الرصيد المتاح لطريقة الدفع الأصلية.", "A refund cannot exceed the remaining amount of the original payment method."),
+                    UiText.T("تنبيه", "Notice"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
             if (_invoiceTotal > 0m && Math.Round(_payments.Sum(payment => payment.Amount), 3) != Math.Round(_invoiceTotal, 3))
             {
                 MessageBox.Show(
@@ -254,6 +291,18 @@ namespace RaccoonWarehouse.Invoices
 
             if (_payments.Any(payment => payment.PaymentType == choice.Value))
                 return;
+
+            if (_allowedPaymentAmounts != null &&
+                (!_allowedPaymentAmounts.TryGetValue(choice.Value, out var allowedAmount) ||
+                 amount > allowedAmount + 0.0005m))
+            {
+                MessageBox.Show(
+                    UiText.T($"المبلغ الأقصى المتاح لهذه الطريقة هو {allowedAmount:0.000}.", $"The maximum available amount for this method is {allowedAmount:0.000}."),
+                    UiText.T("تنبيه", "Notice"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
 
             _payments.Add(new PaymentLine { PaymentType = choice.Value, Amount = amount });
             PaymentsGrid.Items.Refresh();

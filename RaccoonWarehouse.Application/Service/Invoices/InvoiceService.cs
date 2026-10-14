@@ -480,7 +480,7 @@ namespace RaccoonWarehouse.Application.Service.Invoices
             InvoiceWriteDto dto,
             IGenericRepository<Invoice> invoiceRepo)
         {
-            if (dto.InvoiceType is not (InvoiceType.Return or InvoiceType.Exchange) ||
+            if (dto.InvoiceType is not (InvoiceType.Return or InvoiceType.PurchaseReturn or InvoiceType.Exchange) ||
                 string.IsNullOrWhiteSpace(dto.OriginalInvoiceId))
             {
                 return null;
@@ -488,17 +488,78 @@ namespace RaccoonWarehouse.Application.Service.Invoices
 
             var original = await invoiceRepo.GetAllAsQueryable()
                 .AsNoTracking()
-                .Where(invoice => invoice.InvoiceNumber == dto.OriginalInvoiceId)
-                .Select(invoice => new { invoice.PaymentType, invoice.CustomerId })
-                .FirstOrDefaultAsync();
+                .Include(invoice => invoice.Payments)
+                .FirstOrDefaultAsync(invoice => invoice.InvoiceNumber == dto.OriginalInvoiceId);
 
             if (original == null)
                 return "The original invoice was not found.";
 
-            if (original.PaymentType == PaymentType.Credit && dto.PaymentType != PaymentType.Credit)
+            var originalPayments = original.Payments?
+                .Where(payment => payment.Amount > 0m)
+                .GroupBy(payment => payment.PaymentType)
+                .ToDictionary(group => group.Key, group => group.Sum(payment => payment.Amount))
+                ?? new Dictionary<PaymentType, decimal>();
+
+            if (originalPayments.Count == 0 && original.PaymentType.HasValue)
+                originalPayments[original.PaymentType.Value] = Math.Abs(original.TotalAmount);
+
+            var originalWasCreditOnly = originalPayments.Count == 1 &&
+                originalPayments.ContainsKey(PaymentType.Credit);
+
+            var previousReturns = await invoiceRepo.GetAllAsQueryable()
+                .AsNoTracking()
+                .Include(invoice => invoice.Payments)
+                .Where(invoice => invoice.OriginalInvoiceId == original.InvoiceNumber &&
+                                  (invoice.InvoiceType == InvoiceType.Return ||
+                                   invoice.InvoiceType == InvoiceType.PurchaseReturn))
+                .ToListAsync();
+
+            foreach (var previousReturn in previousReturns)
+            {
+                var payments = previousReturn.Payments?
+                    .Where(payment => payment.Amount > 0m)
+                    .ToList() ?? new List<InvoicePayment>();
+
+                if (payments.Count == 0 && previousReturn.PaymentType.HasValue)
+                {
+                    payments.Add(new InvoicePayment
+                    {
+                        PaymentType = previousReturn.PaymentType.Value,
+                        Amount = Math.Abs(previousReturn.TotalAmount)
+                    });
+                }
+
+                foreach (var payment in payments)
+                {
+                    if (originalPayments.ContainsKey(payment.PaymentType))
+                        originalPayments[payment.PaymentType] -= payment.Amount;
+                }
+            }
+
+            var requestedPayments = dto.Payments?.Where(payment => payment.Amount > 0m).ToList()
+                ?? new List<InvoicePaymentWriteDto>();
+            if (requestedPayments.Count == 0 && dto.PaymentType.HasValue)
+            {
+                requestedPayments.Add(new InvoicePaymentWriteDto
+                {
+                    PaymentType = dto.PaymentType.Value,
+                    Amount = Math.Abs(dto.TotalAmount)
+                });
+            }
+
+            foreach (var payment in requestedPayments)
+            {
+                if (!originalPayments.TryGetValue(payment.PaymentType, out var remainingAmount))
+                    return $"Payment method {payment.PaymentType} was not used on the original invoice.";
+
+                if (payment.Amount > remainingAmount + 0.0005m)
+                    return $"The return amount for {payment.PaymentType} exceeds the remaining refundable amount.";
+            }
+
+            if (originalWasCreditOnly && dto.PaymentType != PaymentType.Credit)
                 return "A return or exchange from a credit invoice must also use credit payment.";
 
-            if (original.PaymentType == PaymentType.Credit && original.CustomerId != dto.CustomerId)
+            if (originalWasCreditOnly && original.CustomerId != dto.CustomerId)
                 return "The credit customer must match the original invoice customer.";
 
             return null;
@@ -838,6 +899,160 @@ namespace RaccoonWarehouse.Application.Service.Invoices
             }
         }
 
+        public async Task<Result<List<ReturnInvoiceLookupDto>>> SearchReturnInvoiceHeadersAsync(
+            DateTime? dateFrom,
+            DateTime? dateTo,
+            string? invoiceNumber = null,
+            string? customerName = null)
+        {
+            try
+            {
+                var query = _uow.Invoices
+                    .GetAllAsQueryable()
+                    .AsNoTracking()
+                    .Where(invoice => invoice.InvoiceType == InvoiceType.Sale && invoice.TotalAmount > 0m);
+
+                if (dateFrom.HasValue)
+                    query = query.Where(invoice => invoice.CreatedDate >= dateFrom.Value.Date);
+
+                if (dateTo.HasValue)
+                {
+                    var exclusiveDateTo = dateTo.Value.Date.AddDays(1);
+                    query = query.Where(invoice => invoice.CreatedDate < exclusiveDateTo);
+                }
+
+                if (!string.IsNullOrWhiteSpace(invoiceNumber))
+                {
+                    var number = invoiceNumber.Trim();
+                    query = query.Where(invoice => invoice.InvoiceNumber == number);
+                }
+
+                if (!string.IsNullOrWhiteSpace(customerName))
+                {
+                    var customer = customerName.Trim();
+                    query = query.Where(invoice => invoice.CustomerId.HasValue
+                        && _context.Set<User>().Any(user => user.Id == invoice.CustomerId.Value && user.Name.Contains(customer)));
+                }
+
+                var headers = await query
+                    .OrderByDescending(invoice => invoice.CreatedDate)
+                    .Select(invoice => new ReturnInvoiceLookupDto
+                    {
+                        Id = invoice.Id,
+                        InvoiceNumber = invoice.InvoiceNumber,
+                        CreatedDate = invoice.CreatedDate,
+                        CustomerName = invoice.CustomerId.HasValue
+                            ? _context.Set<User>()
+                                .Where(user => user.Id == invoice.CustomerId.Value)
+                                .Select(user => user.Name)
+                                .FirstOrDefault()
+                            : null,
+                        TotalAmount = invoice.TotalAmount,
+                        PaymentTypes = invoice.Payments!
+                            .Where(payment => payment.Amount > 0m)
+                            .Select(payment => payment.PaymentType)
+                            .Distinct()
+                            .ToList()
+                    })
+                    .Take(500)
+                    .ToListAsync();
+
+                var invoiceIds = headers.Select(header => header.Id).ToList();
+                var invoiceNumbers = headers.Select(header => header.InvoiceNumber).ToList();
+                var originalLines = await _context.Set<InvoiceLine>()
+                    .AsNoTracking()
+                    .Where(line => invoiceIds.Contains(line.InvoiceId)
+                        && line.ProductId > 0
+                        && line.ProductUnitId > 0
+                        && line.Quantity > 0m)
+                    .Select(line => new
+                    {
+                        line.InvoiceId,
+                        line.ProductId,
+                        line.ProductUnitId,
+                        line.Quantity
+                    })
+                    .ToListAsync();
+
+                var previousReturnLines = await _context.Set<InvoiceLine>()
+                    .AsNoTracking()
+                    .Where(line => line.Invoice != null
+                        && (line.Invoice.InvoiceType == InvoiceType.Return
+                            || line.Invoice.InvoiceType == InvoiceType.PurchaseReturn)
+                        && line.Invoice.OriginalInvoiceId != null
+                        && invoiceNumbers.Contains(line.Invoice.OriginalInvoiceId)
+                        && line.ProductId > 0
+                        && line.ProductUnitId > 0
+                        && line.Quantity < 0m)
+                    .Select(line => new
+                    {
+                        OriginalInvoiceId = line.Invoice!.OriginalInvoiceId!,
+                        line.ProductId,
+                        line.ProductUnitId,
+                        Quantity = Math.Abs(line.Quantity)
+                    })
+                    .ToListAsync();
+
+                var originalByInvoice = originalLines
+                    .GroupBy(line => line.InvoiceId)
+                    .ToDictionary(
+                        group => group.Key,
+                        group => group.GroupBy(line => (line.ProductId, line.ProductUnitId))
+                            .ToDictionary(lines => lines.Key, lines => lines.Sum(line => line.Quantity)));
+                var returnedByInvoice = previousReturnLines
+                    .GroupBy(line => line.OriginalInvoiceId)
+                    .ToDictionary(
+                        group => group.Key,
+                        group => group.GroupBy(line => (line.ProductId, line.ProductUnitId))
+                            .ToDictionary(lines => lines.Key, lines => lines.Sum(line => line.Quantity)));
+
+                foreach (var header in headers)
+                {
+                    var original = originalByInvoice.TryGetValue(header.Id, out var originalQuantities)
+                        ? originalQuantities
+                        : new Dictionary<(int ProductId, int ProductUnitId), decimal>();
+                    returnedByInvoice.TryGetValue(header.InvoiceNumber, out var returnedQuantities);
+
+                    var hasPreviousReturn = false;
+                    var hasReturnableQuantity = false;
+                    foreach (var line in original)
+                    {
+                        var returnedQuantity = returnedQuantities?.GetValueOrDefault(line.Key) ?? 0m;
+                        hasPreviousReturn |= returnedQuantity > 0.0005m;
+                        hasReturnableQuantity |= line.Value - returnedQuantity > 0.0005m;
+                    }
+
+                    header.IsFullyReturned = original.Count == 0 || !hasReturnableQuantity;
+                    header.ReturnStatus = header.IsFullyReturned
+                        ? "Fully returned / مرتجع بالكامل"
+                        : hasPreviousReturn
+                            ? "Partially returned / مرتجع جزئياً"
+                            : "Available / متاح للإرجاع";
+                }
+
+                foreach (var header in headers)
+                {
+                    if (header.PaymentTypes.Count == 0)
+                    {
+                        var fallback = await _uow.Invoices.GetAllAsQueryable()
+                            .Where(invoice => invoice.Id == header.Id)
+                            .Select(invoice => invoice.PaymentType)
+                            .FirstOrDefaultAsync();
+
+                        if (fallback.HasValue)
+                            header.PaymentTypes.Add(fallback.Value);
+                    }
+                }
+
+                return Result<List<ReturnInvoiceLookupDto>>.Ok(headers);
+            }
+            catch (Exception ex)
+            {
+                return Result<List<ReturnInvoiceLookupDto>>.Fail(
+                    $"Failed to load return invoice headers: {ex.Message}");
+            }
+        }
+
 
 
         public async Task<Result<List<InvoiceReadDto>>> GetHeldPOSInvoicesAsync()
@@ -1120,6 +1335,12 @@ namespace RaccoonWarehouse.Application.Service.Invoices
           bool? isSal,
           bool? isPOS = null,
           InvoiceStatus? status = null);
+
+        Task<Result<List<ReturnInvoiceLookupDto>>> SearchReturnInvoiceHeadersAsync(
+            DateTime? dateFrom,
+            DateTime? dateTo,
+            string? invoiceNumber = null,
+            string? customerName = null);
 
         Task<InvoiceReadDto?> FindPOSInvoiceByFalconNumberAsync(
             string falconInvoiceNumber,

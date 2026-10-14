@@ -1,5 +1,79 @@
 # QA Testing Summary
 
+## 2026-10-14 - Cashier dashboard return and split-payment totals
+
+### Scope
+- Signed invoice payment totals by payment method so returns subtract from sales.
+- Applied the same rule to mixed and split-payment invoices.
+- Added fallback handling for legacy invoices without `InvoicePayments` rows.
+- Corrected incoming/outgoing dashboard totals to display positive movement amounts.
+
+### Verification
+- Full WPF solution build: passed with 0 errors; existing warnings remain.
+- No database schema or production data changes.
+- Manual verification remains: compare sale, Visa return, Cash return, and split-payment totals with the transaction list and session balance.
+
+## 2026-10-14 - Return availability status in invoice picker
+
+### Scope
+- Added header-list status for available, partially returned, and fully returned invoices.
+- Calculated status from lightweight invoice-line quantity aggregates only.
+- Blocked fully returned invoices before loading the full invoice into POS.
+- Preserved the existing full-detail loading path for invoices with remaining quantities.
+
+### Verification
+- Full WPF solution build: passed with 0 errors; existing warnings remain.
+- No database schema or production data changes.
+- Manual verification remains: test a never-returned invoice, partially returned invoice, and fully returned invoice.
+
+## 2026-10-14 - Return payment validation and pending grid edit fix
+
+### Scope
+- Commit the active return-quantity grid edit before calculating the refund total.
+- Recalculate the return total before opening payment allocation.
+- Reject payment methods that were not used on the original invoice with a clear message.
+- Display a clear message when the returned quantity is zero.
+
+### Verification
+- Full WPF solution build: passed with 0 errors; existing warnings remain.
+- No database changes or production data changes.
+- Manual verification remains: test an invalid payment button, then a valid method, and confirm the refund completes after entering a return quantity.
+
+## 2026-10-14 - Lightweight return invoice picker
+
+### Scope
+- Replaced manual return-invoice number entry with a selectable invoice list.
+- Added date-from/date-to and invoice-number filtering.
+- Displayed invoice number, date, customer, payment method(s), and total.
+- Kept the initial query header-only; invoice lines and full details load only after selection.
+
+### Verification
+- Full WPF solution build: passed with 0 errors; existing warnings remain.
+- Database schema unchanged; no migration or production data changes.
+- Manual UI verification remains: open Return, filter by dates, select an invoice, and confirm the existing return workflow loads its details.
+
+## 2026-10-14 - Return payment-method restrictions
+
+### Scope
+- Reused persisted `InvoicePayments` allocations for sales and split-payment returns.
+- Limited return payment choices to methods used by the original invoice.
+- Added remaining refundable balances after previous returns.
+- Added split-return allocation through the existing payment window, allowing the cashier to choose the refund sequence while preventing over-allocation.
+- Added server-side validation for payment-method eligibility and remaining refundable amounts.
+- No database migration required.
+
+### Verification
+- Full WPF solution build: passed with 0 errors; existing warnings remain.
+- Test project: 140 passed, 8 failed, 0 skipped.
+- The 8 failures are existing voucher, purchase-validation, sales-report, and accounting test failures; no failure was reported from the changed return-payment flow.
+- No production database was modified.
+
+### Manual verification remaining
+- Create a cash return and confirm only Cash is available.
+- Create a Visa/Master split return and allocate the refund in both possible sequences.
+- Attempt to exceed one method's remaining balance and confirm the window rejects it.
+- Create a second return and confirm previously refunded amounts reduce the available balances.
+
 ## 2026-10-14 - Insurance settlement and aging window
 
 ### Scope
