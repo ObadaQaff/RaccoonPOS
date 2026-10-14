@@ -24,6 +24,8 @@ using RaccoonWarehouse.Domain.Permissions;
 using RaccoonWarehouse.Domain.Permissions.DTOs;
 using RaccoonWarehouse.Domain.Products;
 using RaccoonWarehouse.Domain.Products.DTOs;
+using RaccoonWarehouse.Domain.PurchaseOrders;
+using RaccoonWarehouse.Domain.PurchaseOrders.DTOs;
 using RaccoonWarehouse.Domain.ProductUnits;
 using RaccoonWarehouse.Domain.ProductUnits.DTOs;
 using RaccoonWarehouse.Domain.Stock;
@@ -179,6 +181,17 @@ namespace RaccoonWarehouse.Application.Helper
             CreateMap<ReportPermission, ReportPermissionReadDto>().ReverseMap();
             CreateMap<RolePermissionWriteDto, RolePermission>().ReverseMap();
             CreateMap<RolePermission, RolePermissionReadDto>().ReverseMap();
+            CreateMap<PurchaseOrderWriteDto, PurchaseOrder>()
+                .ForMember(d => d.Lines, opt => opt.Ignore())
+                .ForMember(d => d.Supplier, opt => opt.Ignore());
+            CreateMap<PurchaseOrder, PurchaseOrderWriteDto>();
+            CreateMap<PurchaseOrderLineWriteDto, PurchaseOrderLine>()
+                .ForMember(d => d.PurchaseOrder, opt => opt.Ignore())
+                .ForMember(d => d.PurchaseOrderId, opt => opt.Ignore())
+                .ReverseMap();
+            CreateMap<PurchaseOrder, PurchaseOrderReadDto>()
+                .ForMember(d => d.SupplierName, opt => opt.MapFrom(s => s.Supplier != null ? s.Supplier.Name : null))
+                .ForMember(d => d.LineCount, opt => opt.MapFrom(s => s.Lines.Count));
         }
     }
 }

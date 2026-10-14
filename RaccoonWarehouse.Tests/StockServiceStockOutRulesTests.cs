@@ -337,6 +337,8 @@ public class StockServiceStockOutRulesTests
     public async Task AllocateOutgoingAsync_ShouldIgnoreExpiredLots()
     {
         var service = CreateService(nameof(AllocateOutgoingAsync_ShouldIgnoreExpiredLots), out var context);
+        SeedProductUnit(context, 1011, 2011);
+        await context.SaveChangesAsync();
 
         await service.PostMovementsAsync(new[]
         {
@@ -398,7 +400,11 @@ public class StockServiceStockOutRulesTests
     [Fact]
     public async Task AllocateOutgoingAsync_ShouldUseSoonestExpiryFirst()
     {
-        var service = CreateService(nameof(AllocateOutgoingAsync_ShouldUseSoonestExpiryFirst), out _);
+        var service = CreateService(nameof(AllocateOutgoingAsync_ShouldUseSoonestExpiryFirst), out var context);
+        SeedProductUnit(context, 1010, 2010);
+        await context.SaveChangesAsync();
+        var firstExpiry = DateTime.Today.AddDays(10);
+        var secondExpiry = DateTime.Today.AddDays(20);
 
         await service.PostMovementsAsync(new[]
         {
@@ -412,7 +418,7 @@ public class StockServiceStockOutRulesTests
                 UnitPrice = 11,
                 PurchasePrice = 7,
                 SalePrice = 11,
-                ExpiryDate = new DateTime(2026, 4, 1),
+                ExpiryDate = firstExpiry,
                 TransactionType = TransactionType.Purchase,
                 TransactionDate = DateTime.Now,
                 Notes = "Batch A"
@@ -427,7 +433,7 @@ public class StockServiceStockOutRulesTests
                 UnitPrice = 13,
                 PurchasePrice = 8,
                 SalePrice = 13,
-                ExpiryDate = new DateTime(2026, 5, 1),
+                ExpiryDate = secondExpiry,
                 TransactionType = TransactionType.Purchase,
                 TransactionDate = DateTime.Now,
                 Notes = "Batch B"
@@ -448,10 +454,10 @@ public class StockServiceStockOutRulesTests
         Assert.NotNull(allocationResult.Data);
         Assert.Equal(2, allocationResult.Data.Count);
         Assert.Equal(2, allocationResult.Data[0].Quantity);
-        Assert.Equal(new DateTime(2026, 4, 1), allocationResult.Data[0].ExpiryDate);
+        Assert.Equal(firstExpiry, allocationResult.Data[0].ExpiryDate);
         Assert.Equal(11, allocationResult.Data[0].SalePrice);
         Assert.Equal(1, allocationResult.Data[1].Quantity);
-        Assert.Equal(new DateTime(2026, 5, 1), allocationResult.Data[1].ExpiryDate);
+        Assert.Equal(secondExpiry, allocationResult.Data[1].ExpiryDate);
         Assert.Equal(13, allocationResult.Data[1].SalePrice);
     }
 
@@ -474,5 +480,37 @@ public class StockServiceStockOutRulesTests
 
         Assert.False(result.Success);
         Assert.Contains("blocked", result.Message ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void SeedProductUnit(ApplicationDbContext context, int productId, int productUnitId)
+    {
+        context.Set<Product>().Add(new Product
+        {
+            Id = productId,
+            Name = "Stock test product",
+            ITEMCODE = productId,
+            SubCategoryId = 1,
+            CreatedDate = DateTime.Now,
+            UpdatedDate = DateTime.Now
+        });
+        context.Set<Unit>().Add(new Unit
+        {
+            Id = productUnitId + 1000,
+            Name = "Piece",
+            CreatedDate = DateTime.Now,
+            UpdatedDate = DateTime.Now
+        });
+        context.Set<ProductUnit>().Add(new ProductUnit
+        {
+            Id = productUnitId,
+            ProductId = productId,
+            UnitId = productUnitId + 1000,
+            QuantityPerUnit = 1m,
+            PurchasePrice = 5m,
+            SalePrice = 10m,
+            IsBaseUnit = true,
+            CreatedDate = DateTime.Now,
+            UpdatedDate = DateTime.Now
+        });
     }
 }

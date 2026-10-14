@@ -6,6 +6,7 @@ using RaccoonWarehouse.Reports;
 using RaccoonWarehouse.Stocks;
 using RaccoonWarehouse.Vouchers;
 using RaccoonWarehouse.FinancialTransactions.Reports;
+using RaccoonWarehouse.PurchaseOrders;
 
 namespace RaccoonWarehouse.Navigation.Modules
 {
@@ -18,6 +19,8 @@ namespace RaccoonWarehouse.Navigation.Modules
                 "Vouchers.Payment" or
                 "Invoices.Sales" or
                 "Invoices.Purchase" or
+                "PurchaseOrders.Create" or
+                "PurchaseOrders.List" or
                 "Invoices.SalesReturn" or
                 "Stocks.In" or
                 "Stocks.Out" or
@@ -46,6 +49,12 @@ namespace RaccoonWarehouse.Navigation.Modules
                     break;
                 case "Invoices.Purchase":
                     WindowManager.Show<PayInvoice>();
+                    break;
+                case "PurchaseOrders.Create":
+                    WindowManager.Show<PayInvoice>(WindowSizeType.FullScreen, window => window.ConfigureAsPurchaseOrder());
+                    break;
+                case "PurchaseOrders.List":
+                    WindowManager.Show<PurchaseOrdersWindow>(WindowSizeType.LargeRectangle);
                     break;
                 case "Invoices.SalesReturn":
                     WindowManager.Show<SalesReturn>();

@@ -1,5 +1,250 @@
 # QA Testing Summary
 
+## 2026-10-14 - Insurance settlement and aging window
+
+### Scope
+- Added a localized Insurance Settlements dashboard action and WPF window.
+- Added outstanding-claim listing, claim-batch creation, allocated payment recording, and receivable-aging access.
+- Protected batch, payment, and aging actions with the existing insurance permissions.
+- Registered the new window through the existing DI and dashboard module architecture.
+
+### Verification
+- Solution build: passed with 0 errors; existing warnings remain.
+- Insurance-focused tests: 8 passed, 0 failed, 0 skipped.
+- No production database was modified.
+
+### Remaining risks
+- The settlement screen currently uses numeric company and claim IDs; searchable selectors should be added in the next UI pass.
+- Payment accounting requires a valid FinancialTransactionId or a future integration with the existing receipt-posting workflow; the screen does not invent a duplicate journal entry.
+- Manual Arabic UI, permission, and live accounting verification remains required.
+
+## 2026-10-14 - Insurance production-safety phase
+
+### Scope
+- Enforced insurance claim approval/rejection permissions in the application service, not only in the window.
+- Enforced insurance-payment permission checks and audit events.
+- Required claim decisions to account for the full submitted amount.
+- Validated approved, partially approved, and rejected status/amount combinations.
+- Prevented duplicate payment receipt numbers and partial/unallocated payment amounts.
+- Prevented settlement of claims that are not approved for payment.
+- Disabled the claim decision action when the current user has neither approval nor rejection permission.
+
+### Verification
+- Insurance-focused automated tests: 8 passed, 0 failed, 0 skipped.
+- Full solution build: passed with 0 errors; existing warnings remain.
+- No production database was modified.
+
+### Remaining risks
+- Claim payment persistence still accepts an optional existing FinancialTransactionId; live accounting receipt integration must be validated with the deployment's accounting configuration.
+- Searchable setup selectors for customer, company, contract, plan, and membership are still a UX follow-up; the current setup window retains numeric ID fields for those records.
+- Manual Arabic UI and permission-matrix verification is still required in the running application.
+
+## 2026-10-14 - Isolated insurance invoice workflow and per-product pricing
+
+### Scope
+- Kept the normal POS calculation path unchanged and added one button that opens a separate insurance invoice window.
+- Added per-product insurance discount percentage and fixed discount amount to coverage rules.
+- Added contract/version/plan/member validity checks using the invoice date.
+- Added separate insurance invoice calculation, patient/insurer split, stock checkout, accounting payment allocations, coverage snapshot, and claim creation flow.
+- Added the guarded SQL script `RaccoonWarehouse.Data/Migrations/20261014_InsuranceRuleDiscounts.sql` for the new discount and snapshot columns.
+
+### Verification
+- Isolated full WPF solution build: passed with 0 errors; existing warnings remain.
+- Insurance-focused tests: 7 passed, 0 failed.
+- `git diff --check`: passed.
+
+### Manual verification remaining
+- Run the desktop flow with a real active cashier session, valid customer policy, contract version, plan, and product rule.
+- Confirm stock quantities, patient cash, insurance receivable, coverage snapshot, and generated claim reconcile in the database.
+- Apply the SQL script before using the new discount fields if those columns are not already present.
+
+## 2026-10-13 - Insurance setup management
+
+### Scope
+- Reused the existing insurance tables and added application-layer management for contract versions and coverage rules.
+- Added a localized Insurance Setup window with tabs for contracts, plans, member policies, and coverage rules.
+- Added permission-aware Dashboard navigation and DI registration for the setup window.
+- Added validation tests for contract-version/rule persistence and invalid coverage percentages.
+
+### Verification
+- Full WPF solution build to an isolated output directory: passed with 0 errors; existing warnings remain.
+- Insurance-focused tests: 6 passed, 0 failed.
+- No database migration required because the required tables already exist in the current insurance migrations.
+
+### Remaining risks
+- The setup form currently uses numeric IDs for company, customer, contract, plan, product, and contract version. A later UX pass should replace these with searchable selectors while preserving the same service contracts.
+- Manual desktop verification is still required for Dashboard permission visibility and Arabic/English tab layout.
+
+## 2026-10-13 - Insurance window visual enhancement
+
+### Scope
+- Reworked the insurance company and insurance claims windows using the existing ROCCOPOS hero, card, button, and DataGrid resources.
+- Corrected the localized Arabic labels that were displayed as mojibake in the XAML source.
+- Added RTL-aware layout, clearer Arabic/English hierarchy, responsive minimum sizes, spacing, and empty-state messages without changing the existing workflows or data contracts.
+
+### Verification
+- Full WPF solution build to an isolated output directory: passed with 0 errors; existing warnings remain.
+- Insurance-focused tests: 4 passed, 0 failed.
+- `git diff --check`: passed.
+
+### Manual verification remaining
+- Open Dashboard → Insurance → Companies and Claims in the desktop app and verify the visual layout in Arabic and English, including the empty states and refresh/save actions.
+
+## 2026-10-13 - Insurance management foundation
+
+### Scope
+- Added insurance companies, networks, beneficiary categories, contracts and versions, coverage rules, exclusions, member policies, invoice coverage snapshots, pre-authorizations, claims, claim batches, adjustments, attachments, and payment allocations.
+- Added claim/payment domain statuses and indexes for company, member, claim, batch, and reconciliation queries.
+- Added the `InsuranceManagementService` boundary with company management, claim creation from invoice coverage, claim listing, and transactional multi-claim payment allocation.
+- Added administrator/payer organization roles, insurance plans, eligibility verification history, line-level coverage and authorization records, and a rule-based `InsuranceCoverageService` that respects exclusions, copay, deductibles, limits, and authorization requirements.
+- Repaired claim review validation and payment-allocation linkage, and replaced the claims Dashboard placeholder with a localized claim review window.
+- Added contract/member-policy service operations, controlled claim-batch creation, receivable-aging queries, and opt-in insurance invoice responsibility fields mapped to the existing credit/receivable accounting method.
+- Added insurance permission catalog entries and an Arabic/English insurance dashboard entry with an initial insurance-company management screen. The Dashboard sidebar now exposes `Insurance / التأمين` and routes it through the existing permission-aware module registry.
+- Added EF migration `20261013123927_AddInsuranceManagement`.
+
+### Verification
+- Main WPF application build: passed with 0 errors; existing warnings remain.
+- Insurance service, coverage, batch, and aging tests: 4 passed, 0 failed.
+- Data project build: passed with 0 errors.
+- `git diff --check`: passed.
+
+### Remaining implementation scope
+- Contract/rule editor, member-policy editor, coverage calculation POS UI, monthly batch export, payment reconciliation UI, settlement receipt posting, returns integration, and insurance reports are the next slices and are not yet enabled.
+
+## 2026-10-13 - POS checkout critical-path reduction
+
+### Scope
+- Removed the duplicate POS stock-availability query; `AllocateOutgoingAsync` remains the authoritative availability, costing, and FEFO/FIFO allocation check.
+- Changed new invoice persistence to save the invoice, lines, payments, and checks as one EF graph save instead of a separate header save followed by a second child save.
+- Replaced the POS barcode lookup with one targeted product/unit query; it no longer loads category, brand, or the full product graph, and numeric barcodes use numeric comparison.
+- Enabled DataGrid virtualization/recycling and removed a redundant full-grid refresh after FEFO line replacement.
+- Preserved the checkout transaction, final stock posting, accounting-operation enqueueing, and audit logging.
+
+### Verification
+- RaccoonWarehouse.Application build: passed with 0 errors; existing warnings remain.
+- Focused stock, costing, settings, and permission tests: 33 passed, 0 failed.
+- `git diff --check`: passed.
+
+### Manual check required
+- Close/restart the running POS application, perform a normal sale and an insufficient-stock sale, then review `pos-performance.log`. Confirm the sale remains atomic and the time from save to success is reduced.
+
+## 2026-10-13 - POS checkout query reduction
+
+### Scope
+- Removed the redundant stock-summary query from the POS save validation path; lot allocation remains the source of truth for final stock and cost selection.
+- Changed accounting-operation idempotency checks to `AsNoTracking().AnyAsync()` so no operation entity is materialized for existence checks.
+- Preserved stock posting, accounting-operation creation, transaction boundaries, and audit logging.
+
+### Verification
+- Focused stock, costing, settings, and permission tests: 33 passed, 0 failed.
+- Full WPF solution build: passed with 0 errors; existing compiler/package warnings remain.
+- `git diff --check`: passed.
+
+### Remaining risks and manual checks
+- The full POS timing target still depends on database/network latency and should be measured using the existing POS timing logs with representative invoices.
+- The remaining duplicate lot read between pre-check and final stock posting was intentionally preserved for concurrency safety; eliminating it requires reusing/reserving allocations inside the checkout transaction.
+
+## 2026-10-12 - Stock-lot management dashboard
+
+### Scope
+- Added a dedicated Inventory > Lot Management dashboard action.
+- Added searchable lot review with Active, Closed, and Replaced status filters.
+- Added quantity, purchase-cost, sale-price, expiry, usage, and status columns.
+- Added a details view for the selected lot and a safe handoff to the existing stock-adjustment workflow.
+- Reused the existing lot lookup and adjustment protections; no database migration is required.
+
+### Verification
+- Full WPF solution build: passed with 0 errors; existing compiler/package warnings remain.
+- Focused inventory and costing tests: 26 passed, 0 failed.
+- `git diff --check`: passed.
+
+### Remaining risks and manual checks
+- The current lot model is database-wide and has no `WarehouseId`; warehouse-specific lot management needs a separate schema phase before enabling multiple physical warehouses.
+- Verify the dashboard entry, filters, details dialog, and adjustment handoff in both Arabic and English layouts.
+
+## 2026-10-12 - Inventory costing policy foundation
+
+### Scope
+- Added the `WeightedAverage`, `FIFO`, and `FEFO` costing-method enum for the next stock-costing phase.
+- Added an `AppSettings`-backed inventory costing setting with Weighted Average as the safe default and fallback for invalid stored values.
+- Added the Settings dashboard entry, protected by the existing `Settings.ManageSettings` permission.
+- Added Arabic/English settings UI with a warning that historical invoices and transactions are not recalculated.
+- FIFO and FEFO now drive lot ordering and lot-based unit costs during outgoing allocation and stock posting.
+- Endpoint orders snapshot the allocation-derived blended unit cost onto their invoice lines before stock deduction.
+
+### Verification
+- Inventory costing, stock costing, and historical-cost tests: 7 passed, 0 failed.
+- Full WPF solution build: passed with 0 errors; existing compiler/package warnings remain.
+- `git diff --check`: passed.
+
+### Full-suite note
+- Full test run: 132 passed, 8 failed. The remaining failures are existing sales-report, voucher, purchase-validation, and accounting tests; none are in the new costing tests. The stock-rule fixture/date failures were corrected and that suite now passes 19/19.
+
+### Database
+- No schema migration or manual SQL query is required. The default setting is created automatically in `AppSettings` when the settings service first runs.
+
+## 2026-10-12 - Purchase-order invoice-number conversion fix
+
+### Scope
+- Fixed PO approval conversion failing because generated invoice numbers used the `PI-` prefix.
+- Purchase invoice numbers now remain compatible with the existing numeric 3–5 digit validation.
+- Numeric PO numbers are reused when available; otherwise an unused numeric number is generated.
+- The PO-to-invoice relationship remains available through `ConvertedInvoiceId` and invoice notes.
+
+### Verification
+- Focused PO and permission tests: 9 passed, 0 failed.
+- Application and test projects compiled successfully.
+- Full WPF solution rebuild was blocked by the running `RaccoonWarehouse` process locking output DLLs.
+
+### Manual check
+- Stop the running application, rebuild `main`, approve PO `47054`, and confirm the resulting purchase invoice number is numeric and conversion completes.
+
+## 2026-10-12 - Purchase order review, payment terms, and loading-state fixes
+
+### Scope
+- Added purchase-order detail review from the order list by double-click or View Details.
+- Displayed supplier, payment term, status, dates, notes, totals, invoice reference, and line-level product/unit details.
+- Preserved the selected payment method as a planned purchase-order term instead of hardcoding Credit.
+- Kept payment execution deferred until purchase-order approval/conversion.
+- Fixed loading overlays appearing behind success/error message boxes during PO save, approval, rejection, and detail loading.
+
+### Verification
+- Focused PO and permission tests: 9 passed, 0 failed.
+- Solution build: passed with 0 errors; existing compiler/package warnings remain.
+
+### Remaining risks and manual checks
+- Run the desktop flow and verify row double-click, View Details, Arabic/English labels, and normal/maximized window layouts.
+- Verify the selected PO payment term is visible in details and is preserved on the converted invoice.
+- Check payment details still need to be entered during approval for check payments; no payment transaction is posted when a PO is created.
+
+## 2026-10-12 - Purchase order approval and conversion
+
+### Scope
+- Separate purchase-order and purchase-order-line persistence with submitted, approved, rejected, cancelled, and converted states.
+- Purchase-order creation through the existing purchase-entry workflow, preserving supplier, product, quantity, cost, tax, discount, and expiry details.
+- Per-user purchase-order approval overrides for Admin and Casher profiles.
+- Approval conversion into a purchase invoice with accounting posting and stock movements.
+- Duplicate-conversion and invalid-state guards.
+
+### Verification
+- Focused PO and permission tests: 9 passed, 0 failed.
+- Full automated test suite: 122 passed, 10 failed, 0 skipped, 132 total.
+- Solution build: passed with 0 errors; existing compiler/package warnings remain.
+- EF migration generation: passed using the data project's design-time context factory.
+
+### Existing failures not caused by this change
+- `SalesReportServiceTests.GetSalesReportAsync_ShouldDisplayEndpointOrdersButOnlyTotalCompletedOnes`
+- `VoucherServiceCrudTests` nullable/check persistence cases
+- `StockServiceStockOutRulesTests` expired-lot and soonest-expiry cases
+- `PurchaseExpiryValidationTests` invoice-number validation ordering cases
+- `AccountingServiceReportTests` financial-transaction void and invoice-update journal cases
+
+### Remaining risks and manual checks
+- Apply the migration against a backed-up development database before production use.
+- Manually create a PO, submit it, approve it with an authorized user, and verify invoice, stock lot, supplier payable, and journal records.
+- Verify an Admin/Casher user without the profile override cannot approve, while an authorized user can.
+- Confirm Arabic/English labels and the approval window at supported window sizes.
+
 ## 2026-10-04 - Manual journal account refresh fix
 
 ### Scope

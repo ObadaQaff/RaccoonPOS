@@ -12,6 +12,10 @@
             </ResourceDictionary.MergedDictionaries>
             <FlowDirection x:Key="CurrentFlowDirection">RightToLeft</FlowDirection>
             <TextAlignment x:Key="CurrentTextAlignment">Right</TextAlignment>
+            <Style x:Key="ProductValueTextStyle" TargetType="TextBlock">
+                <Setter Property="FlowDirection" Value="LeftToRight"/>
+                <Setter Property="TextAlignment" Value="Left"/>
+            </Style>
             <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
             <DropShadowEffect x:Key="DropShadowSoft"
                   BlurRadius="20"

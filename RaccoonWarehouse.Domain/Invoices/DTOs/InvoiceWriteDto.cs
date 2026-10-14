@@ -25,7 +25,18 @@ namespace RaccoonWarehouse.Domain.Invoices.DTOs
         public PaymentType? PaymentType { get; set; }
         public int? CasherId { get; set; }
         public int? SupplierId { get; set; }
+        public int? WarehouseId { get; set; }
+        public int? CurrencyId { get; set; }
+        public DateTime? DocumentDate { get; set; }
+        public DateTime? DueDate { get; set; }
         public int? CustomerId { get; set; }
+        public bool IsInsuranceSale { get; set; }
+        public int? InsuranceMemberPolicyId { get; set; }
+        public int? InsuranceCompanyId { get; set; }
+        public int? InsuranceContractId { get; set; }
+        public int? InsuranceContractVersionId { get; set; }
+        public decimal PatientResponsibility { get; set; }
+        public decimal InsuranceResponsibility { get; set; }
         public UserWriteDto? User { get; set; }
         public int? DelegateId { get; set; }
         public string? DelegateName { get; set; }
@@ -38,6 +49,8 @@ namespace RaccoonWarehouse.Domain.Invoices.DTOs
         public ICollection<CheckWriteDto>? Checks { get; set; } = new List<CheckWriteDto>();
         public CashierSessionWriteDto? CashierSession { get; set; }
         public int? CashierSessionId { get; set; }
+        public int? CreatedBy { get; set; }
+        public int? UpdatedBy { get; set; }
         public DateTime CreatedDate { get; set; }
         public DateTime UpdatedDate { get; set; }
         // POS addons

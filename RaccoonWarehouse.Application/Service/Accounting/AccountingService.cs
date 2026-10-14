@@ -1789,6 +1789,7 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                 PaymentType.Check => PaymentMethod.Check,
                 PaymentType.MobilePayment => PaymentMethod.MobilePayment,
                 PaymentType.Credit => PaymentMethod.Credit,
+                PaymentType.InsuranceReceivable => PaymentMethod.Credit,
                 _ => PaymentMethod.Cash
             };
         }

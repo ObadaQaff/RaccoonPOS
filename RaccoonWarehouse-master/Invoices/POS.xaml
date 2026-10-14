@@ -258,7 +258,7 @@
                                                   AlternatingRowBackground="#F7F9FB" Background="White" BorderThickness="0">
                                             <DataGrid.Columns>
                                                 <DataGridTextColumn Header="الاسم"           Width="220" Binding="{Binding Name, TargetNullValue=---}"/>
-                                                <DataGridTextColumn Header="الباركود"        Width="130" Binding="{Binding ITEMCODE, TargetNullValue=---}"/>
+                                                <DataGridTextColumn Header="الباركود"        Width="130" Binding="{Binding ITEMCODE, TargetNullValue=---}" ElementStyle="{StaticResource ProductValueTextStyle}"/>
                                                 <DataGridTextColumn Header="الفئة"           Width="160" Binding="{Binding SubCategory.Name, TargetNullValue=---}"/>
                                                 <DataGridTextColumn Header="العلامة التجارية" Width="160" Binding="{Binding Brand.Name, TargetNullValue=---}"/>
                                                 <DataGridTextColumn Header="الوصف"           Width="320" Binding="{Binding Description, TargetNullValue=---}"/>
@@ -373,6 +373,14 @@
                                 </Grid.ColumnDefinitions>
                                 <iconPacks:PackIconMaterial Kind="FileDocumentPlusOutline" Width="18" Height="18" VerticalAlignment="Center"/>
                                 <TextBlock Grid.Column="2" Text="فاتورة جديدة" Style="{StaticResource SidebarButtonText}"/>
+                            </Grid>
+                        </Button>
+                        <Button Style="{StaticResource SidebarSuccessBtn}"
+                                Click="OpenInsuranceInvoiceBtn_Click" ToolTip="فاتورة تأمين / Insurance invoice">
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="8"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                <iconPacks:PackIconMaterial Kind="ShieldPlus" Width="18" Height="18" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="2" Text="فاتورة تأمين" Style="{StaticResource SidebarButtonText}"/>
                             </Grid>
                         </Button>
                         <Button Style="{StaticResource SidebarActionBtn}"
@@ -664,7 +672,7 @@
                     </StackPanel>
 
                     <!-- Invoice # badge -->
-                    <StackPanel Grid.Column="4" Margin="0,0,12,0" VerticalAlignment="Center">
+                    <StackPanel Grid.Column="4" Margin="0,0,12,0" VerticalAlignment="Center" Visibility="Collapsed">
                         <TextBlock Text="رقم فاتورة فالكون / Falcon Invoice No."
                                    Width="150"
                                    FontSize="10"
@@ -679,8 +687,7 @@
                                  Padding="8,0"
                                  VerticalContentAlignment="Center"
                                  TextAlignment="Left"
-                                 Style="{StaticResource AppSearchTextBoxStyle}"
-                                 TextChanged="FalconInvoiceNumberTextBox_TextChanged"/>
+                                 Style="{StaticResource AppSearchTextBoxStyle}"/>
                         <TextBlock x:Name="FalconInvoiceValidationText"
                                    Foreground="#C62828"
                                    FontSize="10"
@@ -922,6 +929,11 @@
                     <DataGrid x:Name="InvoiceGrid" Grid.Row="1"
                               AutoGenerateColumns="False" FontSize="13"
                               FlowDirection="RightToLeft"
+                              EnableRowVirtualization="True"
+                              EnableColumnVirtualization="True"
+                              VirtualizingPanel.IsVirtualizing="True"
+                              VirtualizingPanel.VirtualizationMode="Recycling"
+                              ScrollViewer.CanContentScroll="True"
                               Background="White" RowHeight="38"
                               HeadersVisibility="Column"
                               SelectionUnit="CellOrRowHeader" SelectionMode="Single"
@@ -938,19 +950,19 @@
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <TextBlock Text="{Binding SelectedProduct.ITEMCODE, TargetNullValue=---}"
+                                                   FlowDirection="LeftToRight"
                                                    VerticalAlignment="Center"
-                                                   Padding="4,0"
-                                                   FlowDirection="LeftToRight"/>
+                                                   Padding="4,0"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                                 <DataGridTemplateColumn.CellEditingTemplate>
                                     <DataTemplate>
                                         <TextBox Text="{Binding SelectedProduct.ITEMCODE, Mode=OneWay}"
+                                                 FlowDirection="LeftToRight"
                                                  Padding="4,2"
                                                  BorderThickness="0"
                                                  Background="Transparent"
                                                  VerticalContentAlignment="Center"
-                                                 FlowDirection="LeftToRight"
                                                  PreviewKeyDown="ProductBarcodeTextBox_PreviewKeyDown"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellEditingTemplate>
@@ -959,6 +971,7 @@
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <TextBlock Text="{Binding ProductName, TargetNullValue='---'}"
+                                                   FlowDirection="LeftToRight"
                                                    VerticalAlignment="Center" Padding="6,0"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>

@@ -3,6 +3,7 @@ using RaccoonWarehouse.Application.Service.FinancialTransactions;
 using RaccoonWarehouse.Application.Service.Invoices;
 using RaccoonWarehouse.Application.Service.Products;
 using RaccoonWarehouse.Application.Service.ProductUnits;
+using RaccoonWarehouse.Application.Service.PurchaseOrders;
 using RaccoonWarehouse.Application.Service.Stocks;
 using RaccoonWarehouse.Application.Service.StockTransactions;
 using RaccoonWarehouse.Application.Service.Users;
@@ -15,6 +16,7 @@ using RaccoonWarehouse.Domain.FinancialTransactions.DTOs;
 using RaccoonWarehouse.Domain.InvoiceLines.DTOs;
 using RaccoonWarehouse.Domain.Invoices.DTOs;
 using RaccoonWarehouse.Domain.Products;
+using RaccoonWarehouse.Domain.PurchaseOrders.DTOs;
 using RaccoonWarehouse.Domain.Products.DTOs;
 using RaccoonWarehouse.Domain.ProductUnits.DTOs;
 using RaccoonWarehouse.Domain.ProductUnits;
@@ -60,6 +62,8 @@ namespace RaccoonWarehouse.Invoices
         private readonly IFinancialTransactionService _financialService;
         private readonly IUserSession _userSession;
         private readonly ILoadingService _loadingService;
+        private readonly IPurchaseOrderService _purchaseOrderService;
+        private bool _isPurchaseOrderMode;
         private bool _isLoadingUnits = false;
         private int _productSelectionVersion;
         private string _productSearchText = string.Empty;
@@ -78,7 +82,8 @@ namespace RaccoonWarehouse.Invoices
             IUserSession userSession,
             IStockTransactionService stockTransactionService,
             IFinancialTransactionService financialService,
-            ILoadingService loadingService)
+            ILoadingService loadingService,
+            IPurchaseOrderService purchaseOrderService)
         {
             _stockService = stockService;
             _productService = productService;
@@ -89,6 +94,7 @@ namespace RaccoonWarehouse.Invoices
             _userSession = userSession;
             _financialService = financialService;
             _loadingService = loadingService;
+            _purchaseOrderService = purchaseOrderService;
             _isLoadingUnits = false;
 
             InitializeComponent();
@@ -104,6 +110,27 @@ namespace RaccoonWarehouse.Invoices
             Loaded += PayInvoice_Loaded;
             Closed += PayInvoice_Closed;
             CatalogRefreshNotifier.CatalogChanged += CatalogRefreshNotifier_CatalogChanged;
+        }
+
+        public void ConfigureAsPurchaseOrder()
+        {
+            _isPurchaseOrderMode = true;
+            var purchaseOrderTitle = UiText.T("أمر شراء", "Purchase Order");
+            Title = purchaseOrderTitle;
+            if (HeaderBorder.Child is TextBlock headerText)
+                headerText.Text = purchaseOrderTitle;
+            InvoiceNumberLabel.Text = UiText.T("رقم أمر الشراء", "Purchase order number");
+
+            Title = UiText.T("أمر شراء", "Purchase Order");
+            SaveReceiptBtn.ToolTip = UiText.T("حفظ أمر الشراء", "Save purchase order");
+            if (SaveReceiptBtn.Content is Panel savePanel && savePanel.Children.OfType<TextBlock>().FirstOrDefault() is TextBlock saveText)
+                saveText.Text = UiText.T("حفظ أمر الشراء", "Save purchase order");
+            if (FalconInvoiceNumberTextBox.Parent is Panel falconPanel)
+                falconPanel.Visibility = Visibility.Collapsed;
+            ChecksBtn.Visibility = Visibility.Collapsed;
+            SearchInvoiceBtn.Visibility = Visibility.Collapsed;
+            PrintBtn.Visibility = Visibility.Collapsed;
+            NewInvoiceBtn.Visibility = Visibility.Collapsed;
         }
 
         private string GenerateInvoiceNumber()
@@ -139,7 +166,7 @@ namespace RaccoonWarehouse.Invoices
 
                 InvoiceDatePicker.SelectedDate = DateTime.Now;
 
-                PaymentMethodComboBox.SelectedIndex = 0;
+                PaymentMethodComboBox.SelectedIndex = _isPurchaseOrderMode ? 3 : 0;
                 UiText.ApplyTranslations(PaymentMethodComboBox);
 
                 HideLoadingIfShown();
@@ -1009,7 +1036,9 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
                 }
 
                 if (MessageBox.Show(
-                        UiText.T("هل تريد حفظ فاتورة المشتريات؟", "Do you want to save the purchase invoice?"),
+                        _isPurchaseOrderMode
+                            ? UiText.T("هل تريد حفظ أمر الشراء؟", "Do you want to save the purchase order?")
+                            : UiText.T("هل تريد حفظ فاتورة المشتريات؟", "Do you want to save the purchase invoice?"),
                         UiText.T("تأكيد الحفظ", "Confirm save"),
                         MessageBoxButton.YesNo,
                         MessageBoxImage.Question) != MessageBoxResult.Yes)
@@ -1021,6 +1050,13 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
                 PreparePurchasePricesForSave();
                 purchaseTotals = CalculatePurchaseTotals();
                 totalAmount = purchaseTotals.Total;
+
+                if (_isPurchaseOrderMode)
+                {
+                    await SavePurchaseOrderAsync(supplier, purchaseTotals);
+                    return;
+                }
+
                 if (!TryGetActiveCashierSession(out var session))
                     return;
 
@@ -1287,6 +1323,72 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
             finally
             {
                 HideLoadingIfShown();
+            }
+        }
+
+        private async Task SavePurchaseOrderAsync(UserReadDto? supplier, (decimal Subtotal, decimal Tax, decimal Discount, decimal Total) totals)
+        {
+            if (supplier == null)
+            {
+                MessageBox.Show(UiText.T("يرجى اختيار المورد.", "Please select a supplier."), UiText.T("تنبيه", "Notice"));
+                return;
+            }
+
+            _loadingService.Show();
+            try
+            {
+                var dto = new PurchaseOrderWriteDto
+                {
+                    OrderNumber = InvoiceNumberTextBox.Text.Trim(),
+                    SupplierId = supplier.Id,
+                    PaymentType = GetSelectedPaymentType(),
+                    DocumentDate = InvoiceDatePicker.SelectedDate ?? DateTime.Now,
+                    SubTotal = totals.Subtotal,
+                    TotalTax = totals.Tax,
+                    DiscountAmount = totals.Discount,
+                    TotalAmount = totals.Total,
+                    CostPriceIncludesTax = CostPriceIncludesTax,
+                    Lines = InvoiceLines.Select(line => new PurchaseOrderLineWriteDto
+                    {
+                        ProductId = line.ProductId,
+                        ProductUnitId = line.ProductUnitId,
+                        Quantity = line.Quantity,
+                        QuantityPerUnitSnapshot = line.QuantityPerUnitSnapshot,
+                        BaseQuantity = line.BaseQuantity,
+                        UnitPrice = line.UnitPrice,
+                        UnitCost = line.UnitCost,
+                        LineDiscountAmount = line.LineDiscountAmount,
+                        FreeQuantity = line.FreeQuantity,
+                        ExpiryDate = line.ExpiryDate == DateTime.MinValue ? null : line.ExpiryDate,
+                        TaxExempt = line.TaxExempt,
+                        TaxRate = line.TaxRate,
+                        TaxAmount = line.TaxAmount,
+                        LineSubTotal = line.LineSubTotal
+                    }).ToList()
+                };
+
+                var result = await _purchaseOrderService.CreateAsync(dto);
+                if (!result.Success)
+                {
+                    _loadingService.Hide();
+                    MessageBox.Show(result.Message ?? UiText.T("فشل حفظ أمر الشراء.", "Purchase order could not be saved."));
+                    return;
+                }
+
+                _loadingService.Hide();
+                MessageBox.Show(
+                    UiText.T("تم حفظ أمر الشراء وإرساله للاعتماد.", "Purchase order submitted for approval."),
+                    UiText.T("نجاح", "Success"));
+                Close();
+            }
+            catch (Exception ex)
+            {
+                _loadingService.Hide();
+                MessageBox.Show(ex.Message, UiText.T("خطأ", "Error"));
+            }
+            finally
+            {
+                _loadingService.Hide();
             }
         }
 

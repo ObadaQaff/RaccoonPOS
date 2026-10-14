@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using RaccoonWarehouse.Application.Service.Accounting;
 using RaccoonWarehouse.Application.Service.Generic;
 using RaccoonWarehouse.Application.Service.Sales;
+using RaccoonWarehouse.Application.Service.Settings;
 using RaccoonWarehouse.Core.Common;
 using RaccoonWarehouse.Core.Interface;
 using RaccoonWarehouse.Data;
@@ -28,16 +29,24 @@ namespace RaccoonWarehouse.Application.Service.Stocks
         private readonly IUOW _uow;
         private readonly IMapper _mapper;
         private readonly IAccountingService? _accountingService;
+        private readonly IInventoryCostingSettingsService? _inventoryCostingSettingsService;
 
-        public StockService(ApplicationDbContext context, IUOW uow, IMapper mapper) : this(context, uow, mapper, null)
+        public StockService(ApplicationDbContext context, IUOW uow, IMapper mapper)
+            : this(context, uow, mapper, null, null)
         {
         }
 
-        public StockService(ApplicationDbContext context, IUOW uow, IMapper mapper, IAccountingService? accountingService) : base(context, uow, mapper)
+        public StockService(
+            ApplicationDbContext context,
+            IUOW uow,
+            IMapper mapper,
+            IAccountingService? accountingService,
+            IInventoryCostingSettingsService? inventoryCostingSettingsService = null) : base(context, uow, mapper)
         {
             _uow = uow;
             _mapper = mapper;
             _accountingService = accountingService;
+            _inventoryCostingSettingsService = inventoryCostingSettingsService;
         }
 
         public override Task<Result<StockWriteDto>> UpdateAsync(StockWriteDto dto)
@@ -504,6 +513,7 @@ namespace RaccoonWarehouse.Application.Service.Stocks
             var lotsByProduct = availableLots
                 .GroupBy(lot => lot.ProductId)
                 .ToDictionary(group => group.Key, group => group.ToList());
+            var costingMethod = await GetCurrentCostingMethodAsync();
 
             foreach (var request in items)
             {
@@ -519,6 +529,7 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                 var lots = lotsByProduct.TryGetValue(request.ProductId, out var productLots)
                     ? productLots
                     : new List<StockLot>();
+                lots = OrderAvailableLots(lots, costingMethod).ToList();
                 var totalAvailableBaseQuantity = lots.Sum(lot => lot.RemainingBaseQuantity);
                 var availableQuantityAfterAllocation = Math.Max(
                     totalAvailableBaseQuantity - (request.Quantity * requestedFactor),
@@ -540,9 +551,11 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                         continue;
 
                     var allocatedQuantity = allocatedBaseQuantity / requestedFactor;
-                    var purchasePrice = averagePurchasePrice > 0m
+                    var purchasePrice = costingMethod == InventoryCostingMethod.WeightedAverage
                         ? averagePurchasePrice
-                        : selectedUnit.PurchasePrice;
+                        : ConvertLotCostToRequestedUnit(lot, requestedFactor);
+                    if (purchasePrice <= 0m)
+                        purchasePrice = selectedUnit.PurchasePrice;
                     var salePrice = lot.SalePrice > 0m
                         ? lot.SalePrice
                         : selectedUnit.SalePrice;
@@ -899,6 +912,8 @@ namespace RaccoonWarehouse.Application.Service.Stocks
             if (errors.Count > 0)
                 return Result.Fail("Invalid stock movement.", errors.Distinct().ToList());
 
+            var costingMethod = await GetCurrentCostingMethodAsync();
+
             LogStockTiming("stock movement validation", totalTiming, stepTiming);
 
             var stockRepo = _uow.GetRepository<Stock>();
@@ -988,7 +1003,10 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                     var remainingToConsume = Math.Abs(dto.Quantity);
                     var requestedFactor = dto.QuantityPerUnitSnapshot > 0 ? dto.QuantityPerUnitSnapshot : 1m;
                     outgoingLotsByProduct.TryGetValue(dto.ProductId, out var availableLots);
-                    var candidates = GetAvailableLots(availableLots ?? Enumerable.Empty<StockLot>(), dto).ToList();
+                    var candidates = OrderAvailableLots(
+                        GetAvailableLots(availableLots ?? Enumerable.Empty<StockLot>(), dto),
+                        costingMethod,
+                        dto).ToList();
                     var totalAvailableBeforeConsumption = candidates.Sum(x => x.RemainingBaseQuantity) / requestedFactor;
 
                     if (!candidates.Any())
@@ -1240,6 +1258,75 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                 .OrderBy(lot => lot.ExpiryDate == null ? 1 : 0)
                 .ThenBy(lot => lot.ExpiryDate)
                 .ThenBy(lot => lot.CreatedDate);
+        }
+
+        private static IEnumerable<StockLot> OrderAvailableLots(
+            IEnumerable<StockLot> lots,
+            InventoryCostingMethod costingMethod,
+            StockMovementPostDto? hint = null)
+        {
+            var ordered = lots.Where(lot =>
+                lot.Status == BatchStatus.Active &&
+                lot.RemainingBaseQuantity > 0 &&
+                (!lot.ExpiryDate.HasValue || lot.ExpiryDate.Value <= DateTime.MinValue.AddDays(1) || lot.ExpiryDate.Value >= DateTime.Today));
+
+            if (hint?.ProductUnitId > 0)
+                ordered = ordered.Where(lot => lot.ProductUnitId == hint.ProductUnitId);
+
+            if (hint?.StockLotId is > 0)
+            {
+                return costingMethod switch
+                {
+                    InventoryCostingMethod.FIFO => ordered
+                        .OrderByDescending(lot => lot.Id == hint.StockLotId)
+                        .ThenBy(lot => lot.CreatedDate)
+                        .ThenBy(lot => lot.Id),
+                    InventoryCostingMethod.FEFO => ordered
+                        .OrderByDescending(lot => lot.Id == hint.StockLotId)
+                        .ThenBy(lot => lot.ExpiryDate == null ? 1 : 0)
+                        .ThenBy(lot => lot.ExpiryDate)
+                        .ThenBy(lot => lot.CreatedDate)
+                        .ThenBy(lot => lot.Id),
+                    _ => ordered
+                        .OrderByDescending(lot => lot.Id == hint.StockLotId)
+                        .ThenBy(lot => lot.ExpiryDate == null ? 1 : 0)
+                        .ThenBy(lot => lot.ExpiryDate)
+                        .ThenBy(lot => lot.CreatedDate)
+                        .ThenBy(lot => lot.Id)
+                };
+            }
+
+            return costingMethod switch
+            {
+                InventoryCostingMethod.FIFO => ordered
+                    .OrderBy(lot => lot.CreatedDate)
+                    .ThenBy(lot => lot.Id),
+                InventoryCostingMethod.FEFO => ordered
+                    .OrderBy(lot => lot.ExpiryDate == null ? 1 : 0)
+                    .ThenBy(lot => lot.ExpiryDate)
+                    .ThenBy(lot => lot.CreatedDate)
+                    .ThenBy(lot => lot.Id),
+                _ => ordered
+                    .OrderBy(lot => lot.ExpiryDate == null ? 1 : 0)
+                    .ThenBy(lot => lot.ExpiryDate)
+                    .ThenBy(lot => lot.CreatedDate)
+                    .ThenBy(lot => lot.Id)
+            };
+        }
+
+        private async Task<InventoryCostingMethod> GetCurrentCostingMethodAsync()
+        {
+            if (_inventoryCostingSettingsService == null)
+                return InventoryCostingMethod.WeightedAverage;
+
+            return await _inventoryCostingSettingsService.GetCurrentMethodAsync();
+        }
+
+        private static decimal ConvertLotCostToRequestedUnit(StockLot lot, decimal requestedFactor)
+        {
+            var lotFactor = lot.QuantityPerUnitSnapshot > 0 ? lot.QuantityPerUnitSnapshot : 1m;
+            var targetFactor = requestedFactor > 0 ? requestedFactor : 1m;
+            return Math.Round((lot.PurchasePrice / lotFactor) * targetFactor, 3);
         }
 
         private static async Task SyncStockSummariesAsync(

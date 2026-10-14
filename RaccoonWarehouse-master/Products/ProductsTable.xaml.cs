@@ -34,7 +34,7 @@ namespace RaccoonWarehouse.Products
 
         private int _currentPage = 1;
         private int _totalPages = 1;
-        private const int PageSize = 20;
+        private const int PageSize = 100;
 
         private string _currentNameSearch = string.Empty;
         private string _currentBarcodeSearch = string.Empty;

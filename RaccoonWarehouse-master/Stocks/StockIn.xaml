@@ -474,7 +474,7 @@
 
                             <!-- Product Name -->
                             <DataGridTextColumn Header="المنتج" Width="3*"
-                            Binding="{Binding ProductName}" />
+                            Binding="{Binding ProductName}" ElementStyle="{StaticResource ProductValueTextStyle}" />
 
                             <!-- Unit -->
                             <DataGridTextColumn Header="الوحدة" Width="1*"

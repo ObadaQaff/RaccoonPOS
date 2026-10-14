@@ -272,7 +272,7 @@
                               Style="{StaticResource MinimalDataGrid}"
                               MouseDoubleClick="LinesGrid_MouseDoubleClick">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="الصنف" Binding="{Binding ProductName}" Width="220"/>
+                            <DataGridTextColumn Header="الصنف" Binding="{Binding ProductName}" ElementStyle="{StaticResource ProductValueTextStyle}" Width="220"/>
                             <DataGridTextColumn Header="الوحدة" Binding="{Binding UnitName}" Width="120"/>
                             <DataGridTextColumn Header="الكمية" Binding="{Binding Quantity}" Width="90"/>
 

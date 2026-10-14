@@ -20,7 +20,9 @@ using RaccoonWarehouse.Domain.FinancialTransactions;
 using RaccoonWarehouse.Domain.InvoiceLines;
 using RaccoonWarehouse.Domain.Invoices;
 using RaccoonWarehouse.Domain.Integration;
+using RaccoonWarehouse.Domain.Insurance;
 using RaccoonWarehouse.Domain.Permissions;
+using RaccoonWarehouse.Domain.PurchaseOrders;
 using RaccoonWarehouse.Domain.Audit;
 using RaccoonWarehouse.Domain.Products;
 using RaccoonWarehouse.Domain.ProductUnits;
@@ -48,6 +50,9 @@ namespace RaccoonWarehouse.Data
         public DbSet<ReportPermission> ReportPermissions => Set<ReportPermission>();
         public DbSet<PermissionDefinition> PermissionDefinitions => Set<PermissionDefinition>();
         public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
+        public DbSet<UserPermission> UserPermissions => Set<UserPermission>();
+        public DbSet<PurchaseOrder> PurchaseOrders => Set<PurchaseOrder>();
+        public DbSet<PurchaseOrderLine> PurchaseOrderLines => Set<PurchaseOrderLine>();
         public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
         public DbSet<AppSetting> AppSettings => Set<AppSetting>();
         public DbSet<Account> Accounts => Set<Account>();
@@ -69,6 +74,27 @@ namespace RaccoonWarehouse.Data
         public DbSet<ExchangeRate> ExchangeRates => Set<ExchangeRate>();
         public DbSet<IntegrationInbox> IntegrationInbox => Set<IntegrationInbox>();
         public DbSet<InvoicePayment> InvoicePayments => Set<InvoicePayment>();
+        public DbSet<InsuranceCompany> InsuranceCompanies => Set<InsuranceCompany>();
+        public DbSet<InsuranceNetwork> InsuranceNetworks => Set<InsuranceNetwork>();
+        public DbSet<InsuranceBeneficiaryCategory> InsuranceBeneficiaryCategories => Set<InsuranceBeneficiaryCategory>();
+        public DbSet<InsuranceContract> InsuranceContracts => Set<InsuranceContract>();
+        public DbSet<InsuranceContractVersion> InsuranceContractVersions => Set<InsuranceContractVersion>();
+        public DbSet<InsurancePlan> InsurancePlans => Set<InsurancePlan>();
+        public DbSet<InsuranceCoverageRule> InsuranceCoverageRules => Set<InsuranceCoverageRule>();
+        public DbSet<InsuranceExclusion> InsuranceExclusions => Set<InsuranceExclusion>();
+        public DbSet<InsuranceMemberPolicy> InsuranceMemberPolicies => Set<InsuranceMemberPolicy>();
+        public DbSet<InsuranceEligibilityCheck> InsuranceEligibilityChecks => Set<InsuranceEligibilityCheck>();
+        public DbSet<InsuranceInvoiceCoverage> InsuranceInvoiceCoverages => Set<InsuranceInvoiceCoverage>();
+        public DbSet<InsuranceInvoiceCoverageLine> InsuranceInvoiceCoverageLines => Set<InsuranceInvoiceCoverageLine>();
+        public DbSet<InsuranceClaimBatch> InsuranceClaimBatches => Set<InsuranceClaimBatch>();
+        public DbSet<InsuranceClaim> InsuranceClaims => Set<InsuranceClaim>();
+        public DbSet<InsuranceClaimLine> InsuranceClaimLines => Set<InsuranceClaimLine>();
+        public DbSet<InsuranceClaimAdjustment> InsuranceClaimAdjustments => Set<InsuranceClaimAdjustment>();
+        public DbSet<InsuranceClaimPayment> InsuranceClaimPayments => Set<InsuranceClaimPayment>();
+        public DbSet<InsuranceClaimPaymentAllocation> InsuranceClaimPaymentAllocations => Set<InsuranceClaimPaymentAllocation>();
+        public DbSet<InsurancePreAuthorization> InsurancePreAuthorizations => Set<InsurancePreAuthorization>();
+        public DbSet<InsurancePreAuthorizationLine> InsurancePreAuthorizationLines => Set<InsurancePreAuthorizationLine>();
+        public DbSet<InsuranceAttachment> InsuranceAttachments => Set<InsuranceAttachment>();
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
@@ -114,6 +140,20 @@ namespace RaccoonWarehouse.Data
                 .HasIndex(x => new { x.Role, x.PermissionKey })
                 .IsUnique();
 
+            modelBuilder.Entity<UserPermission>()
+                .HasIndex(x => new { x.UserId, x.PermissionKey })
+                .IsUnique();
+
+            modelBuilder.Entity<PurchaseOrder>()
+                .HasIndex(x => x.OrderNumber)
+                .IsUnique();
+
+            modelBuilder.Entity<PurchaseOrderLine>()
+                .HasOne(x => x.PurchaseOrder)
+                .WithMany(x => x.Lines)
+                .HasForeignKey(x => x.PurchaseOrderId)
+                .OnDelete(DeleteBehavior.Cascade);
+
             modelBuilder.Entity<AuditLog>()
                 .HasIndex(x => new { x.CreatedDate, x.UserId });
 
@@ -133,6 +173,54 @@ namespace RaccoonWarehouse.Data
             modelBuilder.Entity<AppSetting>()
                 .HasIndex(x => x.Key)
                 .IsUnique();
+
+            modelBuilder.Entity<InsuranceCompany>()
+                .HasIndex(x => x.Code)
+                .IsUnique();
+            modelBuilder.Entity<InsuranceNetwork>()
+                .HasIndex(x => x.Code)
+                .IsUnique();
+            modelBuilder.Entity<InsuranceBeneficiaryCategory>()
+                .HasIndex(x => x.Code)
+                .IsUnique();
+            modelBuilder.Entity<InsuranceContract>()
+                .HasIndex(x => x.ContractNumber)
+                .IsUnique();
+            modelBuilder.Entity<InsuranceContractVersion>()
+                .HasIndex(x => new { x.InsuranceContractId, x.VersionNumber })
+                .IsUnique();
+            modelBuilder.Entity<InsurancePlan>()
+                .HasIndex(x => new { x.InsuranceContractId, x.Code })
+                .IsUnique();
+            modelBuilder.Entity<InsuranceMemberPolicy>()
+                .HasIndex(x => new { x.InsuranceCompanyId, x.MemberNumber });
+            modelBuilder.Entity<InsuranceEligibilityCheck>()
+                .HasIndex(x => new { x.InsuranceMemberPolicyId, x.CheckedAt });
+            modelBuilder.Entity<InsuranceInvoiceCoverage>()
+                .HasIndex(x => x.InvoiceId)
+                .IsUnique();
+            modelBuilder.Entity<InsuranceInvoiceCoverageLine>()
+                .HasIndex(x => new { x.InsuranceInvoiceCoverageId, x.InvoiceLineId })
+                .IsUnique();
+            modelBuilder.Entity<InsuranceClaim>()
+                .HasIndex(x => x.ClaimNumber)
+                .IsUnique();
+            modelBuilder.Entity<InsuranceClaim>()
+                .HasIndex(x => new { x.InsuranceCompanyId, x.Status, x.SubmissionDate });
+            modelBuilder.Entity<InsuranceClaimLine>()
+                .HasIndex(x => new { x.InsuranceClaimId, x.InvoiceLineId })
+                .IsUnique();
+            modelBuilder.Entity<InsuranceClaimPaymentAllocation>()
+                .HasIndex(x => new { x.InsuranceClaimPaymentId, x.InsuranceClaimId })
+                .IsUnique();
+            modelBuilder.Entity<InsurancePreAuthorization>()
+                .HasIndex(x => x.AuthorizationNumber)
+                .IsUnique();
+            modelBuilder.Entity<InsurancePreAuthorizationLine>()
+                .HasIndex(x => new { x.InsurancePreAuthorizationId, x.ProductId })
+                .IsUnique();
+            modelBuilder.Entity<InsuranceAttachment>()
+                .HasIndex(x => new { x.OwnerType, x.OwnerId });
 
             modelBuilder.Entity<JournalEntry>()
                 .HasIndex(x => x.EntryNumber)

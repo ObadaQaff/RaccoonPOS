@@ -37,7 +37,20 @@ documents, adjustments, external reconciliation, and stock reporting.
 
 ## Services And Models
 
-- `IStockService`: movement posting, FEFO, summaries, lots, and adjustments.
+- `IStockService`: movement posting, policy-driven Weighted Average/FIFO/FEFO allocation, summaries, lots, and adjustments.
+
+## Inventory costing policy
+
+The active inventory costing method is stored per database in `AppSettings` under
+`InventoryCostingMethod`. It defaults to `WeightedAverage` for existing customers.
+
+- `WeightedAverage`: preserves the legacy cost behavior and uses the quantity-weighted cost of available lots.
+- `FIFO`: consumes the oldest available lot first and snapshots each lot's cost into outgoing invoice lines.
+- `FEFO`: consumes the lot with the earliest usable expiry first and snapshots each lot's cost into outgoing invoice lines.
+
+The method affects future outgoing movements only. Invoice-line `UnitCost`, COGS,
+accounting entries, and historical reports remain snapshots and are never rewritten
+when the setting changes.
 - `IStockDocumentService`: document persistence, search, and accounting.
 - `IStockTransactionService`: validated transaction operations.
 - `IStockReportService`: inventory reporting.

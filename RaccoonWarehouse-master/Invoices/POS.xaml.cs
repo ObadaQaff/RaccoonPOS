@@ -321,9 +321,6 @@ namespace RaccoonWarehouse.Invoices
         private ObservableCollection<UserReadDto> _allCustomers;
         private bool _isFilteringCustomers;
         private bool _isNavigatingCustomerChoices;
-        private int _falconValidationVersion;
-        private string? _lastFalconDuplicateMessageValue;
-        private readonly SemaphoreSlim _falconValidationGate = new(1, 1);
         private readonly ILoadingService _loading;
         private ObservableCollection<ProductReadDto> Products { get; set; }
             = new ObservableCollection<ProductReadDto>();
@@ -438,6 +435,20 @@ namespace RaccoonWarehouse.Invoices
             }
         }
 
+        private void OpenInsuranceInvoiceBtn_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var window = _serviceProvider.GetRequiredService<RaccoonWarehouse.Insurance.InsuranceInvoiceWindow>();
+                window.Owner = this;
+                window.ShowDialog();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message, UiText.T("خطأ", "Error"));
+            }
+        }
+
         private async Task LoadCustomersAsync(int? selectCustomerId = null)
         {
             var result = await _userService.GetAllAsync();
@@ -510,7 +521,6 @@ namespace RaccoonWarehouse.Invoices
             _browseSearchDebounceTimer.Tick -= BrowseSearchDebounceTimer_Tick;
             _browseLoadCts?.Cancel();
             _browseLoadCts?.Dispose();
-            CancelFalconValidation();
         }
         private string GenerateInvoiceNumber()
         {
@@ -2193,7 +2203,6 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
                 targetLine ??= splitLine;
             }
 
-            InvoiceGrid.Items.Refresh();
             RecalculateTotals();
             return targetLine;
         }
@@ -2275,31 +2284,8 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
                 }));
             var availabilityByKey = (availabilityResult.Data ?? new List<StockAvailabilityDto>())
                 .ToDictionary(x => (x.ProductId, x.ProductUnitId), x => x.AvailableQuantity);
-            var productIds = sellableLines.Select(line => line.ProductId).Distinct().ToList();
-            var productUnitIds = sellableLines.Select(line => line.ProductUnitId).Distinct().ToList();
-            var stockSnapshotResult = await _stockService.GetAllWriteDtoWithFilteringAndIncludeAsync(
-                stock => productIds.Contains(stock.ProductId) && productUnitIds.Contains(stock.ProductUnitId));
-            var stockByKey = (stockSnapshotResult.Data ?? new List<StockWriteDto>())
-                .GroupBy(stock => (stock.ProductId, stock.ProductUnitId))
-                .ToDictionary(group => group.Key, group => group.First());
-
             foreach (var line in sellableLines)
             {
-                stockByKey.TryGetValue((line.ProductId, line.ProductUnitId), out var stock);
-                if (stock != null)
-                {
-                    _stockLookup[(stock.ProductId, stock.ProductUnitId)] = new StockReadDto
-                    {
-                        ProductId = stock.ProductId,
-                        ProductUnitId = stock.ProductUnitId,
-                        Quantity = stock.Quantity,
-                        PurchasePrice = stock.PurchasePrice,
-                        SalePrice = stock.SalePrice
-                    };
-
-                    line.UnitCost = stock.PurchasePrice;
-                }
-
                 var availableQuantity = availabilityByKey.TryGetValue(
                     (line.ProductId, line.ProductUnitId), out var available)
                     ? available
@@ -2425,15 +2411,6 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
 
         private bool CanSaveInvoice()
         {
-            if (string.IsNullOrWhiteSpace(FalconInvoiceNumberTextBox.Text))
-            {
-                ShowPaymentValidationMessage(
-                    UiText.T("رقم فالكون مطلوب.", "Falcon invoice number is required."),
-                    UiText.T("تنبيه", "Notice"));
-                FalconInvoiceNumberTextBox.Focus();
-                return false;
-            }
-
             if (_currentInvoice.InvoiceType is InvoiceType.Return or InvoiceType.PurchaseReturn)
             {
                 if (!_invoiceLines.OfType<ReturnInvoiceLine>().Any(line => line.ReturnedQuantity > 0))
@@ -2467,125 +2444,6 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
              }*/
 
             return true;
-        }
-
-        private async void FalconInvoiceNumberTextBox_TextChanged(object sender, TextChangedEventArgs e)
-        {
-            var validationVersion = ++_falconValidationVersion;
-            var value = FalconInvoiceNumberTextBox.Text?.Trim();
-
-            FalconInvoiceValidationText.Text = string.Empty;
-            FalconInvoiceValidationText.Visibility = Visibility.Collapsed;
-
-            if (string.IsNullOrWhiteSpace(value))
-                return;
-
-            try
-            {
-                await Task.Delay(250);
-                if (validationVersion != _falconValidationVersion ||
-                    !string.Equals(value, FalconInvoiceNumberTextBox.Text?.Trim(), StringComparison.Ordinal))
-                    return;
-
-                await _falconValidationGate.WaitAsync();
-                InvoiceReadDto? duplicate;
-                try
-                {
-                    if (validationVersion != _falconValidationVersion ||
-                        !string.Equals(value, FalconInvoiceNumberTextBox.Text?.Trim(), StringComparison.Ordinal))
-                        return;
-
-                    duplicate = await FindFalconInvoiceForValidationAsync(
-                        value,
-                        _currentInvoice.Id > 0 ? _currentInvoice.Id : null);
-                }
-                finally
-                {
-                    _falconValidationGate.Release();
-                }
-
-                if (validationVersion != _falconValidationVersion || !string.Equals(value, FalconInvoiceNumberTextBox.Text?.Trim(), StringComparison.Ordinal))
-                    return;
-
-                if (duplicate == null)
-                    return;
-
-                FalconInvoiceValidationText.Text = UiText.T(
-                    $"رقم فالكون مستخدم في الفاتورة {duplicate.InvoiceNumber} بتاريخ {duplicate.CreatedDate:yyyy-MM-dd}.",
-                    $"Falcon number is already used by invoice {duplicate.InvoiceNumber} dated {duplicate.CreatedDate:yyyy-MM-dd}.");
-                FalconInvoiceValidationText.Visibility = Visibility.Visible;
-
-                if (!string.Equals(_lastFalconDuplicateMessageValue, value, StringComparison.Ordinal))
-                {
-                    _lastFalconDuplicateMessageValue = value;
-                    MessageBox.Show(
-                        FalconInvoiceValidationText.Text,
-                        UiText.T("تنبيه", "Notice"),
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Warning);
-                }
-            }
-            catch (Exception ex)
-            {
-                if (validationVersion != _falconValidationVersion)
-                    return;
-
-                FalconInvoiceValidationText.Text = UiText.T(
-                    $"تعذر التحقق من رقم فالكون: {ex.Message}",
-                    $"Falcon number validation failed: {ex.Message}");
-                FalconInvoiceValidationText.Visibility = Visibility.Visible;
-            }
-        }
-
-        private async Task<bool> ValidateFalconNumberBeforeSaveAsync()
-        {
-            var value = FalconInvoiceNumberTextBox.Text?.Trim();
-            if (string.IsNullOrWhiteSpace(value))
-                return false;
-
-            // Stop the debounce check and wait for any already-running lookup so the
-            // save-time validation never uses the shared DbContext concurrently.
-            CancelFalconValidation();
-            await _falconValidationGate.WaitAsync();
-            InvoiceReadDto? duplicate;
-            try
-            {
-                duplicate = await FindFalconInvoiceForValidationAsync(
-                    value,
-                    _currentInvoice.Id > 0 ? _currentInvoice.Id : null);
-            }
-            finally
-            {
-                _falconValidationGate.Release();
-            }
-            if (duplicate == null)
-                return true;
-
-            var message = UiText.T(
-                $"رقم فالكون مستخدم في الفاتورة {duplicate.InvoiceNumber} بتاريخ {duplicate.CreatedDate:yyyy-MM-dd}.",
-                $"Falcon number is already used by invoice {duplicate.InvoiceNumber} dated {duplicate.CreatedDate:yyyy-MM-dd}.");
-            FalconInvoiceValidationText.Text = message;
-            FalconInvoiceValidationText.Visibility = Visibility.Visible;
-            ShowPaymentValidationMessage(message, UiText.T("تنبيه", "Notice"));
-            FalconInvoiceNumberTextBox.Focus();
-            return false;
-        }
-
-        private async Task<InvoiceReadDto?> FindFalconInvoiceForValidationAsync(
-            string value,
-            int? excludeInvoiceId)
-        {
-            // Falcon validation is read-only. Use a dedicated scope/context so it
-            // cannot collide with product loading or another POS operation that is
-            // still using the window's shared context.
-            using var scope = _serviceProvider.CreateScope();
-            var invoiceService = scope.ServiceProvider.GetRequiredService<IInvoiceService>();
-            return await invoiceService.FindPOSInvoiceByFalconNumberAsync(value, excludeInvoiceId);
-        }
-
-        private void CancelFalconValidation()
-        {
-            Interlocked.Increment(ref _falconValidationVersion);
         }
 
         #region Return and exchange validation helpers
@@ -2898,14 +2756,15 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
             else if (string.IsNullOrWhiteSpace(CustomerComboBox.Text))
                 _currentInvoice.CustomerId = null;
             _currentInvoice.IsPOS = true;
-            _currentInvoice.FalconInvoiceNumber = FalconInvoiceNumberTextBox.Text.Trim();
+            _currentInvoice.FalconInvoiceNumber = string.IsNullOrWhiteSpace(FalconInvoiceNumberTextBox.Text)
+                ? null
+                : FalconInvoiceNumberTextBox.Text.Trim();
             _currentInvoice.Status = InvoiceStatus.Completed;
             _currentInvoice.ClosedAt = DateTime.Now;
             RecalculateTotals();
         }
         private void ResetPOS()
         {
-            CancelFalconValidation();
             Interlocked.Increment(ref _posResetVersion);
             _pendingFefoEditedLine = null;
             _hasPendingFefoSplit = false;
@@ -3456,7 +3315,9 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
                 _currentInvoice.InvoiceLines = linesToHold;
                 _currentInvoice.Status = InvoiceStatus.OnHold;
                 _currentInvoice.IsPOS = true;
-                _currentInvoice.FalconInvoiceNumber = FalconInvoiceNumberTextBox.Text.Trim();
+            _currentInvoice.FalconInvoiceNumber = string.IsNullOrWhiteSpace(FalconInvoiceNumberTextBox.Text)
+                ? null
+                : FalconInvoiceNumberTextBox.Text.Trim();
                 _currentInvoice.ClosedAt = null;
                 _currentInvoice.HeldColor = heldColor;
                 _currentInvoice.DeferAccountingPosting = true;
@@ -5399,13 +5260,7 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
                 LogPosTiming("click to processing indicator", timing, stepTiming);
                 _currentInvoice.PaymentType = paymentType;
 
-                // 1. Validate invoice number, draft lines, return rules, and cashier session.
-                if (!await ValidateFalconNumberBeforeSaveAsync())
-                {
-                    StopForValidationMessage();
-                    return;
-                }
-
+                // 1. Validate draft lines, return rules, and cashier session.
                 if (!CanSaveInvoice())
                 {
                     StopForValidationMessage();
@@ -5436,12 +5291,6 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
 
                 ShowLoadingForWork();
                 LogPosTiming("payment validation", timing, stepTiming);
-                if (!await ValidateStockAvailabilityAsync())
-                {
-                    StopForValidationMessage();
-                    return;
-                }
-
                 ShowLoadingForWork();
                 LogPosTiming("stock validation", timing, stepTiming);
 

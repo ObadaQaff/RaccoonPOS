@@ -21,6 +21,13 @@ namespace RaccoonWarehouse.Domain.Invoices
         public int? CasherId { get; set; }
         public int? SupplierId { get; set; }
         public int? CustomerId { get; set; }
+        public bool IsInsuranceSale { get; set; }
+        public int? InsuranceMemberPolicyId { get; set; }
+        public int? InsuranceCompanyId { get; set; }
+        public int? InsuranceContractId { get; set; }
+        public int? InsuranceContractVersionId { get; set; }
+        public decimal PatientResponsibility { get; set; }
+        public decimal InsuranceResponsibility { get; set; }
         public User? User { get; set; }
         public int? DelegateId { get; set; }
         public DelegateEntity? Delegate { get; set; }

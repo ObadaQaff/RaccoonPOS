@@ -245,8 +245,8 @@
                           Style="{StaticResource MinimalDataGrid}"
                           MouseDoubleClick="ProductProfitGrid_MouseDoubleClick">
                     <DataGrid.Columns>
-                        <DataGridTextColumn Header="كود" Binding="{Binding ITEMCODE}" Width="110"/>
-                        <DataGridTextColumn Header="الصنف" Binding="{Binding ProductName}" Width="260"/>
+                        <DataGridTextColumn Header="كود" Binding="{Binding ITEMCODE}" ElementStyle="{StaticResource ProductValueTextStyle}" Width="110"/>
+                        <DataGridTextColumn Header="الصنف" Binding="{Binding ProductName}" ElementStyle="{StaticResource ProductValueTextStyle}" Width="260"/>
                         <DataGridTextColumn Header="الوحدة" Binding="{Binding UnitName}" Width="140"/>
                         <DataGridTextColumn Header="الكمية" Binding="{Binding SalesQty}" Width="120"/>
                         <DataGridTextColumn Header="قبل الضريبة" Binding="{Binding SubTotal}" Width="150"/>
