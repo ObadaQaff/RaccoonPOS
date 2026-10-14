@@ -373,6 +373,7 @@
                             <ColumnDefinition Width="250"/>
                             <ColumnDefinition Width="120"/>
                             <ColumnDefinition Width="80"/>
+                            <ColumnDefinition Width="90"/>
                             <ColumnDefinition Width="80"/>
                             <ColumnDefinition Width="80"/>
                             <ColumnDefinition Width="130"/>
@@ -454,6 +455,14 @@
 
                         <!-- 🔹 Purchase Price -->
                         <StackPanel Grid.Column="3" Margin="6">
+                            <TextBlock Text="Available Quantity / الكمية المتوفرة"/>
+                            <TextBox x:Name="AvailableQtyBox"
+                                     Style="{StaticResource InputBoxStyle}"
+                                     IsReadOnly="True"
+                                     HorizontalContentAlignment="Center"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="4" Margin="6">
                             <TextBlock Text="سعر الشراء"/>
                             <TextBox x:Name="PurchaseBox"
                         Style="{StaticResource InputBoxStyle}"
@@ -461,7 +470,7 @@
                         </StackPanel>
 
                         <!-- 🔹 Sale Price -->
-                        <StackPanel Grid.Column="4" Margin="6">
+                        <StackPanel Grid.Column="5" Margin="6">
                             <TextBlock Text="سعر البيع"/>
                             <TextBox x:Name="SaleBox"
                            Style="{StaticResource InputBoxStyle}"
@@ -469,13 +478,13 @@
                         </StackPanel>
 
                         <!-- 🔹 Expiry Date -->
-                        <StackPanel Grid.Column="5" Margin="6">
+                        <StackPanel Grid.Column="6" Margin="6">
                             <TextBlock Text="تاريخ الانتهاء"/>
                             <DatePicker x:Name="ExpiryBox" Height="32" FontSize="15" Width="122"/>
                         </StackPanel>
 
                         <!-- 🔹 Add Button -->
-                        <StackPanel Grid.Column="6" VerticalAlignment="Bottom" Margin="6">
+                        <StackPanel Grid.Column="7" VerticalAlignment="Bottom" Margin="6">
                             <Button Content="إضافة"
                            Style="{StaticResource PrimaryButtonStyle}"
                            Width="70"

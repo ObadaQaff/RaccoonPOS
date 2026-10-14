@@ -594,6 +594,7 @@ namespace RaccoonWarehouse.Invoices
             ProductBox.SelectedIndex = -1;
             UnitBox.ItemsSource = null;
             QtyBox.Text = "";
+            AvailableQtyBox.Text = "";
             SaleBox.Text = "";
             PurchaseBox.Text = "";
          
@@ -696,6 +697,7 @@ namespace RaccoonWarehouse.Invoices
             // Expiry from stock
             if (ProductBox.SelectedValue is int productId && productId > 0)
             {
+                await RefreshAvailableQuantityAsync(productId, unit.Id);
                 await LoadSelectedStockExpiryAsync(
                     productId,
                     unit.Id);
@@ -723,6 +725,7 @@ namespace RaccoonWarehouse.Invoices
             _isApplyingProductSelection = true;
             try
             {
+                ProductBox.SelectedItem = product;
                 ProductBox.Text = product.Name ?? string.Empty;
                 _productSearchText = ProductBox.Text;
                 ProductBox.IsDropDownOpen = false;
@@ -780,6 +783,7 @@ namespace RaccoonWarehouse.Invoices
 
             try
             {
+                ProductBox.SelectedItem = product;
                 ProductBox.Text = product.Name ?? string.Empty;
                 _productSearchText = ProductBox.Text;
 
@@ -917,6 +921,7 @@ namespace RaccoonWarehouse.Invoices
 
                     PurchaseBox.Text = "";
                     SaleBox.Text = "";
+                    AvailableQtyBox.Text = "0.00000";
                     ExpiryBox.SelectedDate = null;
 
                     return;
@@ -2332,6 +2337,7 @@ namespace RaccoonWarehouse.Invoices
                     UnitBox.SelectedIndex = -1;
                     PurchaseBox.Text = "";
                     SaleBox.Text = "";
+                    AvailableQtyBox.Text = "0.00000";
                     ExpiryBox.SelectedDate = null;
 
                     return null;
@@ -2356,6 +2362,8 @@ namespace RaccoonWarehouse.Invoices
                 var preferredStock = await GetPreferredAvailableStockAsync(
                     productId,
                     firstUnit.Id);
+
+                await RefreshAvailableQuantityAsync(productId, firstUnit.Id);
 
                 // Expiry
                 ExpiryBox.SelectedDate =
@@ -2390,6 +2398,12 @@ namespace RaccoonWarehouse.Invoices
 
             var result = await _stockService.GetAvailableQuantityInUnitAsync(productId, productUnitId);
             return result.Success ? result.Data : 0m;
+        }
+
+        private async Task RefreshAvailableQuantityAsync(int productId, int productUnitId)
+        {
+            var availableQuantity = await GetAvailableQuantityForProductUnitAsync(productId, productUnitId);
+            AvailableQtyBox.Text = availableQuantity.ToString("0.00000", CultureInfo.InvariantCulture);
         }
 
         private void ResetSalePriceBelowCost(string? productName, decimal unitCost, decimal enteredPrice, decimal defaultPrice)

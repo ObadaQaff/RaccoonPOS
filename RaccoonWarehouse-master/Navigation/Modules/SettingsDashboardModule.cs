@@ -39,6 +39,12 @@ namespace RaccoonWarehouse.Navigation.Modules
                             {
                                 new ModuleActionDefinition("Settings.Permissions", "مدير صلاحيات النظام"),
                                 new ModuleActionDefinition("Settings.AuditLogs", UiText.T("سجل مراجعة النظام", "System audit log"), "AuditLogs.View")
+                            }),
+                        new ModuleGroupDefinition(
+                            UiText.T("تبديل قاعدة البيانات", "Database Switching"),
+                            new[]
+                            {
+                                new ModuleActionDefinition("Settings.SwitchDatabase", UiText.T("تبديل قاعدة البيانات", "Switch Database"))
                             })
                     }));
         }

@@ -3,6 +3,7 @@ using RaccoonWarehouse.Application.Service.Permissions;
 using RaccoonWarehouse.Application.Service.Settings;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Brands;
+using RaccoonWarehouse.Data;
 using RaccoonWarehouse.Delegates;
 using RaccoonWarehouse.Employees;
 using RaccoonWarehouse.Helpers.Localization;
@@ -77,7 +78,8 @@ namespace RaccoonWarehouse.Navigation.Modules
                 "Settings.Delegates" or
                 "Settings.Employees" or
                 "Settings.Accounting" or
-                "Settings.Language";
+                "Settings.Language" or
+                "Settings.SwitchDatabase";
         }
 
         public async Task ExecuteAsync(string actionKey, DashboardActionContext context)
@@ -144,6 +146,38 @@ namespace RaccoonWarehouse.Navigation.Modules
                     }
 
                     WindowManager.ShowDialog<LanguageSettingsWindow>(WindowSizeType.SmallSquare);
+                    return;
+                case "Settings.SwitchDatabase":
+                    if (!await HasPermissionAsync("Settings.ManageSettings"))
+                    {
+                        MessageBox.Show(UiText.T("ليس لديك صلاحية تعديل الإعدادات.", "You do not have permission to edit settings."));
+                        return;
+                    }
+
+                    var currentProfile = DatabaseConnectionStringProvider.GetActiveProfile();
+                    var targetProfile = string.Equals(currentProfile, "Raccoon", StringComparison.OrdinalIgnoreCase)
+                        ? "Pharmacy"
+                        : "Raccoon";
+                    var switchResult = MessageBox.Show(
+                        UiText.T(
+                            $"قاعدة البيانات الحالية: {currentProfile}\nهل تريد التبديل إلى: {targetProfile}؟ يجب إعادة تشغيل التطبيق.",
+                            $"Current database: {currentProfile}\nSwitch to {targetProfile}? The application must be restarted."),
+                        UiText.T("تبديل قاعدة البيانات", "Switch Database"),
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Warning);
+                    if (switchResult != MessageBoxResult.Yes)
+                    {
+                        return;
+                    }
+
+                    DatabaseConnectionStringProvider.SwitchProfile(targetProfile);
+                    MessageBox.Show(
+                        UiText.T(
+                            $"تم اختيار قاعدة بيانات {targetProfile}. أغلق التطبيق وأعد تشغيله لتطبيق التغيير.",
+                            $"Database {targetProfile} selected. Close and restart the application to apply the change."),
+                        UiText.T("تم الحفظ", "Saved"),
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
                     return;
             }
         }

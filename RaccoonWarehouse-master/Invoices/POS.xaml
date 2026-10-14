@@ -1061,6 +1061,9 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellEditingTemplate>
                             </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="الضريبة / Tax" Width="90"
+                                                IsReadOnly="True"
+                                                Binding="{Binding TaxAmount, StringFormat={}{0:0.00000}}"/>
                             <DataGridTextColumn Header="الإجمالي" Width="70"
                                                 IsReadOnly="True" Binding="{Binding LineTotal}"/>
                         </DataGrid.Columns>

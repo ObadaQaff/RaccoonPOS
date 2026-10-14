@@ -228,7 +228,14 @@ public partial class POS
         if (product.Id <= 0)
             return product;
 
-        return await ResolveProductForUnitsAsync(product.Id) ?? product;
+        var resolvedProduct = await ResolveProductForUnitsAsync(product.Id) ?? product;
+
+        // Barcode search already resolved the display name from the POS stock search.
+        // Preserve it when the hydration query returns an incomplete product projection.
+        if (string.IsNullOrWhiteSpace(resolvedProduct.Name) && !string.IsNullOrWhiteSpace(product.Name))
+            resolvedProduct.Name = product.Name;
+
+        return resolvedProduct;
     }
 
     private async Task<List<ProductUnitWriteDto>> GetAvailableUnitsForProductAsync(int productId)

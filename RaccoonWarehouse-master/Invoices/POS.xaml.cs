@@ -1702,17 +1702,55 @@ namespace RaccoonWarehouse.Invoices
 
         private async Task<ProductReadDto?> FindProductByBarcodeAsync(string barcode)
         {
-            var result = await _productService.GetAllWithFilteringAndIncludeAsync(
-                p => p.ITEMCODE.ToString() == barcode ||
-                     p.ProductUnits!.Any(unit => unit.AlternateBarcode == barcode),
-                new Expression<Func<Product, object>>[]
-                {
-                    p => p.SubCategory,
-                    p => p.Brand,
-                    p => p.ProductUnits
-                });
+            var normalizedBarcode = barcode.Trim();
+            var hasNumericBarcode = long.TryParse(
+                normalizedBarcode,
+                NumberStyles.Integer,
+                CultureInfo.InvariantCulture,
+                out var numericBarcode);
 
-            return result?.Data?.FirstOrDefault();
+            var searchResult = await _stockService.SearchPosProductsAsync(normalizedBarcode, 100);
+            var rows = searchResult?.Data ?? new List<PosProductSearchResultDto>();
+            var productGroups = rows.GroupBy(row => row.ProductId).ToList();
+
+            var exactGroup = productGroups.FirstOrDefault(group => group.Any(row =>
+                (hasNumericBarcode && row.ItemCode == numericBarcode) ||
+                string.Equals(row.ItemCode?.ToString(), normalizedBarcode, StringComparison.OrdinalIgnoreCase) ||
+                (!string.IsNullOrWhiteSpace(row.AlternateBarcode) &&
+                 string.Equals(row.AlternateBarcode.Trim(), normalizedBarcode, StringComparison.OrdinalIgnoreCase))));
+
+            var selectedRows = exactGroup ?? productGroups.FirstOrDefault();
+            if (selectedRows == null)
+                return null;
+
+            var firstRow = selectedRows.First();
+            var productUnits = selectedRows
+                .GroupBy(row => row.ProductUnitId)
+                .Select(group => group.First())
+                .Select(row => new ProductUnitReadDto
+                {
+                    Id = row.ProductUnitId,
+                    ProductId = row.ProductId,
+                    AlternateBarcode = row.AlternateBarcode,
+                    SalePrice = row.UnitSalePrice,
+                    PurchasePrice = row.UnitPurchasePrice,
+                    QuantityPerUnit = row.QuantityPerUnit,
+                    IsBaseUnit = row.IsBaseUnit,
+                    IsDefaultSaleUnit = row.IsDefaultSaleUnit,
+                    IsDefaultPurchaseUnit = row.IsDefaultPurchaseUnit,
+                    Unit = new UnitReadDto { Id = 0, Name = row.UnitName }
+                })
+                .ToList();
+
+            return new ProductReadDto
+            {
+                Id = firstRow.ProductId,
+                Name = firstRow.ProductName,
+                ITEMCODE = firstRow.ItemCode,
+                TaxExempt = firstRow.TaxExempt,
+                TaxRate = firstRow.TaxRate,
+                ProductUnits = productUnits
+            };
         }
 
         private async Task<bool> ProcessBarcodeAsync(string barcode, InvoiceLineWriteDto? targetLine = null)
@@ -1763,6 +1801,24 @@ namespace RaccoonWarehouse.Invoices
                         !string.IsNullOrWhiteSpace(unit.AlternateBarcode) &&
                         string.Equals(unit.AlternateBarcode.Trim(), barcode.Trim(), StringComparison.OrdinalIgnoreCase))?
                     .Id;
+
+                if (targetLine != null)
+                {
+                    targetLine.Quantity = 1m;
+                    if (!await ApplyLinePricingFromProductAsync(targetLine, product, preferredUnitId))
+                        return false;
+
+                    var availableQuantity = await GetAvailableQuantityForProductUnitAsync(
+                        targetLine.ProductId,
+                        targetLine.ProductUnitId);
+                    targetLine.AvailableQuantitySnapshot = Math.Max(
+                        availableQuantity - Math.Abs(targetLine.Quantity),
+                        0m);
+                    targetLine.RefreshCalculatedProperties();
+                    InvoiceGrid.Items.Refresh();
+                    RecalculateTotals();
+                    return true;
+                }
 
                 return await AddProductToInvoiceCoreAsync(
                     product,
