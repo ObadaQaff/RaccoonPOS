@@ -50,6 +50,7 @@ using RaccoonWarehouse.FinancialTransactions;
 using RaccoonWarehouse.FinancialTransactions.Reports;
 using RaccoonWarehouse.Helpers.Localization;
 using RaccoonWarehouse.Invoices;
+using RaccoonWarehouse.Insurance;
 using RaccoonWarehouse.Invoices.Reports;
 using RaccoonWarehouse.Licensing;
 using RaccoonWarehouse.Modules.Reports;
@@ -928,6 +929,9 @@ END;";
                 sp.GetRequiredService<IMapper>(),
                 sp.GetRequiredService<IAccountingService>()));
             services.AddScoped<IPurchaseOrderService, PurchaseOrderService>();
+            services.AddScoped<RaccoonWarehouse.Application.Service.Insurance.IInsuranceManagementService, RaccoonWarehouse.Application.Service.Insurance.InsuranceManagementService>();
+            services.AddScoped<RaccoonWarehouse.Application.Service.Insurance.IInsuranceCoverageService, RaccoonWarehouse.Application.Service.Insurance.InsuranceCoverageService>();
+            services.AddSingleton<RaccoonWarehouse.Application.Service.Insurance.IInsuranceProvider, RaccoonWarehouse.Application.Service.Insurance.ManualInsuranceProvider>();
             services.AddScoped<ISaleCheckoutService, SaleCheckoutService>();
             // Temporary Box API integration. Remove this registration with the isolated service when retired.
             services.AddSingleton<IBoxCartApiService, BoxCartApiService>();
@@ -1007,6 +1011,7 @@ END;";
             services.AddTransient<IModuleDefinitionProvider, SettingsDashboardModule>();
             services.AddTransient<IModuleDefinitionProvider, UsersDashboardModule>();
             services.AddTransient<IModuleDefinitionProvider, CustomersDashboardModule>();
+            services.AddTransient<IModuleDefinitionProvider, InsuranceDashboardModule>();
             services.AddTransient<IModuleDefinitionProvider, AccountingDashboardModule>();
             services.AddSingleton<IModuleConfiguration, ModuleConfiguration>();
             services.AddTransient<DashboardModuleRegistry>();
@@ -1019,6 +1024,7 @@ END;";
             services.AddTransient<IDashboardActionHandler, SettingsDashboardActionHandler>();
             services.AddTransient<IDashboardActionHandler, UsersDashboardActionHandler>();
             services.AddTransient<IDashboardActionHandler, CustomersDashboardActionHandler>();
+            services.AddTransient<IDashboardActionHandler, InsuranceDashboardActionHandler>();
             services.AddTransient<IDashboardActionHandler, AccountingDashboardActionHandler>();
             services.AddTransient<DashboardActionRegistry>();
 
@@ -1088,6 +1094,11 @@ END;";
 
             services.AddTransient<PayInvoice>();
             services.AddTransient<PurchaseOrdersWindow>();
+            services.AddTransient<InsuranceCompaniesWindow>();
+            services.AddTransient<InsuranceClaimsWindow>();
+            services.AddTransient<InsuranceSettlementWindow>();
+            services.AddTransient<InsuranceSetupWindow>();
+            services.AddTransient<InsuranceInvoiceWindow>();
 
             services.AddTransient<CashFlowReport>();
             services.AddTransient<InvoicePaymentMethodsReport>();

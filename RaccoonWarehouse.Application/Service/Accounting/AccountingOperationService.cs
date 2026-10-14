@@ -32,13 +32,14 @@ public sealed class AccountingOperationService : IAccountingOperationService
     public async Task EnqueueInvoiceAsync(InvoiceWriteDto invoice)
     {
         var repository = _uow.GetRepository<AccountingOperation>();
-        var existing = await repository.GetAllAsQueryable()
-            .FirstOrDefaultAsync(operation =>
+        var exists = await repository.GetAllAsQueryable()
+            .AsNoTracking()
+            .AnyAsync(operation =>
                 operation.ReferenceType == "Invoice" &&
                 operation.ReferenceId == invoice.Id &&
                 operation.OperationType == "PostInvoiceJournal");
 
-        if (existing != null)
+        if (exists)
             return;
 
         var now = DateTime.Now;
@@ -64,13 +65,14 @@ public sealed class AccountingOperationService : IAccountingOperationService
         // idempotency key per invoice and payment method, not one key for the
         // whole invoice, otherwise cash + Visa collide on the unique index.
         var operationType = $"PostFinancialTransaction:{(int)transaction.Method}";
-        var existing = await repository.GetAllAsQueryable()
-            .FirstOrDefaultAsync(operation =>
+        var exists = await repository.GetAllAsQueryable()
+            .AsNoTracking()
+            .AnyAsync(operation =>
                 operation.ReferenceType == "InvoiceFinancial" &&
                 operation.ReferenceId == referenceId &&
                 operation.OperationType == operationType);
 
-        if (existing != null)
+        if (exists)
             return;
 
         var now = DateTime.Now;

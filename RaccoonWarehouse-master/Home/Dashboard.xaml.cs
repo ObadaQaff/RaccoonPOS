@@ -525,6 +525,9 @@ namespace RaccoonWarehouse
         private async void PurchaseOrders_Click(object sender, RoutedEventArgs e) =>
             await RunSidebarNavigationAsync(() => ShowDashboardModuleAsync("PurchaseOrders", DashboardActionButton_Click));
 
+        private async void Insurance_Click(object sender, RoutedEventArgs e) =>
+            await RunSidebarNavigationAsync(() => ShowDashboardModuleAsync("Insurance", DashboardActionButton_Click));
+
         private async void Orders_Click(object sender, RoutedEventArgs e) =>
             await RunSidebarNavigationAsync(() =>
             {

@@ -15,7 +15,8 @@ namespace RaccoonWarehouse.Domain.Enums
         Check = 4,
         MobilePayment = 5,
         Master = 6,
-        Visa = 7
+        Visa = 7,
+        InsuranceReceivable = 8
 
 
     }

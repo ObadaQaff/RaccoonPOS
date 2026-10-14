@@ -30,6 +30,13 @@ namespace RaccoonWarehouse.Domain.Permissions
         {
             var items = new List<PermissionCatalogItem>();
             var sort = 1;
+            AddResource(items, ref sort, "Insurance", "InsuranceCompanies", "Insurance companies", "View", "Create", "Edit", "Delete");
+            AddResource(items, ref sort, "Insurance", "InsuranceNetworks", "Insurance networks", "View", "Create", "Edit", "Delete");
+            AddResource(items, ref sort, "Insurance", "InsuranceContracts", "Insurance contracts", "View", "Create", "Edit", "Activate", "Close");
+            AddResource(items, ref sort, "Insurance", "InsurancePolicies", "Insurance policies", "View", "Create", "Edit", "Delete");
+            AddResource(items, ref sort, "Insurance", "InsuranceClaims", "Insurance claims", "View", "Create", "Edit", "Submit", "Approve", "Reject", "Export");
+            AddResource(items, ref sort, "Insurance", "InsurancePayments", "Insurance payments", "View", "Create", "Reconcile");
+            AddResource(items, ref sort, "Insurance", "InsuranceReports", "Insurance reports", "View", "Export");
 
             AddResource(items, ref sort, "Purchases", "PurchaseOrder", "Purchase Orders", "View", "Create", "Edit", "Submit", "Approve", "Reject", "Cancel", "Print");
 

@@ -66,22 +66,8 @@ namespace RaccoonWarehouse.Application.Service.Invoices
             try
             {
                 var invoiceRepo = _uow.GetRepository<Invoice>();
-                var lineRepo = _uow.GetRepository<InvoiceLine>();
-                var checkRepo = _uow.GetRepository<Check>();
 
                 var normalizedFalconInvoiceNumber = dto.FalconInvoiceNumber?.Trim();
-                if (dto.IsPOS == true && !string.IsNullOrWhiteSpace(normalizedFalconInvoiceNumber))
-                {
-                    var falconNumberExists = await invoiceRepo.GetAllAsQueryable()
-                        .AnyAsync(invoice =>
-                            invoice.IsPOS == true
-                            && invoice.FalconInvoiceNumber == normalizedFalconInvoiceNumber
-                            && invoice.Id != dto.Id);
-
-                    if (falconNumberExists)
-                        return Result<InvoiceWriteDto>.Fail("Falcon invoice number already exists / رقم فالكون موجود مسبقاً.");
-
-                }
                 dto.FalconInvoiceNumber = string.IsNullOrWhiteSpace(normalizedFalconInvoiceNumber)
                     ? null
                     : normalizedFalconInvoiceNumber;
@@ -157,6 +143,9 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 dto.NetSales = dto.SubTotal - (dto.DiscountAmount ?? 0m); // قبل الضريبة
                 dto.GrossProfit = dto.NetSales - dto.TotalCOGS;
                 LogInvoiceTiming("invoice line normalization and totals", totalTiming, stepTiming);
+                var insuranceValidation = ValidateInsuranceBilling(dto);
+                if (insuranceValidation != null)
+                    return Result<InvoiceWriteDto>.Fail(insuranceValidation);
                 var paymentValidation = dto.Status is InvoiceStatus.OnHold or InvoiceStatus.Cancelled
                     ? null
                     : NormalizeAndValidatePayments(dto);
@@ -174,8 +163,8 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 var invoice = _mapper.Map<Invoice>(dto);
                 invoice.InvoiceLines = new List<InvoiceLine>();
                 invoice.Checks = new List<Check>();
+                invoice.Payments = new List<InvoicePayment>();
 
-                await invoiceRepo.AddAsync(invoice);
                 await _uow.CommitAsync(); // ✅ هسا صار عندك invoice.Id
                 LogInvoiceTiming("invoice header database save", totalTiming, stepTiming);
 
@@ -190,7 +179,8 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                     line.Product = null;
                     line.ProductUnit = null;
 
-                    await lineRepo.AddAsync(line);
+                    line.Invoice = invoice;
+                    invoice.InvoiceLines.Add(line);
                 }
 
                 foreach (var paymentDto in dto.Payments ?? Enumerable.Empty<InvoicePaymentWriteDto>())
@@ -199,7 +189,8 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                     payment.Id = 0;
                     payment.InvoiceId = invoice.Id;
                     payment.Invoice = null;
-                    await _uow.GetRepository<InvoicePayment>().AddAsync(payment);
+                    payment.Invoice = invoice;
+                    invoice.Payments.Add(payment);
                 }
 
                 foreach (var checkDto in dto.Checks ?? Enumerable.Empty<Domain.Checks.DTOs.CheckWriteDto>())
@@ -208,9 +199,11 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                     check.Id = 0;
                     check.InvoiceId = invoice.Id;
                     check.Invoice = null;
-                    await checkRepo.AddAsync(check);
+                    check.Invoice = invoice;
+                    invoice.Checks.Add(check);
                 }
 
+                await invoiceRepo.AddAsync(invoice);
                 await _uow.CommitAsync();
                 await createTransaction.CommitAsync();
                 LogInvoiceTiming("invoice lines and checks database save", totalTiming, stepTiming);
@@ -275,18 +268,6 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 var invoiceRepo = _uow.GetRepository<Invoice>();
                 var lineRepo = _uow.GetRepository<InvoiceLine>();
                 var normalizedFalconInvoiceNumber = dto.FalconInvoiceNumber?.Trim();
-                if (dto.IsPOS == true && !string.IsNullOrWhiteSpace(normalizedFalconInvoiceNumber))
-                {
-                    var falconNumberExists = await invoiceRepo.GetAllAsQueryable()
-                        .AnyAsync(invoice =>
-                            invoice.IsPOS == true
-                            && invoice.FalconInvoiceNumber == normalizedFalconInvoiceNumber
-                            && invoice.Id != dto.Id);
-
-                    if (falconNumberExists)
-                        return Result<InvoiceWriteDto>.Fail("Falcon invoice number already exists / رقم فالكون موجود مسبقاً.");
-
-                }
                 dto.FalconInvoiceNumber = string.IsNullOrWhiteSpace(normalizedFalconInvoiceNumber)
                     ? null
                     : normalizedFalconInvoiceNumber;
@@ -316,6 +297,9 @@ namespace RaccoonWarehouse.Application.Service.Invoices
 
                 await NormalizeInvoiceLinesAsync(dto.InvoiceLines);
                 ApplyInvoiceTotals(dto, existingInvoice.CreatedDate);
+                var insuranceValidation = ValidateInsuranceBilling(dto);
+                if (insuranceValidation != null)
+                    return Result<InvoiceWriteDto>.Fail(insuranceValidation);
                 var paymentValidation = dto.Status is InvoiceStatus.OnHold or InvoiceStatus.Cancelled
                     ? null
                     : NormalizeAndValidatePayments(dto);
@@ -433,6 +417,28 @@ namespace RaccoonWarehouse.Application.Service.Invoices
             if (HasPaymentType(dto, PaymentType.Credit) && !dto.CustomerId.HasValue)
                 return "A customer is required for credit sales invoices.";
 
+            return null;
+        }
+
+        private static string? ValidateInsuranceBilling(InvoiceWriteDto dto)
+        {
+            if (!dto.IsInsuranceSale)
+                return null;
+            if (dto.InvoiceType is not InvoiceType.Sale)
+                return "Insurance billing is supported only for sales invoices.";
+            if (!dto.CustomerId.HasValue || !dto.InsuranceMemberPolicyId.HasValue
+                || !dto.InsuranceCompanyId.HasValue || !dto.InsuranceContractId.HasValue
+                || !dto.InsuranceContractVersionId.HasValue)
+                return "Insurance sales require customer, membership, company, contract, and contract version.";
+            if (dto.PatientResponsibility < 0m || dto.InsuranceResponsibility < 0m)
+                return "Insurance responsibility amounts cannot be negative.";
+            if (Math.Abs(dto.PatientResponsibility + dto.InsuranceResponsibility - dto.TotalAmount) > 0.01m)
+                return "Patient and insurer responsibility must equal the invoice total.";
+
+            var insurerPayments = dto.Payments?.Where(x => x.PaymentType == PaymentType.InsuranceReceivable)
+                .Sum(x => x.Amount) ?? 0m;
+            if (Math.Abs(insurerPayments - dto.InsuranceResponsibility) > 0.01m)
+                return "The insurance receivable payment must equal the insurer responsibility.";
             return null;
         }
 

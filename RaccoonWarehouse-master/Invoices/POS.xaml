@@ -375,6 +375,14 @@
                                 <TextBlock Grid.Column="2" Text="فاتورة جديدة" Style="{StaticResource SidebarButtonText}"/>
                             </Grid>
                         </Button>
+                        <Button Style="{StaticResource SidebarSuccessBtn}"
+                                Click="OpenInsuranceInvoiceBtn_Click" ToolTip="فاتورة تأمين / Insurance invoice">
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="8"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                <iconPacks:PackIconMaterial Kind="ShieldPlus" Width="18" Height="18" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="2" Text="فاتورة تأمين" Style="{StaticResource SidebarButtonText}"/>
+                            </Grid>
+                        </Button>
                         <Button Style="{StaticResource SidebarActionBtn}"
                                 Click="SearchProductBtn_Click" ToolTip="بحث عن مادة (F2)">
                             <Grid>
@@ -679,8 +687,7 @@
                                  Padding="8,0"
                                  VerticalContentAlignment="Center"
                                  TextAlignment="Left"
-                                 Style="{StaticResource AppSearchTextBoxStyle}"
-                                 TextChanged="FalconInvoiceNumberTextBox_TextChanged"/>
+                                 Style="{StaticResource AppSearchTextBoxStyle}"/>
                         <TextBlock x:Name="FalconInvoiceValidationText"
                                    Foreground="#C62828"
                                    FontSize="10"
@@ -922,6 +929,11 @@
                     <DataGrid x:Name="InvoiceGrid" Grid.Row="1"
                               AutoGenerateColumns="False" FontSize="13"
                               FlowDirection="RightToLeft"
+                              EnableRowVirtualization="True"
+                              EnableColumnVirtualization="True"
+                              VirtualizingPanel.IsVirtualizing="True"
+                              VirtualizingPanel.VirtualizationMode="Recycling"
+                              ScrollViewer.CanContentScroll="True"
                               Background="White" RowHeight="38"
                               HeadersVisibility="Column"
                               SelectionUnit="CellOrRowHeader" SelectionMode="Single"

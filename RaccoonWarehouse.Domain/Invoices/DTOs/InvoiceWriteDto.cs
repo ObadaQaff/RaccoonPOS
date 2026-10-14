@@ -30,6 +30,13 @@ namespace RaccoonWarehouse.Domain.Invoices.DTOs
         public DateTime? DocumentDate { get; set; }
         public DateTime? DueDate { get; set; }
         public int? CustomerId { get; set; }
+        public bool IsInsuranceSale { get; set; }
+        public int? InsuranceMemberPolicyId { get; set; }
+        public int? InsuranceCompanyId { get; set; }
+        public int? InsuranceContractId { get; set; }
+        public int? InsuranceContractVersionId { get; set; }
+        public decimal PatientResponsibility { get; set; }
+        public decimal InsuranceResponsibility { get; set; }
         public UserWriteDto? User { get; set; }
         public int? DelegateId { get; set; }
         public string? DelegateName { get; set; }
