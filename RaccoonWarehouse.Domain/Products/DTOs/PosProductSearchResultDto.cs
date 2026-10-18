@@ -20,5 +20,8 @@ namespace RaccoonWarehouse.Domain.Products.DTOs
         public decimal StockPurchasePrice { get; set; }
         public decimal StockSalePrice { get; set; }
         public DateTime? ExpiryDate { get; set; }
+        public bool HasStock => StockQuantity > 0m;
+        public string? SupplierName { get; set; }
+        public int? SupplierId { get; set; }
     }
 }

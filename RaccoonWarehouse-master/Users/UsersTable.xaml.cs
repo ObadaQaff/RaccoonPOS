@@ -95,13 +95,13 @@ namespace RaccoonWarehouse
             var role = _userSession.CurrentUser?.Role;
             if (!role.HasValue || !await _permissionService.HasPermissionAsync(role.Value, "Users.View"))
             {
-                MessageBox.Show(UiText.T("Ù„ÙŠØ³ Ù„Ø¯ÙŠÙƒ ØµÙ„Ø§Ø­ÙŠØ© Ø¹Ø±Ø¶ Ø§Ù„Ø­Ø³Ø§Ø¨Ø§Øª.", "You do not have permission to view accounts."));
+                MessageBox.Show(UiText.T("ليس لديك صلاحية عرض الحسابات.", "You do not have permission to view accounts."));
                 return;
             }
 
             if (UsersTable1.SelectedItem is not UserReadDto selectedUser)
             {
-                MessageBox.Show(UiText.T("ÙŠØ¬Ø¨ ØªØ­Ø¯ÙŠØ¯ Ù…Ø³ØªØ®Ø¯Ù… Ù‚Ø¨Ù„ Ø¹Ø±Ø¶ Ø§Ù„ÙƒØ´Ù.", "You must select a user before viewing the statement."));
+                MessageBox.Show(UiText.T("يجب تحديد مستخدم قبل عرض الكشف.", "You must select a user before viewing the statement."));
                 return;
             }
 
@@ -169,12 +169,27 @@ namespace RaccoonWarehouse
             UpdateCounters();
         }
 
+        private void RoleFilterComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!_isLoaded)
+                return;
+
+            _usersView?.Refresh();
+            UpdateCounters();
+        }
+
         private bool FilterUsers(object item)
         {
             if (item is not UserReadDto user)
                 return false;
 
             var search = SearchBox.Text?.Trim();
+            var selectedRole = RoleFilterComboBox.SelectedValue?.ToString();
+            if (!string.IsNullOrWhiteSpace(selectedRole)
+                && !string.Equals(selectedRole, "all", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(user.Role.ToString(), selectedRole, StringComparison.OrdinalIgnoreCase))
+                return false;
+
             if (string.IsNullOrWhiteSpace(search))
                 return true;
 
@@ -185,6 +200,9 @@ namespace RaccoonWarehouse
 
         private void UpdateCounters()
         {
+            if (TotalUsersText == null || VisibleUsersText == null)
+                return;
+
             TotalUsersText.Text = _users.Count.ToString();
             VisibleUsersText.Text = _usersView?.Cast<object>().Count().ToString() ?? "0";
         }

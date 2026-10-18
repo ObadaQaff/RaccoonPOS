@@ -5,6 +5,7 @@ using RaccoonWarehouse.Application.Service.Products;
 using RaccoonWarehouse.Application.Service.ProductUnits;
 using RaccoonWarehouse.Application.Service.SubCategories;
 using RaccoonWarehouse.Application.Service.Units;
+using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Common;
 using RaccoonWarehouse.Helpers.Localization;
 using RaccoonWarehouse.Navigation;
@@ -33,12 +34,17 @@ namespace RaccoonWarehouse.Products
         private readonly IProductUnitService _productUnitService;
         private readonly List<ProductUnitWriteDto> _productUnits = new();
         private readonly IUnitService _unitService;
+        private readonly IUserService _userService;
         private bool _isLoaded;
         private int? _preferredSubCategoryId;
         private List<UnitLookupItem> _unitLookupItems = new();
         private bool _isFilteringUnits;
         private bool _isNavigatingUnits;
         private string _unitSearchText = string.Empty;
+        private List<RaccoonWarehouse.Domain.Users.DTOs.UserReadDto> _supplierLookupItems = new();
+        private bool _isFilteringSuppliers;
+        private bool _isNavigatingSuppliers;
+        private string _supplierSearchText = string.Empty;
         public string? InitialItemCode { get; set; }
         public int? CreatedProductId { get; private set; }
 
@@ -47,13 +53,15 @@ namespace RaccoonWarehouse.Products
             ISubCategoryService subCategoryService,
             IBrandService brandService,
             IProductUnitService productUnitService,
-            IUnitService unitService)
+            IUnitService unitService,
+            IUserService userService)
         {
             _productService = productService;
             _subCategoryService = subCategoryService;
             _brandService = brandService;
             _productUnitService = productUnitService;
             _unitService = unitService;
+            _userService = userService;
 
             InitializeComponent();
             UnitComboBox.Loaded += UnitComboBox_Loaded;
@@ -88,6 +96,15 @@ namespace RaccoonWarehouse.Products
             BrandComboBox.DisplayMemberPath = "Name";
             BrandComboBox.SelectedValuePath = "Id";
 
+            var users = await _userService.GetAllAsync();
+            _supplierLookupItems = users.Data?
+                .Where(user => user.Role == UserRole.Supplier)
+                .OrderBy(user => user.Name)
+                .ToList() ?? new List<RaccoonWarehouse.Domain.Users.DTOs.UserReadDto>();
+            SupplierComboBox.ItemsSource = _supplierLookupItems.ToList();
+            SupplierComboBox.DisplayMemberPath = "Name";
+            SupplierComboBox.SelectedValuePath = "Id";
+
             var units = await _unitService.GetAllAsync();
             _unitLookupItems = units.Data?
                 .Select(unit => new UnitLookupItem(unit.Id, unit.Name, UiText.Translate(unit.Name)))
@@ -98,6 +115,75 @@ namespace RaccoonWarehouse.Products
 
             StatusComboBox.ItemsSource = Enum.GetValues(typeof(ProductStatus)).Cast<ProductStatus>();
             UiText.ApplyWindow(this);
+        }
+
+        private void SupplierComboBox_Loaded(object sender, RoutedEventArgs e)
+        {
+            if (SupplierComboBox.Template.FindName("PART_EditableTextBox", SupplierComboBox) is TextBox textBox)
+                textBox.TextChanged += SupplierComboBox_TextChanged;
+        }
+
+        private void SupplierComboBox_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key is not (Key.Down or Key.Up or Key.Enter) || SupplierComboBox.Items.Count == 0)
+                return;
+
+            _isNavigatingSuppliers = true;
+            try
+            {
+                if (e.Key == Key.Down)
+                    SupplierComboBox.SelectedIndex = Math.Min(SupplierComboBox.SelectedIndex + 1, SupplierComboBox.Items.Count - 1);
+                else if (e.Key == Key.Up)
+                    SupplierComboBox.SelectedIndex = Math.Max(SupplierComboBox.SelectedIndex - 1, 0);
+                else if (SupplierComboBox.SelectedItem is RaccoonWarehouse.Domain.Users.DTOs.UserReadDto)
+                    SupplierComboBox.IsDropDownOpen = false;
+                else
+                    return;
+
+                RestoreSupplierSearchText();
+                e.Handled = true;
+            }
+            finally
+            {
+                _isNavigatingSuppliers = false;
+            }
+        }
+
+        private void RestoreSupplierSearchText()
+        {
+            if (SupplierComboBox.Template.FindName("PART_EditableTextBox", SupplierComboBox) is not TextBox textBox)
+                return;
+
+            textBox.Text = _supplierSearchText;
+            textBox.CaretIndex = textBox.Text.Length;
+            SupplierComboBox.IsDropDownOpen = true;
+        }
+
+        private void SupplierComboBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (_isFilteringSuppliers || _isNavigatingSuppliers || !SupplierComboBox.IsKeyboardFocusWithin)
+                return;
+
+            if (SupplierComboBox.Template.FindName("PART_EditableTextBox", SupplierComboBox) is not TextBox textBox)
+                return;
+
+            _supplierSearchText = textBox.Text.Trim();
+            _isFilteringSuppliers = true;
+            try
+            {
+                SupplierComboBox.SelectedValue = null;
+                SupplierComboBox.ItemsSource = string.IsNullOrWhiteSpace(_supplierSearchText)
+                    ? _supplierLookupItems.ToList()
+                    : _supplierLookupItems.Where(user =>
+                            (user.Name ?? string.Empty).Contains(_supplierSearchText, StringComparison.CurrentCultureIgnoreCase)
+                            || (user.PhoneNumber ?? string.Empty).Contains(_supplierSearchText, StringComparison.CurrentCultureIgnoreCase))
+                        .ToList();
+                SupplierComboBox.IsDropDownOpen = true;
+            }
+            finally
+            {
+                _isFilteringSuppliers = false;
+            }
         }
 
         private void TryApplyPreferredSubCategory()
@@ -415,6 +501,8 @@ namespace RaccoonWarehouse.Products
                     TaxRate = decimal.TryParse(TaxRate.Text, out var rate) ? rate : 0m,
                     MiniQuantity = decimal.TryParse(MinimumQuantityTextBox.Text, out var minQty) ? minQty : (decimal?)null,
                     BrandId = BrandComboBox.SelectedValue != null ? (int)BrandComboBox.SelectedValue : (int?)null,
+                    SupplierId = SupplierComboBox.SelectedValue is int supplierId && supplierId > 0 ? supplierId : null,
+                    AgentName = AgentNameTextBox.Text.Trim(),
                     SubCategoryId = SubCategoryComboBox.SelectedValue != null ? (int)SubCategoryComboBox.SelectedValue : 0,
                     CreatedDate = DateTime.Now,
                     UpdatedDate = DateTime.Now

@@ -24,6 +24,7 @@ namespace RaccoonWarehouse.Settings
             new("stock-valuation", "تقييم المخزون", "Stock valuation", "الأصناف والمخزون", "Inventory"),
             new("inactive-products", "أصناف لم تتحرك منذ مدة", "Inactive products", "الأصناف والمخزون", "Inventory"),
             new("sales-report", "تقرير المبيعات", "Sales report", "التقارير المالية", "Financial reports"),
+            new("purchase-report", "تقرير المشتريات", "Purchase report", "التقارير المالية", "Financial reports"),
             new("invoices-profit", "تحليل ربحية الفواتير", "Invoice profitability", "التقارير المالية", "Financial reports"),
             new("product-profit", "أرباح الأصناف", "Product profit", "التقارير المالية", "Financial reports"),
             new("cash-flow", "التحصيل والدفع", "Cash flow", "التقارير المالية", "Financial reports"),

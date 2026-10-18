@@ -14,6 +14,7 @@ namespace RaccoonWarehouse.Domain.Reports.Financial.Filters
 
         public int? CashierId { get; set; }
         public int? CashierSessionId { get; set; }
+        public int? UserId { get; set; }
 
         public PaymentMethod? Method { get; set; }
         public TransactionDirection? Direction { get; set; }

@@ -59,6 +59,18 @@
                                 <TextBox x:Name="MinimumQuantityTextBox" Style="{StaticResource AppTextInputStyle}"/>
                             </StackPanel>
                         </UniformGrid>
+                        <UniformGrid Columns="2" Margin="0,0,0,10">
+                            <StackPanel Margin="8,0">
+                                <TextBlock Text="Supplier" Style="{StaticResource AppFieldLabelStyle}"/>
+                                <ComboBox x:Name="SupplierComboBox" Style="{StaticResource AppComboBoxStyle}"
+                                          IsEditable="True" IsTextSearchEnabled="False" StaysOpenOnEdit="True"
+                                          Loaded="SupplierComboBox_Loaded" PreviewKeyDown="SupplierComboBox_PreviewKeyDown" />
+                            </StackPanel>
+                            <StackPanel Margin="8,0">
+                                <TextBlock Text="Agent" Style="{StaticResource AppFieldLabelStyle}"/>
+                                <TextBox x:Name="AgentNameTextBox" Style="{StaticResource AppTextInputStyle}"/>
+                            </StackPanel>
+                        </UniformGrid>
                         <StackPanel Margin="8,0,8,10">
                             <TextBlock Text="الوصف" Style="{StaticResource AppFieldLabelStyle}"/>
                             <TextBox x:Name="DescriptionTextBox" Style="{StaticResource AppTextInputStyle}" Height="72" AcceptsReturn="True" TextWrapping="Wrap"/>

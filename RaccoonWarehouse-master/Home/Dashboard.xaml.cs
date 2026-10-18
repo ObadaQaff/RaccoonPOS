@@ -40,6 +40,7 @@ using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Permissions;
 using RaccoonWarehouse.Domain.Notifications;
 using RaccoonWarehouse.Application.Service.Orders;
+using RaccoonWarehouse.Application.Service.Stocks;
 using System.Windows.Threading;
 
 
@@ -65,6 +66,8 @@ namespace RaccoonWarehouse
         private readonly ILoadingService _loadingService;
         private readonly DashboardModuleRegistry _dashboardModules;
         private readonly DashboardActionRegistry _dashboardActions;
+        private readonly IStockService _stockService;
+        private bool _expiredLotsAlertShown;
         private bool _isLoadingReports;
         private bool _isOpeningReport;
         private bool _isPollingPendingOrders;
@@ -91,7 +94,8 @@ namespace RaccoonWarehouse
                 ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<IBoxCartApiService>(),
                 ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<ILoadingService>(),
                 ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<DashboardModuleRegistry>(),
-                ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<DashboardActionRegistry>())
+                ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<DashboardActionRegistry>(),
+                ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<IStockService>())
         {
         }
 
@@ -107,7 +111,8 @@ namespace RaccoonWarehouse
             IBoxCartApiService boxCartApiService,
             ILoadingService loadingService,
             DashboardModuleRegistry dashboardModules,
-            DashboardActionRegistry dashboardActions)
+            DashboardActionRegistry dashboardActions,
+            IStockService stockService)
         {
             InitializeComponent();
             _userSession = userSession;
@@ -121,7 +126,8 @@ namespace RaccoonWarehouse
             _boxCartApiService = boxCartApiService;
             _loadingService = loadingService;
             _dashboardModules = dashboardModules;
-            _dashboardActions = dashboardActions;
+            _dashboardActions = dashboardActions ?? throw new ArgumentNullException(nameof(dashboardActions));
+            _stockService = stockService ?? throw new ArgumentNullException(nameof(stockService));
             _pendingOrdersTimer.Tick += PendingOrdersTimer_Tick;
             Closed += Dashboard_Closed;
             Loaded += Dashboard_Loaded;
@@ -154,10 +160,53 @@ namespace RaccoonWarehouse
                 _loadingService.Hide();
             }
 
+            await ShowExpiredLotsAlertAsync();
+
             if (BoxPendingOrdersPollingEnabled)
             {
                 _pendingOrdersTimer.Start();
                 await PollPendingOrdersAsync();
+            }
+        }
+
+        private async Task ShowExpiredLotsAlertAsync()
+        {
+            if (_expiredLotsAlertShown)
+                return;
+
+            _expiredLotsAlertShown = true;
+
+            try
+            {
+                var role = _userSession.CurrentUser?.Role;
+                if (!role.HasValue || !await _permissionService.HasPermissionAsync(role.Value, "StockLots.View"))
+                    return;
+
+                var result = await _stockService.GetBatchLookupAsync();
+                if (!result.Success || result.Data == null)
+                    return;
+
+                var today = DateTime.Today;
+                var hasExpiredStock = result.Data.Any(lot =>
+                    lot.RemainingQuantity > 0
+                    && lot.ExpiryDate.HasValue
+                    && lot.ExpiryDate.Value.Date <= today);
+
+                if (!hasExpiredStock)
+                    return;
+
+                WindowManager.ShowDialog<StockLotsWindow>(WindowSizeType.LargeRectangle, window =>
+                {
+                    window.ShowExpiredOnly = true;
+                });
+            }
+            catch (Exception ex)
+            {
+                await _auditLogService.WriteAsync(new RaccoonWarehouse.Core.Audit.AuditEvent(
+                    "ExpiredStockAlertFailed",
+                    "StockLots.View",
+                    Succeeded: false,
+                    ErrorMessage: ex.Message));
             }
         }
 
@@ -258,45 +307,245 @@ namespace RaccoonWarehouse
 
         private void ShowDashboardGroups(IEnumerable<ModuleGroupDefinition> groups, RoutedEventHandler clickHandler, int maxColumns = 2)
         {
+            var groupList = groups.ToArray();
             var scrollViewer = CreateDashboardScrollViewer();
             var mainPanel = new StackPanel { Orientation = Orientation.Vertical, Margin = new Thickness(0) };
             scrollViewer.Content = mainPanel;
 
-            foreach (var group in groups)
+            var filterCard = CreateDashboardCard();
+            var filterPanel = new Grid();
+            filterPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star) });
+            filterPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            var searchBox = new TextBox
             {
-                var card = CreateDashboardCard();
-                var cardPanel = new StackPanel { Orientation = Orientation.Vertical };
-                cardPanel.Children.Add(CreateDashboardHeader(group.Title));
+                Margin = new Thickness(5),
+                Height = 42,
+                Padding = new Thickness(12, 8, 12, 8),
+                FontSize = 16,
+                ToolTip = UiText.T("ابحث في هذه الصفحة", "Search this page")
+            };
 
-                var grid = new UniformGrid
-                {
-                    Columns = Math.Max(1, Math.Min(maxColumns, group.Actions.Count)),
-                    Margin = new Thickness(0),
-                    HorizontalAlignment = HorizontalAlignment.Stretch
-                };
+            var groupFilter = new ComboBox
+            {
+                Margin = new Thickness(5),
+                Height = 42,
+                FontSize = 16,
+                Padding = new Thickness(10, 6, 10, 6)
+            };
+            groupFilter.Items.Add(new ReportGroupFilterOption(
+                UiText.T("كل المجموعات", "All groups"), null));
 
-                foreach (var option in group.Actions)
+            foreach (var group in groupList)
+            {
+                if (!groupFilter.Items.OfType<ReportGroupFilterOption>().Any(x => x.Title == group.Title))
+                    groupFilter.Items.Add(new ReportGroupFilterOption(group.Title, group.Title));
+            }
+
+            groupFilter.SelectedIndex = 0;
+            Grid.SetColumn(searchBox, 0);
+            Grid.SetColumn(groupFilter, 1);
+            filterPanel.Children.Add(searchBox);
+            filterPanel.Children.Add(groupFilter);
+            filterCard.Child = filterPanel;
+            mainPanel.Children.Add(filterCard);
+
+            var resultsPanel = new StackPanel { Orientation = Orientation.Vertical };
+            mainPanel.Children.Add(resultsPanel);
+
+            void RefreshResults()
+            {
+                resultsPanel.Children.Clear();
+                var searchText = searchBox.Text?.Trim() ?? string.Empty;
+                var selectedGroup = (groupFilter.SelectedItem as ReportGroupFilterOption)?.GroupTitle;
+
+                foreach (var group in groupList)
                 {
-                    var container = CreateDashboardButtonContainer();
-                    container.Child = CreateDashboardButton(option, clickHandler, container);
-                    grid.Children.Add(container);
+                    if (selectedGroup != null && !string.Equals(selectedGroup, group.Title, StringComparison.Ordinal))
+                        continue;
+
+                    var matchingActions = group.Actions
+                        .Where(action => string.IsNullOrWhiteSpace(searchText)
+                            || action.DisplayLabel.Contains(searchText, StringComparison.CurrentCultureIgnoreCase)
+                            || group.Title.Contains(searchText, StringComparison.CurrentCultureIgnoreCase))
+                        .ToArray();
+                    if (matchingActions.Length == 0)
+                        continue;
+
+                    var card = CreateDashboardCard();
+                    var cardPanel = new StackPanel { Orientation = Orientation.Vertical };
+                    cardPanel.Children.Add(CreateDashboardHeader(group.Title));
+                    var grid = new UniformGrid
+                    {
+                        Columns = Math.Max(1, Math.Min(maxColumns, matchingActions.Length)),
+                        HorizontalAlignment = HorizontalAlignment.Stretch
+                    };
+
+                    foreach (var option in matchingActions)
+                    {
+                        var container = CreateDashboardButtonContainer();
+                        container.Child = CreateDashboardButton(option, clickHandler, container);
+                        grid.Children.Add(container);
+                    }
+
+                    cardPanel.Children.Add(grid);
+                    card.Child = cardPanel;
+                    resultsPanel.Children.Add(card);
                 }
 
-                cardPanel.Children.Add(grid);
-                card.Child = cardPanel;
-                mainPanel.Children.Add(card);
+                if (resultsPanel.Children.Count == 0)
+                {
+                    resultsPanel.Children.Add(new TextBlock
+                    {
+                        Text = UiText.T("لا توجد نتائج مطابقة.", "No matching items found."),
+                        FontSize = 18,
+                        HorizontalAlignment = HorizontalAlignment.Center,
+                        Margin = new Thickness(20),
+                        Foreground = Brushes.Gray
+                    });
+                }
             }
+
+            searchBox.TextChanged += (_, _) => RefreshResults();
+            groupFilter.SelectionChanged += (_, _) => RefreshResults();
+            RefreshResults();
 
             MainContent.Content = scrollViewer;
             UiText.ApplyTranslations(scrollViewer);
+        }
+
+        private void ShowReportsPage(IReadOnlyList<ModuleGroupDefinition> groups)
+        {
+            var scrollViewer = CreateDashboardScrollViewer();
+            var mainPanel = new StackPanel { Orientation = Orientation.Vertical, Margin = new Thickness(0) };
+            scrollViewer.Content = mainPanel;
+
+            var filterCard = CreateDashboardCard();
+            var filterPanel = new Grid();
+            filterPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star) });
+            filterPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            var searchBox = new TextBox
+            {
+                Margin = new Thickness(5),
+                Height = 42,
+                Padding = new Thickness(12, 8, 12, 8),
+                FontSize = 16,
+                ToolTip = UiText.T("ابحث عن اسم التقرير", "Search by report name")
+            };
+
+            var groupFilter = new ComboBox
+            {
+                Margin = new Thickness(5),
+                Height = 42,
+                FontSize = 16,
+                Padding = new Thickness(10, 6, 10, 6)
+            };
+            groupFilter.Items.Add(new ReportGroupFilterOption(
+                UiText.T("كل المجموعات", "All groups"), null));
+
+            foreach (var group in groups)
+            {
+                if (!groupFilter.Items.OfType<ReportGroupFilterOption>().Any(x => x.Title == group.Title))
+                    groupFilter.Items.Add(new ReportGroupFilterOption(group.Title, group.Title));
+            }
+
+            groupFilter.SelectedIndex = 0;
+            Grid.SetColumn(searchBox, 0);
+            Grid.SetColumn(groupFilter, 1);
+            filterPanel.Children.Add(searchBox);
+            filterPanel.Children.Add(groupFilter);
+            filterCard.Child = filterPanel;
+            mainPanel.Children.Add(filterCard);
+
+            var resultsPanel = new StackPanel { Orientation = Orientation.Vertical };
+            mainPanel.Children.Add(resultsPanel);
+
+            void RefreshResults()
+            {
+                resultsPanel.Children.Clear();
+
+                var searchText = searchBox.Text?.Trim() ?? string.Empty;
+                var selectedGroup = (groupFilter.SelectedItem as ReportGroupFilterOption)?.GroupTitle;
+
+                foreach (var group in groups)
+                {
+                    if (selectedGroup != null && !string.Equals(selectedGroup, group.Title, StringComparison.Ordinal))
+                        continue;
+
+                    var matchingActions = group.Actions
+                        .Where(action => string.IsNullOrWhiteSpace(searchText)
+                            || action.DisplayLabel.Contains(searchText, StringComparison.CurrentCultureIgnoreCase)
+                            || group.Title.Contains(searchText, StringComparison.CurrentCultureIgnoreCase))
+                        .ToArray();
+
+                    if (matchingActions.Length == 0)
+                        continue;
+
+                    var card = CreateDashboardCard();
+                    var cardPanel = new StackPanel { Orientation = Orientation.Vertical };
+                    cardPanel.Children.Add(CreateDashboardHeader(group.Title));
+
+                    var grid = new UniformGrid
+                    {
+                        Columns = Math.Max(1, Math.Min(3, matchingActions.Length)),
+                        HorizontalAlignment = HorizontalAlignment.Stretch
+                    };
+
+                    foreach (var option in matchingActions)
+                    {
+                        var container = CreateDashboardButtonContainer();
+                        container.Child = CreateDashboardButton(option, DashboardActionButton_Click, container);
+                        grid.Children.Add(container);
+                    }
+
+                    cardPanel.Children.Add(grid);
+                    card.Child = cardPanel;
+                    resultsPanel.Children.Add(card);
+                }
+
+                if (resultsPanel.Children.Count == 0)
+                {
+                    resultsPanel.Children.Add(new TextBlock
+                    {
+                        Text = UiText.T("لا توجد تقارير مطابقة.", "No matching reports found."),
+                        FontSize = 18,
+                        HorizontalAlignment = HorizontalAlignment.Center,
+                        Margin = new Thickness(20),
+                        Foreground = Brushes.Gray
+                    });
+                }
+            }
+
+            searchBox.TextChanged += (_, _) => RefreshResults();
+            groupFilter.SelectionChanged += (_, _) => RefreshResults();
+            RefreshResults();
+
+            MainContent.Content = scrollViewer;
+            UiText.ApplyTranslations(scrollViewer);
+        }
+
+        private sealed record ReportGroupFilterOption(string Title, string? GroupTitle)
+        {
+            public override string ToString() => Title;
         }
 
         private async Task ShowDashboardModuleAsync(string moduleKey, RoutedEventHandler clickHandler, int maxColumns = 2)
         {
             var moduleDefinition = await _dashboardModules.GetDefinitionAsync(moduleKey);
             var visibleGroups = new List<ModuleGroupDefinition>();
-            foreach (var group in moduleDefinition.Groups)
+            foreach (var sourceGroup in moduleDefinition.Groups)
             {
+                var group = sourceGroup;
+                if (!string.Equals(moduleKey, ReportsDashboardModule.Key, StringComparison.Ordinal))
+                {
+                    var nonReportActions = group.Actions.Where(action => !IsReportAction(action.Key)).ToArray();
+                    if (nonReportActions.Length == 0)
+                        continue;
+
+                    group = new ModuleGroupDefinition(group.Title, nonReportActions);
+                }
+
                 var visibleActions = new List<ModuleActionDefinition>();
                 foreach (var action in group.Actions)
                 {
@@ -313,6 +562,102 @@ namespace RaccoonWarehouse
             }
 
             ShowDashboardGroups(visibleGroups, clickHandler, maxColumns);
+        }
+
+        private async Task<IReadOnlyList<ModuleGroupDefinition>> BuildReportsGroupsAsync()
+        {
+            var allGroups = new List<ModuleGroupDefinition>();
+            var moduleKeys = new[]
+            {
+                ReportsDashboardModule.Key,
+                ProductsDashboardModule.Key,
+                SalesDashboardModule.Key,
+                AccountingDashboardModule.Key
+            };
+
+            foreach (var moduleKey in moduleKeys)
+            {
+                var module = await _dashboardModules.GetDefinitionAsync(moduleKey);
+                foreach (var group in module.Groups)
+                {
+                    var reportActions = group.Actions.Where(action => IsReportAction(action.Key)).ToArray();
+                    if (reportActions.Length > 0)
+                        allGroups.Add(new ModuleGroupDefinition(group.Title, reportActions));
+                }
+            }
+
+            var deduplicatedGroups = allGroups
+                .GroupBy(group => group.Title, StringComparer.Ordinal)
+                .Select(group => new ModuleGroupDefinition(
+                    group.Key,
+                    group.SelectMany(item => item.Actions)
+                        .GroupBy(action => GetCanonicalReportKey(action.Key), StringComparer.Ordinal)
+                        .Select(actionGroup => actionGroup.First())
+                        .ToArray()))
+                .Where(group => group.Actions.Count > 0)
+                .ToArray();
+
+            var visibleGroups = new List<ModuleGroupDefinition>();
+            foreach (var group in deduplicatedGroups)
+            {
+                var visibleActions = new List<ModuleActionDefinition>();
+                foreach (var action in group.Actions)
+                {
+                    var permissionKey = ResolveDashboardPermissionKey(action);
+                    var canView = string.IsNullOrWhiteSpace(permissionKey) ||
+                        !(_userSession.CurrentRole is UserRole role) ||
+                        await _permissionService.HasPermissionAsync(role, permissionKey);
+                    if (canView)
+                        visibleActions.Add(action);
+                }
+
+                if (visibleActions.Count > 0)
+                    visibleGroups.Add(new ModuleGroupDefinition(group.Title, visibleActions));
+            }
+
+            return visibleGroups;
+        }
+
+        private static bool IsReportAction(string actionKey)
+        {
+            return actionKey.StartsWith("Reports.", StringComparison.Ordinal)
+                || actionKey is
+                    "Products.PriceList"
+                    or "Products.ItemCostDetails"
+                    or "Products.ProfitReport"
+                    or "Products.InactiveReport"
+                    or "Stocks.BalancesReport"
+                    or "Stocks.LowStockReport"
+                    or "Stocks.ExpiringStockReport"
+                    or "Stocks.MaterialMovementsReport"
+                    or "Accounting.TrialBalance"
+                    or "Accounting.GeneralLedger"
+                    or "Accounting.BalanceSheet"
+                    or "Accounting.CustomerDebts"
+                    or "Accounting.SupplierPayables"
+                    or "Accounting.PartyBalances";
+        }
+
+        private static string GetCanonicalReportKey(string actionKey)
+        {
+            return actionKey switch
+            {
+                "Products.PriceList" => "price-list",
+                "Products.ItemCostDetails" => "item-cost-detail",
+                "Products.ProfitReport" => "product-profit",
+                "Products.InactiveReport" => "inactive-products",
+                "Stocks.BalancesReport" => "stock-balances",
+                "Stocks.LowStockReport" => "below-min-stock",
+                "Stocks.ExpiringStockReport" => "expiring-stock",
+                "Stocks.MaterialMovementsReport" => "material-movements",
+                "Reports.Sales" => "sales-report",
+                "Reports.CreditSales" => "credit-sales",
+                "Reports.InvoiceProfit" => "invoices-profit",
+                "Reports.ShiftSummary" => "cashier-board",
+                "Reports.PaymentsReceipts" => "cash-flow",
+                "Reports.InvoicePaymentMethods" => "invoice-payment-methods",
+                _ => actionKey
+            };
         }
 
         private static string? ResolveDashboardPermissionKey(ModuleActionDefinition action)
@@ -410,11 +755,18 @@ namespace RaccoonWarehouse
                     return;
                 }
 
+                if (!_dashboardActions.CanHandle(actionKey))
+                {
+                    throw new InvalidOperationException($"No dashboard action handler is registered for '{actionKey}'.");
+                }
+
                 await _dashboardActions.ExecuteAsync(actionKey, CreateDashboardActionContext());
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"{UiText.T("تعذر تنفيذ الإجراء", "Failed to execute action")}: {ex.Message}", UiText.T("خطأ", "Error"));
+                MessageBox.Show(
+                    $"{UiText.T("تعذر تنفيذ الإجراء", "Failed to execute action")} ({actionKey}): {ex.Message}",
+                    UiText.T("خطأ", "Error"));
             }
         }
 
@@ -547,14 +899,14 @@ namespace RaccoonWarehouse
                 _isLoadingReports = true;
                 await RunSidebarNavigationAsync(async () =>
                 {
-                    var moduleDefinition = await _dashboardModules.GetDefinitionAsync(ReportsDashboardModule.Key);
-                    if (moduleDefinition.Groups.Count == 0)
+                    var reportGroups = await BuildReportsGroupsAsync();
+                    if (reportGroups.Count == 0)
                     {
                         ShowDashboardEmptyState(UiText.T("لا توجد تقارير متاحة لهذا المستخدم.", "There are no reports available for this user."));
                         return;
                     }
 
-                    ShowDashboardGroups(moduleDefinition.Groups, DashboardActionButton_Click, maxColumns: 3);
+                    ShowReportsPage(reportGroups);
                 });
             }
             catch (Exception ex)

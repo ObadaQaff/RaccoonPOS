@@ -8,6 +8,7 @@ using RaccoonWarehouse.Domain.Reports.Financial.Dtos;
 using RaccoonWarehouse.Domain.Reports.Sales.Dtos;
 using RaccoonWarehouse.Domain.Users.DTOs;
 using RaccoonWarehouse.Helpers.Localization;
+using RaccoonWarehouse.Helpers;
 using RaccoonWarehouse.Helpers.Pdf;
 using RaccoonWarehouse.Helpers.Pdf.Reports;
 using RaccoonWarehouse.Navigation;
@@ -29,7 +30,12 @@ namespace RaccoonWarehouse.Reports
 
         private List<UserReadDto> _customers = new();
         private List<UserReadDto> _cashiers = new();
+        private List<UserReadDto> _suppliers = new();
         private List<SalesReportRowDto> _currentRows = new();
+        private bool _purchaseReportMode;
+        private bool _isFilteringSuppliers;
+        private bool _isNavigatingSuppliers;
+        private string _supplierSearchText = string.Empty;
 
         public SalesReport(
             IInvoiceService invoiceService,
@@ -50,6 +56,86 @@ namespace RaccoonWarehouse.Reports
             Loaded += SalesReport_Loaded;
         }
 
+        private void SupplierComboBox_Loaded(object sender, RoutedEventArgs e)
+        {
+            if (SupplierComboBox.Template.FindName("PART_EditableTextBox", SupplierComboBox) is TextBox textBox)
+                textBox.TextChanged += SupplierComboBox_TextChanged;
+        }
+
+        private void SupplierComboBox_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        {
+            if (e.Key is not (System.Windows.Input.Key.Down or System.Windows.Input.Key.Up or System.Windows.Input.Key.Enter)
+                || SupplierComboBox.Items.Count == 0)
+                return;
+
+            _isNavigatingSuppliers = true;
+            try
+            {
+                if (e.Key == System.Windows.Input.Key.Down)
+                    SupplierComboBox.SelectedIndex = Math.Min(SupplierComboBox.SelectedIndex + 1, SupplierComboBox.Items.Count - 1);
+                else if (e.Key == System.Windows.Input.Key.Up)
+                    SupplierComboBox.SelectedIndex = Math.Max(SupplierComboBox.SelectedIndex - 1, 0);
+                else
+                {
+                    SupplierComboBox.IsDropDownOpen = false;
+                    e.Handled = true;
+                    return;
+                }
+
+                RestoreSupplierSearchText();
+                e.Handled = true;
+            }
+            finally
+            {
+                _isNavigatingSuppliers = false;
+            }
+        }
+
+        private void RestoreSupplierSearchText()
+        {
+            if (SupplierComboBox.Template.FindName("PART_EditableTextBox", SupplierComboBox) is not TextBox textBox)
+                return;
+
+            textBox.Text = _supplierSearchText;
+            textBox.CaretIndex = textBox.Text.Length;
+            SupplierComboBox.IsDropDownOpen = true;
+        }
+
+        private void SupplierComboBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (_isFilteringSuppliers || _isNavigatingSuppliers || !SupplierComboBox.IsKeyboardFocusWithin)
+                return;
+
+            if (SupplierComboBox.Template.FindName("PART_EditableTextBox", SupplierComboBox) is not TextBox textBox)
+                return;
+
+            _supplierSearchText = textBox.Text.Trim();
+            _isFilteringSuppliers = true;
+            try
+            {
+                SupplierComboBox.SelectedValue = null;
+                SupplierComboBox.ItemsSource = string.IsNullOrWhiteSpace(_supplierSearchText)
+                    ? _suppliers.ToList()
+                    : _suppliers.Where(user =>
+                            (user.Name ?? string.Empty).Contains(_supplierSearchText, StringComparison.CurrentCultureIgnoreCase)
+                            || (user.PhoneNumber ?? string.Empty).Contains(_supplierSearchText, StringComparison.CurrentCultureIgnoreCase))
+                        .ToList();
+                textBox.Text = _supplierSearchText;
+                textBox.CaretIndex = textBox.Text.Length;
+                SupplierComboBox.IsDropDownOpen = true;
+            }
+            finally
+            {
+                _isFilteringSuppliers = false;
+            }
+        }
+
+        public void ConfigureAsPurchaseReport()
+        {
+            _purchaseReportMode = true;
+            Title = UiText.T("تقرير المشتريات", "Purchase Report");
+        }
+
         private async void SalesReportGrid_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
             if (SalesReportGrid.SelectedItem is not SalesReportRowDto row || row.InvoiceId <= 0)
@@ -68,9 +154,43 @@ namespace RaccoonWarehouse.Reports
 
                 InvoiceTypeComboBox.Items.Clear();
                 InvoiceTypeComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("الكل", "All"), Tag = (InvoiceType?)null });
-                InvoiceTypeComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("مبيعات", "Sales"), Tag = (InvoiceType?)InvoiceType.Sale });
-                InvoiceTypeComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("مرتجع", "Return"), Tag = (InvoiceType?)InvoiceType.Return });
-                InvoiceTypeComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("طلبات API", "Endpoint orders"), Tag = (InvoiceType?)InvoiceType.EndpointOrder });
+                if (_purchaseReportMode)
+                {
+                    InvoiceTypeComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("فواتير شراء", "Purchase invoices"), Tag = (InvoiceType?)InvoiceType.Purchase });
+                    InvoiceTypeComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("مرتجع شراء", "Purchase returns"), Tag = (InvoiceType?)InvoiceType.PurchaseReturn });
+                    CustomerFilterPanel.Visibility = Visibility.Collapsed;
+                    SupplierFilterPanel.Visibility = Visibility.Visible;
+                    PosFilterPanel.Visibility = Visibility.Collapsed;
+                    VoucherSummaryGrid.Visibility = Visibility.Collapsed;
+                    TotalDisplayedAmountCard.Visibility = Visibility.Visible;
+                    SummaryCardsGrid.Columns = 5;
+                    TotalCogsCard.Visibility = Visibility.Collapsed;
+                    GrossProfitCard.Visibility = Visibility.Collapsed;
+                    if (SalesReportGrid.Columns.Count > 9)
+                    {
+                        SalesReportGrid.Columns[8].Visibility = Visibility.Collapsed;
+                        SalesReportGrid.Columns[9].Visibility = Visibility.Collapsed;
+                    }
+                    ReportHeaderText.Text = UiText.T("تقرير المشتريات", "Purchase Report");
+                    TotalSalesLabel.Text = UiText.T("إجمالي الشراء", "Total purchases");
+                    TotalReturnsLabel.Text = UiText.T("مرتجعات الشراء", "Purchase returns");
+                }
+                else
+                {
+                    InvoiceTypeComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("مبيعات", "Sales"), Tag = (InvoiceType?)InvoiceType.Sale });
+                    InvoiceTypeComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("مرتجع", "Return"), Tag = (InvoiceType?)InvoiceType.Return });
+                    InvoiceTypeComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("طلبات API", "Endpoint orders"), Tag = (InvoiceType?)InvoiceType.EndpointOrder });
+                }
+                if (!_purchaseReportMode)
+                {
+                    CustomerFilterPanel.Visibility = Visibility.Visible;
+                    SupplierFilterPanel.Visibility = Visibility.Collapsed;
+                    PosFilterPanel.Visibility = Visibility.Visible;
+                    VoucherSummaryGrid.Visibility = Visibility.Visible;
+                    TotalDisplayedAmountCard.Visibility = Visibility.Collapsed;
+                    SummaryCardsGrid.Columns = 7;
+                }
+
                 InvoiceTypeComboBox.SelectedIndex = 0;
 
                 PosFilterComboBox.Items.Clear();
@@ -90,7 +210,7 @@ namespace RaccoonWarehouse.Reports
                 PaymentMethodComboBox.Items.Add(new ComboBoxItem { Content = "Visa", Tag = PaymentType.Visa });
                 PaymentMethodComboBox.SelectedIndex = 0;
 
-                var rangeResult = await _invoiceService.GetSalesReportDateRangeAsync();
+                var rangeResult = await _invoiceService.GetSalesReportDateRangeAsync(_purchaseReportMode);
                 if (!rangeResult.Success)
                     errorMessage = rangeResult.Message;
 
@@ -107,11 +227,13 @@ namespace RaccoonWarehouse.Reports
 
                 var allUsers = usersRes.Data ?? new List<UserReadDto>();
                 _customers = allUsers
-                    .Where(x => x.Role == UserRole.Customer)
                     .OrderBy(x => x.Name)
                     .ToList();
                 _cashiers = allUsers
                     .Where(x => x.Role == UserRole.Casher)
+                    .OrderBy(x => x.Name)
+                    .ToList();
+                _suppliers = allUsers
                     .OrderBy(x => x.Name)
                     .ToList();
 
@@ -126,6 +248,12 @@ namespace RaccoonWarehouse.Reports
                     new() { Id = 0, Name = UiText.T("الكل", "All") }
                 }.Concat(_cashiers).ToList();
                 CashierComboBox.SelectedValue = 0;
+
+                SupplierComboBox.ItemsSource = new List<UserReadDto>
+                {
+                    new() { Id = 0, Name = UiText.T("الكل", "All") }
+                }.Concat(_suppliers).ToList();
+                SupplierComboBox.SelectedValue = 0;
 
                 UiText.ApplyTranslations(this);
                 ClearSummary();
@@ -171,8 +299,12 @@ namespace RaccoonWarehouse.Reports
                 var to = ToDatePicker.SelectedDate.Value.Date.AddDays(1).AddTicks(-1); // include full day
 
                 int? customerId = null;
-                if (CustomerComboBox.SelectedValue is int cid && cid != 0)
+                if (!_purchaseReportMode && CustomerComboBox.SelectedValue is int cid && cid != 0)
                     customerId = cid;
+
+                int? supplierId = null;
+                if (_purchaseReportMode && SupplierComboBox.SelectedValue is int sid && sid != 0)
+                    supplierId = sid;
 
                 int? cashierId = null;
                 if (CashierComboBox.SelectedValue is int cashierValue && cashierValue != 0)
@@ -200,12 +332,13 @@ namespace RaccoonWarehouse.Reports
                     From = from,
                     To = to,
                     CustomerId = customerId,
+                    SupplierId = supplierId,
                     CashierId = cashierId,
                     PaymentType = paymentType,
                     IncludeReturns = true
                 };
 
-                var res = await _invoiceService.GetSalesReportAsync(filter, invoiceType, isPOS);
+                var res = await _invoiceService.GetSalesReportAsync(filter, invoiceType, isPOS, _purchaseReportMode);
 
                 if (!res.Success)
                 {
@@ -218,13 +351,16 @@ namespace RaccoonWarehouse.Reports
                     SalesReportGrid.ItemsSource = rows;
                     FillSummary(rows);
 
-                    var voucherReport = await _financialTransactionService.GetVoucherPaymentsReceiptsAsync(new CashFlowFilterDto
+                    if (!_purchaseReportMode)
                     {
-                        From = from,
-                        To = ToDatePicker.SelectedDate.Value.Date,
-                        IncludeVoided = false
-                    });
-                    FillVoucherSummary(voucherReport.summary);
+                        var voucherReport = await _financialTransactionService.GetVoucherPaymentsReceiptsAsync(new CashFlowFilterDto
+                        {
+                            From = from,
+                            To = ToDatePicker.SelectedDate.Value.Date,
+                            IncludeVoided = false
+                        });
+                        FillVoucherSummary(voucherReport.summary);
+                    }
                 }
             }
             catch (Exception ex)
@@ -244,6 +380,37 @@ namespace RaccoonWarehouse.Reports
 
         private void FillSummary(List<SalesReportRowDto> data)
         {
+            if (_purchaseReportMode)
+            {
+                var purchases = data.Where(x => string.Equals(x.InvoiceType, InvoiceType.Purchase.ToString(), StringComparison.OrdinalIgnoreCase)).ToList();
+                var purchaseReturns = data.Where(x => string.Equals(x.InvoiceType, InvoiceType.PurchaseReturn.ToString(), StringComparison.OrdinalIgnoreCase)).ToList();
+                var totalPurchases = purchases.Sum(x => Math.Abs(x.Total));
+                var totalPurchaseReturns = purchaseReturns.Sum(x => Math.Abs(x.Total));
+                var totalPurchaseTax = purchases.Sum(x => Math.Abs(x.TotalTax));
+                var totalPurchaseDiscount = purchases.Sum(x => Math.Abs(x.Discount));
+                var totalDisplayedAmount = data.Sum(x => x.Total);
+
+                TotalSalesText.Text = totalPurchases.ToString("0.00000");
+                TotalReturnsText.Text = totalPurchaseReturns.ToString("0.00000");
+                TotalTaxText.Text = totalPurchaseTax.ToString("0.00000");
+                TotalDiscountText.Text = totalPurchaseDiscount.ToString("0.00000");
+                TotalDisplayedAmountText.Text = totalDisplayedAmount.ToString("0.00000");
+                TotalCogsText.Text = "0";
+                GrossProfitText.Text = "0";
+
+                decimal PurchasePaymentTotal(PaymentType paymentType) => data
+                    .Sum(x => x.PaymentAmounts.TryGetValue(paymentType, out var amount) ? Math.Abs(amount) : 0m);
+
+                CashTotalText.Text = PurchasePaymentTotal(PaymentType.Cash).ToString("0.00000");
+                VisaTotalText.Text = PurchasePaymentTotal(PaymentType.Visa).ToString("0.00000");
+                MasterTotalText.Text = PurchasePaymentTotal(PaymentType.Master).ToString("0.00000");
+                DebitTotalText.Text = PurchasePaymentTotal(PaymentType.Debit).ToString("0.00000");
+                CheckTotalText.Text = PurchasePaymentTotal(PaymentType.Check).ToString("0.00000");
+                MobileTotalText.Text = PurchasePaymentTotal(PaymentType.MobilePayment).ToString("0.00000");
+                CreditTotalText.Text = PurchasePaymentTotal(PaymentType.Credit).ToString("0.00000");
+                return;
+            }
+
             bool IsReturn(SalesReportRowDto x)
             {
                 var t = x.InvoiceType ?? "";
@@ -294,6 +461,7 @@ namespace RaccoonWarehouse.Reports
         {
             TotalSalesText.Text = "0";
             TotalReturnsText.Text = "0";
+            TotalDisplayedAmountText.Text = "0";
             TotalTaxText.Text = "0";
             TotalDiscountText.Text = "0";
             TotalCogsText.Text = "0";
@@ -362,7 +530,9 @@ namespace RaccoonWarehouse.Reports
                 return null;
             }
 
-            var customerName = (CustomerComboBox.SelectedItem as UserReadDto)?.Name ?? UiText.T("الكل", "All");
+            var customerName = _purchaseReportMode
+                ? (SupplierComboBox.SelectedItem as UserReadDto)?.Name ?? UiText.T("الكل", "All")
+                : (CustomerComboBox.SelectedItem as UserReadDto)?.Name ?? UiText.T("الكل", "All");
             return new SalesSummaryReportDocument(_currentRows, FromDatePicker.SelectedDate, ToDatePicker.SelectedDate, customerName);
         }
     }

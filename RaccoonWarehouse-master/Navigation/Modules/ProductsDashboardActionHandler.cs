@@ -19,6 +19,7 @@ namespace RaccoonWarehouse.Navigation.Modules
                 "Products.InactiveReport" or
                 "Stocks.BalancesReport" or
                 "Stocks.LowStockReport" or
+                "Stocks.ExpiringStockReport" or
                 "Stocks.MaterialMovementsReport";
         }
 
@@ -49,6 +50,9 @@ namespace RaccoonWarehouse.Navigation.Modules
                     break;
                 case "Stocks.LowStockReport":
                     context.OpenReportWindow(() => WindowManager.Show<LowStockReport>(WindowSizeType.LargeRectangle));
+                    break;
+                case "Stocks.ExpiringStockReport":
+                    context.OpenReportWindow(() => WindowManager.Show<ExpiringStockReport>(WindowSizeType.LargeRectangle));
                     break;
                 case "Stocks.MaterialMovementsReport":
                     context.OpenReportWindow(() => WindowManager.Show<MaterialMovementsReport>(WindowSizeType.LargeRectangle));

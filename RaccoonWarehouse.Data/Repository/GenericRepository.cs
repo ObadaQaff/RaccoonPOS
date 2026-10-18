@@ -241,7 +241,7 @@ namespace RaccoonWarehouse.Data.Repository
 
 
         }
-        public async Task<IPagedResult<T>> GetPagedListAsync(
+        public async Task<IPagedResult<T>> GetPagedListAsync(   
            int pageNumber,
            int pageSize,
            Expression<Func<T, bool>> filter = null,

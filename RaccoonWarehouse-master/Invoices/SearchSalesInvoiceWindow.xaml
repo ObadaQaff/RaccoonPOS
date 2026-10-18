@@ -56,7 +56,7 @@
                 </StackPanel>
 
                 <StackPanel Margin="10">
-                    <TextBlock Text="اسم الزبون"/>
+                    <TextBlock x:Name="PartyFilterLabel" Text="الزبون / المورد"/>
                     <ComboBox x:Name="CustomerTxt" Width="200" Height="34" FontSize="14" Padding="6" DisplayMemberPath="Name" IsEditable="True" IsTextSearchEnabled="False" StaysOpenOnEdit="True" Loaded="CustomerTxt_Loaded" PreviewTextInput="CustomerTxt_PreviewTextInput" KeyUp="CustomerTxt_KeyUp" />
                 </StackPanel>
 
@@ -89,9 +89,8 @@
 
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="رقم الفاتورة" Binding="{Binding InvoiceNumber}" Width="150"/>
-                            <DataGridTextColumn Header="رقم فالكون" Binding="{Binding FalconInvoiceNumber}" Width="150"/>
                             <DataGridTextColumn Header="التاريخ" Binding="{Binding CreatedDate,StringFormat=yyyy-MM-dd}" Width="150"/>
-                            <DataGridTextColumn Header="الزبون" Binding="{Binding Customer.Name}" Width="200"/>
+                            <DataGridTextColumn Header="الزبون / المورد" Binding="{Binding PartyName}" Width="200"/>
                             <DataGridTextColumn Header="المندوب" Binding="{Binding DelegateName}" Width="180"/>
                             <DataGridTextColumn Header="الإجمالي" Binding="{Binding TotalAmount}" Width="120"/>
                         </DataGrid.Columns>

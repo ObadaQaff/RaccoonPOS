@@ -256,14 +256,28 @@
                                                   IsReadOnly="True" GridLinesVisibility="Horizontal"
                                                   RowHeight="40" FontSize="14" FlowDirection="RightToLeft"
                                                   AlternatingRowBackground="#F7F9FB" Background="White" BorderThickness="0">
+                                            <DataGrid.RowStyle>
+                                                <Style TargetType="DataGridRow">
+                                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                                    <Setter Property="Foreground" Value="#263238"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding CurrentStockQuantity}" Value="0">
+                                                            <Setter Property="Foreground" Value="#9A9A9A"/>
+                                                            <Setter Property="FontStyle" Value="Italic"/>
+                                                            <Setter Property="Background" Value="#FFF4F4F4"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </DataGrid.RowStyle>
                                             <DataGrid.Columns>
-                                                <DataGridTextColumn Header="الاسم"           Width="220" Binding="{Binding Name, TargetNullValue=---}"/>
+                                                <DataGridTextColumn Header="الاسم"           Width="190" Binding="{Binding Name, TargetNullValue=---}"/>
                                                 <DataGridTextColumn Header="الباركود"        Width="130" Binding="{Binding ITEMCODE, TargetNullValue=---}" ElementStyle="{StaticResource ProductValueTextStyle}"/>
                                                 <DataGridTextColumn Header="الفئة"           Width="160" Binding="{Binding SubCategory.Name, TargetNullValue=---}"/>
                                                 <DataGridTextColumn Header="العلامة التجارية" Width="160" Binding="{Binding Brand.Name, TargetNullValue=---}"/>
                                                 <DataGridTextColumn Header="الوصف"           Width="320" Binding="{Binding Description, TargetNullValue=---}"/>
-                                                <DataGridTextColumn Header="الكمية المتوفرة"  Width="130" Binding="{Binding CurrentStockQuantity, StringFormat={}{0:N5}, TargetNullValue=---}"/>
-                                                <DataGridTextColumn Header="سعر المخزون الحالي" Width="150" Binding="{Binding CurrentSalePrice, StringFormat={}{0:N5}, FallbackValue=0.00000}"/>
+                                                <DataGridTextColumn Header="الكمية المتوفرة"  Width="130" Binding="{Binding CurrentStockQuantity, StringFormat={}{0:N3}, TargetNullValue=---}"/>
+                                                <DataGridTextColumn Header="Supplier" Width="180" Binding="{Binding Supplier.Name, TargetNullValue=---}"/>
+                                                <DataGridTextColumn Header="سعر المخزون الحالي" Width="150" Binding="{Binding CurrentSalePrice, StringFormat={}{0:N3}, FallbackValue=0.000}"/>
                                             </DataGrid.Columns>
                                         </DataGrid>
                                     </ScrollViewer>
@@ -831,7 +845,7 @@
 
                                             <!-- Price -->
                                             <TextBlock Grid.Row="2"
-                                                       Text="{Binding CurrentSalePrice, StringFormat={}{0:N5}}"
+                                                       Text="{Binding CurrentSalePrice, StringFormat={}{0:N3}}"
                                                        FontSize="11"
                                                        Foreground="{StaticResource AppPrimaryDarkBrush}"
                                                        FontWeight="Bold"
@@ -882,7 +896,7 @@
                                                     VerticalAlignment="Center"
                                                     Foreground="{StaticResource AppMutedTextBrush}"
                                                     Margin="0,0,5,0"/>
-                        <TextBlock x:Name="StatusTotal" Text="الإجمالي: 0.00000"
+                        <TextBlock x:Name="StatusTotal" Text="الإجمالي: 0.000"
                                    FontSize="13" FontWeight="SemiBold"
                                    Foreground="{StaticResource AppPrimaryDarkBrush}"/>
                     </StackPanel>
@@ -946,10 +960,10 @@
                               CellEditEnding="InvoiceGrid_CellEditEnding"
                               CurrentCellChanged="InvoiceGrid_CurrentCellChanged">
                         <DataGrid.Columns>
-                            <DataGridTemplateColumn Header="رمز المادة / Barcode" Width="220">
+                            <DataGridTemplateColumn Header="رمز المادة / Barcode" Width="190">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <TextBlock Text="{Binding SelectedProduct.ITEMCODE, TargetNullValue=---}"
+                                        <TextBlock Text="{Binding BarcodeDisplay}"
                                                    FlowDirection="LeftToRight"
                                                    VerticalAlignment="Center"
                                                    Padding="4,0"/>
@@ -957,7 +971,7 @@
                                 </DataGridTemplateColumn.CellTemplate>
                                 <DataGridTemplateColumn.CellEditingTemplate>
                                     <DataTemplate>
-                                        <TextBox Text="{Binding SelectedProduct.ITEMCODE, Mode=OneWay}"
+                                        <TextBox Text="{Binding BarcodeDisplay, Mode=OneWay}"
                                                  FlowDirection="LeftToRight"
                                                  Padding="4,2"
                                                  BorderThickness="0"
@@ -967,7 +981,7 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellEditingTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTemplateColumn Header="الصنف" Width="3*" IsReadOnly="True">
+                            <DataGridTemplateColumn Header="الصنف" Width="4*" IsReadOnly="True">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <TextBlock Text="{Binding ProductName, TargetNullValue='---'}"
@@ -991,17 +1005,17 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellEditingTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTemplateColumn Header="الكمية" Width="60">
+                            <DataGridTemplateColumn Header="الكمية" Width="80">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <TextBlock Text="{Binding Quantity, Converter={StaticResource AbsoluteQuantityConverter}}"
+                                        <TextBlock Text="{Binding Quantity, Converter={StaticResource AbsoluteQuantityConverter}, StringFormat={}{0:0.000}}"
                                                    Padding="4,0" VerticalAlignment="Center"
                                                    FlowDirection="LeftToRight" TextAlignment="Left"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                                 <DataGridTemplateColumn.CellEditingTemplate>
                                     <DataTemplate>
-                                        <TextBox Text="{Binding Quantity, Mode=TwoWay, UpdateSourceTrigger=LostFocus, Converter={StaticResource AbsoluteQuantityConverter}}"
+                                        <TextBox Text="{Binding Quantity, Mode=TwoWay, UpdateSourceTrigger=LostFocus, Converter={StaticResource AbsoluteQuantityConverter}, StringFormat={}{0:0.000}}"
                                                  Padding="4,2" BorderThickness="0" Background="Transparent"
                                                  VerticalContentAlignment="Center" FlowDirection="LeftToRight"
                                                  Language="en-US"
@@ -1013,14 +1027,14 @@
                             <DataGridTemplateColumn Header="Returned Quantity / Return Qty" Width="95" Visibility="Collapsed">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <TextBlock Text="{Binding ReturnedQuantity, Converter={StaticResource AbsoluteQuantityConverter}}"
+                                        <TextBlock Text="{Binding ReturnedQuantity, Converter={StaticResource AbsoluteQuantityConverter}, StringFormat={}{0:0.000}}"
                                                    Padding="4,0" VerticalAlignment="Center"
                                                    FlowDirection="LeftToRight" TextAlignment="Left"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                                 <DataGridTemplateColumn.CellEditingTemplate>
                                     <DataTemplate>
-                                        <TextBox Text="{Binding ReturnedQuantity, Mode=TwoWay, UpdateSourceTrigger=LostFocus, Converter={StaticResource AbsoluteQuantityConverter}}"
+                                        <TextBox Text="{Binding ReturnedQuantity, Mode=TwoWay, UpdateSourceTrigger=LostFocus, Converter={StaticResource AbsoluteQuantityConverter}, StringFormat={}{0:0.000}}"
                                                  Padding="4,2" BorderThickness="0" Background="Transparent"
                                                  VerticalContentAlignment="Center" FlowDirection="LeftToRight"
                                                  Language="en-US"
@@ -1029,17 +1043,32 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellEditingTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTemplateColumn Header="السعر" Width="70">
+                            <DataGridTemplateColumn Header="السعر" Width="90" IsReadOnly="True">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <TextBlock Text="{Binding UnitPrice}"
+                                        <TextBlock Text="{Binding UnitPrice, StringFormat={}{0:0.000}}"
+                                                   Padding="4,0" VerticalAlignment="Center"
+                                                   FlowDirection="LeftToRight" TextAlignment="Left"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="المتبقي بعد البيع" Width="105"
+                                                IsReadOnly="True" Binding="{Binding AvailableQuantitySnapshot, Mode=OneWay, StringFormat={}{0:0.000}}"/>
+                            <DataGridTextColumn Header="Expiry Date" Width="135"
+                                                IsReadOnly="True" Binding="{Binding ExpiryDateDisplay, Mode=OneWay}"/>
+                            <DataGridTemplateColumn Header="Discount / &#x62E;&#x635;&#x645;" Width="125">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding LineDiscountDisplay}"
                                                    Padding="4,0" VerticalAlignment="Center"
                                                    FlowDirection="LeftToRight" TextAlignment="Left"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                                 <DataGridTemplateColumn.CellEditingTemplate>
                                     <DataTemplate>
-                                        <TextBox Text="{Binding UnitPrice, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                        <TextBox Text="{Binding LineDiscountInput, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
+                                                 Tag="Discount"
+                                                 LostFocus="DiscountEditor_LostFocus"
                                                  Padding="4,2" BorderThickness="0" Background="Transparent"
                                                  VerticalContentAlignment="Center" FlowDirection="LeftToRight"
                                                  Language="en-US"
@@ -1048,8 +1077,6 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellEditingTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTextColumn Header="المتبقي بعد البيع" Width="105"
-                                                IsReadOnly="True" Binding="{Binding AvailableQuantitySnapshot, StringFormat={}{0:0.00000}}"/>
                             <DataGridTemplateColumn Header="الوحدة" Width="110">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
@@ -1076,9 +1103,9 @@
                             </DataGridTemplateColumn>
                             <DataGridTextColumn Header="الضريبة / Tax" Width="90"
                                                 IsReadOnly="True"
-                                                Binding="{Binding TaxAmount, StringFormat={}{0:0.00000}}"/>
-                            <DataGridTextColumn Header="الإجمالي" Width="70"
-                                                IsReadOnly="True" Binding="{Binding LineTotal}"/>
+                                                Binding="{Binding TaxAmount, Mode=OneWay, StringFormat={}{0:0.000}}"/>
+                            <DataGridTextColumn Header="الإجمالي" Width="90"
+                                                IsReadOnly="True" Binding="{Binding LineTotal, Mode=OneWay, StringFormat={}{0:0.000}}"/>
                         </DataGrid.Columns>
                     </DataGrid>
                 </Grid>
@@ -1097,7 +1124,7 @@
                     </Grid.ColumnDefinitions>
                     <StackPanel VerticalAlignment="Center">
                         <TextBlock Text="المبلغ الإجمالي" Style="{StaticResource SummaryLabel}"/>
-                        <TextBlock x:Name="TotalTextBlock" Text="0.00000"
+                        <TextBlock x:Name="TotalTextBlock" Text="0.000"
                                    FontSize="32" FontWeight="Bold"
                                    Foreground="#C93F4D"/>
                     </StackPanel>
@@ -1112,7 +1139,7 @@
                         <Border Background="#FDE8EA" CornerRadius="8" Padding="10,6" Margin="0,0,0,4">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="خصم: " Style="{StaticResource SummaryLabel}" FontSize="11"/>
-                                <TextBlock x:Name="DiscountSummaryText" Text="0.00000"
+                                <TextBlock x:Name="DiscountSummaryText" Text="0.000"
                                            Style="{StaticResource SummaryValue}" FontSize="11"
                                            Foreground="#C93F4D"/>
                             </StackPanel>
@@ -1120,7 +1147,7 @@
                         <Border Background="#EEF7EF" CornerRadius="8" Padding="10,6">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="صافي: " Style="{StaticResource SummaryLabel}" FontSize="11"/>
-                                <TextBlock x:Name="NetTotalText" Text="0.00000"
+                                <TextBlock x:Name="NetTotalText" Text="0.000"
                                            Style="{StaticResource SummaryValue}" FontSize="11"
                                            Foreground="{StaticResource AppPrimaryDarkBrush}"/>
                             </StackPanel>
@@ -1156,15 +1183,6 @@
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                 <iconPacks:PackIconMaterial Kind="CreditCard" Width="15" Height="15"/>
                                 <TextBlock Text="Visa" Margin="6,0,0,0"/>
-                            </StackPanel>
-                        </Button>
-                        <Button Style="{StaticResource PaymentBtn}"
-                                Background="#445A68"
-                                Click="MasterCardPaymentBtn_Click"
-                                ToolTip="Ctrl+3">
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                <iconPacks:PackIconMaterial Kind="CreditCardOutline" Width="15" Height="15"/>
-                                <TextBlock Text="Master" Margin="6,0,0,0"/>
                             </StackPanel>
                         </Button>
                         <Button Style="{StaticResource PaymentBtn}"

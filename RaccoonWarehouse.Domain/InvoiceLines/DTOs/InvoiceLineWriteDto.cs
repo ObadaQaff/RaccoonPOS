@@ -33,6 +33,9 @@ namespace RaccoonWarehouse.Domain.InvoiceLines.DTOs
                     _quantity = value;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(LineTotal)); // Also notify that LineTotal changed
+                    OnPropertyChanged(nameof(LineDiscountPercent));
+                    OnPropertyChanged(nameof(LineDiscountDisplay));
+                    OnPropertyChanged(nameof(LineDiscountInput));
                 }
             }
         }
@@ -45,6 +48,9 @@ namespace RaccoonWarehouse.Domain.InvoiceLines.DTOs
         public ProductWriteDto? Product { get; set; }
         public int ProductUnitId { get; set; }
         public ProductUnitWriteDto? ProductUnit { get; set; }
+        public string BarcodeDisplay => !string.IsNullOrWhiteSpace(ProductUnit?.AlternateBarcode)
+            ? ProductUnit.AlternateBarcode!
+            : SelectedProduct?.ITEMCODE?.ToString() ?? "---";
         public decimal QuantityPerUnitSnapshot { get; set; } = 1m;
         public decimal BaseQuantity { get; set; }
         private decimal _unitPrice;
@@ -58,10 +64,15 @@ namespace RaccoonWarehouse.Domain.InvoiceLines.DTOs
                     _unitPrice = value;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(LineTotal));
+                    OnPropertyChanged(nameof(LineDiscountPercent));
+                    OnPropertyChanged(nameof(LineDiscountDisplay));
+                    OnPropertyChanged(nameof(LineDiscountInput));
                 }
             }
         }
         private decimal _lineDiscountAmount;
+        private bool _lineDiscountIsPercentage;
+        private string? _lineDiscountInput;
         public decimal LineDiscountAmount
         {
             get => _lineDiscountAmount;
@@ -72,7 +83,68 @@ namespace RaccoonWarehouse.Domain.InvoiceLines.DTOs
                     _lineDiscountAmount = value;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(LineTotal));
+                    OnPropertyChanged(nameof(LineDiscountPercent));
+                    OnPropertyChanged(nameof(LineDiscountDisplay));
+                    OnPropertyChanged(nameof(LineDiscountInput));
                 }
+            }
+        }
+
+        // UI-only mode; the persisted source of truth remains LineDiscountAmount.
+        public bool LineDiscountIsPercentage
+        {
+            get => _lineDiscountIsPercentage;
+            set
+            {
+                if (_lineDiscountIsPercentage != value)
+                {
+                    _lineDiscountIsPercentage = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(LineDiscountDisplay));
+                    OnPropertyChanged(nameof(LineDiscountInput));
+                }
+            }
+        }
+
+        // UI-only input buffer. POS interprets a trailing '%' as percentage mode.
+        public string LineDiscountInput
+        {
+            get => _lineDiscountInput ?? LineDiscountDisplay;
+            set
+            {
+                if (_lineDiscountInput != value)
+                {
+                    _lineDiscountInput = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public string LineDiscountDisplay => _lineDiscountInput ?? (LineDiscountIsPercentage
+            ? $"{LineDiscountPercent:0.000}%"
+            : $"{LineDiscountAmount:0.000}");
+
+        // The stored value remains LineDiscountAmount. This calculated property
+        // provides percentage editing in POS without changing the database.
+        public decimal LineDiscountPercent
+        {
+            get
+            {
+                var grossLineTotal = Math.Abs(Quantity * UnitPrice);
+                return grossLineTotal <= 0m
+                    ? 0m
+                    : Math.Round(Math.Abs(LineDiscountAmount) / grossLineTotal * 100m, 3, MidpointRounding.AwayFromZero);
+            }
+            set
+            {
+                var percentage = Math.Clamp(value, 0m, 100m);
+                var grossLineTotal = Math.Abs(Quantity * UnitPrice);
+                LineDiscountAmount = grossLineTotal <= 0m
+                    ? 0m
+                    : Math.Round(grossLineTotal * percentage / 100m, 3, MidpointRounding.AwayFromZero);
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(LineDiscountDisplay));
+                OnPropertyChanged(nameof(LineDiscountInput));
             }
         }
         private decimal _freeQuantity;
@@ -120,7 +192,24 @@ namespace RaccoonWarehouse.Domain.InvoiceLines.DTOs
             OnPropertyChanged(nameof(LineTotal));
             OnPropertyChanged(nameof(CostTotal));
         }
-        public DateTime ExpiryDate { get; set; }   // ✅ تمت إضافته
+        private DateTime _expiryDate;
+        public DateTime ExpiryDate
+        {
+            get => _expiryDate;
+            set
+            {
+                if (_expiryDate != value)
+                {
+                    _expiryDate = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(ExpiryDateDisplay));
+                }
+            }
+        }
+
+        public string ExpiryDateDisplay => ExpiryDate == default
+            ? "---"
+            : ExpiryDate.ToString("dd-MM-yyyy");
 
         public DateTime CreatedDate { get; set; }
         public DateTime UpdatedDate { get; set; }
@@ -134,6 +223,7 @@ namespace RaccoonWarehouse.Domain.InvoiceLines.DTOs
                 {
                     _selectedProduct = value;
                     OnPropertyChanged();
+                    OnPropertyChanged(nameof(BarcodeDisplay));
                 }
             }
         }

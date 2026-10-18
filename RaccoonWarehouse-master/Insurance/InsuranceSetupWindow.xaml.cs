@@ -1,6 +1,7 @@
 using RaccoonWarehouse.Application.Service.Insurance;
 using RaccoonWarehouse.Application.Service.Products;
 using RaccoonWarehouse.Application.Service.Stocks;
+using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Domain.Insurance;
 using RaccoonWarehouse.Helpers.Localization;
@@ -17,17 +18,19 @@ public partial class InsuranceSetupWindow : Window
     private readonly ILoadingService _loading;
     private readonly IProductService _productService;
     private readonly IStockService _stockService;
+    private readonly IUserService _userService;
     private readonly ObservableCollection<InsuranceContractDto> _contracts = new();
     private readonly ObservableCollection<InsurancePlanDto> _plans = new();
     private readonly ObservableCollection<InsuranceMemberPolicyDto> _members = new();
     private readonly ObservableCollection<InsuranceCoverageRuleDto> _rules = new();
 
-    public InsuranceSetupWindow(IInsuranceManagementService service, ILoadingService loading, IProductService productService, IStockService stockService)
+    public InsuranceSetupWindow(IInsuranceManagementService service, ILoadingService loading, IProductService productService, IStockService stockService, IUserService userService)
     {
         _service = service;
         _loading = loading;
         _productService = productService;
         _stockService = stockService;
+        _userService = userService;
         InitializeComponent();
         ContractsGrid.ItemsSource = _contracts;
         PlansGrid.ItemsSource = _plans;
@@ -160,7 +163,7 @@ public partial class InsuranceSetupWindow : Window
 
     private void SelectRuleProduct_Click(object sender, RoutedEventArgs e)
     {
-        var searchWindow = new ProductSearchWindow(_productService, _stockService);
+        var searchWindow = new ProductSearchWindow(_productService, _stockService, _userService);
         searchWindow.Owner = this;
         if (searchWindow.ShowDialog() == true && searchWindow.SelectedProduct != null)
         {

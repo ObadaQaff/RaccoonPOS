@@ -15,6 +15,27 @@ public partial class StockLotsWindow : Window
     private readonly ILoadingService _loadingService;
     private List<StockBatchLookupDto> _allLots = new();
 
+    private bool _showExpiredOnly;
+    public bool ShowExpiredOnly
+    {
+        get => _showExpiredOnly;
+        set
+        {
+            _showExpiredOnly = value;
+            if (IsInitialized)
+            {
+                ApplyTexts();
+                if (_showExpiredOnly)
+                {
+                    TitleText.Text = UiText.T("المنتجات المنتهية", "Expired products");
+                    DescriptionText.Text = UiText.T(
+                        "دفعات انتهى تاريخها وما زالت تحتوي على كمية متبقية. راجعها قبل البيع أو الإتلاف.",
+                        "Lots past their expiry date with remaining stock. Review them before sale or disposal.");
+                }
+            }
+        }
+    }
+
     private sealed record StatusOption(BatchStatus? Value, string Arabic, string English)
     {
         public override string ToString() => UiText.IsEnglish ? English : Arabic;
@@ -71,6 +92,14 @@ public partial class StockLotsWindow : Window
         if (selectedStatus.HasValue)
             rows = rows.Where(lot => lot.Status == selectedStatus.Value);
 
+        if (ShowExpiredOnly)
+        {
+            var today = DateTime.Today;
+            rows = rows.Where(lot => lot.RemainingQuantity > 0
+                                     && lot.ExpiryDate.HasValue
+                                     && lot.ExpiryDate.Value.Date <= today);
+        }
+
         var result = rows.OrderBy(lot => lot.Status == BatchStatus.Active ? 0 : 1)
                          .ThenBy(lot => lot.ExpiryDate ?? DateTime.MaxValue)
                          .ThenBy(lot => lot.ProductName)
@@ -111,6 +140,14 @@ public partial class StockLotsWindow : Window
 
     private void ApplyTexts()
     {
+        if (ShowExpiredOnly)
+        {
+            TitleText.Text = UiText.T("المنتجات المنتهية", "Expired products");
+            DescriptionText.Text = UiText.T(
+                "دفعات انتهى تاريخها وما زالت تحتوي على كمية متبقية. راجعها قبل البيع أو الإتلاف.",
+                "Lots past their expiry date with remaining stock. Review them before sale or disposal.");
+        }
+
         if (UiText.IsEnglish)
             return;
         TitleText.Text = "إدارة دفعات المخزون / Lot Management";

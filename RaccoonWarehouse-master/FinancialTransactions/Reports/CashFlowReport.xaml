@@ -138,6 +138,17 @@
                                   Margin="0,8,0,0"/>
                     </StackPanel>
 
+                    <StackPanel Grid.Column="5" Margin="8,0">
+                        <TextBlock Text="المستخدم / User" FontWeight="SemiBold" Foreground="#333" Margin="0,0,0,3"/>
+                        <ComboBox x:Name="UserComboBox"
+                                  Style="{StaticResource ComboStyle}"
+                                  DisplayMemberPath="Name"
+                                  SelectedValuePath="Id"
+                                  IsEditable="True"
+                                  IsTextSearchEnabled="False"
+                                  StaysOpenOnEdit="True"/>
+                    </StackPanel>
+
                     <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="6"
                                 Orientation="Horizontal"
                                 HorizontalAlignment="Left" Margin="8,10,8,0">
@@ -228,6 +239,7 @@
 
                         <DataGridTextColumn Header="المصدر" Binding="{Binding SourceType}" Width="180"/>
                         <DataGridTextColumn Header="رقم السند" Binding="{Binding DocumentNumber}" Width="140"/>
+                        <DataGridTextColumn Header="المستخدم" Binding="{Binding UserName}" Width="180"/>
                         <DataGridTextColumn Header="الكاشير" Binding="{Binding CashierName}" Width="160"/>
                         <DataGridTextColumn Header="الحالة" Binding="{Binding StatusText}" Width="110"/>
                         <DataGridTextColumn Header="ملاحظات" Binding="{Binding Notes}" Width="*"/>

@@ -91,7 +91,7 @@ namespace RaccoonWarehouse.FinancialTransactions.Reports
         {
             if (_currentRows.Count == 0)
             {
-                MessageBox.Show(UiText.T("Ø§Ø¹Ø±Ø¶ Ø§Ù„ØªÙ‚Ø±ÙŠØ± Ø£ÙˆÙ„Ø§Ù‹.", "Show the report first."));
+                MessageBox.Show(UiText.T("اعرض التقرير أولاً.", "Show the report first."));
                 return;
             }
 
@@ -129,9 +129,9 @@ namespace RaccoonWarehouse.FinancialTransactions.Reports
                 for (var index = 0; index < totalRows.Length; index++) { totals.Cell(index + 2, 1).Value = totalRows[index].Item1; totals.Cell(index + 2, 2).Value = totalRows[index].Item2; }
                 totals.Columns().AdjustToContents();
                 workbook.SaveAs(dialog.FileName);
-                MessageBox.Show(UiText.T("ØªÙ… ØªØµØ¯ÙŠØ± Ø§Ù„ØªÙ‚Ø±ÙŠØ±.", "Report exported successfully."));
+                MessageBox.Show(UiText.T("تم تصدير التقرير.", "Report exported successfully."));
             }
-            catch (Exception ex) { MessageBox.Show($"{UiText.T("Ø®Ø·Ø£", "Error")}: {ex.Message}", UiText.T("Ø®Ø·Ø£", "Error")); }
+            catch (Exception ex) { MessageBox.Show($"{UiText.T("خطأ", "Error")}: {ex.Message}", UiText.T("خطأ", "Error")); }
         }
 
         private sealed class InvoicePaymentMethodRow

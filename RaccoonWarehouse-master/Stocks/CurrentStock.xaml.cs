@@ -1,8 +1,11 @@
 using Microsoft.Extensions.DependencyInjection;
 using RaccoonWarehouse.Application.Service.Stocks;
+using RaccoonWarehouse.Application.Service.Users;
+using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Domain.Stock.DTOs;
 using RaccoonWarehouse.Helpers.Localization;
+using RaccoonWarehouse.Helpers;
 using RaccoonWarehouse.Navigation;
 using RaccoonWarehouse.Products;
 using System;
@@ -24,6 +27,7 @@ namespace RaccoonWarehouse.Stocks
         private readonly IStockReportService _stockReportService;
         private readonly ILoadingService _loadingService;
         private readonly IServiceProvider _serviceProvider;
+        private readonly IUserService _userService;
         private readonly SemaphoreSlim _stockLoadLock = new(1, 1);
 
         private int _searchVersion;
@@ -36,12 +40,15 @@ namespace RaccoonWarehouse.Stocks
         public CurrentStock(
             IStockReportService stockReportService,
             ILoadingService loadingService,
-            IServiceProvider serviceProvider)
+            IServiceProvider serviceProvider,
+            IUserService userService)
         {
             _stockReportService = stockReportService;
             _loadingService = loadingService;
             _serviceProvider = serviceProvider;
+            _userService = userService;
             InitializeComponent();
+            SupplierComboBoxSearch.Attach(SupplierComboBox);
             DataContext = this;
             UiText.ApplyWindow(this);
 
@@ -50,7 +57,17 @@ namespace RaccoonWarehouse.Stocks
 
         private async void CurrentStock_Loaded(object sender, RoutedEventArgs e)
         {
+            await LoadSupplierFilterAsync();
             await LoadStockAsync(GetSearchText(), _searchVersion);
+        }
+
+        private async Task LoadSupplierFilterAsync()
+        {
+            var suppliers = (await _userService.GetAllAsync()).Data?
+                .Where(x => x.Role == UserRole.Supplier).OrderBy(x => x.Name).ToList() ?? new();
+            suppliers.Insert(0, new RaccoonWarehouse.Domain.Users.DTOs.UserReadDto { Id = 0, Name = UiText.T("الكل", "All suppliers") });
+            SupplierComboBoxSearch.SetItems(SupplierComboBox, suppliers);
+            SupplierComboBox.SelectedIndex = 0;
         }
 
         private async Task LoadStockAsync(string? searchText, int requestVersion)
@@ -65,7 +82,8 @@ namespace RaccoonWarehouse.Stocks
                 if (requestVersion != _searchVersion)
                     return;
 
-                var data = await _stockReportService.GetCurrentStockAsync(normalizedSearch, AsOfDatePicker.SelectedDate?.Date);
+                var supplierId = SupplierComboBox.SelectedValue is int selectedSupplierId && selectedSupplierId > 0 ? selectedSupplierId : (int?)null;
+                var data = await _stockReportService.GetCurrentStockAsync(normalizedSearch, AsOfDatePicker.SelectedDate?.Date, supplierId);
                 if (requestVersion != _searchVersion)
                     return;
 
@@ -82,8 +100,8 @@ namespace RaccoonWarehouse.Stocks
                     return;
 
                 MessageBox.Show(
-                    $"{UiText.T("Ø®Ø·Ø£ Ø£Ø«Ù†Ø§Ø¡ ØªØ­Ù… „ Ø§Ù„Ù…Ø®Ø²ÙˆÙ†", "Error loading stock")}: {ex.Message}",
-                    UiText.T("Ø®Ø·Ø£", "Error"),
+                    $"{UiText.T("خطأ أثناء تحميل المخزون", "Error loading stock")}: {ex.Message}",
+                    UiText.T("خطأ", "Error"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
             }
@@ -147,8 +165,8 @@ namespace RaccoonWarehouse.Stocks
                     return;
 
                 MessageBox.Show(
-                    $"{UiText.T("Ø®Ø·Ø£ Ø£Ø«Ù†Ø§Ø¡ ØªØ­Ù…ÙŠÙ„ Ø§Ù„Ù…Ø®Ø²ÙˆÙ†", "Error loading stock")}: {ex.Message}",
-                    UiText.T("Ø®Ø·Ø£", "Error"),
+                    $"{UiText.T("خطأ أثناء تحميل المخزون", "Error loading stock")}: {ex.Message}",
+                    UiText.T("خطأ", "Error"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
             }
@@ -167,8 +185,8 @@ namespace RaccoonWarehouse.Stocks
             if (string.IsNullOrWhiteSpace(item.ITEMCODE))
             {
                 MessageBox.Show(
-                    UiText.T("Ù„Ø§ ÙŠÙˆØ¬Ø¯ Ø¨Ø§Ø±ÙƒÙˆØ¯ Ù„Ù†Ø³Ø®Ù‡.", "There is no barcode to copy."),
-                    UiText.T("ØªÙ†Ø¨ÙŠÙ‡", "Notice"),
+                    UiText.T("لا يوجد باركود لنسخه.", "There is no barcode to copy."),
+                    UiText.T("تنبيه", "Notice"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
                 return;
@@ -191,17 +209,17 @@ namespace RaccoonWarehouse.Stocks
                     return;
 
                 using var workbook = new ClosedXML.Excel.XLWorkbook();
-                var ws = workbook.Worksheets.Add(UiText.T("Ø§Ù„Ù…Ø®Ø²ÙˆÙ† Ø§Ù„Ø­Ø§Ù„ÙŠ", "Inventory Report"));
+                var ws = workbook.Worksheets.Add(UiText.T("المخزون الحالي", "Inventory Report"));
 
-                ws.Cell(1, 1).Value = UiText.T("Ø§Ù„Ø¨Ø§Ø±ÙƒÙˆØ¯", "Barcode");
-                ws.Cell(1, 2).Value = UiText.T("Ø§Ù„Ù…Ù†ØªØ¬", "Product");
-                ws.Cell(1, 3).Value = UiText.T("Ø§Ù„ÙˆØ­Ø¯Ø©", "Unit");
-                ws.Cell(1, 4).Value = UiText.T("Ø§Ù„ÙƒÙ…ÙŠØ©", "Quantity");
-                ws.Cell(1, 5).Value = UiText.T("ØªÙƒÙ„ÙØ© Ø§Ù„Ù…Ø®Ø²ÙˆÙ†", "Inventory Cost");
-                ws.Cell(1, 6).Value = UiText.T("Ø³Ø¹Ø± Ø§Ù„Ø¨ÙŠØ¹ Ø§Ù„Ø­Ø§Ù„ÙŠ", "Current Sale Price");
-                ws.Cell(1, 7).Value = UiText.T("Ø£Ù‚Ø±Ø¨ Ø§Ù†ØªÙ‡Ø§Ø¡", "Nearest Expiry");
-                ws.Cell(1, 8).Value = UiText.T("Ø§Ù„Ø­Ø¯ Ø§Ù„Ø£Ø¯Ù†Ù‰", "Minimum Quantity");
-                ws.Cell(1, 9).Value = UiText.T("ØªÙ†Ø¨ÙŠÙ‡", "Alert");
+                ws.Cell(1, 1).Value = UiText.T("الباركود", "Barcode");
+                ws.Cell(1, 2).Value = UiText.T("المنتج", "Product");
+                ws.Cell(1, 3).Value = UiText.T("الوحدة", "Unit");
+                ws.Cell(1, 4).Value = UiText.T("الكمية", "Quantity");
+                ws.Cell(1, 5).Value = UiText.T("تكلفة المخزون", "Inventory Cost");
+                ws.Cell(1, 6).Value = UiText.T("سعر البيع الحالي", "Current Sale Price");
+                ws.Cell(1, 7).Value = UiText.T("أقرب انتهاء", "Nearest Expiry");
+                ws.Cell(1, 8).Value = UiText.T("الحد الأدنى", "Minimum Quantity");
+                ws.Cell(1, 9).Value = UiText.T("تنبيه", "Alert");
 
                 ws.Row(1).Style.Font.Bold = true;
                 ws.Row(1).Style.Fill.BackgroundColor = ClosedXML.Excel.XLColor.LightGray;
@@ -217,7 +235,7 @@ namespace RaccoonWarehouse.Stocks
                     ws.Cell(row, 6).Value = item.SalePrice;
                     ws.Cell(row, 7).Value = item.NearestExpiryDate?.ToString("yyyy-MM-dd") ?? "-";
                     ws.Cell(row, 8).Value = item.MinimumQuantity;
-                    ws.Cell(row, 9).Value = item.IsLowStock ? UiText.T("âš  Ù‚Ù„ÙŠÙ„", "âš  Low") : "";
+                    ws.Cell(row, 9).Value = item.IsLowStock ? UiText.T("⚠ قليل", "⚠ Low") : "";
                     row++;
                 }
 
@@ -225,16 +243,16 @@ namespace RaccoonWarehouse.Stocks
                 workbook.SaveAs(dlg.FileName);
 
                 MessageBox.Show(
-                    UiText.T("ØªÙ… Ø§Ø³ØªØ®Ø±Ø§Ø¬ Ù…Ù„Ù Excel Ø¨Ù†Ø¬Ø§Ø­!", "Excel file exported successfully!"),
-                    UiText.T("Ù†Ø¬Ø§Ø­", "Success"),
+                    UiText.T("تم استخراج ملف Excel بنجاح!", "Excel file exported successfully!"),
+                    UiText.T("نجاح", "Success"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
                 MessageBox.Show(
-                    $"{UiText.T("Ø­Ø¯Ø« Ø®Ø·Ø£ Ø£Ø«Ù†Ø§Ø¡ Ø§Ù„ØªØµØ¯ÙŠØ±", "An error occurred during export")}: {ex.Message}",
-                    UiText.T("Ø®Ø·Ø£", "Error"),
+                    $"{UiText.T("حدث خطأ أثناء التصدير", "An error occurred during export")}: {ex.Message}",
+                    UiText.T("خطأ", "Error"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
             }
@@ -245,6 +263,7 @@ namespace RaccoonWarehouse.Stocks
             if (IsInitialized)
                 ApplyQuantityFilter();
         }
+
 
         private async void AsOfDatePicker_SelectedDateChanged(object sender, SelectionChangedEventArgs e)
         {
@@ -269,7 +288,7 @@ namespace RaccoonWarehouse.Stocks
             FilteredStockItems.Clear();
             foreach (var item in filtered)
                 FilteredStockItems.Add(item);
-            DisplayedQuantityTotalTextBlock.Text = FilteredStockItems.Sum(item => item.Quantity).ToString("N5");
+            DisplayedQuantityTotalTextBlock.Text = FilteredStockItems.Sum(item => item.Quantity).ToString("N3");
         }
         private string? GetSearchText()
         {

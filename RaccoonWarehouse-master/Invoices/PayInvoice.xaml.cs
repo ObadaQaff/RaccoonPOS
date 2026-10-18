@@ -408,7 +408,7 @@ namespace RaccoonWarehouse.Invoices
         {
             try
             {
-                WindowManager.ShowDialog<CreateUser>(WindowSizeType.SmallSquare, window => window.InitializeForCustomerQuickCreate(SupplierComboBox.Text));
+                WindowManager.ShowDialog<CreateUser>(WindowSizeType.MediumRectangle, window => window.InitializeForSupplierQuickCreate(SupplierComboBox.Text));
                 var result = await _userService.GetAllAsync();
                 _allSuppliers = new ObservableCollection<UserReadDto>((result?.Data ?? new List<UserReadDto>()).GroupBy(user => user.Id).Select(group => group.First()));
                 SupplierComboBox.ItemsSource = _allSuppliers;
@@ -601,8 +601,8 @@ namespace RaccoonWarehouse.Invoices
             if (UnitBox.SelectedItem is not ProductUnitWriteDto unit)
                 return;
 
-            PurchaseBox.Text = unit.PurchasePrice.ToString("0.00000");
-            SaleBox.Text = unit.SalePrice.ToString("0.00000");
+            PurchaseBox.Text = unit.PurchasePrice.ToString("0.000");
+            SaleBox.Text = unit.SalePrice.ToString("0.000");
         }
 
         private void ClearProductInputs()
@@ -814,9 +814,9 @@ namespace RaccoonWarehouse.Invoices
         private void UpdateTotal()
         {
             var totals = CalculatePurchaseTotals();
-            SubtotalAmountTextBox.Text = totals.Subtotal.ToString("0.00000");
-            TaxAmountTextBox.Text = totals.Tax.ToString("0.00000");
-            TotalAmountTextBox.Text = totals.Total.ToString("0.00000");
+            SubtotalAmountTextBox.Text = totals.Subtotal.ToString("0.000");
+            TaxAmountTextBox.Text = totals.Tax.ToString("0.000");
+            TotalAmountTextBox.Text = totals.Total.ToString("0.000");
         }
 
         private void DiscountTextBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -1096,8 +1096,8 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
                     {
                         MessageBox.Show(
                             UiText.T(
-                                $"مجموع الشيكات ({checkTotal:0.00000}) يجب أن يساوي إجمالي الفاتورة ({totalAmount:0.00000}).",
-                                $"The total check amount ({checkTotal:0.00000}) must equal the invoice total ({totalAmount:0.00000})."),
+                                $"مجموع الشيكات ({checkTotal:0.000}) يجب أن يساوي إجمالي الفاتورة ({totalAmount:0.000}).",
+                                $"The total check amount ({checkTotal:0.000}) must equal the invoice total ({totalAmount:0.000})."),
                             UiText.T("تنبيه", "Notice"));
                         return;
                     }
@@ -1519,7 +1519,7 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
 
             SupplierComboBox.SelectedItem =
                 _allSuppliers.FirstOrDefault(c => c.Id == invoice.SupplierId);
-            DiscountTextBox.Text = (invoice.DiscountAmount ?? 0m).ToString("0.00000");
+            DiscountTextBox.Text = (invoice.DiscountAmount ?? 0m).ToString("0.000");
             CostPriceIncludesTaxCheckBox.IsChecked = invoice.CostPriceIncludesTax;
             if (invoice.PaymentType.HasValue)
                 SetSelectedPaymentType(invoice.PaymentType.Value);

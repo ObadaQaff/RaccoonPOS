@@ -312,8 +312,8 @@ namespace RaccoonWarehouse.Invoices
             {
                 MessageBox.Show(
                     UiText.T(
-                        $"الحد الائتماني للزبون تم تجاوزه.\nالرصيد الحالي: {currentBalance:N5}\nالحد الائتماني: {customer.CreditLimit:N5}\nالرصيد المتوقع بعد الفاتورة: {projectedBalance:N5}",
-                        $"The customer credit limit was exceeded.\nCurrent balance: {currentBalance:N5}\nCredit limit: {customer.CreditLimit:N5}\nProjected balance after invoice: {projectedBalance:N5}"),
+                        $"الحد الائتماني للزبون تم تجاوزه.\nالرصيد الحالي: {currentBalance:N3}\nالحد الائتماني: {customer.CreditLimit:N3}\nالرصيد المتوقع بعد الفاتورة: {projectedBalance:N3}",
+                        $"The customer credit limit was exceeded.\nCurrent balance: {currentBalance:N3}\nCredit limit: {customer.CreditLimit:N3}\nProjected balance after invoice: {projectedBalance:N3}"),
                     UiText.T("تنبيه", "Notice"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Warning);
@@ -684,11 +684,11 @@ namespace RaccoonWarehouse.Invoices
 
             // Purchase price
             PurchaseBox.Text =
-                unit.PurchasePrice.ToString("0.00000");
+                unit.PurchasePrice.ToString("0.000");
 
             // Sale price
             SaleBox.Text =
-                unit.SalePrice.ToString("0.00000");
+                unit.SalePrice.ToString("0.000");
 
             // Quantity
             if (!TryParseDecimalInput(QtyBox.Text, out var qty) || qty <= 0)
@@ -921,7 +921,7 @@ namespace RaccoonWarehouse.Invoices
 
                     PurchaseBox.Text = "";
                     SaleBox.Text = "";
-                    AvailableQtyBox.Text = "0.00000";
+                    AvailableQtyBox.Text = "0.000";
                     ExpiryBox.SelectedDate = null;
 
                     return;
@@ -957,13 +957,13 @@ namespace RaccoonWarehouse.Invoices
                 // 6. Fill Purchase Price
                 // =====================================================
                 PurchaseBox.Text =
-                    defaultUnit.PurchasePrice.ToString("0.00000");
+                    defaultUnit.PurchasePrice.ToString("0.000");
 
                 // =====================================================
                 // 7. Fill Sale Price
                 // =====================================================
                 SaleBox.Text =
-                    defaultUnit.SalePrice.ToString("0.00000");
+                    defaultUnit.SalePrice.ToString("0.000");
 
                 // =====================================================
                 // 8. Get expiry from available stock
@@ -1224,7 +1224,7 @@ namespace RaccoonWarehouse.Invoices
             {
                 case "Quantity":
                     await UpdateInvoiceLineQuantityAsync(line, value);
-                    textBox.Text = line.Quantity.ToString("0.00000");
+                    textBox.Text = line.Quantity.ToString("0.000");
                     break;
 
                 case "UnitCost":
@@ -1235,7 +1235,7 @@ namespace RaccoonWarehouse.Invoices
                 case "UnitPrice":
                     line.UnitPrice = Math.Max(value, 0m);
                     RecalculateLineAmounts(line);
-                    textBox.Text = line.UnitPrice.ToString("0.00000");
+                    textBox.Text = line.UnitPrice.ToString("0.000");
                     break;
             }
 
@@ -1246,7 +1246,7 @@ namespace RaccoonWarehouse.Invoices
         /* private void UpdateTotal()
          {
              TotalAmountTextBox.Text =
-                 InvoiceLines.Sum(x => x.LineTotal).ToString("0.00000");
+                 InvoiceLines.Sum(x => x.LineTotal).ToString("0.000");
          }
             */
         // ✅ ADD: Calculates invoice summary fields needed for reports
@@ -1263,11 +1263,11 @@ namespace RaccoonWarehouse.Invoices
             decimal netTotal = grossSales - discount;
 
             // ✅ Existing UI field shows final
-            TotalAmountTextBox.Text = netTotal.ToString("0.00000");
+            TotalAmountTextBox.Text = netTotal.ToString("0.000");
 
             // ✅ Optional: if you want show subtotal/tax in UI, bind to labels/textboxes
-             SubTotalTextBox.Text = subTotal.ToString("0.00000");
-             TaxTotalTextBox.Text = taxTotal.ToString("0.00000");
+             SubTotalTextBox.Text = subTotal.ToString("0.000");
+             TaxTotalTextBox.Text = taxTotal.ToString("0.000");
          }
 
         private void DiscountTextBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -1350,8 +1350,8 @@ namespace RaccoonWarehouse.Invoices
                 quantity = remainingQuantity;
                 MessageBox.Show(
                     UiText.T(
-                        $"الكمية المطلوبة للصنف {line.ProductName} أكبر من الكمية المتوفرة. تم تعديل الكمية إلى: {quantity:0.00000}.",
-                        $"The requested quantity for {line.ProductName} is greater than available stock. Quantity was adjusted to: {quantity:0.00000}."),
+                        $"الكمية المطلوبة للصنف {line.ProductName} أكبر من الكمية المتوفرة. تم تعديل الكمية إلى: {quantity:0.000}.",
+                        $"The requested quantity for {line.ProductName} is greater than available stock. Quantity was adjusted to: {quantity:0.000}."),
                     UiText.T("تنبيه", "Notice"));
             }
 
@@ -1366,8 +1366,8 @@ namespace RaccoonWarehouse.Invoices
 
             MessageBox.Show(
                 UiText.T(
-                    $"لا يمكن بيع الصنف {line.ProductName} بسعر أقل من التكلفة. سيتم إعادة سعر البيع إلى: {defaultPrice:0.00000}.",
-                    $"Cannot sell {line.ProductName} below cost. Sale price will be restored to: {defaultPrice:0.00000}."),
+                    $"لا يمكن بيع الصنف {line.ProductName} بسعر أقل من التكلفة. سيتم إعادة سعر البيع إلى: {defaultPrice:0.000}.",
+                    $"Cannot sell {line.ProductName} below cost. Sale price will be restored to: {defaultPrice:0.000}."),
                 UiText.T("تنبيه", "Notice"));
 
             line.UnitPrice = defaultPrice;
@@ -1501,8 +1501,8 @@ namespace RaccoonWarehouse.Invoices
                         HideLoadingIfShown();
                         MessageBox.Show(
                             UiText.T(
-                                $"مجموع الشيكات ({checkTotal:0.00000}) يجب أن يساوي إجمالي الفاتورة ({totalAmount:0.00000}).",
-                                $"The total check amount ({checkTotal:0.00000}) must equal the invoice total ({totalAmount:0.00000})."),
+                                $"مجموع الشيكات ({checkTotal:0.000}) يجب أن يساوي إجمالي الفاتورة ({totalAmount:0.000}).",
+                                $"The total check amount ({checkTotal:0.000}) must equal the invoice total ({totalAmount:0.000})."),
                             UiText.T("تنبيه", "Notice"));
                         return;
                     }
@@ -2029,7 +2029,7 @@ namespace RaccoonWarehouse.Invoices
                 DelegateComboBox.SelectedItem = _allDelegates.FirstOrDefault(d => d.Id == invoice.DelegateId);
             if (invoice.PaymentType.HasValue)
                 SetSelectedPaymentType(invoice.PaymentType.Value);
-            DiscountTextBox.Text = (invoice.DiscountAmount ?? 0m).ToString("0.00000");
+            DiscountTextBox.Text = (invoice.DiscountAmount ?? 0m).ToString("0.000");
             _currentChecks = CloneChecks(invoice.Checks);
             UpdateChecksButtonVisibility();
             UiText.ApplyTranslations(PaymentMethodComboBox);
@@ -2337,7 +2337,7 @@ namespace RaccoonWarehouse.Invoices
                     UnitBox.SelectedIndex = -1;
                     PurchaseBox.Text = "";
                     SaleBox.Text = "";
-                    AvailableQtyBox.Text = "0.00000";
+                    AvailableQtyBox.Text = "0.000";
                     ExpiryBox.SelectedDate = null;
 
                     return null;
@@ -2352,11 +2352,11 @@ namespace RaccoonWarehouse.Invoices
 
                 // Purchase price
                 PurchaseBox.Text = firstUnit.PurchasePrice
-                    .ToString("0.00000", CultureInfo.InvariantCulture);
+                    .ToString("0.000", CultureInfo.InvariantCulture);
 
                 // Sale price
                 SaleBox.Text = firstUnit.SalePrice
-                    .ToString("0.00000", CultureInfo.InvariantCulture);
+                    .ToString("0.000", CultureInfo.InvariantCulture);
 
                 // Get the stock batch for this unit
                 var preferredStock = await GetPreferredAvailableStockAsync(
@@ -2403,18 +2403,18 @@ namespace RaccoonWarehouse.Invoices
         private async Task RefreshAvailableQuantityAsync(int productId, int productUnitId)
         {
             var availableQuantity = await GetAvailableQuantityForProductUnitAsync(productId, productUnitId);
-            AvailableQtyBox.Text = availableQuantity.ToString("0.00000", CultureInfo.InvariantCulture);
+            AvailableQtyBox.Text = availableQuantity.ToString("0.000", CultureInfo.InvariantCulture);
         }
 
         private void ResetSalePriceBelowCost(string? productName, decimal unitCost, decimal enteredPrice, decimal defaultPrice)
         {
             MessageBox.Show(
                 UiText.T(
-                    $"لا يمكن بيع الصنف {productName} بسعر أقل من التكلفة. السعر المدخل: {enteredPrice:0.00000}، التكلفة: {unitCost:0.00000}. سيتم إعادة السعر الافتراضي: {defaultPrice:0.00000}.",
-                    $"Cannot sell {productName} below cost. Entered price: {enteredPrice:0.00000}, cost: {unitCost:0.00000}. The default price will be restored: {defaultPrice:0.00000}."),
+                    $"لا يمكن بيع الصنف {productName} بسعر أقل من التكلفة. السعر المدخل: {enteredPrice:0.000}، التكلفة: {unitCost:0.000}. سيتم إعادة السعر الافتراضي: {defaultPrice:0.000}.",
+                    $"Cannot sell {productName} below cost. Entered price: {enteredPrice:0.000}, cost: {unitCost:0.000}. The default price will be restored: {defaultPrice:0.000}."),
                 UiText.T("تنبيه", "Notice"));
 
-            SaleBox.Text = defaultPrice.ToString("0.00000");
+            SaleBox.Text = defaultPrice.ToString("0.000");
         }
 
         private static ProductUnitWriteDto MapAvailableUnit(StockReadDto stock)
@@ -2525,8 +2525,8 @@ namespace RaccoonWarehouse.Invoices
                     RecalculateLineAmounts(line);
                     MessageBox.Show(
                         UiText.T(
-                            $"الكمية المطلوبة للصنف {line.ProductName} غير متوفرة. تم تعديل الكمية إلى الحد الأقصى المتاح: {availableQuantity:0.00000}",
-                            $"The requested quantity for {line.ProductName} is not available. The quantity was adjusted to the maximum available: {availableQuantity:0.00000}"),
+                            $"الكمية المطلوبة للصنف {line.ProductName} غير متوفرة. تم تعديل الكمية إلى الحد الأقصى المتاح: {availableQuantity:0.000}",
+                            $"The requested quantity for {line.ProductName} is not available. The quantity was adjusted to the maximum available: {availableQuantity:0.000}"),
                         UiText.T("تنبيه", "Notice"));
                 }
                 else

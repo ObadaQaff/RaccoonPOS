@@ -7,6 +7,9 @@ using RaccoonWarehouse.Stocks;
 using RaccoonWarehouse.Vouchers;
 using RaccoonWarehouse.FinancialTransactions.Reports;
 using RaccoonWarehouse.PurchaseOrders;
+using RaccoonWarehouse.PurchaseRequests;
+using RaccoonWarehouse.PurchaseControl;
+using RaccoonWarehouse.GoodsReceipts;
 
 namespace RaccoonWarehouse.Navigation.Modules
 {
@@ -21,6 +24,10 @@ namespace RaccoonWarehouse.Navigation.Modules
                 "Invoices.Purchase" or
                 "PurchaseOrders.Create" or
                 "PurchaseOrders.List" or
+                "PurchaseRequests.List" or
+                "PurchaseControl.Dashboard" or
+                "PurchaseControl.List" or
+                "GoodsReceipts.List" or
                 "Invoices.SalesReturn" or
                 "Stocks.In" or
                 "Stocks.Out" or
@@ -55,6 +62,18 @@ namespace RaccoonWarehouse.Navigation.Modules
                     break;
                 case "PurchaseOrders.List":
                     WindowManager.Show<PurchaseOrdersWindow>(WindowSizeType.LargeRectangle);
+                    break;
+                case "PurchaseRequests.List":
+                    WindowManager.Show<PurchaseRequestsWindow>(WindowSizeType.LargeRectangle);
+                    break;
+                case "PurchaseControl.Dashboard":
+                    WindowManager.Show<PurchaseControlDashboardWindow>(WindowSizeType.LargeRectangle);
+                    break;
+                case "PurchaseControl.List":
+                    WindowManager.Show<PurchaseControlWindow>(WindowSizeType.FullScreen);
+                    break;
+                case "GoodsReceipts.List":
+                    WindowManager.Show<GoodsReceiptsWindow>(WindowSizeType.LargeRectangle);
                     break;
                 case "Invoices.SalesReturn":
                     WindowManager.Show<SalesReturn>();

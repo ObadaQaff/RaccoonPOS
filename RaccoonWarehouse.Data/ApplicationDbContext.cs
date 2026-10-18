@@ -23,6 +23,12 @@ using RaccoonWarehouse.Domain.Integration;
 using RaccoonWarehouse.Domain.Insurance;
 using RaccoonWarehouse.Domain.Permissions;
 using RaccoonWarehouse.Domain.PurchaseOrders;
+using RaccoonWarehouse.Domain.PurchaseRequests;
+using RaccoonWarehouse.Domain.GoodsReceipts;
+using RaccoonWarehouse.Domain.PurchaseInvoiceMatches;
+using RaccoonWarehouse.Domain.SupplierPayments;
+using RaccoonWarehouse.Domain.PurchaseReturns;
+using RaccoonWarehouse.Domain.PurchaseControl;
 using RaccoonWarehouse.Domain.Audit;
 using RaccoonWarehouse.Domain.Products;
 using RaccoonWarehouse.Domain.ProductUnits;
@@ -53,6 +59,17 @@ namespace RaccoonWarehouse.Data
         public DbSet<UserPermission> UserPermissions => Set<UserPermission>();
         public DbSet<PurchaseOrder> PurchaseOrders => Set<PurchaseOrder>();
         public DbSet<PurchaseOrderLine> PurchaseOrderLines => Set<PurchaseOrderLine>();
+        public DbSet<PurchaseRequest> PurchaseRequests => Set<PurchaseRequest>();
+        public DbSet<PurchaseRequestLine> PurchaseRequestLines => Set<PurchaseRequestLine>();
+        public DbSet<GoodsReceipt> GoodsReceipts => Set<GoodsReceipt>();
+        public DbSet<GoodsReceiptLine> GoodsReceiptLines => Set<GoodsReceiptLine>();
+        public DbSet<PurchaseInvoiceMatch> PurchaseInvoiceMatches => Set<PurchaseInvoiceMatch>();
+        public DbSet<PurchaseInvoiceMatchLine> PurchaseInvoiceMatchLines => Set<PurchaseInvoiceMatchLine>();
+        public DbSet<SupplierPaymentAllocation> SupplierPaymentAllocations => Set<SupplierPaymentAllocation>();
+        public DbSet<SupplierAdvance> SupplierAdvances => Set<SupplierAdvance>();
+        public DbSet<PurchaseReturn> PurchaseReturns => Set<PurchaseReturn>();
+        public DbSet<PurchaseReturnLine> PurchaseReturnLines => Set<PurchaseReturnLine>();
+        public DbSet<PurchaseControlEntry> PurchaseControlEntries => Set<PurchaseControlEntry>();
         public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
         public DbSet<AppSetting> AppSettings => Set<AppSetting>();
         public DbSet<Account> Accounts => Set<Account>();
@@ -152,6 +169,75 @@ namespace RaccoonWarehouse.Data
                 .HasOne(x => x.PurchaseOrder)
                 .WithMany(x => x.Lines)
                 .HasForeignKey(x => x.PurchaseOrderId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<PurchaseOrderLine>()
+                .HasIndex(x => x.PurchaseRequestLineId);
+
+            modelBuilder.Entity<PurchaseRequest>()
+                .HasIndex(x => x.RequestNumber)
+                .IsUnique();
+
+            modelBuilder.Entity<PurchaseRequestLine>()
+                .HasOne(x => x.PurchaseRequest)
+                .WithMany(x => x.Lines)
+                .HasForeignKey(x => x.PurchaseRequestId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<PurchaseRequestLine>()
+                .HasIndex(x => new { x.PurchaseRequestId, x.ProductId, x.ProductUnitId })
+                .IsUnique();
+
+            modelBuilder.Entity<PurchaseRequestLine>()
+                .Property(x => x.ItemName)
+                .HasMaxLength(500);
+
+            modelBuilder.Entity<GoodsReceipt>()
+                .HasIndex(x => x.ReceiptNumber)
+                .IsUnique();
+
+            modelBuilder.Entity<GoodsReceiptLine>()
+                .HasOne(x => x.GoodsReceipt)
+                .WithMany(x => x.Lines)
+                .HasForeignKey(x => x.GoodsReceiptId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<GoodsReceiptLine>()
+                .HasIndex(x => new { x.GoodsReceiptId, x.PurchaseOrderLineId });
+
+            modelBuilder.Entity<PurchaseInvoiceMatch>()
+                .HasIndex(x => x.InvoiceId)
+                .IsUnique();
+
+            modelBuilder.Entity<PurchaseInvoiceMatchLine>()
+                .HasOne(x => x.PurchaseInvoiceMatch)
+                .WithMany(x => x.Lines)
+                .HasForeignKey(x => x.PurchaseInvoiceMatchId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<PurchaseInvoiceMatchLine>()
+                .HasIndex(x => new { x.PurchaseInvoiceMatchId, x.InvoiceLineId })
+                .IsUnique();
+
+            modelBuilder.Entity<SupplierPaymentAllocation>()
+                .HasIndex(x => new { x.VoucherId, x.InvoiceId })
+                .IsUnique();
+
+            modelBuilder.Entity<SupplierPaymentAllocation>()
+                .HasIndex(x => x.InvoiceId);
+
+            modelBuilder.Entity<SupplierAdvance>()
+                .HasIndex(x => x.VoucherId)
+                .IsUnique();
+
+            modelBuilder.Entity<PurchaseReturn>()
+                .HasIndex(x => x.ReturnNumber)
+                .IsUnique();
+
+            modelBuilder.Entity<PurchaseReturnLine>()
+                .HasOne(x => x.PurchaseReturn)
+                .WithMany(x => x.Lines)
+                .HasForeignKey(x => x.PurchaseReturnId)
                 .OnDelete(DeleteBehavior.Cascade);
 
             modelBuilder.Entity<AuditLog>()
@@ -527,6 +613,20 @@ namespace RaccoonWarehouse.Data
                 .WithMany(p => p.ProductUnits)
                 .HasForeignKey(pu => pu.ProductId)
                 .OnDelete(DeleteBehavior.NoAction);
+
+            // POS search indexes: keep name/supplier/barcode lookups and stock
+            // summary aggregation efficient for large product catalogs.
+            modelBuilder.Entity<Product>().HasIndex(product => product.ITEMCODE);
+            modelBuilder.Entity<Product>().HasIndex(product => product.Name);
+            modelBuilder.Entity<Product>().HasIndex(product => product.SupplierId);
+            modelBuilder.Entity<ProductUnit>().HasIndex(productUnit => productUnit.AlternateBarcode);
+            modelBuilder.Entity<ProductUnit>().HasIndex(productUnit => new { productUnit.ProductId, productUnit.AlternateBarcode });
+            modelBuilder.Entity<StockLot>().HasIndex(stockLot => new
+            {
+                stockLot.ProductId,
+                stockLot.Status,
+                stockLot.RemainingQuantity
+            });
 
             modelBuilder.Entity<ProductUnit>()
                 .HasOne(pu => pu.Unit)

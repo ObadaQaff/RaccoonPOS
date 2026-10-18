@@ -36,6 +36,7 @@ namespace RaccoonWarehouse.Domain.PurchaseOrders
     {
         public int PurchaseOrderId { get; set; }
         public PurchaseOrder PurchaseOrder { get; set; } = null!;
+        public int? PurchaseRequestLineId { get; set; }
         public int ProductId { get; set; }
         public int ProductUnitId { get; set; }
         public decimal Quantity { get; set; }

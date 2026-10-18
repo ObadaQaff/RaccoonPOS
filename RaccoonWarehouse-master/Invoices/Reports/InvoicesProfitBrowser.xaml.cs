@@ -6,6 +6,7 @@ using RaccoonWarehouse.Domain.InvoiceLines.DTOs;
 using RaccoonWarehouse.Domain.Invoices.DTOs;
 using RaccoonWarehouse.Domain.Users.DTOs;
 using RaccoonWarehouse.Helpers.Localization;
+using RaccoonWarehouse.Helpers;
 using RaccoonWarehouse.Navigation;
 using RaccoonWarehouse.Products;
 using System;
@@ -38,6 +39,8 @@ namespace RaccoonWarehouse.Invoices.Reports
         private readonly ObservableCollection<UserReadDto> _customers = new();
         private readonly ObservableCollection<InvoiceHeaderVm> _invoices = new();
         private readonly ObservableCollection<InvoiceLineVm> _lines = new();
+        private readonly Dictionary<int, UserReadDto> _supplierLookup = new();
+        private bool _purchaseReportMode;
 
         public InvoicesProfitBrowser(
             IInvoiceService invoiceService,
@@ -55,8 +58,15 @@ namespace RaccoonWarehouse.Invoices.Reports
 
             InvoicesGrid.ItemsSource = _invoices;
             LinesGrid.ItemsSource = _lines;
+            SupplierComboBoxSearch.Attach(SupplierComboBox);
 
             Loaded += InvoicesProfitBrowser_Loaded;
+        }
+
+        public void ConfigureAsPurchaseReport()
+        {
+            _purchaseReportMode = true;
+            Title = UiText.T("تقرير المشتريات", "Purchase Report");
         }
 
         private async void InvoicesGrid_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
@@ -97,12 +107,23 @@ namespace RaccoonWarehouse.Invoices.Reports
                 CustomerComboBox.ItemsSource = _customers;
                 CustomerComboBox.SelectedIndex = -1;
 
+                var suppliers = (users?.Data ?? new List<UserReadDto>())
+                    .OrderBy(x => x.Name).ToList();
+                suppliers.Insert(0, new UserReadDto { Id = 0, Name = "All suppliers" });
+                _supplierLookup.Clear();
+                foreach (var supplier in suppliers.Where(x => x.Id > 0))
+                    _supplierLookup[supplier.Id] = supplier;
+                SupplierComboBoxSearch.SetItems(SupplierComboBox, suppliers);
+                SupplierComboBox.SelectedIndex = 0;
+
                 InvoiceTypeComboBox.Items.Clear();
                 InvoiceTypeComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("الكل", "All"), Tag = null });
                 InvoiceTypeComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("مبيعات", "Sales"), Tag = InvoiceType.Sale });
                 InvoiceTypeComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("مرتجعات", "Returns"), Tag = InvoiceType.Return });
                 InvoiceTypeComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("طلبات API", "Endpoint orders"), Tag = InvoiceType.EndpointOrder });
-                InvoiceTypeComboBox.SelectedIndex = 0;
+                InvoiceTypeComboBox.Items.Add(new ComboBoxItem { Content = "Purchase invoices", Tag = InvoiceType.Purchase });
+                InvoiceTypeComboBox.Items.Add(new ComboBoxItem { Content = "Purchase returns", Tag = InvoiceType.PurchaseReturn });
+                InvoiceTypeComboBox.SelectedIndex = _purchaseReportMode ? 4 : 0;
 
                 await LoadInvoicesAsync();
                 UiText.ApplyTranslations(this);
@@ -141,6 +162,8 @@ namespace RaccoonWarehouse.Invoices.Reports
             if (InvoiceTypeComboBox.SelectedItem is ComboBoxItem item && item.Tag is InvoiceType type)
                 invoiceType = type;
 
+            int? supplierId = SupplierComboBox.SelectedValue is int sid && sid > 0 ? sid : null;
+
             try
             {
                 _loadingService.Show();
@@ -150,8 +173,9 @@ namespace RaccoonWarehouse.Invoices.Reports
 
                 var result = await _invoiceService.GetAllWithFilteringAndIncludeAsync(
                     invoice => invoice.CreatedDate >= from && invoice.CreatedDate <= to
-                        && (invoice.Status == InvoiceStatus.Completed || invoice.Status == InvoiceStatus.Posted)
+                        && (invoice.Status == null || invoice.Status == InvoiceStatus.Completed || invoice.Status == InvoiceStatus.Posted || invoice.Status == InvoiceStatus.Returned)
                         && (!customerId.HasValue || invoice.CustomerId == customerId.Value)
+                        && (!supplierId.HasValue || invoice.SupplierId == supplierId.Value)
                         && (
                             !invoiceType.HasValue
                             || invoice.InvoiceType == invoiceType.Value
@@ -169,13 +193,17 @@ namespace RaccoonWarehouse.Invoices.Reports
                 foreach (var invoice in (result.Data ?? new List<InvoiceReadDto>()).OrderByDescending(x => x.CreatedDate))
                 {
                     var metrics = CalculateInvoiceMetrics(invoice);
+                    var supplierName = invoice.SupplierId.HasValue && _supplierLookup.TryGetValue(invoice.SupplierId.Value, out var supplier)
+                        ? supplier.Name
+                        : null;
 
                     _invoices.Add(new InvoiceHeaderVm
                     {
                         Id = invoice.Id,
                         InvoiceNumber = invoice.InvoiceNumber,
                         Date = invoice.CreatedDate,
-                        CustomerName = invoice.User?.Name ?? invoice.Customer?.Name ?? "-",
+                        CustomerName = supplierName ?? invoice.User?.Name ?? invoice.Customer?.Name ?? "-",
+                        PartyName = supplierName ?? invoice.Customer?.Name ?? invoice.User?.Name ?? "-",
                         DelegateName = invoice.DelegateName ?? "-",
                         SubTotal = metrics.SubTotal,
                         TotalTax = metrics.TotalTax,
@@ -220,12 +248,12 @@ namespace RaccoonWarehouse.Invoices.Reports
                 var metrics = CalculateInvoiceMetrics(fullInvoice);
                 var lines = fullInvoice.InvoiceLines?.ToList() ?? new List<InvoiceLineReadDto>();
 
-                SelSubTotalText.Text = metrics.SubTotal.ToString("0.00000");
-                SelTaxText.Text = metrics.TotalTax.ToString("0.00000");
-                SelDiscountText.Text = metrics.Discount.ToString("0.00000");
-                SelCogsText.Text = metrics.TotalCOGS.ToString("0.00000");
-                SelGrossProfitText.Text = metrics.Profit.ToString("0.00000");
-                SelNetProfitText.Text = metrics.Profit.ToString("0.00000");
+                SelSubTotalText.Text = metrics.SubTotal.ToString("0.000");
+                SelTaxText.Text = metrics.TotalTax.ToString("0.000");
+                SelDiscountText.Text = metrics.Discount.ToString("0.000");
+                SelCogsText.Text = metrics.TotalCOGS.ToString("0.000");
+                SelGrossProfitText.Text = metrics.Profit.ToString("0.000");
+                SelNetProfitText.Text = metrics.Profit.ToString("0.000");
 
                 foreach (var line in lines)
                 {
@@ -293,9 +321,11 @@ namespace RaccoonWarehouse.Invoices.Reports
                 ? lines.Sum(line => line.Quantity * line.UnitCost)
                 : invoice.TotalCOGS;
 
-            var discount = invoice.DiscountAmount ?? 0m;
-            var totalAmount = subTotal + tax - discount;
-            var profit = countForProfit ? (subTotal - discount) - cogs : 0m;
+            var invoiceDiscount = invoice.DiscountAmount ?? 0m;
+            var lineDiscount = lines.Sum(line => line.LineDiscountAmount);
+            var discount = invoiceDiscount + lineDiscount;
+            var totalAmount = subTotal + tax - invoiceDiscount;
+            var profit = countForProfit ? (subTotal - invoiceDiscount) - cogs : 0m;
             var displayedCogs = countForProfit ? cogs : 0m;
 
             return new InvoiceMetrics
@@ -326,6 +356,7 @@ namespace RaccoonWarehouse.Invoices.Reports
             public string InvoiceNumber { get; set; }
             public DateTime Date { get; set; }
             public string CustomerName { get; set; }
+            public string PartyName { get; set; }
             public string DelegateName { get; set; }
             public decimal SubTotal { get; set; }
             public decimal TotalTax { get; set; }

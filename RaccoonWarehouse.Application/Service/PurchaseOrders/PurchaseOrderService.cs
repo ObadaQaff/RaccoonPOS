@@ -13,6 +13,7 @@ using RaccoonWarehouse.Domain.Invoices;
 using RaccoonWarehouse.Domain.InvoiceLines.DTOs;
 using RaccoonWarehouse.Domain.PurchaseOrders;
 using RaccoonWarehouse.Domain.PurchaseOrders.DTOs;
+using RaccoonWarehouse.Domain.PurchaseRequests;
 using RaccoonWarehouse.Domain.ProductUnits;
 using RaccoonWarehouse.Domain.Products;
 using RaccoonWarehouse.Domain.StockTransactions;
@@ -23,6 +24,7 @@ namespace RaccoonWarehouse.Application.Service.PurchaseOrders
     public interface IPurchaseOrderService
     {
         Task<Result<PurchaseOrderWriteDto>> CreateAsync(PurchaseOrderWriteDto dto);
+        Task<Result<PurchaseOrderWriteDto>> CreateFromPurchaseRequestAsync(int purchaseRequestId);
         Task<Result<List<PurchaseOrderReadDto>>> GetAllAsync();
         Task<Result<PurchaseOrderWriteDto>> GetByIdAsync(int id);
         Task<Result<PurchaseOrderWriteDto>> ApproveAsync(int id);
@@ -66,8 +68,23 @@ namespace RaccoonWarehouse.Application.Service.PurchaseOrders
                 return Result<PurchaseOrderWriteDto>.Fail("A purchase order must contain at least one line.");
             if (dto.Lines.Any(x => x.ProductId <= 0 || x.ProductUnitId <= 0 || x.Quantity <= 0))
                 return Result<PurchaseOrderWriteDto>.Fail("Every purchase order line must have a product, unit, and positive quantity.");
-            if (dto.Lines.Any(x => !x.ExpiryDate.HasValue))
-                return Result<PurchaseOrderWriteDto>.Fail("Expiry date is required for every purchase order line.");
+
+            var requestLineIds = dto.Lines.Where(x => x.PurchaseRequestLineId.HasValue)
+                .Select(x => x.PurchaseRequestLineId!.Value).Distinct().ToList();
+            if (requestLineIds.Count > 0)
+            {
+                var requestLines = await _db.PurchaseRequestLines
+                    .Include(x => x.PurchaseRequest)
+                    .Where(x => requestLineIds.Contains(x.Id))
+                    .ToListAsync();
+                if (requestLines.Count != requestLineIds.Count)
+                    return Result<PurchaseOrderWriteDto>.Fail("One or more purchase request lines were not found.");
+                if (requestLines.Any(x => x.PurchaseRequest.Status != PurchaseRequestStatus.Approved))
+                    return Result<PurchaseOrderWriteDto>.Fail("Only approved purchase request lines can generate a purchase order.");
+                if (dto.Lines.Any(line => line.PurchaseRequestLineId.HasValue &&
+                    requestLines.First(x => x.Id == line.PurchaseRequestLineId!.Value).ProductId != line.ProductId))
+                    return Result<PurchaseOrderWriteDto>.Fail("Purchase order lines must match their purchase request products.");
+            }
 
             var now = DateTime.Now;
             var entity = _mapper.Map<PurchaseOrder>(dto);
@@ -90,6 +107,56 @@ namespace RaccoonWarehouse.Application.Service.PurchaseOrders
             await _db.PurchaseOrders.AddAsync(entity);
             await _db.SaveChangesAsync();
             return Result<PurchaseOrderWriteDto>.Ok(_mapper.Map<PurchaseOrderWriteDto>(entity), "Purchase order submitted for approval.");
+        }
+
+        public async Task<Result<PurchaseOrderWriteDto>> CreateFromPurchaseRequestAsync(int purchaseRequestId)
+        {
+            if (!await _permissionService.HasCurrentUserPermissionAsync("PurchaseOrder.Create"))
+                return Result<PurchaseOrderWriteDto>.Fail("You do not have permission to create purchase orders.");
+
+            var request = await _db.PurchaseRequests
+                .Include(x => x.Lines)
+                .FirstOrDefaultAsync(x => x.Id == purchaseRequestId);
+            if (request == null)
+                return Result<PurchaseOrderWriteDto>.Fail("Purchase request was not found.");
+            if (request.Status != PurchaseRequestStatus.Approved)
+                return Result<PurchaseOrderWriteDto>.Fail("Only approved purchase requests can generate purchase orders.");
+            if (request.Lines.Count == 0)
+                return Result<PurchaseOrderWriteDto>.Fail("The approved purchase request has no lines.");
+            if (request.Lines.Any(x => !x.ProductId.HasValue))
+                return Result<PurchaseOrderWriteDto>.Fail("This PR contains free-text items. Link each item to a catalog product before creating a PO.");
+
+            var productIds = request.Lines.Select(x => x.ProductId!.Value).Distinct().ToList();
+            var units = await _db.Set<ProductUnit>()
+                .Where(x => productIds.Contains(x.ProductId))
+                .GroupBy(x => x.ProductId)
+                .Select(group => group.OrderByDescending(x => x.IsDefaultPurchaseUnit).ThenByDescending(x => x.IsBaseUnit).First())
+                .ToDictionaryAsync(x => x.ProductId);
+
+            var lines = new List<PurchaseOrderLineWriteDto>();
+            foreach (var requestLine in request.Lines)
+            {
+                if (!units.TryGetValue(requestLine.ProductId!.Value, out var unit))
+                    return Result<PurchaseOrderWriteDto>.Fail($"No purchase unit is configured for product {requestLine.ProductId}.");
+                lines.Add(new PurchaseOrderLineWriteDto
+                {
+                    PurchaseRequestLineId = requestLine.Id,
+                    ProductId = requestLine.ProductId.Value,
+                    ProductUnitId = unit.Id,
+                    Quantity = requestLine.ApprovedQuantity > 0 ? requestLine.ApprovedQuantity : requestLine.RequestedQuantity,
+                    QuantityPerUnitSnapshot = unit.QuantityPerUnit > 0 ? unit.QuantityPerUnit : 1m,
+                    UnitPrice = unit.PurchasePrice,
+                    UnitCost = unit.PurchasePrice,
+                    TaxExempt = true
+                });
+            }
+
+            return await CreateAsync(new PurchaseOrderWriteDto
+            {
+                Notes = $"Generated from approved PR {request.RequestNumber}.",
+                DocumentDate = DateTime.Now,
+                Lines = lines
+            });
         }
 
         public async Task<Result<List<PurchaseOrderReadDto>>> GetAllAsync()
@@ -150,102 +217,23 @@ namespace RaccoonWarehouse.Application.Service.PurchaseOrders
             if (!await _permissionService.HasCurrentUserPermissionAsync(ApprovePermission))
                 return Result<PurchaseOrderWriteDto>.Fail("You do not have permission to approve purchase orders.");
 
-            var order = await _db.PurchaseOrders
-                .Include(x => x.Lines)
-                .FirstOrDefaultAsync(x => x.Id == id);
+            var order = await _db.PurchaseOrders.FirstOrDefaultAsync(x => x.Id == id);
             if (order == null)
                 return Result<PurchaseOrderWriteDto>.Fail("Purchase order was not found.");
             if (order.Status != PurchaseOrderStatus.Submitted)
                 return Result<PurchaseOrderWriteDto>.Fail("Only submitted purchase orders can be approved.");
-            if (order.ConvertedInvoiceId.HasValue)
-                return Result<PurchaseOrderWriteDto>.Fail("This purchase order has already been converted.");
 
-            await using var transaction = await _uow.BeginTransactionAsync();
-            try
-            {
-                var userId = _userSession.CurrentUser?.Id;
-                var invoiceNumber = await GeneratePurchaseInvoiceNumberAsync(order.OrderNumber);
-                order.Status = PurchaseOrderStatus.Approved;
-                order.ApprovedBy = userId;
-                order.ApprovedDate = DateTime.Now;
-                order.UpdatedDate = DateTime.Now;
-                await _db.SaveChangesAsync();
+            // Purchase-order approval is non-posting. Receiving and supplier-invoice
+            // stages are responsible for inventory, payable, and accounting effects.
+            order.Status = PurchaseOrderStatus.Approved;
+            order.ApprovedBy = _userSession.CurrentUser?.Id;
+            order.ApprovedDate = DateTime.Now;
+            order.UpdatedDate = DateTime.Now;
+            await _db.SaveChangesAsync();
 
-                var invoice = new InvoiceWriteDto
-                {
-                    InvoiceNumber = invoiceNumber,
-                    InvoiceType = InvoiceType.Purchase,
-                    PaymentType = order.PaymentType ?? PaymentType.Credit,
-                    SupplierId = order.SupplierId,
-                    WarehouseId = order.WarehouseId,
-                    CurrencyId = order.CurrencyId,
-                    DocumentDate = order.DocumentDate,
-                    DueDate = order.DueDate,
-                    Notes = $"Created from purchase order {order.OrderNumber}. {order.Notes}".Trim(),
-                    DiscountAmount = order.DiscountAmount,
-                    SubTotal = order.SubTotal,
-                    TotalTax = order.TotalTax,
-                    TotalAmount = order.TotalAmount,
-                    CostPriceIncludesTax = order.CostPriceIncludesTax,
-                    Status = InvoiceStatus.Posted,
-                    CreatedBy = userId,
-                    InvoiceLines = order.Lines.Select(line => new InvoiceLineWriteDto
-                    {
-                        ProductId = line.ProductId,
-                        ProductUnitId = line.ProductUnitId,
-                        Quantity = line.Quantity,
-                        QuantityPerUnitSnapshot = line.QuantityPerUnitSnapshot,
-                        BaseQuantity = line.BaseQuantity,
-                        UnitPrice = line.UnitPrice,
-                        UnitCost = line.UnitCost,
-                        LineDiscountAmount = line.LineDiscountAmount,
-                        FreeQuantity = line.FreeQuantity,
-                        ExpiryDate = line.ExpiryDate ?? DateTime.MinValue,
-                        TaxExempt = line.TaxExempt,
-                        TaxRate = line.TaxRate,
-                        TaxAmount = line.TaxAmount,
-                        LineSubTotal = line.LineSubTotal
-                    }).ToList()
-                };
-
-                var invoiceResult = await _invoiceService.CreateAsync(invoice);
-                if (!invoiceResult.Success || invoiceResult.Data == null)
-                    return Result<PurchaseOrderWriteDto>.Fail(invoiceResult.Message ?? "Purchase invoice conversion failed.");
-
-                var movements = order.Lines.Select(line => new StockMovementPostDto
-                {
-                    ProductId = line.ProductId,
-                    ProductUnitId = line.ProductUnitId,
-                    Quantity = line.Quantity + line.FreeQuantity,
-                    QuantityPerUnitSnapshot = line.QuantityPerUnitSnapshot > 0 ? line.QuantityPerUnitSnapshot : 1m,
-                    BaseQuantity = line.BaseQuantity > 0 ? line.BaseQuantity : line.Quantity * line.QuantityPerUnitSnapshot,
-                    UnitPrice = line.UnitPrice,
-                    PurchasePrice = line.UnitCost,
-                    ExpiryDate = line.ExpiryDate,
-                    TransactionType = TransactionType.Purchase,
-                    InvoiceId = invoiceResult.Data.Id,
-                    TransactionDate = order.DocumentDate ?? DateTime.Now,
-                    Notes = $"Purchase order {order.OrderNumber}",
-                    ReferenceNumber = order.OrderNumber,
-                    UpdateCatalogAverageCost = true
-                }).ToList();
-
-                var stockResult = await _stockService.PostMovementsAsync(movements);
-                if (!stockResult.Success)
-                    return Result<PurchaseOrderWriteDto>.Fail(stockResult.Message ?? "Purchase order stock posting failed.");
-
-                order.ConvertedInvoiceId = invoiceResult.Data.Id;
-                order.Status = PurchaseOrderStatus.Converted;
-                order.UpdatedDate = DateTime.Now;
-                await _db.SaveChangesAsync();
-                await transaction.CommitAsync();
-                return Result<PurchaseOrderWriteDto>.Ok(_mapper.Map<PurchaseOrderWriteDto>(order), "Purchase order approved and converted to a purchase invoice.");
-            }
-            catch (Exception ex)
-            {
-                await transaction.RollbackAsync();
-                return Result<PurchaseOrderWriteDto>.Fail($"Purchase order approval failed: {ex.Message}");
-            }
+            return Result<PurchaseOrderWriteDto>.Ok(
+                _mapper.Map<PurchaseOrderWriteDto>(order),
+                "Purchase order approved. No inventory or accounting entry was posted.");
         }
 
         private async Task<string> GeneratePurchaseInvoiceNumberAsync(string orderNumber)
@@ -284,10 +272,12 @@ namespace RaccoonWarehouse.Application.Service.PurchaseOrders
                 return Result<PurchaseOrderWriteDto>.Fail("Purchase order was not found.");
             if (order.Status != PurchaseOrderStatus.Submitted)
                 return Result<PurchaseOrderWriteDto>.Fail("Only submitted purchase orders can be rejected.");
+            if (string.IsNullOrWhiteSpace(reason))
+                return Result<PurchaseOrderWriteDto>.Fail("A rejection reason is required.");
             order.Status = PurchaseOrderStatus.Rejected;
             order.RejectedBy = _userSession.CurrentUser?.Id;
             order.RejectedDate = DateTime.Now;
-            order.RejectionReason = string.IsNullOrWhiteSpace(reason) ? "Rejected by approver." : reason.Trim();
+            order.RejectionReason = reason.Trim();
             order.UpdatedDate = DateTime.Now;
             await _db.SaveChangesAsync();
             return Result<PurchaseOrderWriteDto>.Ok(_mapper.Map<PurchaseOrderWriteDto>(order), "Purchase order rejected.");

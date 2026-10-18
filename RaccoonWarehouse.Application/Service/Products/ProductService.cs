@@ -158,6 +158,8 @@ namespace RaccoonWarehouse.Application.Service.Products
             product.TaxRate = productDto.TaxRate;
             product.MiniQuantity = productDto.MiniQuantity;
             product.BrandId = productDto.BrandId;
+            product.SupplierId = productDto.SupplierId;
+            product.AgentName = string.IsNullOrWhiteSpace(productDto.AgentName) ? null : productDto.AgentName.Trim();
             product.SubCategoryId = productDto.SubCategoryId;
             product.UpdatedDate = DateTime.Now;
 

@@ -1,0 +1,18 @@
+<Window x:Class="RaccoonWarehouse.GoodsReceipts.GoodsReceiptsWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="Goods Receipts" Width="1100" Height="700" Loaded="Window_Loaded" FlowDirection="RightToLeft">
+  <Grid Margin="18">
+    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+    <TextBlock Text="استلامات المشتريات / Goods Receipts" FontSize="24" FontWeight="Bold" Margin="0,0,0,14"/>
+    <WrapPanel Grid.Row="1" Margin="0,0,0,14">
+      <TextBlock Text="PO ID" VerticalAlignment="Center" Margin="0,0,5,0"/><TextBox x:Name="PurchaseOrderIdTextBox" Width="85" Margin="0,0,10,0"/>
+      <TextBlock Text="PO Line ID" VerticalAlignment="Center" Margin="0,0,5,0"/><TextBox x:Name="PurchaseOrderLineIdTextBox" Width="85" Margin="0,0,10,0"/>
+      <TextBlock Text="Product ID" VerticalAlignment="Center" Margin="0,0,5,0"/><TextBox x:Name="ProductIdTextBox" Width="85" Margin="0,0,10,0"/>
+      <TextBlock Text="Unit ID" VerticalAlignment="Center" Margin="0,0,5,0"/><TextBox x:Name="ProductUnitIdTextBox" Width="70" Margin="0,0,10,0"/>
+      <TextBlock Text="Received" VerticalAlignment="Center" Margin="0,0,5,0"/><TextBox x:Name="ReceivedTextBox" Width="75" Margin="0,0,10,0"/>
+      <TextBlock Text="Accepted" VerticalAlignment="Center" Margin="0,0,5,0"/><TextBox x:Name="AcceptedTextBox" Width="75" Margin="0,0,10,0"/>
+      <Button Content="Save draft" Click="Create_Click" Padding="14,5" Margin="0,0,8,0"/><Button Content="Confirm selected" Click="Confirm_Click" Padding="14,5"/><Button Content="Refresh" Click="Refresh_Click" Padding="14,5" Margin="8,0,0,0"/>
+    </WrapPanel>
+    <DataGrid x:Name="ReceiptsGrid" Grid.Row="2" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False">
+      <DataGrid.Columns><DataGridTextColumn Header="ID" Binding="{Binding Id}"/><DataGridTextColumn Header="Receipt" Binding="{Binding ReceiptNumber}"/><DataGridTextColumn Header="PO" Binding="{Binding PurchaseOrderId}"/><DataGridTextColumn Header="Status" Binding="{Binding Status}"/><DataGridTextColumn Header="Date" Binding="{Binding ReceiptDate}"/></DataGrid.Columns>
+    </DataGrid>
+  </Grid>
+</Window>

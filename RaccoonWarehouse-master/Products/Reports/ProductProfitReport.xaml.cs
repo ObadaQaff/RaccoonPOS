@@ -1,9 +1,12 @@
 using RaccoonWarehouse.Application.Service.Products;
 using RaccoonWarehouse.Application.Service.Stocks;
+using RaccoonWarehouse.Application.Service.Users;
+using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Products.DTOs;
 using RaccoonWarehouse.Domain.Reports.Products.Dtos;
 using RaccoonWarehouse.Domain.Reports.Products.Filters;
 using RaccoonWarehouse.Helpers.Localization;
+using RaccoonWarehouse.Helpers;
 using RaccoonWarehouse.Navigation;
 using System;
 using System.Collections.Generic;
@@ -16,12 +19,15 @@ namespace RaccoonWarehouse.Products.Reports
     {
         private readonly IStockReportService _reportsService;
         private readonly IProductService _productService;
+        private readonly IUserService _userService;
 
-        public ProductProfitReport(IStockReportService reportsService, IProductService productService)
+        public ProductProfitReport(IStockReportService reportsService, IProductService productService, IUserService userService)
         {
             InitializeComponent();
+            SupplierComboBoxSearch.Attach(SupplierComboBox);
             _reportsService = reportsService;
             _productService = productService;
+            _userService = userService;
             UiText.ApplyWindow(this);
             Loaded += ProductProfitReport_Loaded;
         }
@@ -45,6 +51,12 @@ namespace RaccoonWarehouse.Products.Reports
 
                 ProductComboBox.ItemsSource = products;
                 ProductComboBox.SelectedValue = 0;
+
+                var suppliers = (await _userService.GetAllAsync()).Data?
+                    .Where(x => x.Role == UserRole.Supplier).OrderBy(x => x.Name).ToList() ?? new();
+                suppliers.Insert(0, new RaccoonWarehouse.Domain.Users.DTOs.UserReadDto { Id = 0, Name = UiText.T("الكل", "All suppliers") });
+                SupplierComboBoxSearch.SetItems(SupplierComboBox, suppliers);
+                SupplierComboBox.SelectedIndex = 0;
                 UiText.ApplyTranslations(this);
             }
             catch
@@ -69,6 +81,9 @@ namespace RaccoonWarehouse.Products.Reports
                     IncludeReturns = IncludeReturnsCheckBox.IsChecked == true,
                     GroupByUnit = GroupByUnitCheckBox.IsChecked == true
                 };
+
+                if (SupplierComboBox.SelectedValue is int sid && sid > 0)
+                    filter.SupplierId = sid;
 
                 if (ProductComboBox.SelectedValue is int pid && pid != 0)
                 {
@@ -95,12 +110,12 @@ namespace RaccoonWarehouse.Products.Reports
             var gp = rows.Sum(x => x.GrossProfit);
             var margin = netSales == 0 ? 0 : Math.Round((gp / netSales) * 100m, 2);
 
-            NetSalesText.Text = netSales.ToString("0.00000");
-            TotalTaxText.Text = tax.ToString("0.00000");
-            TotalDiscountText.Text = discount.ToString("0.00000");
-            TotalCogsText.Text = cogs.ToString("0.00000");
-            GrossProfitText.Text = gp.ToString("0.00000");
-            MarginText.Text = margin.ToString("0.00000");
+            NetSalesText.Text = netSales.ToString("0.000");
+            TotalTaxText.Text = tax.ToString("0.000");
+            TotalDiscountText.Text = discount.ToString("0.000");
+            TotalCogsText.Text = cogs.ToString("0.000");
+            GrossProfitText.Text = gp.ToString("0.000");
+            MarginText.Text = margin.ToString("0.000");
         }
 
         private void BackBtn_Click(object sender, RoutedEventArgs e)

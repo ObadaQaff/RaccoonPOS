@@ -89,7 +89,7 @@ namespace RaccoonWarehouse.Vouchers
             _customerCollectionMode = true;
             _initialCustomerId = customerId;
             _maximumCollectionAmount = outstandingBalance;
-            Amount.Text = outstandingBalance.ToString("0.00000");
+            Amount.Text = outstandingBalance.ToString("0.000");
             ReceiptDescription.Text = UiText.T("تحصيل ذمم عميل", "Customer credit collection");
             Title = UiText.T("تحصيل دفعة من عميل", "Receive Customer Payment");
 
@@ -276,7 +276,7 @@ namespace RaccoonWarehouse.Vouchers
                 if (_maximumCollectionAmount.HasValue && amount > _maximumCollectionAmount.Value)
                 {
                     MessageBox.Show(
-                        string.Format(UiText.T("لا يمكن أن تتجاوز الدفعة الرصيد المستحق {0:N5}.", "The payment cannot exceed the outstanding balance of {0:N5}."), _maximumCollectionAmount.Value),
+                        string.Format(UiText.T("لا يمكن أن تتجاوز الدفعة الرصيد المستحق {0:N3}.", "The payment cannot exceed the outstanding balance of {0:N3}."), _maximumCollectionAmount.Value),
                         UiText.T("تنبيه", "Notice"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
@@ -581,7 +581,7 @@ namespace RaccoonWarehouse.Vouchers
             {
                 int? createdCustomerId = null;
                 var initialName = AccountComboBox.Text?.Trim();
-                WindowManager.ShowDialog<CreateUser>(WindowSizeType.SmallSquare, window =>
+                WindowManager.ShowDialog<CreateUser>(WindowSizeType.MediumRectangle, window =>
                 {
                     window.InitializeForCustomerQuickCreate(initialName);
                     window.Closed += (_, __) => createdCustomerId = window.CreatedUserId;
@@ -852,7 +852,7 @@ namespace RaccoonWarehouse.Vouchers
             AddInfoRow(UiText.T("رقم السند:", "Voucher No:"), ReceiptNumber.Text);
             AddInfoRow(UiText.T("التاريخ:", "Date:"), (dto.CreatedDate).ToString("yyyy/MM/dd"));
             AddInfoRow(UiText.T("العميل / الجهة:", "Customer / Party:"), (AccountComboBox.Text ?? ""));
-            AddInfoRow(UiText.T("المبلغ:", "Amount:"), dto.Amount.ToString("N5"));
+            AddInfoRow(UiText.T("المبلغ:", "Amount:"), dto.Amount.ToString("N3"));
             AddInfoRow(UiText.T("طريقة الدفع:", "Payment Method:"), dto.PaymentType.ToString());
 
             doc.Blocks.Add(infoTable);
@@ -918,7 +918,7 @@ namespace RaccoonWarehouse.Vouchers
 
                     row.Cells.Add(MakeCell(c.CheckNumber));
                     row.Cells.Add(MakeCell(c.BankName));
-                    row.Cells.Add(MakeCell(c.Amount.ToString("N5")));
+                    row.Cells.Add(MakeCell(c.Amount.ToString("N3")));
                     row.Cells.Add(MakeCell(c.DueDate.ToString("yyyy/MM/dd")));
                     row.Cells.Add(MakeCell(c.Notes));
 
@@ -1010,7 +1010,7 @@ namespace RaccoonWarehouse.Vouchers
             AddInfo(UiText.T("التاريخ:", "Date:"), dto.CreatedDate.ToString("yyyy/MM/dd"));
             AddInfo(UiText.T("العميل:", "Customer:"), AccountComboBox.Text);
             AddInfo(UiText.T("طريقة الدفع:", "Payment Method:"), dto.PaymentType.ToString());
-            AddInfo(UiText.T("المبلغ:", "Amount:"), dto.Amount.ToString("N5"));
+            AddInfo(UiText.T("المبلغ:", "Amount:"), dto.Amount.ToString("N3"));
 
             doc.Blocks.Add(infoTable);
 
@@ -1065,7 +1065,7 @@ namespace RaccoonWarehouse.Vouchers
                     TableRow r = new TableRow();
                     r.Cells.Add(new TableCell(new Paragraph(new Run(ch.CheckNumber))) { Padding = new Thickness(5) });
                     r.Cells.Add(new TableCell(new Paragraph(new Run(ch.BankName))) { Padding = new Thickness(5) });
-                    r.Cells.Add(new TableCell(new Paragraph(new Run(ch.Amount.ToString("N5")))) { Padding = new Thickness(5) });
+                    r.Cells.Add(new TableCell(new Paragraph(new Run(ch.Amount.ToString("N3")))) { Padding = new Thickness(5) });
                     r.Cells.Add(new TableCell(new Paragraph(new Run(ch.DueDate.ToString("yyyy/MM/dd")))) { Padding = new Thickness(5) });
                     r.Cells.Add(new TableCell(new Paragraph(new Run(ch.Notes ?? ""))) { Padding = new Thickness(5) });
 
@@ -1159,7 +1159,7 @@ namespace RaccoonWarehouse.Vouchers
             AddInfo(UiText.T("التاريخ:", "Date:"), dto.CreatedDate.ToString("yyyy/MM/dd"));
             AddInfo(UiText.T("العميل:", "Customer:"), AccountComboBox.Text);
             AddInfo(UiText.T("طريقة الدفع:", "Payment Method:"), dto.PaymentType.ToString());
-            AddInfo(UiText.T("المبلغ:", "Amount:"), dto.Amount.ToString("N5"));
+            AddInfo(UiText.T("المبلغ:", "Amount:"), dto.Amount.ToString("N3"));
 
             doc.Blocks.Add(infoTable);
             doc.Blocks.Add(new Paragraph(new Run(" ")));
@@ -1211,7 +1211,7 @@ namespace RaccoonWarehouse.Vouchers
                     TableRow r = new TableRow();
                     r.Cells.Add(new TableCell(new Paragraph(new Run(ch.CheckNumber))) { Padding = new Thickness(5) });
                     r.Cells.Add(new TableCell(new Paragraph(new Run(ch.BankName))) { Padding = new Thickness(5) });
-                    r.Cells.Add(new TableCell(new Paragraph(new Run(ch.Amount.ToString("N5")))) { Padding = new Thickness(5) });
+                    r.Cells.Add(new TableCell(new Paragraph(new Run(ch.Amount.ToString("N3")))) { Padding = new Thickness(5) });
                     r.Cells.Add(new TableCell(new Paragraph(new Run(ch.DueDate.ToString("yyyy/MM/dd")))) { Padding = new Thickness(5) });
                     r.Cells.Add(new TableCell(new Paragraph(new Run(ch.Notes ?? ""))) { Padding = new Thickness(5) });
 

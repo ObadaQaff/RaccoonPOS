@@ -131,6 +131,47 @@ namespace RaccoonWarehouse.Stocks
             }
         }
 
+        private async void AddSupplierBtn_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                int? createdSupplierId = null;
+                var initialName = SupplierComboBox.Text;
+
+                WindowManager.ShowDialog<CreateUser>(WindowSizeType.MediumRectangle, window =>
+                {
+                    window.InitializeForSupplierQuickCreate(initialName);
+                    window.Closed += (_, __) => createdSupplierId = window.CreatedUserId;
+                });
+
+                var users = await _userService.GetAllAsync();
+                SupplierComboBox.ItemsSource = users.Data?
+                    .OrderBy(user => user.Name)
+                    .ToList();
+                SupplierComboBox.DisplayMemberPath = "Name";
+                SupplierComboBox.SelectedValuePath = "Id";
+
+                if (createdSupplierId.HasValue)
+                {
+                    SupplierComboBox.SelectedValue = createdSupplierId.Value;
+                }
+                else
+                {
+                    SupplierComboBox.SelectedItem = null;
+                    SupplierComboBox.SelectedIndex = -1;
+                    SupplierComboBox.Text = string.Empty;
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"{UiText.T("تعذر إضافة المورد", "Could not add the supplier")}: {ex.Message}",
+                    UiText.T("خطأ", "Error"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+        }
+
 
         private async Task LoadDataAsync()
         {
@@ -472,9 +513,9 @@ namespace RaccoonWarehouse.Stocks
         {
             var subtotal = Items.Sum(GetPaidLineTotal);
             var discount = GetDiscountAmount();
-            SubtotalAmountTextBox.Text = subtotal.ToString("0.00000");
-            DiscountTextBox.Text = discount.ToString("0.00000");
-            TotalAmountTextBox.Text = (subtotal - discount).ToString("0.00000");
+            SubtotalAmountTextBox.Text = subtotal.ToString("0.000");
+            DiscountTextBox.Text = discount.ToString("0.000");
+            TotalAmountTextBox.Text = (subtotal - discount).ToString("0.000");
         }
 
         private void DiscountTextBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -1087,8 +1128,8 @@ namespace RaccoonWarehouse.Stocks
                 row.Cells.Add(new TableCell(new Paragraph(new Run(item.Product?.Name ?? ""))) { Padding = new Thickness(5) });
                 row.Cells.Add(new TableCell(new Paragraph(new Run(item.ProductUnit?.Unit?.Name ?? ""))) { Padding = new Thickness(5) });
                 row.Cells.Add(new TableCell(new Paragraph(new Run(item.Quantity.ToString()))) { Padding = new Thickness(5) });
-                row.Cells.Add(new TableCell(new Paragraph(new Run(item.PurchasePrice.ToString("N5")))) { Padding = new Thickness(5) });
-                row.Cells.Add(new TableCell(new Paragraph(new Run(item.SalePrice.ToString("N5")))) { Padding = new Thickness(5) });
+                row.Cells.Add(new TableCell(new Paragraph(new Run(item.PurchasePrice.ToString("N3")))) { Padding = new Thickness(5) });
+                row.Cells.Add(new TableCell(new Paragraph(new Run(item.SalePrice.ToString("N3")))) { Padding = new Thickness(5) });
                 row.Cells.Add(new TableCell(new Paragraph(new Run(item.ExpiryDate?.ToString("yyyy/MM/dd") ?? "-"))) { Padding = new Thickness(5) });
 
                 itemsGroup.Rows.Add(row);
@@ -1325,7 +1366,7 @@ namespace RaccoonWarehouse.Stocks
             FalconInvoiceNumberTextBox.Text = doc.FalconInvoiceNumber ?? string.Empty;
             DatePickerInvoice.SelectedDate = doc.CreatedDate;
             NotesTxt.Text = doc.Notes;
-            DiscountTextBox.Text = (doc.DiscountAmount ?? 0m).ToString("0.00000");
+            DiscountTextBox.Text = (doc.DiscountAmount ?? 0m).ToString("0.000");
 
             Items.Clear();
             _itemUnits.Clear();

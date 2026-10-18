@@ -4,6 +4,7 @@ using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.ProductUnits;
 using RaccoonWarehouse.Domain.ProductUnits.DTOs;
 using RaccoonWarehouse.Domain.SubCategories.DTOs;
+using RaccoonWarehouse.Domain.Users.DTOs;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -30,6 +31,9 @@ namespace RaccoonWarehouse.Domain.Products.DTOs
         public int SubCategoryId { get; set; }
         public BrandReadDto? Brand { get; set; }
         public int? BrandId { get; set; }
+        public int? SupplierId { get; set; }
+        public UserReadDto? Supplier { get; set; }
+        public string? AgentName { get; set; }
         public ICollection<ProductUnitReadDto>? ProductUnits { get; set; } = new List<ProductUnitReadDto>();
         public ProductUnitReadDto? BaseUnit => ProductUnitSelector.GetBaseUnit(ProductUnits);
         public ProductUnitReadDto? DefaultSaleUnit => ProductUnitSelector.GetDefaultSaleUnit(ProductUnits);

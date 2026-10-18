@@ -158,7 +158,9 @@
                         <ColumnDefinition Width="220"/>
                         <ColumnDefinition Width="220"/>
                         <ColumnDefinition Width="320"/>
+                        <ColumnDefinition Width="250"/>
                         <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
 
@@ -174,6 +176,10 @@
 
                     <StackPanel Grid.Column="2" Margin="8,0">
                         <TextBlock Text="الصنف أو الباركود (اختياري)" FontWeight="SemiBold" Foreground="#27445D" Margin="0,0,0,6"/>
+                        <TextBox x:Name="SearchText"
+                                 Height="42"
+                                 FontSize="15"
+                                 ToolTip="Search by product name or barcode"/>
                         <ComboBox x:Name="ProductComboBox"
                                   Height="42"
                                   FontSize="15"
@@ -182,17 +188,30 @@
                                   IsEditable="True"
                                   IsTextSearchEnabled="False"
                                   StaysOpenOnEdit="True"
+                                  Visibility="Collapsed"
                                   SelectionChanged="ProductComboBox_SelectionChanged"/>
                     </StackPanel>
 
-                    <TextBlock Grid.Column="3"
+                    <StackPanel Grid.Column="3" Margin="8,0">
+                        <TextBlock Text="المورد / Supplier" FontWeight="SemiBold" Foreground="#27445D" Margin="0,0,0,6"/>
+                        <ComboBox x:Name="SupplierComboBox" Height="42" FontSize="15"
+                                  DisplayMemberPath="Name" SelectedValuePath="Id"
+                                  IsEditable="True" IsTextSearchEnabled="False" StaysOpenOnEdit="True"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="4" Margin="8,0">
+                        <TextBlock Text="مصدر الحركة / Movement source" FontWeight="SemiBold" Foreground="#27445D" Margin="0,0,0,6"/>
+                        <ComboBox x:Name="MovementSourceComboBox" Height="42" FontSize="15"/>
+                    </StackPanel>
+
+                    <TextBlock Grid.Column="4" Visibility="Collapsed"
                                VerticalAlignment="Center"
                                Foreground="#6A7C8E"
                                FontSize="14"
                                Margin="18,0,0,0"
                                Text="اعرض حركة المخزون ضمن فترة محددة مع أرقام المستندات والجهة التي نفذت العملية."/>
 
-                    <WrapPanel Grid.Column="4"
+                    <WrapPanel Grid.Column="5"
                                Orientation="Horizontal"
                                HorizontalAlignment="Left"
                                VerticalAlignment="Bottom">
@@ -254,9 +273,10 @@
                         <DataGridTextColumn Header="نوع المستند" Binding="{Binding DocumentType}" Width="170"/>
                         <DataGridTextColumn Header="كود الصنف" Binding="{Binding ProductId}" Width="120"/>
                         <DataGridTextColumn Header="اسم الصنف" Binding="{Binding ProductName}" ElementStyle="{StaticResource ProductValueTextStyle}" Width="290"/>
+                        <DataGridTextColumn Header="المورد / Supplier" Binding="{Binding SupplierName}" Width="220"/>
                         <DataGridTextColumn Header="الوحدة" Binding="{Binding UnitName}" Width="140"/>
                         <DataGridTextColumn Header="الكمية" Binding="{Binding Quantity}" Width="120"/>
-                        <DataGridTextColumn Header="المتوفر بعد الحركة / Available after movement" Binding="{Binding AvailableQuantityAfterMovement, StringFormat={}{0:0.00000}}" Width="210"/>
+                        <DataGridTextColumn Header="المتوفر بعد الحركة / Available after movement" Binding="{Binding AvailableQuantityAfterMovement, StringFormat={}{0:0.000}}" Width="210"/>
                         <DataGridTextColumn Header="سعر الشراء" Binding="{Binding PurchasePrice}" Width="145"/>
                         <DataGridTextColumn Header="سعر البيع" Binding="{Binding SalePrice}" Width="145"/>
                         <DataGridTextColumn Header="تاريخ الانتهاء" Binding="{Binding ExpiryDate, StringFormat=yyyy-MM-dd, TargetNullValue=-}" Width="170"/>

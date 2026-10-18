@@ -101,7 +101,7 @@
                             <StackPanel Margin="20,0,0,0"
                                         VerticalAlignment="Center">
                                 <TextBlock x:Name="RoleFilterLabel"
-                                           Text="Ø§Ù„Ø¯ÙˆØ±"
+                                           Text="الدور"
                                            FontSize="14"
                                            Foreground="{StaticResource AppMutedTextBrush}"/>
                                 <ComboBox x:Name="RoleFilterBox"

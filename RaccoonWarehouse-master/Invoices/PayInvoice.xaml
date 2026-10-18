@@ -238,7 +238,7 @@
                         <TextBox x:Name="InvoiceNumberTextBox" Style="{StaticResource InputBoxStyle}"/>
                     </StackPanel>
 
-                    <StackPanel x:Name="FalconInvoicePanel" Margin="6" Grid.Column="3">
+                    <StackPanel x:Name="FalconInvoicePanel" Margin="6" Grid.Column="3" Visibility="Collapsed">
                         <TextBlock Text="رقم فاتورة فالكون / Falcon Invoice No."
                                    FontSize="14"
                                    FontWeight="SemiBold"

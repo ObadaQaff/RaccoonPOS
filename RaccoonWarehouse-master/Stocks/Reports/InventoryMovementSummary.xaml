@@ -159,6 +159,7 @@
                         <ColumnDefinition Width="280"/>
                         <ColumnDefinition Width="140"/>
                         <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="250"/>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
@@ -175,6 +176,10 @@
 
                     <StackPanel Grid.Column="2" Margin="8,0">
                         <TextBlock Text="الصنف أو الباركود (اختياري)" FontWeight="SemiBold" Foreground="#27445D" Margin="0,0,0,6"/>
+                        <TextBox x:Name="SearchText"
+                                 Height="42"
+                                 FontSize="15"
+                                 ToolTip="Search by product name or barcode"/>
                         <ComboBox x:Name="ProductComboBox"
                                   Height="42"
                                   FontSize="15"
@@ -183,10 +188,18 @@
                                   IsEditable="True"
                                   IsTextSearchEnabled="False"
                                   StaysOpenOnEdit="True"
+                                  Visibility="Collapsed"
                                   SelectionChanged="ProductComboBox_SelectionChanged"/>
                     </StackPanel>
 
-                    <StackPanel Grid.Column="3" VerticalAlignment="Center" Margin="8,18,8,0">
+                    <StackPanel Grid.Column="3" Margin="8,0">
+                        <TextBlock Text="المورد / Supplier" FontWeight="SemiBold" Foreground="#27445D" Margin="0,0,0,6"/>
+                        <ComboBox x:Name="SupplierComboBox" Height="42" FontSize="15"
+                                  DisplayMemberPath="Name" SelectedValuePath="Id"
+                                  IsEditable="True" IsTextSearchEnabled="False" StaysOpenOnEdit="True"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="4" VerticalAlignment="Center" Margin="8,18,8,0">
                         <CheckBox x:Name="IncludeInvoicesCheck"
                                   Content="إدراج الفواتير"
                                   IsChecked="True"
@@ -195,14 +208,19 @@
                                   Foreground="#27445D"/>
                     </StackPanel>
 
-                    <TextBlock Grid.Column="4"
+                    <StackPanel Grid.Column="5" Margin="8,0">
+                        <TextBlock Text="مصدر الحركة / Movement source" FontWeight="SemiBold" Foreground="#27445D" Margin="0,0,0,6"/>
+                        <ComboBox x:Name="MovementSourceComboBox" Height="42" FontSize="15"/>
+                    </StackPanel>
+
+                    <TextBlock Grid.Column="5" Visibility="Collapsed"
                                VerticalAlignment="Center"
                                Foreground="#6A7C8E"
                                FontSize="14"
                                Margin="18,0,0,0"
                                Text="يمكنك ترك الصنف فارغاً لعرض جميع المواد أو اختيار صنف واحد لتحليل صافي الحركة فقط."/>
 
-                    <Button Grid.Column="5"
+                    <Button x:Name="GenerateBtn" Grid.Column="6"
                             Width="150"
                             Margin="12,0,0,0"
                             Style="{StaticResource PrimaryButtonStyle}"
@@ -213,7 +231,7 @@
                         </StackPanel>
                     </Button>
 
-                    <Button Grid.Column="6"
+                    <Button Grid.Column="7"
                             Width="110"
                             Style="{StaticResource SecondaryButtonStyle}"
                             Click="BackBtn_Click">
@@ -237,6 +255,7 @@
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="كود" Binding="{Binding ITEMCODE}" ElementStyle="{StaticResource ProductValueTextStyle}" Width="120"/>
                         <DataGridTextColumn Header="الصنف" Binding="{Binding ProductName}" ElementStyle="{StaticResource ProductValueTextStyle}" Width="260"/>
+                        <DataGridTextColumn Header="المورد / Supplier" Binding="{Binding SupplierName}" Width="220"/>
                         <DataGridTextColumn Header="الوحدة" Binding="{Binding UnitName}" Width="140"/>
                         <DataGridTextColumn Header="داخل" Binding="{Binding InQty}" Width="120"/>
                         <DataGridTextColumn Header="خارج" Binding="{Binding OutQty}" Width="120"/>

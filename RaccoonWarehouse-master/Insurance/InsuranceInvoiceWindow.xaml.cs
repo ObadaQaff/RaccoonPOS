@@ -43,6 +43,7 @@ public partial class InsuranceInvoiceWindow : Window
     private readonly IStockService _stockService;
     private readonly ISaleCheckoutService _checkoutService;
     private readonly IUserSession _userSession;
+    private readonly IUserService _userService;
     private readonly ILoadingService _loading;
     private readonly ApplicationDbContext _db;
     private readonly ObservableCollection<InsuranceInvoiceLineViewModel> _lines = new();
@@ -55,6 +56,7 @@ public partial class InsuranceInvoiceWindow : Window
         IStockService stockService,
         ISaleCheckoutService checkoutService,
         IUserSession userSession,
+        IUserService userService,
         ILoadingService loading,
         ApplicationDbContext db)
     {
@@ -64,6 +66,7 @@ public partial class InsuranceInvoiceWindow : Window
         _stockService = stockService;
         _checkoutService = checkoutService;
         _userSession = userSession;
+        _userService = userService;
         _loading = loading;
         _db = db;
         InitializeComponent();
@@ -74,7 +77,7 @@ public partial class InsuranceInvoiceWindow : Window
 
     private void AddProduct_Click(object sender, RoutedEventArgs e)
     {
-        var search = new ProductSearchWindow(_productService, _stockService) { Owner = this };
+        var search = new ProductSearchWindow(_productService, _stockService, _userService) { Owner = this };
         if (search.ShowDialog() != true || search.SelectedProduct == null)
             return;
         var product = search.SelectedProduct;

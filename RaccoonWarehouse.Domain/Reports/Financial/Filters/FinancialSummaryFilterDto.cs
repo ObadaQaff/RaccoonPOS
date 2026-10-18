@@ -15,6 +15,7 @@ namespace RaccoonWarehouse.Domain.Reports.Financial.Filters
         // optional filters
         public int? BranchId { get; set; }
         public int? CustomerId { get; set; }
+        public int? SupplierId { get; set; }
         public int? CashierId { get; set; }
         public PaymentType? PaymentType { get; set; }
         public bool IncludeReturns { get; set; } = true;

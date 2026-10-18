@@ -5,6 +5,7 @@ using RaccoonWarehouse.Application.Service.Stocks;
 using RaccoonWarehouse.Application.Service.StockTransactions;
 using RaccoonWarehouse.Application.Service.SubCategories;
 using RaccoonWarehouse.Application.Service.Units;
+using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Common;
 using RaccoonWarehouse.Helpers.Localization;
 using RaccoonWarehouse.Navigation;
@@ -32,6 +33,7 @@ namespace RaccoonWarehouse.Products
         private readonly IBrandService _brandService;
         private readonly IProductUnitService _productUnitService;
         private readonly IUnitService _unitService;
+        private readonly IUserService _userService;
         private readonly IStockTransactionService _stockTransactionService;
         private readonly SourceDocumentNavigationService _sourceDocumentNavigationService;
         private readonly IStockService _stockService;
@@ -41,6 +43,11 @@ namespace RaccoonWarehouse.Products
         private bool _isSaving;
         private List<ProductUnitWriteDto> _productUnits = new();
         private List<UnitLookupItem> _unitLookupItems = new();
+        private List<RaccoonWarehouse.Domain.Users.DTOs.UserReadDto> _supplierLookupItems = new();
+        private bool _isFilteringSuppliers;
+        private bool _isNavigatingSuppliers;
+        private string _supplierSearchText = string.Empty;
+        private int? _selectedSupplierId;
         public ObservableCollection<ProductMovementRow> ProductMovements { get; } = new();
         public ObservableCollection<ProductStockUnitRow> ProductStockByUnit { get; } = new();
         public decimal CurrentStockTotalBaseQuantity { get; set; }
@@ -57,7 +64,8 @@ namespace RaccoonWarehouse.Products
             IUnitService unitService,
             IStockTransactionService stockTransactionService,
             SourceDocumentNavigationService sourceDocumentNavigationService,
-            IStockService stockService)
+            IStockService stockService,
+            IUserService userService)
         {
             InitializeComponent();
 
@@ -69,6 +77,7 @@ namespace RaccoonWarehouse.Products
             _stockTransactionService = stockTransactionService;
             _sourceDocumentNavigationService = sourceDocumentNavigationService;
             _stockService = stockService;
+            _userService = userService;
             DataContext = this;
         }
 
@@ -108,6 +117,15 @@ namespace RaccoonWarehouse.Products
                 BrandComboBox.DisplayMemberPath = "Name";
                 BrandComboBox.SelectedValuePath = "Id";
 
+                var users = await _userService.GetAllAsync();
+                _supplierLookupItems = users.Data?
+                    .Where(user => user.Role == UserRole.Supplier)
+                    .OrderBy(user => user.Name)
+                    .ToList() ?? new List<RaccoonWarehouse.Domain.Users.DTOs.UserReadDto>();
+                SupplierComboBox.ItemsSource = _supplierLookupItems.ToList();
+                SupplierComboBox.DisplayMemberPath = "Name";
+                SupplierComboBox.SelectedValuePath = "Id";
+
                 _unitLookupItems = (await _unitService.GetAllAsync()).Data?
                     .Select(unit => new UnitLookupItem(unit.Id, unit.Name, UiText.Translate(unit.Name)))
                     .ToList() ?? new List<UnitLookupItem>();
@@ -129,8 +147,11 @@ namespace RaccoonWarehouse.Products
                 DescriptionTextBox.Text = product.Data.Description;
                 StatusComboBox.SelectedValue = product.Data.Status;
                 TaxExemptCheckBox.IsChecked = product.Data.TaxExempt;
-                MinimumQuantityTextBox.Text = product.Data.MiniQuantity?.ToString("0.00000");
+                MinimumQuantityTextBox.Text = product.Data.MiniQuantity?.ToString("0.000");
                 BrandComboBox.SelectedValue = product.Data.BrandId;
+                _selectedSupplierId = product.Data.SupplierId;
+                SupplierComboBox.SelectedValue = product.Data.SupplierId;
+                AgentNameTextBox.Text = product.Data.AgentName ?? string.Empty;
                 SubCategoryComboBox.SelectedValue = product.Data.SubCategoryId;
                 TaxRate.Text = product.Data.TaxRate.ToString();
 
@@ -146,6 +167,87 @@ namespace RaccoonWarehouse.Products
             catch (Exception ex)
             {
                 MessageBox.Show($"{UiText.T("حدث خطأ أثناء تحميل بيانات الصنف", "An error occurred while loading the product data")}: {ex.Message}");
+            }
+        }
+
+        private void SupplierComboBox_Loaded(object sender, RoutedEventArgs e)
+        {
+            if (SupplierComboBox.Template.FindName("PART_EditableTextBox", SupplierComboBox) is TextBox textBox)
+                textBox.TextChanged += SupplierComboBox_TextChanged;
+        }
+
+        private void SupplierComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_isInitializing || _isFilteringSuppliers || _isNavigatingSuppliers)
+                return;
+
+            if (SupplierComboBox.SelectedItem is RaccoonWarehouse.Domain.Users.DTOs.UserReadDto supplier && supplier.Id > 0)
+                _selectedSupplierId = supplier.Id;
+        }
+
+        private void SupplierComboBox_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        {
+            if (e.Key is not (System.Windows.Input.Key.Down or System.Windows.Input.Key.Up or System.Windows.Input.Key.Enter) || SupplierComboBox.Items.Count == 0)
+                return;
+
+            _isNavigatingSuppliers = true;
+            try
+            {
+                if (e.Key == System.Windows.Input.Key.Down)
+                    SupplierComboBox.SelectedIndex = Math.Min(SupplierComboBox.SelectedIndex + 1, SupplierComboBox.Items.Count - 1);
+                else if (e.Key == System.Windows.Input.Key.Up)
+                    SupplierComboBox.SelectedIndex = Math.Max(SupplierComboBox.SelectedIndex - 1, 0);
+                else if (SupplierComboBox.SelectedItem is RaccoonWarehouse.Domain.Users.DTOs.UserReadDto)
+                {
+                    _selectedSupplierId = ((RaccoonWarehouse.Domain.Users.DTOs.UserReadDto)SupplierComboBox.SelectedItem).Id;
+                    SupplierComboBox.IsDropDownOpen = false;
+                }
+                else
+                    return;
+
+                RestoreSupplierSearchText();
+                e.Handled = true;
+            }
+            finally
+            {
+                _isNavigatingSuppliers = false;
+            }
+        }
+
+        private void RestoreSupplierSearchText()
+        {
+            if (SupplierComboBox.Template.FindName("PART_EditableTextBox", SupplierComboBox) is not TextBox textBox)
+                return;
+
+            textBox.Text = _supplierSearchText;
+            textBox.CaretIndex = textBox.Text.Length;
+            SupplierComboBox.IsDropDownOpen = true;
+        }
+
+        private void SupplierComboBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (_isFilteringSuppliers || _isNavigatingSuppliers || !SupplierComboBox.IsKeyboardFocusWithin)
+                return;
+
+            if (SupplierComboBox.Template.FindName("PART_EditableTextBox", SupplierComboBox) is not TextBox textBox)
+                return;
+
+            _supplierSearchText = textBox.Text.Trim();
+            _isFilteringSuppliers = true;
+            try
+            {
+                SupplierComboBox.SelectedValue = null;
+                SupplierComboBox.ItemsSource = string.IsNullOrWhiteSpace(_supplierSearchText)
+                    ? _supplierLookupItems.ToList()
+                    : _supplierLookupItems.Where(user =>
+                            (user.Name ?? string.Empty).Contains(_supplierSearchText, StringComparison.CurrentCultureIgnoreCase)
+                            || (user.PhoneNumber ?? string.Empty).Contains(_supplierSearchText, StringComparison.CurrentCultureIgnoreCase))
+                        .ToList();
+                SupplierComboBox.IsDropDownOpen = true;
+            }
+            finally
+            {
+                _isFilteringSuppliers = false;
             }
         }
 
@@ -560,6 +662,11 @@ namespace RaccoonWarehouse.Products
             SetEditorEnabled(false);
             try
             {
+                var selectedSupplierId = _selectedSupplierId ?? (SupplierComboBox.SelectedItem
+                    is RaccoonWarehouse.Domain.Users.DTOs.UserReadDto selectedSupplier && selectedSupplier.Id > 0
+                    ? selectedSupplier.Id
+                    : TryGetSelectedSupplierId());
+
                 var productDto = new ProductWriteDto
                 {
                     Id = _productId,
@@ -571,6 +678,8 @@ namespace RaccoonWarehouse.Products
                     TaxRate = decimal.TryParse(TaxRate.Text, out var rate) ? rate : 0,
                     MiniQuantity = decimal.TryParse(MinimumQuantityTextBox.Text, out var minQty) ? minQty : (decimal?)null,
                     BrandId = BrandComboBox.SelectedValue != null ? (int)BrandComboBox.SelectedValue : (int?)null,
+                    SupplierId = selectedSupplierId,
+                    AgentName = AgentNameTextBox.Text.Trim(),
                     SubCategoryId = SubCategoryComboBox.SelectedValue != null ? (int)SubCategoryComboBox.SelectedValue : 0,
                     UpdatedDate = DateTime.Now
                 };
@@ -598,6 +707,16 @@ namespace RaccoonWarehouse.Products
                 _isSaving = false;
                 SetEditorEnabled(!_isInitializing);
             }
+        }
+
+        private int? TryGetSelectedSupplierId()
+        {
+            if (SupplierComboBox.SelectedValue == null)
+                return null;
+
+            return int.TryParse(SupplierComboBox.SelectedValue.ToString(), out var supplierId) && supplierId > 0
+                ? supplierId
+                : null;
         }
 
         private List<ProductUnitWriteDto> CollectUnitsFromUI()

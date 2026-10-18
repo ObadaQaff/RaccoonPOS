@@ -11,6 +11,8 @@ namespace RaccoonWarehouse.Domain.Reports.Products.Dtos
         public int ProductId { get; set; }
         public string? ProductName { get; set; }
         public string? ITEMCODE { get; set; }
+        public int? SupplierId { get; set; }
+        public string? SupplierName { get; set; }
         public string? UnitName { get; set; } // optional
 
         public decimal SalesQty { get; set; }     // صافي الكمية (مع المرتجعات)

@@ -12,6 +12,7 @@ publish/
 /.codex-build/invoice-edit
 /.codex
 /build_verify
+/build/
 /AGENTS.md
 /graphify-out
 /RaccoonWarehouse-master/.codex-build
@@ -39,10 +40,16 @@ publish/
 **/build-check*/
 **/isolated-*/
 **/build-verify*/
+**/.build-*/
 **/_codex*/
+**/_codex*_build/
 **/publish/
 **/artifacts/
 **/bin/
 **/obj/
 **/*.log
 **/.DS_Store
+
+# Local verification logs
+**/.unit-conversion-tests.log
+**/.build-unit-conversion.log

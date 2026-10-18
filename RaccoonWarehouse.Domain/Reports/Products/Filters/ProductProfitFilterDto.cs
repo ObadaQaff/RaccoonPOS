@@ -12,6 +12,7 @@ namespace RaccoonWarehouse.Domain.Reports.Products.Filters
         public DateTime To { get; set; }
 
         public int? ProductId { get; set; }
+        public int? SupplierId { get; set; }
         public bool IncludeReturns { get; set; } = true;
 
         // إذا بدك لاحقاً التقرير حسب الوحدة كمان:

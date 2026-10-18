@@ -1,9 +1,12 @@
 using RaccoonWarehouse.Application.Service.Products;
 using RaccoonWarehouse.Application.Service.Stocks;
+using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Domain.Products;
 using RaccoonWarehouse.Domain.Products.DTOs;
+using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Reports.Stocks.Filters;
 using RaccoonWarehouse.Helpers.Localization;
+using RaccoonWarehouse.Helpers;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -19,33 +22,87 @@ namespace RaccoonWarehouse.Stocks.Reports
     {
         private const int ProductSearchPageSize = 25;
         private const int ProductSearchDelayMs = 220;
+        private const int MovementSearchDelayMs = 2000;
 
         private readonly IStockReportService _stockReportService;
         private readonly IProductService _productService;
+        private readonly IUserService _userService;
         private readonly List<ProductReadDto> _defaultProductItems = new();
         private readonly List<ProductReadDto> _productSearchResults = new();
         private readonly SemaphoreSlim _productSearchLock = new(1, 1);
 
         private TextBox? _productSearchTextBox;
         private int _productSearchVersion;
+        private int _movementSearchVersion;
         private bool _isUpdatingProductCombo;
 
-        public InventoryMovementSummary(IStockReportService stockReportService, IProductService productService)
+        public InventoryMovementSummary(IStockReportService stockReportService, IProductService productService, IUserService userService)
         {
             InitializeComponent();
+            SupplierComboBoxSearch.Attach(SupplierComboBox);
             _stockReportService = stockReportService;
             _productService = productService;
+            _userService = userService;
             UiText.ApplyWindow(this);
 
             Loaded += InventoryMovementSummary_Loaded;
         }
 
-        private void InventoryMovementSummary_Loaded(object sender, RoutedEventArgs e)
+        private async void InventoryMovementSummary_Loaded(object sender, RoutedEventArgs e)
         {
             FromDatePicker.SelectedDate = DateTime.Now.Date;
             ToDatePicker.SelectedDate = DateTime.Now.Date;
             InitializeProductFilter();
+            InitializeMovementSourceFilter();
+            SearchText.TextChanged += SearchText_TextChanged;
             AttachProductSearchTextBox();
+            await LoadSupplierFilterAsync();
+        }
+
+        private string? GetSearchText() => string.IsNullOrWhiteSpace(SearchText.Text) ? null : SearchText.Text.Trim();
+
+        private async void SearchText_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            var searchVersion = Interlocked.Increment(ref _movementSearchVersion);
+            try
+            {
+                await Task.Delay(MovementSearchDelayMs);
+                if (searchVersion != _movementSearchVersion)
+                    return;
+
+                GenerateBtn_Click(GenerateBtn, new RoutedEventArgs());
+            }
+            catch
+            {
+                // A newer keystroke supersedes this delayed search.
+            }
+        }
+
+        private void InitializeMovementSourceFilter()
+        {
+            MovementSourceComboBox.Items.Clear();
+            MovementSourceComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("الكل", "All sources"), Tag = StockMovementSource.All });
+            MovementSourceComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("بيع", "Sale"), Tag = StockMovementSource.Sale });
+            MovementSourceComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("مرتجع بيع", "Sales return"), Tag = StockMovementSource.Return });
+            MovementSourceComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("شراء", "Purchase"), Tag = StockMovementSource.Purchase });
+            MovementSourceComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("مرتجع شراء", "Purchase return"), Tag = StockMovementSource.PurchaseReturn });
+            MovementSourceComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("إدخال مخزون", "Stock in"), Tag = StockMovementSource.StockIn });
+            MovementSourceComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("إخراج مخزون", "Stock out"), Tag = StockMovementSource.StockOut });
+            MovementSourceComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("تسوية", "Adjustment"), Tag = StockMovementSource.Adjustment });
+            MovementSourceComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("تالف", "Damage"), Tag = StockMovementSource.Damage });
+            MovementSourceComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("سند", "Voucher"), Tag = StockMovementSource.Voucher });
+            MovementSourceComboBox.SelectedIndex = 0;
+        }
+
+        private async Task LoadSupplierFilterAsync()
+        {
+            var suppliers = (await _userService.GetAllAsync()).Data?
+                .Where(user => user.Role == RaccoonWarehouse.Domain.Enums.UserRole.Supplier)
+                .OrderBy(user => user.Name)
+                .ToList() ?? new();
+            suppliers.Insert(0, new RaccoonWarehouse.Domain.Users.DTOs.UserReadDto { Id = 0, Name = UiText.T("الكل", "All suppliers") });
+            SupplierComboBoxSearch.SetItems(SupplierComboBox, suppliers);
+            SupplierComboBox.SelectedIndex = 0;
         }
 
         private void InitializeProductFilter()
@@ -76,12 +133,14 @@ namespace RaccoonWarehouse.Stocks.Reports
                     IncludeInvoices = IncludeInvoicesCheck.IsChecked == true
                 };
 
-                var selection = await ResolveSelectedProductIdAsync();
-                if (!selection.IsValid)
-                    return;
+                filter.ProductSearchText = GetSearchText();
 
-                if (selection.ProductId.HasValue)
-                    filter.ProductId = selection.ProductId.Value;
+                if (SupplierComboBox.SelectedValue is int supplierId && supplierId > 0)
+                    filter.SupplierId = supplierId;
+
+                filter.Source = (MovementSourceComboBox.SelectedItem as ComboBoxItem)?.Tag is StockMovementSource selectedSource
+                    ? selectedSource
+                    : StockMovementSource.All;
 
                 var rows = await _stockReportService.GetInventoryMovementSummaryAsync(filter);
                 MovementGrid.ItemsSource = rows;

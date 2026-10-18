@@ -8,6 +8,7 @@ using RaccoonWarehouse.Core.Common;
 using RaccoonWarehouse.Helpers.Localization;
 using System.Collections.ObjectModel;
 using System.Windows;
+using System.Windows.Controls;
 
 namespace RaccoonWarehouse.PurchaseOrders
 {
@@ -18,6 +19,7 @@ namespace RaccoonWarehouse.PurchaseOrders
         private readonly IUserSession _userSession;
         private readonly ILoadingService _loadingService;
         private readonly ObservableCollection<PurchaseOrderReadDto> _orders = new();
+        private readonly ObservableCollection<PurchaseOrderLineWriteDto> _selectedLines = new();
 
         public PurchaseOrdersWindow(
             IPurchaseOrderService service,
@@ -31,6 +33,7 @@ namespace RaccoonWarehouse.PurchaseOrders
             _loadingService = loadingService;
             InitializeComponent();
             OrdersGrid.ItemsSource = _orders;
+            LinesGrid.ItemsSource = _selectedLines;
             UiText.ApplyWindow(this);
         }
 
@@ -63,6 +66,36 @@ namespace RaccoonWarehouse.PurchaseOrders
         }
 
         private async void Refresh_Click(object sender, RoutedEventArgs e) => await LoadAsync();
+
+        private async void OrdersGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (OrdersGrid.SelectedItem is not PurchaseOrderReadDto selected)
+            {
+                SelectedStatusText.Text = "PO status | الحالة: No order selected";
+                SelectedOrderNumberText.Text = "No order selected";
+                SelectedSupplierText.Text = "—";
+                SelectedDateText.Text = "—";
+                SelectedPaymentText.Text = "—";
+                SelectedTotalText.Text = "0.000";
+                _selectedLines.Clear();
+                return;
+            }
+
+            SelectedStatusText.Text = $"PO status | الحالة: {selected.Status}";
+            SelectedOrderNumberText.Text = selected.OrderNumber;
+            SelectedSupplierText.Text = selected.SupplierName ?? selected.SupplierId?.ToString() ?? "—";
+            SelectedDateText.Text = selected.DocumentDate?.ToString("dd/MM/yyyy") ?? "—";
+            SelectedTotalText.Text = selected.TotalAmount.ToString("N3");
+            _selectedLines.Clear();
+
+            var result = await _service.GetByIdAsync(selected.Id);
+            if (result.Success && result.Data != null)
+            {
+                SelectedPaymentText.Text = result.Data.PaymentType?.ToString() ?? "—";
+                foreach (var line in result.Data.Lines ?? new List<PurchaseOrderLineWriteDto>())
+                    _selectedLines.Add(line);
+            }
+        }
 
         private async void OrdersGrid_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e) => await ShowDetailsAsync();
 

@@ -72,6 +72,20 @@
                             </StackPanel>
                         </Border>
 
+                        <Border Width="220" Margin="0,0,10,6" Padding="10,6" Background="#F7FBFD" BorderBrush="{StaticResource AppBorderBrush}" BorderThickness="1" CornerRadius="12">
+                            <StackPanel>
+                                <TextBlock Text="Supplier" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource AppMutedTextBrush}" Margin="0,0,0,8"/>
+                                <ComboBox x:Name="SupplierFilterComboBox"
+                                          Style="{StaticResource AppComboBoxStyle}"
+                                          IsEditable="True" IsTextSearchEnabled="False" StaysOpenOnEdit="True"
+                                          DisplayMemberPath="Name"
+                                          SelectedValuePath="Id"
+                                          Loaded="SupplierFilterComboBox_Loaded"
+                                          PreviewKeyDown="SupplierFilterComboBox_PreviewKeyDown"
+                                          SelectionChanged="SupplierFilterComboBox_SelectionChanged"/>
+                            </StackPanel>
+                        </Border>
+
                         <Button x:Name="CreateProductBtn" Width="160" Height="42" Margin="0,0,10,6" Style="{StaticResource AppHeroButtonStyle}" Click="CreateProductBtn_Click">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                 <fa:ImageAwesome Icon="Plus" Width="16" Height="16" Margin="0,0,8,0" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
@@ -120,6 +134,8 @@
                           PreviewKeyDown="ProductsTable1_PreviewKeyDown"
                           FlowDirection="RightToLeft">
                     <DataGrid.Columns>
+                        <DataGridTextColumn Header="Supplier" Binding="{Binding Supplier.Name}" Width="180"/>
+                        <DataGridTextColumn Header="Agent" Binding="{Binding AgentName}" Width="160"/>
                         <DataGridTextColumn Header="الرقم التعريفي" Binding="{Binding Id}" Width="120"/>
                         <DataGridTextColumn Header="الباركود" Binding="{Binding ITEMCODE}" ElementStyle="{StaticResource ProductValueTextStyle}" Width="200"/>
                         <DataGridTextColumn Header="اسم المنتج" Binding="{Binding Name}" ElementStyle="{StaticResource ProductValueTextStyle}" Width="250"/>

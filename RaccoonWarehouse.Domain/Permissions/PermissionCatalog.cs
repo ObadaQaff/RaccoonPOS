@@ -148,6 +148,7 @@ namespace RaccoonWarehouse.Domain.Permissions
                 ("stock-valuation", "StockValuationReport", "تقييم المخزون"),
                 ("inactive-products", "InactiveProductsReport", "أصناف لم تتحرك منذ مدة"),
                 ("sales-report", "SalesReport", "تقرير المبيعات"),
+                ("purchase-report", "PurchaseReport", "تقرير المشتريات"),
                 ("invoices-profit", "InvoicesProfitReport", "تحليل ربحية الفواتير"),
                 ("product-profit", "ProductProfitReport", "أرباح الأصناف"),
                 ("cash-flow", "CashFlowReport", "التحصيل والدفع"),

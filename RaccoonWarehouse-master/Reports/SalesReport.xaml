@@ -87,7 +87,7 @@
 
         <!-- HEADER -->
         <Border Background="#2D8DCF" Grid.Row="0">
-            <TextBlock Text="تقرير المبيعات"
+            <TextBlock x:Name="ReportHeaderText" Text="تقرير المبيعات"
                        Foreground="White"
                        FontSize="24"
                        FontWeight="Bold"
@@ -148,9 +148,22 @@
                     </StackPanel>
 
                     <!-- Customer -->
-                    <StackPanel Grid.Column="2" Margin="8,0">
+                    <StackPanel x:Name="CustomerFilterPanel" Grid.Column="2" Margin="8,0">
                         <TextBlock Text="الزبون" FontWeight="SemiBold" Foreground="#333" Margin="0,0,0,3"/>
                         <ComboBox x:Name="CustomerComboBox"
+                                  Style="{StaticResource ComboStyle}"
+                                  DisplayMemberPath="Name"
+                                  SelectedValuePath="Id"/>
+                    </StackPanel>
+
+                    <StackPanel x:Name="SupplierFilterPanel" Grid.Column="2" Margin="8,0" Visibility="Collapsed">
+                        <TextBlock Text="المورد" FontWeight="SemiBold" Foreground="#333" Margin="0,0,0,3"/>
+                        <ComboBox x:Name="SupplierComboBox"
+                                  IsEditable="True"
+                                  IsTextSearchEnabled="False"
+                                  StaysOpenOnEdit="True"
+                                  Loaded="SupplierComboBox_Loaded"
+                                  PreviewKeyDown="SupplierComboBox_PreviewKeyDown"
                                   Style="{StaticResource ComboStyle}"
                                   DisplayMemberPath="Name"
                                   SelectedValuePath="Id"/>
@@ -170,7 +183,7 @@
                         <ComboBox x:Name="InvoiceTypeComboBox" Style="{StaticResource ComboStyle}"/>
                     </StackPanel>
 
-                    <StackPanel Grid.Column="5" Margin="8,0">
+                    <StackPanel x:Name="PosFilterPanel" Grid.Column="5" Margin="8,0">
                         <TextBlock Text="مصدر الفاتورة" FontWeight="SemiBold" Foreground="#333" Margin="0,0,0,3"/>
                         <ComboBox x:Name="PosFilterComboBox" Style="{StaticResource ComboStyle}"/>
                     </StackPanel>
@@ -228,15 +241,15 @@
             </Border>
 
             <!-- SUMMARY CARDS -->
-            <UniformGrid Grid.Row="1" Columns="7" Margin="0,0,0,12">
-                <Border Background="White" CornerRadius="12" BorderBrush="#D0D7DD" BorderThickness="1" Padding="10" Margin="6">
+            <UniformGrid x:Name="SummaryCardsGrid" Grid.Row="1" Columns="7" Margin="0,0,0,12">
+                <Border x:Name="TotalSalesCard" Background="White" CornerRadius="12" BorderBrush="#D0D7DD" BorderThickness="1" Padding="10" Margin="6">
                     <StackPanel>
-                        <TextBlock Text="إجمالي البيع" Foreground="#666"/>
+                        <TextBlock x:Name="TotalSalesLabel" Text="إجمالي البيع" Foreground="#666"/>
                         <TextBlock x:Name="TotalSalesText" FontSize="18" FontWeight="Bold"/>
                     </StackPanel>
                 </Border>
 
-                <Border Background="White" CornerRadius="12" BorderBrush="#D0D7DD" BorderThickness="1" Padding="10" Margin="6">
+                <Border x:Name="TotalTaxCard" Background="White" CornerRadius="12" BorderBrush="#D0D7DD" BorderThickness="1" Padding="10" Margin="6">
                     <StackPanel>
                         <TextBlock Text="الضريبة" Foreground="#666"/>
                         <TextBlock x:Name="TotalTaxText" FontSize="18" FontWeight="Bold"/>
@@ -252,21 +265,28 @@
 
                 <Border Background="White" CornerRadius="12" BorderBrush="#D0D7DD" BorderThickness="1" Padding="10" Margin="6">
                     <StackPanel>
-                        <TextBlock Text="المرتجعات" Foreground="#666"/>
+                        <TextBlock x:Name="TotalReturnsLabel" Text="المرتجعات" Foreground="#666"/>
                         <TextBlock x:Name="TotalReturnsText" FontSize="18" FontWeight="Bold"/>
+                    </StackPanel>
+                </Border>
+
+                <Border x:Name="TotalDisplayedAmountCard" Visibility="Collapsed" Background="White" CornerRadius="12" BorderBrush="#D0D7DD" BorderThickness="1" Padding="10" Margin="6">
+                    <StackPanel>
+                        <TextBlock Text="إجمالي المعروض / Total displayed" Foreground="#666"/>
+                        <TextBlock x:Name="TotalDisplayedAmountText" FontSize="18" FontWeight="Bold"/>
                     </StackPanel>
                 </Border>
 
                
 
-                <Border Background="White" CornerRadius="12" BorderBrush="#D0D7DD" BorderThickness="1" Padding="10" Margin="6">
+                <Border x:Name="TotalCogsCard" Background="White" CornerRadius="12" BorderBrush="#D0D7DD" BorderThickness="1" Padding="10" Margin="6">
                     <StackPanel>
                         <TextBlock Text="COGS" Foreground="#666"/>
                         <TextBlock x:Name="TotalCogsText" FontSize="18" FontWeight="Bold"/>
                     </StackPanel>
                 </Border>
 
-                <Border Background="White" CornerRadius="12" BorderBrush="#D0D7DD" BorderThickness="1" Padding="10" Margin="6">
+                <Border x:Name="GrossProfitCard" Background="White" CornerRadius="12" BorderBrush="#D0D7DD" BorderThickness="1" Padding="10" Margin="6">
                     <StackPanel>
                         <TextBlock Text="الربح" Foreground="#666"/>
                         <TextBlock x:Name="GrossProfitText" FontSize="18" FontWeight="Bold"/>
@@ -321,7 +341,7 @@
             </UniformGrid>
 
             <!-- VOUCHER TOTALS: RECEIPT AND PAYMENT VOUCHERS ONLY -->
-            <UniformGrid Grid.Row="3" Columns="3" Margin="0,0,0,12">
+            <UniformGrid x:Name="VoucherSummaryGrid" Grid.Row="3" Columns="3" Margin="0,0,0,12">
                 <Border Background="#F4FBF7" CornerRadius="12" BorderBrush="#B9DEC8" BorderThickness="1" Padding="8" Margin="6">
                     <StackPanel>
                         <TextBlock Text="سندات القبض / Receipt Vouchers" Foreground="#39704E"/>

@@ -1,11 +1,14 @@
 using RaccoonWarehouse.Application.Service.Permissions;
 using RaccoonWarehouse.Application.Service.Users;
+using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Users.DTOs;
 using RaccoonWarehouse.Helpers.Localization;
 using System;
 using System.Globalization;
+using System.Linq;
 using System.Windows;
+using System.Windows.Controls;
 
 namespace RaccoonWarehouse
 {
@@ -14,16 +17,27 @@ namespace RaccoonWarehouse
         private readonly IUserService _userService;
         private readonly IUserSession _userSession;
         private readonly IPermissionService _permissionService;
+        private readonly ILoadingService _loadingService;
         private bool _customerQuickCreateMode;
         private UserRole? _quickCreateRole;
 
+        private static readonly UserRole[] QuickCreateRoles =
+        {
+            UserRole.Customer,
+            UserRole.Supplier,
+            UserRole.Doctor,
+            UserRole.Pharmacy,
+            UserRole.PharmaceuticalWarehouse
+        };
+
         public int? CreatedUserId { get; private set; }
 
-        public CreateUser(IUserService userService, IUserSession userSession, IPermissionService permissionService)
+        public CreateUser(IUserService userService, IUserSession userSession, IPermissionService permissionService, ILoadingService loadingService)
         {
             _userService = userService;
             _userSession = userSession;
             _permissionService = permissionService;
+            _loadingService = loadingService;
             InitializeComponent();
             UiText.ApplyWindow(this);
             CreateBtn.Content = UiText.T("إنشاء الحساب", "Create Account");
@@ -37,18 +51,28 @@ namespace RaccoonWarehouse
 
         public void InitializeForCustomerQuickCreate(string? initialName = null, string? initialPhone = null)
         {
+            InitializeForAllowedQuickCreate(UserRole.Customer, initialName, initialPhone);
+        }
+
+        public void InitializeForAllowedQuickCreate(UserRole initialRole = UserRole.Customer, string? initialName = null, string? initialPhone = null)
+        {
             _customerQuickCreateMode = true;
-            _quickCreateRole = UserRole.Customer;
-            Role.SelectedItem = UserRole.Customer;
+            _quickCreateRole = QuickCreateRoles.Contains(initialRole) ? initialRole : UserRole.Customer;
+            Role.SelectedItem = _quickCreateRole.Value;
             Role.IsEnabled = false;
+            Role.Visibility = Visibility.Collapsed;
+            QuickRolePanel.Visibility = Visibility.Visible;
+            SetQuickRoleSelection(_quickCreateRole.Value);
             PasswordPanel.Visibility = Visibility.Collapsed;
             ConfirmPasswordPanel.Visibility = Visibility.Collapsed;
-            RolePanel.Visibility = Visibility.Collapsed;
-            Title = UiText.T("Ø¥Ø¶Ø§ÙØ© Ø¹Ù…ÙŠÙ„ Ø¬Ø¯ÙŠØ¯", "Add New Customer");
-            CreateBtn.Content = UiText.T("إضافة العميل", "Add Customer");
+            BankDetailsPanel.Visibility = Visibility.Collapsed;
+            CreditDetailsPanel.Visibility = Visibility.Collapsed;
+            RolePanel.Visibility = Visibility.Visible;
+            Title = UiText.T("إضافة مستخدم جديد", "Add New User");
+            CreateBtn.Content = UiText.T("إضافة المستخدم", "Add User");
             FormHintText.Text = UiText.T(
-                "Ø£Ø¯Ø®Ù„ Ø§Ø³Ù… Ø§Ù„Ø¹Ù…ÙŠÙ„ ÙˆØ¨ÙŠØ§Ù†Ø§ØªÙ‡ Ø§Ù„Ø¨Ù†ÙƒÙŠØ© Ø«Ù… Ø§Ø­ÙØ¸Ù‡ ÙƒØ¹Ù…ÙŠÙ„ Ø¬Ø¯ÙŠØ¯.",
-                "Enter the customer name and bank details, then save the new customer.");
+                "أدخل اسم المستخدم ورقم الهاتف واختر نوع الحساب ثم احفظه.",
+                "Enter the user name and phone number, choose the account type, and save it.");
 
             if (!string.IsNullOrWhiteSpace(initialName))
                 FullName.Text = initialName.Trim();
@@ -61,26 +85,7 @@ namespace RaccoonWarehouse
 
         public void InitializeForSupplierQuickCreate(string? initialName = null, string? initialPhone = null)
         {
-            _customerQuickCreateMode = false;
-            _quickCreateRole = null;
-            _quickCreateRole = UserRole.Supplier;
-            Role.SelectedItem = UserRole.Supplier;
-            Role.IsEnabled = false;
-            PasswordPanel.Visibility = Visibility.Collapsed;
-            ConfirmPasswordPanel.Visibility = Visibility.Collapsed;
-            RolePanel.Visibility = Visibility.Collapsed;
-            Title = UiText.T("إضافة مورد جديد", "Add New Supplier");
-            CreateBtn.Content = UiText.T("إضافة المورد", "Add Supplier");
-            FormHintText.Text = UiText.T(
-                "أدخل اسم المورد وبياناته البنكية، ثم احفظ المورد.",
-                "Enter the supplier name and bank details, then save the supplier.");
-
-            if (!string.IsNullOrWhiteSpace(initialName))
-                FullName.Text = initialName.Trim();
-            if (!string.IsNullOrWhiteSpace(initialPhone))
-                PhoneNumber.Text = initialPhone.Trim();
-
-            FullName.Focus();
+            InitializeForAllowedQuickCreate(UserRole.Supplier, initialName, initialPhone);
         }
         public void InitializeForEmployeeCreate()
         {
@@ -88,19 +93,24 @@ namespace RaccoonWarehouse
             _quickCreateRole = null;
             Role.SelectedItem = UserRole.Casher;
             Role.IsEnabled = true;
+            Role.Visibility = Visibility.Visible;
+            QuickRolePanel.Visibility = Visibility.Collapsed;
             PasswordPanel.Visibility = Visibility.Visible;
             ConfirmPasswordPanel.Visibility = Visibility.Visible;
+            BankDetailsPanel.Visibility = Visibility.Visible;
+            CreditDetailsPanel.Visibility = Visibility.Visible;
             RolePanel.Visibility = Visibility.Visible;
             Title = UiText.T("إضافة موظف جديد", "Add New Staff User");
             CreateBtn.Content = UiText.T("إضافة الموظف", "Add Staff User");
             FormHintText.Text = UiText.T(
-                "Ø£Ø¯Ø®Ù„ Ø¨ÙŠØ§Ù†Ø§Øª Ø§Ù„Ù…ÙˆØ¸Ù Ø«Ù… Ø§Ø®ØªØ± Ø§Ù„Ø¯ÙˆØ± Ø§Ù„Ù…Ù†Ø§Ø³Ø¨ ÙˆØ­ÙØ¸ Ø§Ù„Ø­Ø³Ø§Ø¨.",
+                "أدخل بيانات الموظف ثم اختر الدور المناسب واحفظ الحساب.",
                 "Enter the staff details, choose the appropriate role, and save the account.");
             FullName.Focus();
         }
 
         private async void Button_Click(object sender, RoutedEventArgs e)
         {
+            var loadingShown = false;
             try
             {
                 var role = _userSession.CurrentUser?.Role;
@@ -116,9 +126,19 @@ namespace RaccoonWarehouse
                     return;
                 }
 
-                var selectedRole = Role.SelectedItem is UserRole roleValue ? roleValue : UserRole.Customer;
+                var selectedRole = _customerQuickCreateMode
+                    ? GetSelectedQuickRole()
+                    : Role.SelectedItem is UserRole roleValue ? roleValue : UserRole.Customer;
                 var isCustomer = selectedRole == UserRole.Customer;
                 var isQuickCreate = _quickCreateRole.HasValue;
+
+                if (isQuickCreate && !QuickCreateRoles.Contains(selectedRole))
+                {
+                    MessageBox.Show(
+                        UiText.T("نوع الحساب المختار غير مسموح به من هذه الشاشة.", "The selected account type is not allowed from this screen."),
+                        UiText.T("تنبيه", "Notice"));
+                    return;
+                }
 
                 if (!isQuickCreate && !isCustomer && string.IsNullOrWhiteSpace(Password.Text))
                 {
@@ -139,6 +159,10 @@ namespace RaccoonWarehouse
                 }
 
                 CreateStatusText.Text = UiText.T("جارٍ الحفظ", "Saving");
+
+                CreateBtn.IsEnabled = false;
+                _loadingService.Show();
+                loadingShown = true;
 
                 var user = new UserWriteDto
                 {
@@ -166,11 +190,21 @@ namespace RaccoonWarehouse
                 if (!result.Success)
                 {
                     CreateStatusText.Text = UiText.T("فشل", "Failed");
+                    if (loadingShown)
+                    {
+                        _loadingService.Hide();
+                        loadingShown = false;
+                    }
                     MessageBox.Show(result.Message);
                     return;
                 }
 
                 CreatedUserId = result.Data?.Id;
+                if (loadingShown)
+                {
+                    _loadingService.Hide();
+                    loadingShown = false;
+                }
                 CreateStatusText.Text = UiText.T("تم", "Done");
                 MessageBox.Show(UiText.T("تمت إضافة المستخدم بنجاح.", "User added successfully."));
 
@@ -205,11 +239,43 @@ namespace RaccoonWarehouse
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
             }
+            finally
+            {
+                if (loadingShown)
+                    _loadingService.Hide();
+                CreateBtn.IsEnabled = true;
+            }
         }
 
         private void BackBtn_Click(object sender, RoutedEventArgs e)
         {
             Close();
+        }
+
+        private UserRole GetSelectedQuickRole()
+        {
+            var selected = new[]
+            {
+                CustomerRoleRadio,
+                SupplierRoleRadio,
+                DoctorRoleRadio,
+                PharmacyRoleRadio,
+                WarehouseRoleRadio
+            }.FirstOrDefault(radio => radio.IsChecked == true);
+
+            return selected?.Tag is string roleText &&
+                   Enum.TryParse<UserRole>(roleText, out var role)
+                ? role
+                : UserRole.Customer;
+        }
+
+        private void SetQuickRoleSelection(UserRole role)
+        {
+            CustomerRoleRadio.IsChecked = role == UserRole.Customer;
+            SupplierRoleRadio.IsChecked = role == UserRole.Supplier;
+            DoctorRoleRadio.IsChecked = role == UserRole.Doctor;
+            PharmacyRoleRadio.IsChecked = role == UserRole.Pharmacy;
+            WarehouseRoleRadio.IsChecked = role == UserRole.PharmaceuticalWarehouse;
         }
     }
 }

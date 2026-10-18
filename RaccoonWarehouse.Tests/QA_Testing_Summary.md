@@ -1,5 +1,113 @@
 # QA Testing Summary
 
+## 2026-10-17 - Arabic mojibake cleanup
+
+### Scope
+- Replaced corrupted UTF-8/Arabic literals across accounting, POS, users, employees, products, stock, and financial report screens.
+- Corrected Arabic export headers, validation/error messages, pagination text, role labels, and POS header matching strings.
+
+### Verification
+- Mojibake scan across app, domain, application, and report source: passed with no remaining `Ø`, `Ù`, `Ã`, `Â`, or `â` corruption markers.
+- Application project build: passed with 0 errors; existing warnings remain (947 warnings).
+- Manual verification remains: review Arabic mode on the affected screens and test POS keyboard/header actions plus Current Stock Excel export.
+- No database schema or production data changes.
+
+## 2026-10-17 - All suppliers dropdown display state
+
+### Scope
+- Treated the default “All suppliers” selection as an empty search in the shared supplier helper.
+- Prevented the initial dropdown from filtering against the display label and appearing blank.
+
+### Verification
+- Application project build: passed with 0 errors; existing warnings remain (947 warnings).
+- Manual verification remains: restart the application, open Current Stock, confirm the full list appears immediately, then search and clear the supplier field.
+- No database schema or production data changes.
+
+## 2026-10-17 - Products-equivalent supplier ComboBox initialization
+
+### Scope
+- Added atomic supplier-list initialization to the shared supplier ComboBox helper.
+- Updated Current Stock, Item Profit, Purchase Invoices, Stock Movement, Item Movement Details, and related stock reports to cache suppliers before selecting the default item.
+- Preserved local filtering, typed text, caret position, and keyboard navigation behavior used by Products.
+
+### Verification
+- Full WPF solution build: passed with 0 errors; existing warnings remain (959 warnings).
+- Manual verification remains: restart the rebuilt application and confirm the full supplier list, name/phone filtering, clearing behavior, and keyboard selection in each affected report.
+- No database schema or production data changes.
+
+## 2026-10-17 - Supplier source capture during ComboBox initialization
+
+### Scope
+- Hardened the shared supplier search helper against WPF `ItemsSource` and initial selection event ordering.
+- Preserved the original supplier cache while the helper replaces the displayed filtered list.
+
+### Verification
+- Full WPF solution build: passed with 0 errors; existing warnings remain (1009 warnings).
+- Manual verification remains: restart the application, open Current Stock and the four affected reports, confirm all suppliers appear, then search by name and phone.
+- No database schema or production data changes.
+
+## 2026-10-17 - Supplier list capture timing
+
+### Scope
+- Fixed the shared supplier ComboBox helper to capture the original supplier list before WPF's initial selection text event filters the list.
+- Prevented affected reports from collapsing to only “All suppliers” when opening, clearing, or typing in the supplier field.
+
+### Verification
+- Full WPF solution build: passed with 0 errors; existing warnings remain (1009 warnings).
+- Manual verification remains: reopen each affected report, confirm all suppliers are listed, clear the field, search by name and phone, and select with keyboard navigation.
+- No database schema or production data changes.
+
+## 2026-10-17 - Supplier search across reports
+
+### Scope
+- Applied the Products-table supplier search behavior to Item Profit.
+- Ensured the supplier helper is refreshed after loading suppliers and disabled conflicting built-in ComboBox search.
+- Confirmed Purchase Invoices, Stock Movement, and Item Movement Details use the shared supplier-search helper.
+
+### Verification
+- Full WPF solution build: passed with 0 errors; existing warnings remain (1009 warnings).
+- Manual verification remains: type supplier name/phone in all four reports, navigate with Up/Down/Enter, and confirm the selected supplier is used when generating each report.
+- No database schema or production data changes.
+
+## 2026-10-17 - Current Stock supplier search
+
+### Scope
+- Fixed the shared supplier dropdown search behavior used by Current Stock and related stock reports.
+- Preserved typed supplier text and caret position after filtering.
+- Kept the “All suppliers” option only for an empty search and preserved keyboard navigation.
+
+### Verification
+- Full WPF solution build: passed with 0 errors; existing warnings remain (959 warnings).
+- Manual verification remains: type a supplier name or phone number, navigate with Up/Down/Enter, and refresh the report using the selected supplier.
+- No database schema or production data changes.
+
+## 2026-10-17 - Purchase report placement and filters
+
+### Scope
+- Moved the purchase report entry from Invoices and Vouchers into the Reports tab.
+- Added supplier filtering with searchable supplier input and preserved typed text while filtering.
+- Hid voucher statistics, invoice source, COGS, and profit in purchase-report mode.
+- Added the total amount for the currently displayed purchase invoices.
+
+### Verification
+- Full WPF solution build: passed with 0 errors; existing warnings remain (1009 warnings).
+- Static wiring check: passed; the old `Reports.PurchaseInvoices` action is no longer present.
+- Manual verification remains: open the Reports tab purchase report, search/select a supplier, apply invoice filters, and confirm the hidden sections and displayed total.
+- No database schema or production data changes.
+
+## 2026-10-14 - Safe barcode scanner matching
+
+### Scope
+- Removed control characters and common scanner AIM prefixes before lookup.
+- Required an exact item-code or alternate-barcode match.
+- Prevented broad-search fallback from selecting an unrelated product.
+- Preserved both top barcode input and invoice-grid barcode input paths.
+
+### Verification
+- Build verification is pending after this fix.
+- No database schema or production data changes.
+- Manual verification remains: scan a valid barcode, type the same barcode and press Enter, and scan an unknown barcode.
+
 ## 2026-10-14 - Cashier dashboard return and split-payment totals
 
 ### Scope
@@ -2179,6 +2287,110 @@ The solution still reports existing warnings, including package compatibility/se
 - The full-suite failures also include existing purchase-validation, stock-FEFO, voucher, and sales-report failures.
 - No live production database was modified or queried. Existing posted journals remain unchanged; upgraded databases receive the idempotent chart update on the existing account initialization path.
 - Manual verification remains required for live account IDs, bank-account associations, cheque stages, and any explicit tax-settlement workflow if one is added later.
+
+## 2026-10-17 - Movement source filters
+
+### Scope
+- Added movement-source filtering to Stock Movement Details and Product Movement Summary reports.
+- Supported sales, sales returns, purchases, purchase returns, stock in, stock out, adjustments, damage, vouchers, and all sources.
+- Preserved existing date, product, supplier, and invoice-inclusion filters.
+
+### Verification
+- Full solution build: passed with 0 errors and 1009 existing warnings.
+- Manual verification remains recommended for each movement-source option against live report data.
+
+## 2026-10-17 - Stock movement header and product search alignment
+
+### Scope
+- Updated Stock Movement Details product filtering to use a Current Stock-style text search.
+- Product searches now support product name and barcode, with debounced loading and service-side filtering.
+- Kept the movement-source, date, supplier, and report actions available in the movement report header.
+
+### Verification
+- Full solution build: passed with 0 errors and 1009 existing warnings.
+- UI handoff review: existing report colors, controls, stable enum tags, and current movement-report actions were preserved.
+
+### Remaining risks
+- Manual UI verification is still recommended for typing a product name, typing a barcode, clearing the search, and changing movement source after restarting the application.
+
+## 2026-10-17 - Product movement summary layout alignment
+
+### Scope
+- Matched Product Movement Summary filter layout with Stock Movement Details.
+- Added Current Stock-style product name/barcode search with debounced report refresh.
+- Fixed overlapping Generate and Back buttons by assigning separate columns.
+- Preserved supplier, movement-source, date, and Include Invoices filters.
+
+### Verification
+- Full solution build: passed with 0 errors and 1009 existing warnings.
+- Manual UI verification remains recommended for product search, clearing search, and button visibility after restarting the application.
+
+## 2026-10-17 - Payments and receipts user filter
+
+### Scope
+- Added a searchable all-users ComboBox to the Payments and Receipts report.
+- The filter matches vouchers where the selected user is either the customer or supplier account.
+- Added the resolved user name to report rows and preserved all existing report filters.
+- Removed the undefined Stock Movement `FilterTextBoxStyle` reference that caused the reported XAML startup exception.
+
+### Verification
+- Full solution build: passed with 0 errors and 912 existing warnings.
+- Manual verification remains recommended for selecting, typing, clearing, and applying the user filter in both receipt and payment modes.
+
+## 2026-10-17 - Reports navigation consolidation and shared dashboard search
+
+### Scope
+- Moved report actions from Products, Invoices, Stock, and Accounting dashboard modules into the Reports page.
+- Removed report actions from the normal module tabs while preserving their stable action keys and permission checks.
+- Added live text search and group filtering to all dashboard module pages.
+- Deduplicated equivalent report actions by canonical report key.
+
+### Verification
+- Full solution build: passed with 0 errors and 1012 existing warnings.
+- Code inspection covered report aggregation, permission filtering, empty results, group filtering, and legacy action routing.
+
+### Remaining risks
+- Manual UI verification remains recommended for each dashboard tab, report search, group selection, and opening accounting reports after restarting the application.
+
+## 2026-10-17 - Reports page search and group filter
+
+### Scope
+- Added a dedicated Reports page view inside the dashboard content area.
+- Added live report-name search and a group filter for the report catalog.
+- Preserved existing report action keys, permission filtering, loading behavior, and report windows.
+
+### Verification
+- Full solution build: passed with 0 errors and existing warnings.
+- Code inspection covered empty search results, group filtering, localization text, and stable action keys.
+
+### Remaining risks
+- Manual UI verification remains recommended for searching, clearing the search, switching groups, and opening reports after restarting the application.
+
+## 2026-10-17 - Sales and purchase report party dropdowns
+
+### Scope
+- Customer and supplier dropdowns now load all users without filtering by role.
+- Cashier dropdown filtering remains unchanged.
+
+### Verification
+- Full solution build: passed with 0 errors and 959 existing warnings.
+- Manual verification remains recommended for both report modes after restarting the application.
+
+## 2026-10-17 - Report discount visibility
+
+### Scope
+- Included both line-level and invoice-level discounts in Sales Report, Item Profit, Invoice Profit/Purchase, and Discount Summary report data.
+- Preserved net sales and profit calculations without subtracting line discounts twice, because line subtotals already include them.
+- Added regression coverage for line-level discounts in the sales report service.
+
+### Verification
+- New line-discount regression test: passed.
+- Focused `SalesReportServiceTests`: 2 passed, 1 existing endpoint-order assertion failed.
+- Full solution build: passed with 0 errors and 959 existing warnings.
+
+### Remaining risks
+- The endpoint-order test failure is unrelated to discount handling and remains from the existing test baseline.
+- Manual verification is still recommended for a sale containing line and invoice discounts in each report screen.
 
 ### Remaining risks
 - Manual Arabic UI verification is still recommended to confirm the visible "فتح سند القبض" button in the running application.

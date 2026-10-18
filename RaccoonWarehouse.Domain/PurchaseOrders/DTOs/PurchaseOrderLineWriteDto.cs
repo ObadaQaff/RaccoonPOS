@@ -3,6 +3,7 @@ namespace RaccoonWarehouse.Domain.PurchaseOrders.DTOs
     public class PurchaseOrderLineWriteDto
     {
         public int Id { get; set; }
+        public int? PurchaseRequestLineId { get; set; }
         public int ProductId { get; set; }
         public int ProductUnitId { get; set; }
         public string? ProductName { get; set; }

@@ -35,15 +35,15 @@ namespace RaccoonWarehouse.Navigation.Modules
 
             if (role.HasValue && await _permissionService.HasPermissionAsync(role.Value, "Users.View"))
             {
-                actions.Add(new ModuleActionDefinition("Customers.List", UiText.T("عرض العملاء والموردين", "View Customers and Suppliers"), "Users.View"));
+                actions.Add(new ModuleActionDefinition("Customers.List", UiText.T("إدارة حسابات المستخدمين", "Manage User Accounts"), "Users.View"));
             }
 
             return new ModuleDefinition(
                 Key,
-                UiText.T("العملاء والموردون", "Customers and Suppliers"),
+                UiText.T("حسابات المستخدمين", "User Accounts"),
                 new[]
                 {
-                    new ModuleGroupDefinition(UiText.T("إدارة العملاء والموردين", "Customers and Suppliers Management"), actions)
+                    new ModuleGroupDefinition(UiText.T("إدارة حسابات المستخدمين", "User Account Management"), actions)
                 });
         }
     }

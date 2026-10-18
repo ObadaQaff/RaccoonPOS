@@ -76,7 +76,7 @@ namespace RaccoonWarehouse.Accounting
             var result = await _accountingService.GetAccountsAsync(activeOnly: true);
             if (!result.Success)
             {
-                MessageBox.Show(result.Message ?? UiText.T("ÙØ´Ù„ ØªØ­Ù…ÙŠÙ„ Ø§Ù„Ø­Ø³Ø§Ø¨Ø§Øª.", "Failed to load accounts."));
+                MessageBox.Show(result.Message ?? UiText.T("فشل تحميل الحسابات.", "Failed to load accounts."));
                 return;
             }
 
@@ -133,14 +133,14 @@ namespace RaccoonWarehouse.Accounting
             {
                 if (!await _featureService.IsEnabledAsync())
                 {
-                    MessageBox.Show(UiText.T("Ù†Ø¸Ø§Ù… Ø§Ù„Ù…Ø­Ø§Ø³Ø¨Ø© Ù…ØªÙˆÙ‚Ù Ø­Ø§Ù„ÙŠØ§Ù‹.", "The accounting system is currently disabled."));
+                MessageBox.Show(UiText.T("نظام المحاسبة متوقف حالياً.", "The accounting system is currently disabled."));
                     Close();
                     return;
                 }
 
                 if (FromDatePicker.SelectedDate == null || ToDatePicker.SelectedDate == null)
                 {
-                    MessageBox.Show(UiText.T("ÙŠØ±Ø¬Ù‰ Ø§Ø®ØªÙŠØ§Ø± Ø§Ù„ÙØªØ±Ø©.", "Please choose the period."));
+                MessageBox.Show(UiText.T("يرجى اختيار الفترة.", "Please choose the period."));
                     return;
                 }
 
@@ -170,13 +170,13 @@ namespace RaccoonWarehouse.Accounting
 
                 if (!result.Success)
                 {
-                    MessageBox.Show(result.Message ?? UiText.T("ÙØ´Ù„ ØªØ­Ù…ÙŠÙ„ Ø¯ÙØªØ± Ø§Ù„Ø£Ø³ØªØ§Ø°.", "Failed to load the general ledger."));
+                MessageBox.Show(result.Message ?? UiText.T("فشل تحميل دفتر الأستاذ.", "Failed to load the general ledger."));
                     return;
                 }
 
                 var ledger = result.Data.FirstOrDefault();
                 HeaderText.Text = ledger == null
-                    ? UiText.T("Ù„Ø§ ØªÙˆØ¬Ø¯ Ø­Ø±ÙƒØ© Ø¶Ù…Ù† Ø§Ù„ÙØªØ±Ø© Ø§Ù„Ù…Ø­Ø¯Ø¯Ø©.", "There are no entries in the selected period.")
+                    ? UiText.T("لا توجد حركة ضمن الفترة المحددة.", "There are no entries in the selected period.")
                     : $"{ledger.AccountCode} - {ledger.AccountName}";
                 OpeningText.Text = ledger?.OpeningBalance.ToString("N2") ?? "0.00";
                 ClosingText.Text = ledger?.ClosingBalance.ToString("N2") ?? "0.00";
@@ -187,7 +187,7 @@ namespace RaccoonWarehouse.Accounting
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"{UiText.T("Ø­Ø¯Ø« Ø®Ø·Ø£ Ø£Ø«Ù†Ø§Ø¡ ØªØ­Ù…ÙŠÙ„ Ø¯ÙØªØ± Ø§Ù„Ø£Ø³ØªØ§Ø°", "An error occurred while loading the general ledger")}: {ex.Message}");
+                MessageBox.Show($"{UiText.T("حدث خطأ أثناء تحميل دفتر الأستاذ", "An error occurred while loading the general ledger")}: {ex.Message}");
             }
             finally
             {

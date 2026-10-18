@@ -35,7 +35,7 @@ namespace RaccoonWarehouse.Navigation.Modules
                         return;
                     }
 
-                    WindowManager.ShowDialog<CreateUser>(WindowSizeType.SmallSquare, window => window.InitializeForCustomerQuickCreate());
+                    WindowManager.ShowDialog<CreateUser>(WindowSizeType.MediumRectangle, window => window.InitializeForCustomerQuickCreate());
                     return;
 
                 case "Customers.CreateSupplier":
@@ -45,7 +45,7 @@ namespace RaccoonWarehouse.Navigation.Modules
                         return;
                     }
 
-                    WindowManager.ShowDialog<CreateUser>(WindowSizeType.SmallSquare, window => window.InitializeForSupplierQuickCreate());
+                    WindowManager.ShowDialog<CreateUser>(WindowSizeType.MediumRectangle, window => window.InitializeForSupplierQuickCreate());
                     return;
 
                 case "Customers.List":
@@ -55,7 +55,7 @@ namespace RaccoonWarehouse.Navigation.Modules
                         return;
                     }
 
-                    WindowManager.Show<CustomersTable>();
+                    WindowManager.Show<UsersTable>();
                     return;
             }
         }

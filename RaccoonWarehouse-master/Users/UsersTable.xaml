@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:fa="http://schemas.fontawesome.io/icons/"
         mc:Ignorable="d"
-        Title="إدارة المستخدمين"
+        Title="إدارة حسابات المستخدمين"
         Height="800"
         Width="1400"
         WindowStartupLocation="CenterScreen"
@@ -26,7 +26,7 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel VerticalAlignment="Center">
-                    <TextBlock Text="إدارة المستخدمين"
+                    <TextBlock Text="إدارة حسابات المستخدمين"
                                FontSize="34"
                                FontWeight="Bold"
                                Foreground="White"/>
@@ -64,21 +64,58 @@
                     Padding="24">
                 <StackPanel>
                     <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="340"/>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
 
-                        <TextBox x:Name="SearchBox"
-                                 Grid.Column="0"
-                                 Style="{StaticResource AppSearchTextBoxStyle}"
-                                 TextChanged="SearchBox_TextChanged"
-                                 ToolTip="ابحث بالاسم أو الهاتف أو الدور"/>
+                        <StackPanel Grid.Row="0"
+                                    Grid.Column="0"
+                                    Margin="0,0,12,12">
+                            <TextBlock Text="بحث عن مستخدم / Search users"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource AppTextBrush}"/>
+                            <TextBox x:Name="SearchBox"
+                                     Margin="0,8,0,0"
+                                     Style="{StaticResource AppSearchTextBoxStyle}"
+                                     TextChanged="SearchBox_TextChanged"
+                                     ToolTip="ابحث بالاسم أو الهاتف أو الدور"/>
+                        </StackPanel>
 
-                        <StackPanel Grid.Column="1"
+                        <StackPanel Grid.Row="0"
+                                    Grid.Column="1"
+                                    Width="260"
+                                    Margin="0,0,0,12">
+                            <TextBlock Text="تصفية حسب الدور / Filter by role"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource AppTextBrush}"/>
+                            <ComboBox x:Name="RoleFilterComboBox"
+                                      Height="40"
+                                      Margin="0,8,0,0"
+                                      SelectedValuePath="Tag"
+                                      SelectedValue="all"
+                                      SelectionChanged="RoleFilterComboBox_SelectionChanged">
+                                <ComboBoxItem Content="All roles / كل الأدوار" Tag="all" />
+                                <ComboBoxItem Content="Admin / مدير" Tag="Admin" />
+                                <ComboBoxItem Content="Casher / كاشير" Tag="Casher" />
+                                <ComboBoxItem Content="Customer / عميل" Tag="Customer" />
+                                <ComboBoxItem Content="Supplier / مورد" Tag="Supplier" />
+                                <ComboBoxItem Content="Manager / مدير مستودع" Tag="Manager" />
+                                <ComboBoxItem Content="HR / موارد بشرية" Tag="HR" />
+                                <ComboBoxItem Content="Doctor / طبيب" Tag="Doctor" />
+                                <ComboBoxItem Content="Pharmacy / صيدلية" Tag="Pharmacy" />
+                                <ComboBoxItem Content="Pharmaceutical warehouse / مستودع أدوية" Tag="PharmaceuticalWarehouse" />
+                            </ComboBox>
+                        </StackPanel>
+
+                        <StackPanel Grid.Row="1"
+                                    Grid.Column="0"
                                     Orientation="Horizontal"
-                                    HorizontalAlignment="Center">
+                                    HorizontalAlignment="Left">
                             <Border Style="{StaticResource AppBadgeBorderStyle}">
                                 <StackPanel>
                                     <TextBlock Text="إجمالي المستخدمين"
@@ -105,11 +142,12 @@
                             </Border>
                         </StackPanel>
 
-                        <StackPanel Grid.Column="2"
+                        <StackPanel Grid.Row="1"
+                                    Grid.Column="1"
                                     Orientation="Horizontal"
-                                    HorizontalAlignment="Left">
+                                    HorizontalAlignment="Right">
                             <Button x:Name="ViewStatementBtn"
-                                    Width="170"
+                                    Width="150"
                                     Margin="0,0,12,0"
                                     Style="{StaticResource AppSecondaryButtonStyle}"
                                     Click="ViewStatement_Click">
@@ -122,7 +160,8 @@
                             </Button>
 
                             <Button x:Name="CreateUserBtn"
-                                    Width="170"
+                                    Width="150"
+                                    Margin="0,0,12,0"
                                     Style="{StaticResource AppHeroButtonStyle}"
                                     Click="CreateUserBtn_Click">
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
@@ -134,7 +173,7 @@
                             </Button>
 
                             <Button x:Name="BackBtn"
-                                    Width="120"
+                                    Width="100"
                                     Style="{StaticResource AppSecondaryButtonStyle}"
                                     Click="BackBtn_Click">
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">

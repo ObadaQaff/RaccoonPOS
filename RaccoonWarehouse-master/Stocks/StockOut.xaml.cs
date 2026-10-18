@@ -1077,8 +1077,8 @@ namespace RaccoonWarehouse.Stocks
                 row.Cells.Add(new TableCell(new Paragraph(new Run(item.Product?.Name ?? ""))) { Padding = new Thickness(5) });
                 row.Cells.Add(new TableCell(new Paragraph(new Run(item.ProductUnit?.Unit?.Name ?? ""))) { Padding = new Thickness(5) });
                 row.Cells.Add(new TableCell(new Paragraph(new Run(item.Quantity.ToString()))) { Padding = new Thickness(5) });
-                row.Cells.Add(new TableCell(new Paragraph(new Run(item.PurchasePrice.ToString("N5")))) { Padding = new Thickness(5) });
-                row.Cells.Add(new TableCell(new Paragraph(new Run(item.SalePrice.ToString("N5")))) { Padding = new Thickness(5) });
+                row.Cells.Add(new TableCell(new Paragraph(new Run(item.PurchasePrice.ToString("N3")))) { Padding = new Thickness(5) });
+                row.Cells.Add(new TableCell(new Paragraph(new Run(item.SalePrice.ToString("N3")))) { Padding = new Thickness(5) });
                 row.Cells.Add(new TableCell(
                     new Paragraph(
                         new Run(item.ExpiryDate?.ToString("yyyy/MM/dd") ?? "-")

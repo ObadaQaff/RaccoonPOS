@@ -1,9 +1,12 @@
 using RaccoonWarehouse.Application.Service.Products;
 using RaccoonWarehouse.Application.Service.Stocks;
+using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Domain.Products;
 using RaccoonWarehouse.Domain.Products.DTOs;
+using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Stock.DTOs;
 using RaccoonWarehouse.Helpers.Localization;
+using RaccoonWarehouse.Helpers;
 using RaccoonWarehouse.Helpers.Pdf;
 using RaccoonWarehouse.Helpers.Pdf.Reports;
 using System;
@@ -21,9 +24,11 @@ namespace RaccoonWarehouse.Stocks.Reports
     {
         private const int ProductSearchPageSize = 25;
         private const int ProductSearchDelayMs = 220;
+        private const int MovementSearchDelayMs = 2000;
 
         private readonly IStockReportService _stockReportService;
         private readonly IProductService _productService;
+        private readonly IUserService _userService;
         private readonly List<ProductReadDto> _defaultProductItems = new();
         private readonly List<ProductReadDto> _productSearchResults = new();
         private readonly SemaphoreSlim _productSearchLock = new(1, 1);
@@ -31,23 +36,58 @@ namespace RaccoonWarehouse.Stocks.Reports
         private List<StockMovementDto> _currentRows = new();
         private TextBox? _productSearchTextBox;
         private int _productSearchVersion;
+        private int _movementSearchVersion;
+        private readonly SemaphoreSlim _movementLoadLock = new(1, 1);
         private bool _isUpdatingProductCombo;
+        private List<RaccoonWarehouse.Domain.Users.DTOs.UserReadDto> _supplierItems = new();
 
-        public StockMovementsReport(IStockReportService stockReportService, IProductService productService)
+        public StockMovementsReport(IStockReportService stockReportService, IProductService productService, IUserService userService)
         {
             InitializeComponent();
+            SupplierComboBoxSearch.Attach(SupplierComboBox);
             _stockReportService = stockReportService;
             _productService = productService;
+            _userService = userService;
             UiText.ApplyWindow(this);
             Loaded += StockMovementsReport_Loaded;
         }
 
-        private void StockMovementsReport_Loaded(object sender, RoutedEventArgs e)
+        private async void StockMovementsReport_Loaded(object sender, RoutedEventArgs e)
         {
             FromDatePicker.SelectedDate = DateTime.Today;
             ToDatePicker.SelectedDate = DateTime.Today;
             InitializeProductFilter();
+            InitializeMovementSourceFilter();
+            SearchText.TextChanged += SearchText_TextChanged;
             AttachProductSearchTextBox();
+            await LoadSupplierFilterAsync();
+        }
+
+        private void InitializeMovementSourceFilter()
+        {
+            MovementSourceComboBox.Items.Clear();
+            MovementSourceComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("الكل", "All sources"), Tag = StockMovementSource.All });
+            MovementSourceComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("بيع", "Sale"), Tag = StockMovementSource.Sale });
+            MovementSourceComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("مرتجع بيع", "Sales return"), Tag = StockMovementSource.Return });
+            MovementSourceComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("شراء", "Purchase"), Tag = StockMovementSource.Purchase });
+            MovementSourceComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("مرتجع شراء", "Purchase return"), Tag = StockMovementSource.PurchaseReturn });
+            MovementSourceComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("إدخال مخزون", "Stock in"), Tag = StockMovementSource.StockIn });
+            MovementSourceComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("إخراج مخزون", "Stock out"), Tag = StockMovementSource.StockOut });
+            MovementSourceComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("تسوية", "Adjustment"), Tag = StockMovementSource.Adjustment });
+            MovementSourceComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("تالف", "Damage"), Tag = StockMovementSource.Damage });
+            MovementSourceComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("سند", "Voucher"), Tag = StockMovementSource.Voucher });
+            MovementSourceComboBox.SelectedIndex = 0;
+        }
+
+        private async Task LoadSupplierFilterAsync()
+        {
+            _supplierItems = (await _userService.GetAllAsync()).Data?
+                .Where(user => user.Role == RaccoonWarehouse.Domain.Enums.UserRole.Supplier)
+                .OrderBy(user => user.Name)
+                .ToList() ?? new();
+            _supplierItems.Insert(0, new RaccoonWarehouse.Domain.Users.DTOs.UserReadDto { Id = 0, Name = UiText.T("الكل", "All suppliers") });
+            SupplierComboBoxSearch.SetItems(SupplierComboBox, _supplierItems);
+            SupplierComboBox.SelectedIndex = 0;
         }
 
         private void InitializeProductFilter()
@@ -63,11 +103,19 @@ namespace RaccoonWarehouse.Stocks.Reports
             {
                 DateTime? from = FromDatePicker.SelectedDate?.Date;
                 DateTime? to = ToDatePicker.SelectedDate?.Date.AddDays(1).AddTicks(-1);
-                var selection = await ResolveSelectedProductIdAsync();
-                if (!selection.IsValid)
-                    return;
-
-                var data = await _stockReportService.GetStockMovementsAsync(from, to, selection.ProductId);
+                var supplierId = SupplierComboBox.SelectedValue is int selectedSupplierId && selectedSupplierId > 0
+                    ? selectedSupplierId
+                    : (int?)null;
+                var source = (MovementSourceComboBox.SelectedItem as ComboBoxItem)?.Tag is StockMovementSource selectedSource
+                    ? selectedSource
+                    : StockMovementSource.All;
+                var data = await _stockReportService.GetStockMovementsAsync(
+                    from,
+                    to,
+                    productId: null,
+                    supplierId,
+                    source,
+                    GetSearchText());
                 _currentRows = data ?? new List<StockMovementDto>();
                 MovementsGrid.ItemsSource = _currentRows;
             }
@@ -78,6 +126,66 @@ namespace RaccoonWarehouse.Stocks.Reports
                     UiText.T("خطأ", "Error"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
+            }
+        }
+
+        private string? GetSearchText() => string.IsNullOrWhiteSpace(SearchText.Text) ? null : SearchText.Text.Trim();
+
+        private async void SearchText_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            var searchVersion = Interlocked.Increment(ref _movementSearchVersion);
+            await DebouncedLoadMovementAsync(searchVersion);
+        }
+
+        private async Task DebouncedLoadMovementAsync(int searchVersion)
+        {
+            try
+            {
+                await Task.Delay(MovementSearchDelayMs);
+                if (searchVersion != _movementSearchVersion)
+                    return;
+
+                await LoadMovementReportAsync(searchVersion);
+            }
+            catch (Exception ex)
+            {
+                if (searchVersion != _movementSearchVersion)
+                    return;
+
+                MessageBox.Show(
+                    $"{UiText.T("خطأ أثناء تحميل الحركات", "Error loading movements")}: {ex.Message}",
+                    UiText.T("خطأ", "Error"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+        }
+
+        private async Task LoadMovementReportAsync(int searchVersion)
+        {
+            await _movementLoadLock.WaitAsync();
+            try
+            {
+                if (searchVersion != _movementSearchVersion)
+                    return;
+
+                DateTime? from = FromDatePicker.SelectedDate?.Date;
+                DateTime? to = ToDatePicker.SelectedDate?.Date.AddDays(1).AddTicks(-1);
+                var supplierId = SupplierComboBox.SelectedValue is int selectedSupplierId && selectedSupplierId > 0
+                    ? selectedSupplierId
+                    : (int?)null;
+                var source = (MovementSourceComboBox.SelectedItem as ComboBoxItem)?.Tag is StockMovementSource selectedSource
+                    ? selectedSource
+                    : StockMovementSource.All;
+                var data = await _stockReportService.GetStockMovementsAsync(from, to, null, supplierId, source, GetSearchText());
+                if (searchVersion != _movementSearchVersion)
+                    return;
+
+                _currentRows = data ?? new List<StockMovementDto>();
+                MovementsGrid.ItemsSource = _currentRows;
+            }
+            finally
+            {
+                _movementLoadLock.Release();
             }
         }
 

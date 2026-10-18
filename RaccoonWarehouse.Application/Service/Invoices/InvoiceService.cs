@@ -792,11 +792,11 @@ namespace RaccoonWarehouse.Application.Service.Invoices
             var entity = await query.FirstOrDefaultAsync();
             var mapped = _mapper.Map<InvoiceReadDto>(entity);
             if (mapped != null)
-                await AttachCustomersAsync(new[] { mapped });
+                await AttachPartiesAsync(new[] { mapped });
             return mapped;
         }
 
-        private async Task AttachCustomersAsync(IEnumerable<InvoiceReadDto> invoices)
+        private async Task AttachPartiesAsync(IEnumerable<InvoiceReadDto> invoices)
         {
             var invoiceList = invoices.ToList();
             var customerIds = invoiceList
@@ -804,19 +804,27 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 .Select(invoice => invoice.CustomerId!.Value)
                 .Distinct()
                 .ToList();
+            var supplierIds = invoiceList
+                .Where(invoice => invoice.SupplierId.HasValue)
+                .Select(invoice => invoice.SupplierId!.Value)
+                .Distinct()
+                .ToList();
 
-            if (customerIds.Count == 0)
+            var partyIds = customerIds.Concat(supplierIds).Distinct().ToList();
+            if (partyIds.Count == 0)
                 return;
 
-            var customers = await _context.Set<User>()
+            var parties = await _context.Set<User>()
                 .AsNoTracking()
-                .Where(user => customerIds.Contains(user.Id))
+                .Where(user => partyIds.Contains(user.Id))
                 .ToDictionaryAsync(user => user.Id);
 
             foreach (var invoice in invoiceList)
             {
-                if (invoice.CustomerId is int customerId && customers.TryGetValue(customerId, out var customer))
+                if (invoice.CustomerId is int customerId && parties.TryGetValue(customerId, out var customer))
                     invoice.Customer = _mapper.Map<UserReadDto>(customer);
+                if (invoice.SupplierId is int supplierId && parties.TryGetValue(supplierId, out var supplier))
+                    invoice.Supplier = _mapper.Map<UserReadDto>(supplier);
             }
         }
 
@@ -889,7 +897,7 @@ namespace RaccoonWarehouse.Application.Service.Invoices
 
                 var data = await query.ToListAsync();
                 var mapped = _mapper.Map<List<InvoiceReadDto>>(data);
-                await AttachCustomersAsync(mapped);
+                await AttachPartiesAsync(mapped);
 
                 return Result<List<InvoiceReadDto>>.Ok(mapped);
             }
@@ -1088,7 +1096,7 @@ namespace RaccoonWarehouse.Application.Service.Invoices
 
 
         public async Task<Result<(FinancialSummaryDto summary, List<SalesReportRowDto> rows)>>
-     GetSalesReportAsync(FinancialSummaryFilterDto filter, InvoiceType? type = null, bool? isPOS = null)
+     GetSalesReportAsync(FinancialSummaryFilterDto filter, InvoiceType? type = null, bool? isPOS = null, bool includePurchases = false)
         {
             if (filter.From > filter.To)
                 return Result<(FinancialSummaryDto, List<SalesReportRowDto>)>.Fail("Invalid date range.");
@@ -1103,6 +1111,9 @@ namespace RaccoonWarehouse.Application.Service.Invoices
             if (filter.CustomerId.HasValue)
                 invoicesQ = invoicesQ.Where(x => x.CustomerId == filter.CustomerId.Value);
 
+            if (filter.SupplierId.HasValue)
+                invoicesQ = invoicesQ.Where(x => x.SupplierId == filter.SupplierId.Value);
+
             if (filter.CashierId.HasValue)
                 invoicesQ = invoicesQ.Where(x => x.CasherId == filter.CashierId.Value);
 
@@ -1113,6 +1124,10 @@ namespace RaccoonWarehouse.Application.Service.Invoices
 
             if (type.HasValue)
                 invoicesQ = invoicesQ.Where(x => x.InvoiceType == type.Value);
+            else if (includePurchases)
+                invoicesQ = invoicesQ.Where(x =>
+                    x.InvoiceType == InvoiceType.Purchase ||
+                    x.InvoiceType == InvoiceType.PurchaseReturn);
             else if (filter.IncludeReturns)
                 invoicesQ = invoicesQ.Where(x =>
                     x.InvoiceType == InvoiceType.Sale ||
@@ -1144,6 +1159,7 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 {
                     Cogs = g.Sum(x => x.Quantity * x.UnitCost),
                     SubTotal = g.Sum(x => x.LineSubTotal),
+                    LineDiscount = g.Sum(x => x.LineDiscountAmount),
                     Tax = g.Sum(x => x.TaxAmount > 0m
                         ? x.TaxAmount
                         : !x.TaxExempt && x.TaxRate > 0m
@@ -1178,20 +1194,34 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                     .Where(x => cashierIds.Contains(x.Id))
                     .ToDictionaryAsync(x => x.Id, x => x.Name);
 
+            var supplierIds = invoices
+                .Where(x => x.SupplierId.HasValue)
+                .Select(x => x.SupplierId!.Value)
+                .Distinct()
+                .ToList();
+            var supplierNames = supplierIds.Count == 0
+                ? new Dictionary<int, string>()
+                : await _uow.GetRepository<User>().GetAllAsQueryable()
+                    .Where(x => supplierIds.Contains(x.Id))
+                    .ToDictionaryAsync(x => x.Id, x => x.Name);
+
             var rows = invoices.Select(inv =>
             {
-                var discount = inv.DiscountAmount ?? 0m;
+                var invoiceDiscount = inv.DiscountAmount ?? 0m;
 
                 linesByInvoice.TryGetValue(inv.Id, out var agg);
                 var subTotal = agg?.SubTotal ?? inv.SubTotal;     // prefer lines, fallback invoice
                 var tax = agg?.Tax ?? inv.TotalTax;
                 var cogs = agg?.Cogs ?? inv.TotalCOGS;
+                var discount = (agg?.LineDiscount ?? 0m) + invoiceDiscount;
                 var returnAmount = inv.InvoiceType == InvoiceType.Return
                     ? agg?.ReturnAmount ?? Math.Abs(Math.Min(subTotal, 0m))
                     : 0m;
 
-                var total = subTotal - discount + tax;
-                var profit = (subTotal - discount) - cogs;
+                // LineSubTotal already includes line-level discounts. Only the
+                // invoice-level discount is subtracted again from the net total.
+                var total = subTotal - invoiceDiscount + tax;
+                var profit = (subTotal - invoiceDiscount) - cogs;
                 var invoiceSign = inv.TotalAmount < 0m ? -1m : 1m;
                 var paymentAmounts = (inv.Payments ?? new List<InvoicePayment>())
                     .Where(payment => payment.Amount > 0m)
@@ -1205,7 +1235,10 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                     InvoiceId = inv.Id,
                     InvoiceNumber = inv.InvoiceNumber,
                     Date = inv.CreatedDate,
-                    CustomerName = inv.User?.Name ?? "—",
+                    CustomerName = inv.User?.Name
+                        ?? (inv.SupplierId.HasValue && supplierNames.TryGetValue(inv.SupplierId.Value, out var supplierName)
+                            ? supplierName
+                            : "—"),
                     CashierName = inv.CasherId.HasValue && cashierNames.TryGetValue(inv.CasherId.Value, out var cashierName)
                         ? cashierName
                         : "—",
@@ -1246,7 +1279,7 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 ? rows.Where(r => r.InvoiceType == InvoiceType.Return.ToString()).Sum(r => r.ReturnAmount)
                 : 0m;
 
-            var netSales = (totalSales - totalReturns) - totalDiscounts; // قبل الضريبة
+            var netSales = countedSales.Sum(row => row.Total - row.TotalTax) - totalReturns; // قبل الضريبة
             var totalCogs = countedSales.Sum(r => r.Cogs);
             var grossProfit = netSales - totalCogs;
             var margin = netSales == 0 ? 0 : Math.Round((grossProfit / netSales) * 100m, 2);
@@ -1294,16 +1327,16 @@ namespace RaccoonWarehouse.Application.Service.Invoices
             return invoice == null ? null : _mapper.Map<InvoiceReadDto>(invoice);
         }
 
-        public async Task<Result<(DateTime? from, DateTime? to)>> GetSalesReportDateRangeAsync()
+        public async Task<Result<(DateTime? from, DateTime? to)>> GetSalesReportDateRangeAsync(bool includePurchases = false)
         {
             try
             {
                 var invoices = _uow.GetRepository<Invoice>()
-                    .GetAllAsQueryable()
-                    .Where(x =>
-                        x.InvoiceType == InvoiceType.Sale ||
-                        x.InvoiceType == InvoiceType.Return ||
-                        x.InvoiceType == InvoiceType.EndpointOrder);
+                    .GetAllAsQueryable();
+
+                invoices = includePurchases
+                    ? invoices.Where(x => x.InvoiceType == InvoiceType.Purchase || x.InvoiceType == InvoiceType.PurchaseReturn)
+                    : invoices.Where(x => x.InvoiceType == InvoiceType.Sale || x.InvoiceType == InvoiceType.Return || x.InvoiceType == InvoiceType.EndpointOrder);
 
                 var from = await invoices
                     .OrderBy(x => x.CreatedDate)
@@ -1351,7 +1384,7 @@ namespace RaccoonWarehouse.Application.Service.Invoices
 
         Task<Result<List<InvoiceReadDto>>> GetHeldPOSInvoicesAsync();
         Task<Result<(FinancialSummaryDto summary, List<SalesReportRowDto> rows)>>
-                GetSalesReportAsync(FinancialSummaryFilterDto filter, InvoiceType? type = null, bool? isPOS = null);
-        Task<Result<(DateTime? from, DateTime? to)>> GetSalesReportDateRangeAsync();
+                GetSalesReportAsync(FinancialSummaryFilterDto filter, InvoiceType? type = null, bool? isPOS = null, bool includePurchases = false);
+        Task<Result<(DateTime? from, DateTime? to)>> GetSalesReportDateRangeAsync(bool includePurchases = false);
     }
 }

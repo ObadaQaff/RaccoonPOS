@@ -32,6 +32,9 @@ namespace RaccoonWarehouse.Invoices
             CustomerTxt.ItemsSource = _allUsers;
             _isSal = isSal;
             _isPOS = isPOS;
+            PartyFilterLabel.Text = _isSal == false
+                ? UiText.T("اسم المورد", "Supplier name")
+                : UiText.T("اسم الزبون", "Customer name");
         }
         private void CustomerTxt_Loaded(object sender, RoutedEventArgs e)
         {

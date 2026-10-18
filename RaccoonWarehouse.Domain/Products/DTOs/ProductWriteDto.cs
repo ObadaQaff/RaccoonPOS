@@ -33,6 +33,8 @@ namespace RaccoonWarehouse.Domain.Products.DTOs
         public int SubCategoryId { get; set; }
         public BrandWriteDto? Brand { get; set; }
         public int? BrandId { get; set; }
+        public int? SupplierId { get; set; }
+        public string? AgentName { get; set; }
         public ICollection<ProductUnitWriteDto>? ProductUnits { get; set; } = new List<ProductUnitWriteDto>();
 
         public DateTime CreatedDate { get; set; }

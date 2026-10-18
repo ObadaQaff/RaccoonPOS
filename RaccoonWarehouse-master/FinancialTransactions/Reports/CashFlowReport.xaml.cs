@@ -1,7 +1,9 @@
 ﻿using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Reports.Financial.Dtos;
 using RaccoonWarehouse.Domain.Reports.Financial.Filters;
+using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Common.Loading;
+using RaccoonWarehouse.Helpers;
 using RaccoonWarehouse.Helpers.Localization;
 using RaccoonWarehouse.Navigation;
 using ClosedXML.Excel;
@@ -19,23 +21,26 @@ namespace RaccoonWarehouse.FinancialTransactions.Reports
         private readonly IFinancialTransactionService _service;
         private readonly ILoadingService _loadingService;
         private readonly SourceDocumentNavigationService _sourceDocumentNavigationService;
+        private readonly IUserService _userService;
         private List<CashFlowRowDto> _currentRows = new();
 
         public CashFlowReport(
             IFinancialTransactionService service,
             ILoadingService loadingService,
-            SourceDocumentNavigationService sourceDocumentNavigationService)
+            SourceDocumentNavigationService sourceDocumentNavigationService,
+            IUserService userService)
         {
             InitializeComponent();
             _service = service;
             _loadingService = loadingService;
             _sourceDocumentNavigationService = sourceDocumentNavigationService;
+            _userService = userService;
             UiText.ApplyWindow(this);
 
             Loaded += CashFlowReport_Loaded;
         }
 
-        private void CashFlowReport_Loaded(object sender, RoutedEventArgs e)
+        private async void CashFlowReport_Loaded(object sender, RoutedEventArgs e)
         {
             FromDatePicker.SelectedDate = DateTime.Today;
             ToDatePicker.SelectedDate = DateTime.Today;
@@ -61,6 +66,15 @@ namespace RaccoonWarehouse.FinancialTransactions.Reports
             SourceTypeComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("سند قبض", "Receipt voucher"), Tag = FinancialSourceType.ReceiptVoucher });
             SourceTypeComboBox.Items.Add(new ComboBoxItem { Content = UiText.T("سند صرف", "Payment voucher"), Tag = FinancialSourceType.PaymentVoucher });
             SourceTypeComboBox.SelectedIndex = 0;
+
+            var users = (await _userService.GetAllAsync()).Data?.OrderBy(x => x.Name).ToList() ?? new();
+            users.Insert(0, new RaccoonWarehouse.Domain.Users.DTOs.UserReadDto
+            {
+                Id = 0,
+                Name = UiText.T("الكل", "All users")
+            });
+            SupplierComboBoxSearch.SetItems(UserComboBox, users);
+            UserComboBox.SelectedIndex = 0;
         }
 
         private async void GenerateReportBtn_Click(object sender, RoutedEventArgs e)
@@ -92,6 +106,9 @@ namespace RaccoonWarehouse.FinancialTransactions.Reports
 
                 if (SourceTypeComboBox.SelectedItem is ComboBoxItem st && st.Tag is FinancialSourceType src)
                     filter.SourceType = src;
+
+                if (UserComboBox.SelectedValue is int userId && userId > 0)
+                    filter.UserId = userId;
 
                 var (summary, rows) = await _service.GetVoucherPaymentsReceiptsAsync(filter);
 

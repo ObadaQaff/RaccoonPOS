@@ -5,10 +5,12 @@ using RaccoonWarehouse.Application.Service.Products;
 using RaccoonWarehouse.Application.Service.ProductUnits;
 using RaccoonWarehouse.Application.Service.SubCategories;
 using RaccoonWarehouse.Application.Service.Units;
+using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Common;
 using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Domain.Products;
 using RaccoonWarehouse.Domain.Products.DTOs;
+using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Helpers.Localization;
 using RaccoonWarehouse.Navigation;
 using Microsoft.EntityFrameworkCore;
@@ -31,6 +33,7 @@ namespace RaccoonWarehouse.Products
         private readonly IUnitService _unitService;
         private readonly IProductUnitService _productUnitService;
         private readonly ILoadingService _loadingService;
+        private readonly IUserService _userService;
 
         private int _currentPage = 1;
         private int _totalPages = 1;
@@ -38,32 +41,43 @@ namespace RaccoonWarehouse.Products
 
         private string _currentNameSearch = string.Empty;
         private string _currentBarcodeSearch = string.Empty;
+        private int? _currentSupplierId;
         private int _searchVersion;
         private readonly SemaphoreSlim _loadSemaphore = new(1, 1);
+        private List<RaccoonWarehouse.Domain.Users.DTOs.UserReadDto> _supplierLookupItems = new();
+        private bool _isFilteringSuppliers;
+        private bool _isNavigatingSuppliers;
+        private string _supplierSearchText = string.Empty;
 
         public ProductsTable(
             ISubCategoryService subCategoryService,
             IBrandService brandService,
             IUnitService unitService,
             IProductUnitService productUnitService,
-            ILoadingService loadingService)
+            ILoadingService loadingService,
+            IUserService userService)
         {
             _subCategoryService = subCategoryService;
             _brandService = brandService;
             _unitService = unitService;
             _productUnitService = productUnitService;
             _loadingService = loadingService;
+            _userService = userService;
 
             InitializeComponent();
             UiText.ApplyWindow(this);
-            Loaded += async (_, _) => await LoadPageAsync(1);
+            Loaded += async (_, _) =>
+            {
+                await LoadSupplierFilterAsync();
+                await LoadPageAsync(1);
+            };
             CatalogRefreshNotifier.CatalogChanged += CatalogRefreshNotifier_CatalogChanged;
             Closed += (_, _) => CatalogRefreshNotifier.CatalogChanged -= CatalogRefreshNotifier_CatalogChanged;
         }
 
         private async void CatalogRefreshNotifier_CatalogChanged(object? sender, EventArgs e)
         {
-            if (!IsLoaded)
+            if (!IsLoaded || _isFilteringSuppliers || _isNavigatingSuppliers)
                 return;
 
             await LoadPageAsync(1);
@@ -95,6 +109,107 @@ namespace RaccoonWarehouse.Products
         {
             _currentBarcodeSearch = SearchByBarcodeTextBox.Text.Trim();
             QueueSearch();
+        }
+
+        private void SupplierFilterComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!IsLoaded)
+                return;
+
+            _currentSupplierId = SupplierFilterComboBox.SelectedValue is int supplierId && supplierId > 0
+                ? supplierId
+                : null;
+            QueueSearch();
+        }
+
+        private async Task LoadSupplierFilterAsync()
+        {
+            var users = await _userService.GetAllAsync();
+            _supplierLookupItems = users.Data?
+                .Where(user => user.Role == UserRole.Supplier)
+                .OrderBy(user => user.Name)
+                .ToList() ?? new();
+            var suppliers = _supplierLookupItems.ToList();
+            suppliers.Insert(0, new RaccoonWarehouse.Domain.Users.DTOs.UserReadDto { Id = 0, Name = "All suppliers" });
+            SupplierFilterComboBox.ItemsSource = suppliers;
+            SupplierFilterComboBox.SelectedIndex = 0;
+        }
+
+        private void SupplierFilterComboBox_Loaded(object sender, RoutedEventArgs e)
+        {
+            if (SupplierFilterComboBox.Template.FindName("PART_EditableTextBox", SupplierFilterComboBox) is TextBox textBox)
+                textBox.TextChanged += SupplierFilterComboBox_TextChanged;
+        }
+
+        private void SupplierFilterComboBox_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key is not (Key.Down or Key.Up or Key.Enter) || SupplierFilterComboBox.Items.Count == 0)
+                return;
+
+            _isNavigatingSuppliers = true;
+            try
+            {
+                if (e.Key == Key.Down)
+                    SupplierFilterComboBox.SelectedIndex = Math.Min(SupplierFilterComboBox.SelectedIndex + 1, SupplierFilterComboBox.Items.Count - 1);
+                else if (e.Key == Key.Up)
+                    SupplierFilterComboBox.SelectedIndex = Math.Max(SupplierFilterComboBox.SelectedIndex - 1, 0);
+                else if (SupplierFilterComboBox.SelectedItem is RaccoonWarehouse.Domain.Users.DTOs.UserReadDto)
+                    SupplierFilterComboBox.IsDropDownOpen = false;
+                else
+                    return;
+
+                RestoreSupplierFilterSearchText();
+                e.Handled = true;
+            }
+            finally
+            {
+                _isNavigatingSuppliers = false;
+            }
+        }
+
+        private void RestoreSupplierFilterSearchText()
+        {
+            if (SupplierFilterComboBox.Template.FindName("PART_EditableTextBox", SupplierFilterComboBox) is not TextBox textBox)
+                return;
+
+            textBox.Text = _supplierSearchText;
+            textBox.CaretIndex = textBox.Text.Length;
+            SupplierFilterComboBox.IsDropDownOpen = true;
+        }
+
+        private void SupplierFilterComboBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (_isFilteringSuppliers || _isNavigatingSuppliers || !SupplierFilterComboBox.IsKeyboardFocusWithin)
+                return;
+
+            if (SupplierFilterComboBox.Template.FindName("PART_EditableTextBox", SupplierFilterComboBox) is not TextBox textBox)
+                return;
+
+            _supplierSearchText = textBox.Text.Trim();
+            _isFilteringSuppliers = true;
+            try
+            {
+                SupplierFilterComboBox.SelectedValue = null;
+
+                var filteredSuppliers = string.IsNullOrWhiteSpace(_supplierSearchText)
+                    ? _supplierLookupItems.ToList()
+                    : _supplierLookupItems.Where(user =>
+                            (user.Name ?? string.Empty).Contains(_supplierSearchText, StringComparison.CurrentCultureIgnoreCase)
+                            || (user.PhoneNumber ?? string.Empty).Contains(_supplierSearchText, StringComparison.CurrentCultureIgnoreCase))
+                        .ToList();
+
+                if (string.IsNullOrWhiteSpace(_supplierSearchText))
+                    filteredSuppliers.Insert(0, new RaccoonWarehouse.Domain.Users.DTOs.UserReadDto { Id = 0, Name = "All suppliers" });
+
+                SupplierFilterComboBox.ItemsSource = filteredSuppliers;
+                textBox.Text = _supplierSearchText;
+                textBox.CaretIndex = textBox.Text.Length;
+                SupplierFilterComboBox.IsDropDownOpen = true;
+            }
+            finally
+            {
+                _isFilteringSuppliers = false;
+            }
         }
 
         private void ProductSearchTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
@@ -196,11 +311,13 @@ namespace RaccoonWarehouse.Products
                     var searchResult = await productService.GetAllWithAdvancedIncludeAsync(
                         query => query
                             .Include(product => product.Brand)
+                            .Include(product => product.Supplier)
                             .Include(product => product.ProductUnits!)
                             .ThenInclude(productUnit => productUnit.Unit),
-                        product => (product.Name ?? string.Empty).Contains(databaseSearchTerm) ||
+                        product => (!_currentSupplierId.HasValue || product.SupplierId == _currentSupplierId.Value) &&
+                                   ((product.Name ?? string.Empty).Contains(databaseSearchTerm) ||
                                    product.ITEMCODE.ToString().Contains(databaseSearchTerm) ||
-                                   product.ProductUnits!.Any(unit => unit.AlternateBarcode == databaseSearchTerm));
+                                   product.ProductUnits!.Any(unit => unit.AlternateBarcode == databaseSearchTerm)));
 
                     if (searchVersion.HasValue && searchVersion.Value != _searchVersion)
                         return;
@@ -222,7 +339,7 @@ namespace RaccoonWarehouse.Products
                     _totalPages = Math.Max(1, (int)Math.Ceiling((double)totalCount / PageSize));
                     PageInfoTextBlock.Text = UiText.IsEnglish
                         ? $"Page {_currentPage} of {_totalPages}"
-                        : $"Ø§Ù„ØµÙØ­Ø© {_currentPage} Ù…Ù† {_totalPages}";
+                        : $"الصفحة {_currentPage} من {_totalPages}";
                     PrevPageBtn.IsEnabled = _currentPage > 1;
                     NextPageBtn.IsEnabled = _currentPage < _totalPages;
                     UiText.ApplyTranslations(this);
@@ -235,6 +352,15 @@ namespace RaccoonWarehouse.Products
 
                 var parameter = System.Linq.Expressions.Expression.Parameter(typeof(Product), "product");
                 System.Linq.Expressions.Expression filterBody = System.Linq.Expressions.Expression.Constant(true);
+
+                if (_currentSupplierId.HasValue)
+                {
+                    filterBody = System.Linq.Expressions.Expression.AndAlso(
+                        filterBody,
+                        System.Linq.Expressions.Expression.Equal(
+                            System.Linq.Expressions.Expression.Property(parameter, nameof(Product.SupplierId)),
+                            System.Linq.Expressions.Expression.Constant(_currentSupplierId, typeof(int?))));
+                }
 
                 var nameProperty = System.Linq.Expressions.Expression.Property(parameter, nameof(Product.Name));
                 foreach (var term in nameSearchTerms)
@@ -272,7 +398,8 @@ namespace RaccoonWarehouse.Products
                     includes: new System.Linq.Expressions.Expression<Func<Product, object>>[]
                     {
                         product => product.ProductUnits,
-                        product => product.Brand
+                        product => product.Brand,
+                        product => product.Supplier
                     });
 
                 if (searchVersion.HasValue && searchVersion.Value != _searchVersion)

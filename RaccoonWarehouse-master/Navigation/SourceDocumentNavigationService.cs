@@ -1,9 +1,11 @@
 using Microsoft.Extensions.DependencyInjection;
 using RaccoonWarehouse.Application.Service.Invoices;
 using RaccoonWarehouse.Application.Service.StockDocuments;
+using RaccoonWarehouse.Application.Service.PurchaseOrders;
 using RaccoonWarehouse.Application.Service.Vouchers;
 using RaccoonWarehouse.Invoices;
 using RaccoonWarehouse.Orders;
+using RaccoonWarehouse.PurchaseOrders;
 using RaccoonWarehouse.Stocks;
 using RaccoonWarehouse.Vouchers;
 using System.Reflection;
@@ -35,6 +37,9 @@ namespace RaccoonWarehouse.Navigation
                     return;
                 case "StockDocument":
                     await OpenStockDocumentAsync(referenceId.Value);
+                    return;
+                case "PurchaseOrder":
+                    await OpenPurchaseOrderAsync(referenceId.Value);
                     return;
                 default:
                     throw new InvalidOperationException($"No navigation route mapped for reference type '{referenceType}'.");
@@ -72,6 +77,16 @@ namespace RaccoonWarehouse.Navigation
             var method = typeof(StockIn).GetMethod("LoadSelectedStockIn", BindingFlags.Instance | BindingFlags.NonPublic);
             method?.Invoke(window, new object[] { stockDoc.Data });
             window.Show();
+        }
+
+        private async Task OpenPurchaseOrderAsync(int orderId)
+        {
+            var purchaseOrderService = _serviceProvider.GetRequiredService<IPurchaseOrderService>();
+            var order = await purchaseOrderService.GetByIdAsync(orderId);
+            if (!order.Success || order.Data == null)
+                throw new InvalidOperationException("Purchase order was not found.");
+
+            new PurchaseOrderDetailsWindow(order.Data).Show();
         }
     }
 }

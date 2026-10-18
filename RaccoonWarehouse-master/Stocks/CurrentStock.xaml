@@ -4,10 +4,10 @@
         xmlns:fa="http://schemas.fontawesome.io/icons/"
         Title="تقرير الجرد"
         WindowStartupLocation="CenterScreen"
-        Width="1280"
-        Height="800"
-        MinWidth="1000"
-        MinHeight="650"
+        Width="1800"
+        Height="900"
+        MinWidth="1500"
+        MinHeight="720"
         Background="#EEF3F7"
         FlowDirection="RightToLeft">
 
@@ -122,7 +122,7 @@
                 Background="{StaticResource HeroBrush}">
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="220"/>
+                    <ColumnDefinition Width="250"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
@@ -143,7 +143,7 @@
                                    FontWeight="Bold"
                                    HorizontalAlignment="Center"/>
                                             <TextBlock Text="إجمالي الكميات المعروضة" Foreground="#CFE3F3" FontSize="13" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,10,0,0"/>
-                        <TextBlock x:Name="DisplayedQuantityTotalTextBlock" Text="0.00000" Foreground="White" FontSize="22" FontWeight="Bold" HorizontalAlignment="Center"/>
+                        <TextBlock x:Name="DisplayedQuantityTotalTextBlock" Text="0.000" Foreground="White" FontSize="22" FontWeight="Bold" HorizontalAlignment="Center"/>
 </StackPanel>
                 </Border>
 
@@ -184,11 +184,12 @@
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="320"/>
                         <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="250"/>
+                    <ColumnDefinition Width="118"/>
+                    <ColumnDefinition Width="118"/>
+                    <ColumnDefinition Width="140"/>
+                    <ColumnDefinition Width="150"/>
+                    <ColumnDefinition Width="110"/>
                     </Grid.ColumnDefinitions>
 
                     <ComboBox x:Name="QuantityFilterComboBox" Grid.Row="1" Grid.Column="0" Height="42" FontSize="15" Margin="0,12,0,0" SelectedIndex="0" SelectionChanged="QuantityFilterComboBox_SelectionChanged">
@@ -203,6 +204,10 @@
                              Style="{StaticResource FilterTextBoxStyle}"
                              TextChanged="SearchText_TextChanged"/>
 
+                    <ComboBox x:Name="SupplierComboBox" Grid.Column="2" Grid.Row="1" Height="42" Width="230" Margin="12,12,0,0"
+                              DisplayMemberPath="Name" SelectedValuePath="Id" IsEditable="True" IsTextSearchEnabled="False"
+                              StaysOpenOnEdit="True"/>
+
                     <DatePicker x:Name="AsOfDatePicker" Grid.Column="1" Grid.Row="1" Height="42" Width="190" HorizontalAlignment="Right" Margin="0,12,0,0" ToolTip="As of date / التاريخ حتى" SelectedDateChanged="AsOfDatePicker_SelectedDateChanged"/>
 
                     <TextBlock Grid.Column="1"
@@ -214,7 +219,7 @@
                                TextTrimming="CharacterEllipsis"
                                Text="ابحث بالباركود أو اسم الصنف ثم حدّث الشبكة أو صدّر النتائج مباشرة."/>
 
-                    <Button Grid.Column="2"
+                    <Button Grid.Column="3"
                             Width="118"
                             Margin="12,0,0,0"
                             Style="{StaticResource PrimaryButtonStyle}"
@@ -225,7 +230,7 @@
                         </StackPanel>
                     </Button>
 
-                    <Button Grid.Column="3"
+                    <Button Grid.Column="4"
                             Width="118"
                             Margin="12,0,0,0"
                             Style="{StaticResource SecondaryButtonStyle}"
@@ -236,7 +241,7 @@
                         </StackPanel>
                     </Button>
 
-                    <Button Grid.Column="4"
+                    <Button Grid.Column="5"
                             Width="140"
                             Margin="12,0,0,0"
                             Style="{StaticResource SecondaryButtonStyle}"
@@ -247,7 +252,7 @@
                         </StackPanel>
                     </Button>
 
-                    <Button Grid.Column="5"
+                    <Button Grid.Column="6"
                             Width="150"
                             Margin="12,0,0,0"
                             Style="{StaticResource SecondaryButtonStyle}"
@@ -258,7 +263,7 @@
                         </StackPanel>
                     </Button>
 
-                    <Button Grid.Column="6"
+                    <Button Grid.Column="7"
                             Width="110"
                             Style="{StaticResource SecondaryButtonStyle}"
                             Click="BackBtn_Click">
@@ -312,6 +317,7 @@
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
                         <DataGridTextColumn Header="المنتج" Binding="{Binding ProductName}" ElementStyle="{StaticResource ProductValueTextStyle}" Width="260"/>
+                        <DataGridTextColumn Header="المورد / Supplier" Binding="{Binding SupplierName}" Width="220"/>
                         <DataGridTextColumn Header="الوحدة" Binding="{Binding UnitName}" Width="120"/>
                         <DataGridTextColumn Header="الكمية" Binding="{Binding Quantity}" Width="120"/>
                         <DataGridTextColumn Header="تكلفة المخزون" Binding="{Binding PurchasePrice}" Width="130"/>

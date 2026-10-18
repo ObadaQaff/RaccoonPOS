@@ -18,7 +18,10 @@ public partial class POS
         if (line.Quantity == 0)
             return;
 
-        var lineTotal = line.Quantity * line.UnitPrice;
+        var grossLineTotal = line.Quantity * line.UnitPrice;
+        var lineDiscount = Math.Clamp(line.LineDiscountAmount, 0m, Math.Abs(grossLineTotal));
+        line.LineDiscountAmount = Math.Round(lineDiscount, 3, MidpointRounding.AwayFromZero);
+        var lineTotal = grossLineTotal - line.LineDiscountAmount;
         var costTotal = line.Quantity * line.UnitCost;
         var product = FindProductForLine(line);
         var taxExempt = product?.TaxExempt ?? line.TaxExempt;
@@ -63,6 +66,10 @@ public partial class POS
             TaxExempt = source.TaxExempt,
             TaxRate = source.TaxRate,
             Quantity = quantity,
+            LineDiscountAmount = source.Quantity == 0m
+                ? 0m
+                : Math.Round(source.LineDiscountAmount / divisor * Math.Abs(quantity), 3, MidpointRounding.AwayFromZero),
+            LineDiscountIsPercentage = source.LineDiscountIsPercentage,
             LineSubTotal = (source.LineSubTotal / divisor) * quantity,
             TaxAmount = (source.TaxAmount / divisor) * quantity,
             ProfitBeforeTax = (source.ProfitBeforeTax / divisor) * quantity,
@@ -90,13 +97,13 @@ public partial class POS
         var defaultPrice = GetDefaultSalePrice(line);
         ShowPaymentValidationMessage(
             UiText.T(
-                $"لا يمكن بيع الصنف {line.ProductName} بسعر أقل من التكلفة. السعر المدخل: {enteredPrice:0.00000}، التكلفة: {line.UnitCost:0.00000}. سيتم إعادة السعر الافتراضي: {defaultPrice:0.00000}.",
-                $"Cannot sell {line.ProductName} below cost. Entered price: {enteredPrice:0.00000}, cost: {line.UnitCost:0.00000}. The default price will be restored: {defaultPrice:0.00000}."),
+                $"لا يمكن بيع الصنف {line.ProductName} بسعر أقل من التكلفة. السعر المدخل: {enteredPrice:0.000}، التكلفة: {line.UnitCost:0.000}. سيتم إعادة السعر الافتراضي: {defaultPrice:0.000}.",
+                $"Cannot sell {line.ProductName} below cost. Entered price: {enteredPrice:0.000}, cost: {line.UnitCost:0.000}. The default price will be restored: {defaultPrice:0.000}."),
             UiText.T("تنبيه", "Notice"));
 
         line.UnitPrice = defaultPrice;
         if (editor != null)
-            editor.Text = defaultPrice.ToString("0.00000");
+            editor.Text = defaultPrice.ToString("0.000");
     }
 
     private async Task<List<StockReadDto>> GetAvailableStocksForProductAsync(int productId)

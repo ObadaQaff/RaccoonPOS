@@ -23,6 +23,7 @@ namespace RaccoonWarehouse.Domain.Reports.Financial.Dtos
         public int? SourceId { get; set; }
         public string? DocumentNumber { get; set; }
 
+        public string? UserName { get; set; }
         public string? CashierName { get; set; }
         public string? Notes { get; set; }
 

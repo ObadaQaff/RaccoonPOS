@@ -4,7 +4,7 @@
         xmlns:local="clr-namespace:RaccoonWarehouse.Invoices"
         Title="بحث عن مادة للمبيعات"
         Height="650"
-        Width="1100"
+        Width="1350"
         WindowStartupLocation="CenterOwner"
         Background="#F2F6FA">
     <Window.Resources>
@@ -22,19 +22,63 @@
         </Grid.RowDefinitions>
         <Border Background="White" CornerRadius="12" Padding="12" BorderBrush="#D0D7DD" BorderThickness="1">
             <Grid FlowDirection="RightToLeft">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="2*"/>
+                    <ColumnDefinition Width="1.2*"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBox x:Name="SearchTextBox" Height="40" FontSize="16" Padding="8" BorderBrush="#AFC2D3" BorderThickness="2" Background="White" HorizontalContentAlignment="Right" VerticalContentAlignment="Center" TextChanged="SearchTextBox_TextChanged" PreviewKeyDown="SearchTextBox_PreviewKeyDown" Grid.Column="0"/>
-                <Button Style="{StaticResource SecondaryButtonStyle}" Content="مسح" Width="110" Margin="10,0,0,0" Grid.Column="1" Click="ClearBtn_Click"/>
-                <Button Style="{StaticResource PrimaryButtonStyle}" Content="إغلاق" Width="110" Margin="10,0,0,0" Grid.Column="2" Click="CloseBtn_Click"/>
+                <StackPanel Grid.Column="0" Grid.Row="0">
+                    <TextBlock Text="Product name" FontSize="12" FontWeight="SemiBold" Foreground="#536A7A" Margin="0,0,0,2"/>
+                    <TextBox x:Name="SearchTextBox" Height="40" FontSize="16" Padding="8" BorderBrush="#AFC2D3" BorderThickness="2" Background="White" HorizontalContentAlignment="Right" VerticalContentAlignment="Center" TextChanged="SearchTextBox_TextChanged" PreviewKeyDown="SearchTextBox_PreviewKeyDown"/>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Margin="10,0,0,0" Grid.Row="0">
+                    <TextBlock Text="Supplier" FontSize="12" FontWeight="SemiBold" Foreground="#536A7A" Margin="0,0,0,2"/>
+                    <ComboBox x:Name="SupplierFilterComboBox"
+                              Height="40"
+                              Padding="8"
+                              IsEditable="True"
+                              IsTextSearchEnabled="False"
+                              DisplayMemberPath="Name"
+                              SelectedValuePath="Id"
+                              ToolTip="Type a supplier name or phone, then select it"
+                              Loaded="SupplierFilterComboBox_Loaded"
+                              PreviewKeyDown="SupplierFilterComboBox_PreviewKeyDown"
+                              DropDownClosed="SupplierFilterComboBox_DropDownClosed"/>
+                </StackPanel>
+                <StackPanel Grid.Column="0" Grid.Row="1" Grid.ColumnSpan="2" Margin="0,10,10,0">
+                    <TextBlock Text="Barcode" FontSize="12" FontWeight="SemiBold" Foreground="#536A7A" Margin="0,0,0,2"/>
+                    <TextBox x:Name="BarcodeSearchTextBox" Height="36" FontSize="15" Padding="8" BorderBrush="#AFC2D3" BorderThickness="2" Background="White" HorizontalContentAlignment="Right" VerticalContentAlignment="Center" TextChanged="BarcodeSearchTextBox_TextChanged" PreviewKeyDown="BarcodeSearchTextBox_PreviewKeyDown" ToolTip="Barcode search"/>
+                </StackPanel>
+                <Button Style="{StaticResource SecondaryButtonStyle}" Content="مسح" Width="110" Margin="10,0,0,0" Grid.Column="2" Click="ClearBtn_Click"/>
+                <Button Style="{StaticResource PrimaryButtonStyle}" Content="إغلاق" Width="110" Margin="10,0,0,0" Grid.Column="3" Click="CloseBtn_Click"/>
             </Grid>
         </Border>
         <Border Grid.Row="1" Margin="0,15,0,10" Background="White" CornerRadius="12" Padding="10" BorderBrush="#D0D7DD" BorderThickness="1">
             <DataGrid x:Name="ProductsGrid" AutoGenerateColumns="False" IsReadOnly="False" SelectionMode="Single" SelectionUnit="CellOrRowHeader" FlowDirection="RightToLeft" CanUserAddRows="False" PreviewKeyDown="ProductsGrid_PreviewKeyDown">
+                <DataGrid.RowStyle>
+                    <Style TargetType="DataGridRow">
+                        <Setter Property="Foreground" Value="#263238"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasStock}" Value="False">
+                                <Setter Property="Foreground" Value="#9A9A9A"/>
+                                <Setter Property="FontStyle" Value="Italic"/>
+                                <Setter Property="Background" Value="#FFF4F4F4"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding HasStock}" Value="True">
+                                <Setter Property="FontWeight" Value="SemiBold"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </DataGrid.RowStyle>
                 <DataGrid.Columns>
+                    <DataGridTextColumn Header="Stock status" Binding="{Binding StockStatus}" IsReadOnly="True" Width="130"/>
+                    <DataGridTextColumn Header="Expiry Date" Binding="{Binding ExpiryDate, StringFormat=yyyy-MM-dd}" ElementStyle="{StaticResource ProductValueTextStyle}" IsReadOnly="True" Width="150"/>
+                    <DataGridTextColumn Header="Supplier" Binding="{Binding Product.Supplier.Name, TargetNullValue=---}" IsReadOnly="True" Width="180"/>
                     <DataGridTextColumn Header="الكود" Binding="{Binding ItemCode}" ElementStyle="{StaticResource ProductValueTextStyle}" IsReadOnly="True" Width="140"/>
                     <DataGridTextColumn Header="اسم الصنف" Binding="{Binding ProductName}" ElementStyle="{StaticResource ProductValueTextStyle}" IsReadOnly="True" Width="*"/>
                     <DataGridTemplateColumn Header="الوحدة" Width="150">
@@ -45,7 +89,7 @@
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
                     <DataGridTextColumn Header="الكمية" Binding="{Binding Quantity, UpdateSourceTrigger=LostFocus}" Width="100"/>
-                    <DataGridTextColumn Header="سعر البيع" Binding="{Binding SalePrice, Converter={StaticResource FlexibleDecimalConverter}, UpdateSourceTrigger=LostFocus}" Width="130"/>
+                    <DataGridTextColumn Header="سعر البيع" Binding="{Binding SalePrice, Converter={StaticResource FlexibleDecimalConverter}}" IsReadOnly="True" Width="130"/>
                     <DataGridTemplateColumn Header="إضافة" Width="100">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>

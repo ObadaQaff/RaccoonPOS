@@ -1,27 +1,97 @@
 using RaccoonWarehouse.Application.Service.Invoices;
+using RaccoonWarehouse.Application.Service.AuthService;
+using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Invoices.DTOs;
 using RaccoonWarehouse.Helpers.Localization;
 using System.Collections.ObjectModel;
 using System.Windows;
+using System.Windows.Controls;
 
 namespace RaccoonWarehouse.POS
 {
     public partial class ReturnInvoiceWindow : Window
     {
         private readonly IInvoiceService _invoiceService;
+        private readonly IUserSession _userSession;
+        private readonly IAuthService _authService;
         private readonly ObservableCollection<ReturnInvoiceLookupRow> _rows = new();
         private bool _isBusy;
 
         public string OriginalInvoiceId { get; private set; } = string.Empty;
 
-        public ReturnInvoiceWindow(IInvoiceService invoiceService)
+        public ReturnInvoiceWindow(IInvoiceService invoiceService, IUserSession userSession, IAuthService authService)
         {
             InitializeComponent();
             UiText.ApplyWindow(this);
             _invoiceService = invoiceService;
+            _userSession = userSession;
+            _authService = authService;
             ResultsGrid.ItemsSource = _rows;
-            Loaded += async (_, _) => await SearchAsync();
+            Loaded += async (_, _) =>
+            {
+                if (!await ConfirmReturnPasswordAsync())
+                {
+                    Close();
+                    return;
+                }
+
+                await SearchAsync();
+            };
+        }
+
+        private async Task<bool> ConfirmReturnPasswordAsync()
+        {
+            var currentUser = _userSession.CurrentUser;
+            if (currentUser == null)
+                return false;
+
+            var prompt = new Window
+            {
+                Title = UiText.T("تأكيد كلمة مرور الإرجاع", "Return password confirmation"),
+                Width = 390,
+                Height = 250,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Owner = this,
+                ResizeMode = ResizeMode.NoResize,
+                WindowStyle = WindowStyle.ToolWindow,
+                FlowDirection = FlowDirection.RightToLeft
+            };
+            var username = new TextBox { Text = currentUser.Name, Margin = new Thickness(0, 8, 0, 8), Height = 32 };
+            var password = new PasswordBox { Margin = new Thickness(0, 0, 0, 12), Height = 32 };
+            var message = new TextBlock
+            {
+                Text = UiText.T("أدخل اسم مستخدم وكلمة مرور المدير أو المسؤول قبل تحميل فواتير الإرجاع.", "Enter an Admin or Manager username and password before loading return invoices."),
+                TextWrapping = TextWrapping.Wrap
+            };
+            var confirm = new Button { Content = UiText.T("متابعة", "Continue"), Width = 100, Margin = new Thickness(0, 0, 8, 0) };
+            var cancel = new Button { Content = UiText.T("إلغاء", "Cancel"), Width = 100 };
+            var buttons = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
+            buttons.Children.Add(confirm);
+            buttons.Children.Add(cancel);
+            var panel = new StackPanel { Margin = new Thickness(18) };
+            panel.Children.Add(message);
+            panel.Children.Add(username);
+            panel.Children.Add(password);
+            panel.Children.Add(buttons);
+            prompt.Content = panel;
+            confirm.Click += async (_, _) =>
+            {
+                var auth = await _authService.AuthenticateAsync(username.Text.Trim(), password.Password);
+                prompt.DialogResult = auth.Success && auth.User != null &&
+                    auth.User.Role is RaccoonWarehouse.Domain.Enums.UserRole.Admin or RaccoonWarehouse.Domain.Enums.UserRole.Manager;
+            };
+            cancel.Click += (_, _) => prompt.DialogResult = false;
+            prompt.Loaded += (_, _) => password.Focus();
+
+            var accepted = prompt.ShowDialog() == true;
+            if (!accepted)
+                MessageBox.Show(
+                    UiText.T("كلمة المرور غير صحيحة أو تم إلغاء العملية.", "The password is incorrect or the operation was cancelled."),
+                    UiText.T("تم رفض الإرجاع", "Return denied"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+            return accepted;
         }
 
         private async void Search_Click(object sender, RoutedEventArgs e) => await SearchAsync();

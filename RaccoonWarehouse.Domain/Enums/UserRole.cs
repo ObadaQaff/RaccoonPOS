@@ -14,6 +14,9 @@ namespace RaccoonWarehouse.Domain.Enums
         Supplier = 3,
         Manager = 4,
         HR = 5,
+        Doctor = 6,
+        Pharmacy = 7,
+        PharmaceuticalWarehouse = 8,
 
     }
 }

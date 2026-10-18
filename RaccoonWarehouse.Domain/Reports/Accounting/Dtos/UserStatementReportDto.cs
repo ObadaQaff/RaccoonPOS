@@ -11,6 +11,8 @@ namespace RaccoonWarehouse.Domain.Reports.Accounting.Dtos
         public decimal TotalDebit { get; set; }
         public decimal TotalCredit { get; set; }
         public decimal ClosingBalance { get; set; }
+        public decimal TotalTransactionAmount { get; set; }
+        public decimal TotalPurchaseOrderAmount { get; set; }
         public List<UserStatementRowDto> Rows { get; set; } = new();
     }
 }

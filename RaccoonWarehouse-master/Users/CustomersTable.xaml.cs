@@ -139,7 +139,7 @@ namespace RaccoonWarehouse
                 return;
             }
 
-            WindowManager.ShowDialog<CreateUser>(WindowSizeType.SmallSquare, window => window.InitializeForCustomerQuickCreate());
+            WindowManager.ShowDialog<CreateUser>(WindowSizeType.MediumRectangle, window => window.InitializeForCustomerQuickCreate());
             LoadCustomers();
         }
 
@@ -152,7 +152,7 @@ namespace RaccoonWarehouse
                 return;
             }
 
-            WindowManager.ShowDialog<CreateUser>(WindowSizeType.SmallSquare, window => window.InitializeForSupplierQuickCreate());
+            WindowManager.ShowDialog<CreateUser>(WindowSizeType.MediumRectangle, window => window.InitializeForSupplierQuickCreate());
             LoadCustomers();
         }
 

@@ -3,7 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:fa="http://schemas.fontawesome.io/icons/"
         Title="عرض الفواتير - التكلفة والضريبة والربح"
-        Height="850" Width="1500"
+        Height="900" Width="1800"
+        MinWidth="1500" MinHeight="720"
         WindowStartupLocation="CenterScreen"
         WindowState="Maximized"
         Background="#F2F6FA"
@@ -99,10 +100,11 @@
                 Margin="20,14,20,10">
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="220"/>
-                    <ColumnDefinition Width="220"/>
-                    <ColumnDefinition Width="260"/>
-                    <ColumnDefinition Width="220"/>
+                    <ColumnDefinition Width="1.1*" MinWidth="180"/>
+                    <ColumnDefinition Width="1.1*" MinWidth="180"/>
+                    <ColumnDefinition Width="1.35*" MinWidth="220"/>
+                    <ColumnDefinition Width="1.2*" MinWidth="190"/>
+                    <ColumnDefinition Width="1.35*" MinWidth="220"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
@@ -129,19 +131,25 @@
                     <ComboBox x:Name="InvoiceTypeComboBox" Style="{StaticResource ComboStyle}"/>
                 </StackPanel>
 
-                <StackPanel Grid.Column="4"
+                <StackPanel Grid.Column="4" Margin="8,0">
+                    <TextBlock Text="المورد" FontWeight="SemiBold" Foreground="#333" Margin="0,0,0,6"/>
+                    <ComboBox x:Name="SupplierComboBox" Style="{StaticResource ComboStyle}" DisplayMemberPath="Name" SelectedValuePath="Id"
+                              IsEditable="True" IsTextSearchEnabled="False" StaysOpenOnEdit="True"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="5"
                             Orientation="Horizontal"
                             HorizontalAlignment="Left"
                             VerticalAlignment="Bottom"
                             Margin="8,0">
-                    <Button Style="{StaticResource PrimaryButtonStyle}" Width="160" Click="LoadBtn_Click">
+                            <Button Style="{StaticResource PrimaryButtonStyle}" Width="135" Click="LoadBtn_Click">
                         <StackPanel Orientation="Horizontal">
                             <fa:ImageAwesome Icon="Search" Width="16" Height="16"/>
                             <TextBlock Text=" تحميل" Margin="8,0,0,0"/>
                         </StackPanel>
                     </Button>
 
-                    <Button Style="{StaticResource SecondaryButtonStyle}" Width="140" Margin="10,0,0,0" Click="BackBtn_Click">
+                    <Button Style="{StaticResource SecondaryButtonStyle}" Width="110" Margin="10,0,0,0" Click="BackBtn_Click">
                         <StackPanel Orientation="Horizontal">
                             <fa:ImageAwesome Icon="ArrowLeft" Width="16" Height="16"/>
                             <TextBlock Text=" رجوع" Margin="8,0,0,0"/>
@@ -154,9 +162,9 @@
         <!-- MAIN CONTENT -->
         <Grid Grid.Row="2" Margin="20,0,20,20">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="1.7*" MinWidth="850"/>
                 <ColumnDefinition Width="18"/>
-                <ColumnDefinition Width="1.35*"/>
+                <ColumnDefinition Width="1*" MinWidth="520"/>
             </Grid.ColumnDefinitions>
 
             <!-- INVOICES GRID (Left) -->
@@ -181,25 +189,27 @@
                               Grid.Row="1"
                               AutoGenerateColumns="False"
                               Style="{StaticResource MinimalDataGrid}"
+                              ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                              CanUserResizeColumns="True"
                               SelectionChanged="InvoicesGrid_SelectionChanged"
                               MouseDoubleClick="InvoicesGrid_MouseDoubleClick">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="رقم" Binding="{Binding InvoiceNumber}" Width="170"/>
-                            <DataGridTextColumn Header="التاريخ" Binding="{Binding Date, StringFormat=yyyy-MM-dd HH:mm}" Width="160"/>
-                            <DataGridTextColumn Header="الزبون" Binding="{Binding CustomerName}" Width="220"/>
-                            <DataGridTextColumn Header="المندوب" Binding="{Binding DelegateName}" Width="180"/>
+                            <DataGridTextColumn Header="رقم" Binding="{Binding InvoiceNumber}" Width="110"/>
+                            <DataGridTextColumn Header="التاريخ" Binding="{Binding Date, StringFormat=yyyy-MM-dd HH:mm}" Width="145"/>
+                            <DataGridTextColumn Header="الزبون / المورد" Binding="{Binding PartyName}" Width="220"/>
+                            <DataGridTextColumn Header="المندوب" Binding="{Binding DelegateName}" Width="140"/>
 
-                            <DataGridTextColumn Header="SubTotal" Binding="{Binding SubTotal}" Width="120"/>
-                            <DataGridTextColumn Header="Tax" Binding="{Binding TotalTax}" Width="100"/>
-                            <DataGridTextColumn Header="Discount" Binding="{Binding Discount}" Width="110"/>
-                            <DataGridTextColumn Header="COGS" Binding="{Binding TotalCOGS}" Width="110"/>
+                            <DataGridTextColumn Header="SubTotal" Binding="{Binding SubTotal, StringFormat={}{0:0.000}}" Width="100"/>
+                            <DataGridTextColumn Header="Tax" Binding="{Binding TotalTax, StringFormat={}{0:0.000}}" Width="90"/>
+                            <DataGridTextColumn Header="Discount" Binding="{Binding Discount, StringFormat={}{0:0.000}}" Width="105"/>
+                            <DataGridTextColumn Header="COGS" Binding="{Binding TotalCOGS, StringFormat={}{0:0.000}}" Width="100"/>
 
-                            <DataGridTextColumn Header="Total" Binding="{Binding TotalAmount}" Width="120"/>
-                            <DataGridTextColumn Header="Profit" Binding="{Binding NetProfit}" Width="120"/>
+                            <DataGridTextColumn Header="Total" Binding="{Binding TotalAmount, StringFormat={}{0:0.000}}" Width="105"/>
+                            <DataGridTextColumn Header="Profit" Binding="{Binding NetProfit, StringFormat={}{0:0.000}}" Width="105"/>
 
-                            <DataGridTextColumn Header="نوع" Binding="{Binding InvoiceType}" Width="110"/>
-                            <DataGridTextColumn Header="دفع" Binding="{Binding PaymentMethod}" Width="110"/>
-                            <DataGridTextColumn Header="حالة" Binding="{Binding Status}" Width="110"/>
+                            <DataGridTextColumn Header="نوع" Binding="{Binding InvoiceType}" Width="105"/>
+                            <DataGridTextColumn Header="دفع" Binding="{Binding PaymentMethod}" Width="105"/>
+                            <DataGridTextColumn Header="حالة" Binding="{Binding Status}" Width="105"/>
                         </DataGrid.Columns>
                     </DataGrid>
                 </Grid>
@@ -214,7 +224,7 @@
                 </Grid.RowDefinitions>
 
                 <!-- Selected invoice summary cards -->
-                <UniformGrid Grid.Row="0" Columns="6" Margin="0,0,0,10">
+                <UniformGrid Grid.Row="0" Columns="2" Margin="0,0,0,10">
                     <Border Style="{StaticResource CardBorder}">
                         <StackPanel>
                             <TextBlock Text="SubTotal" Foreground="#666"/>
@@ -270,6 +280,8 @@
                     <DataGrid x:Name="LinesGrid"
                               AutoGenerateColumns="False"
                               Style="{StaticResource MinimalDataGrid}"
+                              ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                              CanUserResizeColumns="True"
                               MouseDoubleClick="LinesGrid_MouseDoubleClick">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="الصنف" Binding="{Binding ProductName}" ElementStyle="{StaticResource ProductValueTextStyle}" Width="220"/>

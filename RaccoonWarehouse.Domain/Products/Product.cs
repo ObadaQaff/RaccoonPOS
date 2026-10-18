@@ -4,6 +4,7 @@ using RaccoonWarehouse.Domain.EntityAndDtoStructure;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.ProductUnits;
 using RaccoonWarehouse.Domain.SubCategories;
+using RaccoonWarehouse.Domain.Users;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -31,6 +32,9 @@ namespace RaccoonWarehouse.Domain.Products
         public bool? IsSoldOut { get; set; } = false; //temp 
 
         public int? BrandId { get; set; }
+        public int? SupplierId { get; set; }
+        public User? Supplier { get; set; }
+        public string? AgentName { get; set; }
        public ICollection<ProductUnit>? ProductUnits { get; set; } = new List<ProductUnit>();
         public DateTime? EndDate { get; set; }//temp
 

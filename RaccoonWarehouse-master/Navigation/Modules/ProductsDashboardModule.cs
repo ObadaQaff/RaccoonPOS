@@ -50,6 +50,7 @@ namespace RaccoonWarehouse.Navigation.Modules
                                 new ModuleActionDefinition("Products.InactiveReport", "اصناف لم تتحرك منذ مدة"),
                                 new ModuleActionDefinition("Stocks.BalancesReport", "تقرير الجرد"),
                                 new ModuleActionDefinition("Stocks.LowStockReport", "بضائع تحت الحد الأدنى"),
+                                new ModuleActionDefinition("Stocks.ExpiringStockReport", UiText.T("الأصناف المنتهية والقريبة من الانتهاء", "Expired and near-expiry stock")),
                                 new ModuleActionDefinition("Stocks.MaterialMovementsReport", "التسويات المخزنية"),
                                 new ModuleActionDefinition("Stocks.Lots", UiText.T("إدارة دفعات المخزون", "Lot Management"))
                             })

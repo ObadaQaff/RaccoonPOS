@@ -869,6 +869,7 @@ END;";
                 ["current-stock"] = typeof(CurrentStock),
                 ["stock-movements"] = typeof(RaccoonWarehouse.Stocks.Reports.StockMovementsReport),
                 ["sales-report"] = typeof(SalesReport),
+                ["purchase-report"] = typeof(PurchaseReportWindow),
                 ["cashier-board"] = typeof(DailySalesReport),
                 ["credit-sales"] = typeof(CreditSalesReport),
                 ["inactive-products"] = typeof(InactiveProductsReport),
@@ -880,6 +881,7 @@ END;";
                 ["invoices-profit"] = typeof(InvoicesProfitBrowser),
                 ["inventory-movement-summary"] = typeof(InventoryMovementSummary),
                 ["stock-valuation"] = typeof(StockValuationReport),
+                ["expiring-stock"] = typeof(ExpiringStockReport),
                 ["product-profit"] = typeof(ProductProfitReport),
                 ["cash-flow"] = typeof(CashFlowReport),
                 ["invoice-payment-methods"] = typeof(InvoicePaymentMethodsReport),
@@ -929,6 +931,12 @@ END;";
                 sp.GetRequiredService<IMapper>(),
                 sp.GetRequiredService<IAccountingService>()));
             services.AddScoped<IPurchaseOrderService, PurchaseOrderService>();
+            services.AddScoped<RaccoonWarehouse.Application.Service.PurchaseRequests.IPurchaseRequestService, RaccoonWarehouse.Application.Service.PurchaseRequests.PurchaseRequestService>();
+            services.AddScoped<RaccoonWarehouse.Application.Service.GoodsReceipts.IGoodsReceiptService, RaccoonWarehouse.Application.Service.GoodsReceipts.GoodsReceiptService>();
+            services.AddScoped<RaccoonWarehouse.Application.Service.PurchaseInvoiceMatches.IPurchaseInvoiceMatchService, RaccoonWarehouse.Application.Service.PurchaseInvoiceMatches.PurchaseInvoiceMatchService>();
+            services.AddScoped<RaccoonWarehouse.Application.Service.SupplierPayments.ISupplierPaymentAllocationService, RaccoonWarehouse.Application.Service.SupplierPayments.SupplierPaymentAllocationService>();
+            services.AddScoped<RaccoonWarehouse.Application.Service.PurchaseReturns.IPurchaseReturnService, RaccoonWarehouse.Application.Service.PurchaseReturns.PurchaseReturnService>();
+            services.AddScoped<RaccoonWarehouse.Application.Service.PurchaseControl.IPurchaseControlService, RaccoonWarehouse.Application.Service.PurchaseControl.PurchaseControlService>();
             services.AddScoped<RaccoonWarehouse.Application.Service.Insurance.IInsuranceManagementService, RaccoonWarehouse.Application.Service.Insurance.InsuranceManagementService>();
             services.AddScoped<RaccoonWarehouse.Application.Service.Insurance.IInsuranceCoverageService, RaccoonWarehouse.Application.Service.Insurance.InsuranceCoverageService>();
             services.AddSingleton<RaccoonWarehouse.Application.Service.Insurance.IInsuranceProvider, RaccoonWarehouse.Application.Service.Insurance.ManualInsuranceProvider>();
@@ -1081,6 +1089,7 @@ END;";
             services.AddTransient<StockBalanceByDateReport>();
             services.AddTransient<InventoryMovementSummary>();
             services.AddTransient<StockValuationReport>();
+            services.AddTransient<ExpiringStockReport>();
             services.AddTransient<ProductProfitReport>();
             services.AddTransient<InactiveProductsReport>();
 
@@ -1094,6 +1103,10 @@ END;";
 
             services.AddTransient<PayInvoice>();
             services.AddTransient<PurchaseOrdersWindow>();
+            services.AddTransient<RaccoonWarehouse.PurchaseRequests.PurchaseRequestsWindow>();
+            services.AddTransient<RaccoonWarehouse.PurchaseControl.PurchaseControlWindow>();
+            services.AddTransient<RaccoonWarehouse.PurchaseControl.PurchaseControlDashboardWindow>();
+            services.AddTransient<RaccoonWarehouse.GoodsReceipts.GoodsReceiptsWindow>();
             services.AddTransient<InsuranceCompaniesWindow>();
             services.AddTransient<InsuranceClaimsWindow>();
             services.AddTransient<InsuranceSettlementWindow>();
@@ -1117,6 +1130,7 @@ END;";
             services.AddTransient<MaterialMovementsReport>();
             services.AddTransient<RaccoonWarehouse.Stocks.Reports.StockMovementsReport>();
             services.AddTransient<SalesReport>();
+            services.AddTransient<PurchaseReportWindow>();
             services.AddTransient<CreditSalesReport>();
             services.AddTransient<InactiveItemsReport>();
 

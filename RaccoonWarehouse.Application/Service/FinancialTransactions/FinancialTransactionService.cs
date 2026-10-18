@@ -14,6 +14,7 @@ using RaccoonWarehouse.Domain.Invoices;
 using RaccoonWarehouse.Domain.Reports.Financial.Dtos;
 using RaccoonWarehouse.Domain.Reports.Financial.Filters;
 using RaccoonWarehouse.Domain.Reports.Sales.Dtos;
+using RaccoonWarehouse.Domain.Users;
 using RaccoonWarehouse.Domain.Vouchers;
 using System;
 using System.Collections.Generic;
@@ -463,9 +464,24 @@ namespace RaccoonWarehouse.Application.Service.FinancialTransactions
                     query = query.Where(x => false);
             }
 
+            if (filter.UserId.HasValue && filter.UserId.Value > 0)
+                query = query.Where(x => x.CustomerId == filter.UserId.Value || x.SupplierId == filter.UserId.Value);
+
             var vouchers = await query.AsNoTracking()
                 .OrderByDescending(x => x.VoucherDate ?? x.CreatedDate)
                 .ToListAsync();
+
+            var userIds = vouchers
+                .SelectMany(x => new[] { x.CustomerId, x.SupplierId })
+                .Where(x => x.HasValue)
+                .Select(x => x!.Value)
+                .Distinct()
+                .ToList();
+            var userNames = userIds.Count == 0
+                ? new Dictionary<int, string>()
+                : await _uow.GetRepository<User>().AsQueryable()
+                    .Where(x => userIds.Contains(x.Id))
+                    .ToDictionaryAsync(x => x.Id, x => x.Name);
 
             var rows = vouchers.Select(voucher =>
             {
@@ -482,6 +498,11 @@ namespace RaccoonWarehouse.Application.Service.FinancialTransactions
                     AmountOut = isReceipt ? 0m : amount,
                     SourceType = isReceipt ? FinancialSourceType.ReceiptVoucher : FinancialSourceType.PaymentVoucher,
                     SourceId = voucher.Id,
+                    UserName = voucher.CustomerId.HasValue && userNames.TryGetValue(voucher.CustomerId.Value, out var customerName)
+                        ? customerName
+                        : voucher.SupplierId.HasValue && userNames.TryGetValue(voucher.SupplierId.Value, out var supplierName)
+                            ? supplierName
+                            : null,
                     DocumentNumber = voucher.VoucherNumber,
                     CashierName = null,
                     Notes = voucher.Notes,
@@ -734,7 +755,6 @@ namespace RaccoonWarehouse.Application.Service.FinancialTransactions
             var invoices = await invoiceRepo.GetAllAsQueryable()
                 .Where(x => x.CreatedDate >= fromDate && x.CreatedDate <= toDate)
                 .Where(x => x.InvoiceType == InvoiceType.Sale)
-                .Where(x => (x.DiscountAmount ?? 0m) > 0)
                 .Select(x => new { x.Id, x.SubTotal, Discount = x.DiscountAmount ?? 0m })
                 .ToListAsync();
 
@@ -760,10 +780,13 @@ namespace RaccoonWarehouse.Application.Service.FinancialTransactions
                 {
                     var totalDiscount = group.Sum(line =>
                     {
-                        if (!invoiceMap.TryGetValue(line.InvoiceId, out var invoice) || invoice.SubTotal <= 0)
+                        if (!invoiceMap.TryGetValue(line.InvoiceId, out var invoice))
                             return 0m;
 
-                        return (line.LineSubTotal / invoice.SubTotal) * invoice.Discount;
+                        var allocatedInvoiceDiscount = invoice.SubTotal > 0
+                            ? (line.LineSubTotal / invoice.SubTotal) * invoice.Discount
+                            : 0m;
+                        return line.LineDiscountAmount + allocatedInvoiceDiscount;
                     });
 
                     return new DiscountSummaryRowDto

@@ -62,7 +62,7 @@
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="220"/>
                         <ColumnDefinition Width="220"/>
-                        <ColumnDefinition Width="220"/>
+                        <ColumnDefinition Width="270"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
@@ -76,7 +76,27 @@
                         <DatePicker x:Name="ToDatePicker" Margin="0,8,0,0" Height="40"/>
                     </StackPanel>
 
-                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Bottom">
+                    <StackPanel Grid.Column="2" VerticalAlignment="Bottom">
+                        <TextBlock Text="نوع المرجع" FontWeight="SemiBold"/>
+                        <ComboBox x:Name="ReferenceFilterComboBox"
+                                  Height="40"
+                                  Margin="0,8,12,0"
+                                  SelectedValuePath="Tag"
+                                  SelectedValue="all"
+                                  SelectionChanged="ReferenceFilterComboBox_SelectionChanged">
+                            <ComboBoxItem Content="كل الحركات / All references" Tag="all"/>
+                            <ComboBoxItem Content="فاتورة مبيعات / Sale invoice" Tag="SaleInvoice"/>
+                            <ComboBoxItem Content="فاتورة مشتريات / Purchase invoice" Tag="PurchaseInvoice"/>
+                            <ComboBoxItem Content="مرتجع / Return" Tag="Return"/>
+                            <ComboBoxItem Content="أمر شراء / Purchase order" Tag="PurchaseOrder"/>
+                            <ComboBoxItem Content="سند / Voucher" Tag="Voucher"/>
+                            <ComboBoxItem Content="قيد يومية / Journal entry" Tag="JournalEntry"/>
+                            <ComboBoxItem Content="إيصال أو دفعة / Receipt or payment" Tag="ReceiptPayment"/>
+                            <ComboBoxItem Content="أخرى / Other" Tag="Other"/>
+                        </ComboBox>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Bottom">
                         <Button Width="170" Style="{StaticResource AppHeroButtonStyle}" Click="GenerateBtn_Click">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                 <fa:ImageAwesome Icon="Book" Width="16" Height="16" Margin="0,0,8,0"
@@ -84,7 +104,17 @@
                                 <TextBlock Text="عرض الكشف"/>
                             </StackPanel>
                         </Button>
-                        <Button Width="120" Margin="12,0,0,0" Style="{StaticResource AppSecondaryButtonStyle}" Click="BackBtn_Click">
+                        <Button x:Name="ExportExcelButton" Width="145" Margin="12,0,0,0" Style="{StaticResource AppSecondaryButtonStyle}" Click="ExportExcelBtn_Click">
+                            <TextBlock Text="Excel" HorizontalAlignment="Center"/>
+                        </Button>
+                        <Button x:Name="PrintButton" Width="120" Margin="12,0,0,0" Style="{StaticResource AppSecondaryButtonStyle}" Click="PrintBtn_Click">
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <fa:ImageAwesome Icon="Print" Width="16" Height="16" Margin="0,0,8,0"
+                                                 Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
+                                <TextBlock Text="طباعة"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Width="100" Margin="12,0,0,0" Style="{StaticResource AppSecondaryButtonStyle}" Click="BackBtn_Click">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                 <fa:ImageAwesome Icon="ArrowRight" Width="16" Height="16" Margin="0,0,8,0"
                                                  Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
@@ -98,6 +128,8 @@
             <Grid Grid.Row="1" Margin="0,18,0,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="2*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
@@ -117,19 +149,33 @@
 
                 <Border Grid.Column="2" Style="{StaticResource AppCardBorderStyle}" Padding="18" Margin="12,0">
                     <StackPanel>
+                        <TextBlock Text="إجمالي قيمة الحركات" Foreground="#6B7280"/>
+                        <TextBlock x:Name="TransactionTotalText" FontSize="22" FontWeight="Bold"/>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="3" Style="{StaticResource AppCardBorderStyle}" Padding="18" Margin="12,0">
+                    <StackPanel>
+                        <TextBlock Text="إجمالي أوامر الشراء" Foreground="#6B7280"/>
+                        <TextBlock x:Name="PurchaseOrderTotalText" FontSize="22" FontWeight="Bold"/>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="4" Style="{StaticResource AppCardBorderStyle}" Padding="18" Margin="12,0">
+                    <StackPanel>
                         <TextBlock Text="إجمالي المدين" Foreground="#6B7280"/>
                         <TextBlock x:Name="DebitText" FontSize="22" FontWeight="Bold"/>
                     </StackPanel>
                 </Border>
 
-                <Border Grid.Column="3" Style="{StaticResource AppCardBorderStyle}" Padding="18" Margin="12,0">
+                <Border Grid.Column="5" Style="{StaticResource AppCardBorderStyle}" Padding="18" Margin="12,0">
                     <StackPanel>
                         <TextBlock Text="إجمالي الدائن" Foreground="#6B7280"/>
                         <TextBlock x:Name="CreditText" FontSize="22" FontWeight="Bold"/>
                     </StackPanel>
                 </Border>
 
-                <Border Grid.Column="4" Style="{StaticResource AppCardBorderStyle}" Padding="18">
+                <Border Grid.Column="6" Style="{StaticResource AppCardBorderStyle}" Padding="18">
                     <StackPanel>
                         <TextBlock Text="الرصيد الختامي" Foreground="#6B7280"/>
                         <TextBlock x:Name="ClosingText" FontSize="22" FontWeight="Bold"/>
@@ -138,19 +184,29 @@
             </Grid>
 
             <Border Grid.Row="2" Margin="0,18,0,0" Style="{StaticResource AppCardBorderStyle}" Padding="16">
-                <DataGrid x:Name="StatementGrid"
-                          Style="{StaticResource AppModernDataGridStyle}"
-                          AutoGenerateColumns="False"
-                          IsReadOnly="True"
-                          MouseDoubleClick="StatementGrid_MouseDoubleClick">
-                    <DataGrid.Columns>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <DataGrid x:Name="StatementGrid"
+                              Grid.Row="0"
+                              Style="{StaticResource AppModernDataGridStyle}"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="True"
+                              MouseDoubleClick="StatementGrid_MouseDoubleClick">
+                        <DataGrid.Columns>
                         <DataGridTextColumn Header="التاريخ" Binding="{Binding EntryDate, StringFormat=yyyy-MM-dd}" Width="130"/>
-                        <DataGridTextColumn Header="رقم القيد" Binding="{Binding EntryNumber}" Width="170"/>
+                        <DataGridTextColumn Header="رقم القيد" Binding="{Binding EntryNumber}" Width="125"/>
                         <DataGridTextColumn Header="البيان" Binding="{Binding Description}" Width="*"/>
-                        <DataGridTextColumn Header="المرجع" Binding="{Binding Reference}" Width="180"/>
-                        <DataGridTextColumn Header="نوع المرجع" Binding="{Binding ReferenceType}" Width="150"/>
-                        <DataGridTextColumn Header="رقم المرجع" Binding="{Binding ReferenceId}" Width="120"/>
-                        <DataGridTemplateColumn x:Name="OpenReferenceColumn" Width="70">
+                        <DataGridTextColumn Header="المرجع" Binding="{Binding Reference}" Width="145"/>
+                        <DataGridTextColumn Header="نوع المرجع" Binding="{Binding ReferenceType}" Width="125"/>
+                        <DataGridTextColumn Header="رقم المرجع" Binding="{Binding ReferenceId}" Width="100"/>
+                        <DataGridTextColumn Header="المبلغ / Amount" Binding="{Binding DocumentAmount, StringFormat=N2}" Width="125"/>
+                        <DataGridTextColumn Header="طريقة الدفع / Payment" Binding="{Binding PaymentMethod}" Width="125"/>
+                        <DataGridTextColumn Header="نوع المستند / Document" Binding="{Binding DocumentType}" Width="135"/>
+                        <DataGridTemplateColumn x:Name="OpenReferenceColumn" Width="60">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <Button Width="34"
@@ -168,11 +224,34 @@
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
-                        <DataGridTextColumn Header="مدين" Binding="{Binding Debit, StringFormat=N2}" Width="130"/>
-                        <DataGridTextColumn Header="دائن" Binding="{Binding Credit, StringFormat=N2}" Width="130"/>
-                        <DataGridTextColumn Header="الرصيد الجاري" Binding="{Binding RunningBalance, StringFormat=N2}" Width="160"/>
-                    </DataGrid.Columns>
-                </DataGrid>
+                        <DataGridTextColumn Header="مدين" Binding="{Binding Debit, StringFormat=N2}" Width="110"/>
+                        <DataGridTextColumn Header="دائن" Binding="{Binding Credit, StringFormat=N2}" Width="110"/>
+                        <DataGridTextColumn Header="الرصيد الجاري" Binding="{Binding RunningBalance, StringFormat=N2}" Width="135"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <Border Grid.Row="1"
+                            Margin="0,12,0,0"
+                            Padding="16,10"
+                            Background="#EAF5F2"
+                            BorderBrush="#B7DCD2"
+                            BorderThickness="1"
+                            CornerRadius="8">
+                        <DockPanel LastChildFill="True">
+                            <TextBlock Text="Total document amount / إجمالي قيمة المستندات"
+                                       FontWeight="SemiBold"
+                                       Foreground="#164E63"
+                                       VerticalAlignment="Center" />
+                            <TextBlock x:Name="TableTotalText"
+                                       DockPanel.Dock="Right"
+                                       Text="0.00"
+                                       FontSize="18"
+                                       FontWeight="Bold"
+                                       Foreground="#0F766E"
+                                       HorizontalAlignment="Right" />
+                        </DockPanel>
+                    </Border>
+                </Grid>
             </Border>
         </Grid>
     </Grid>

@@ -6,6 +6,7 @@ using RaccoonWarehouse.Data;
 using RaccoonWarehouse.Data.Repository;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Invoices;
+using RaccoonWarehouse.Domain.InvoiceLines;
 using RaccoonWarehouse.Domain.Reports.Financial.Filters;
 using Xunit;
 
@@ -79,6 +80,58 @@ public class SalesReportServiceTests
         Assert.Equal(120m, result.Data.summary.TotalCOGS);
         Assert.Equal(80m, result.Data.summary.GrossProfit);
         Assert.Equal(1, result.Data.summary.NumberOfInvoices);
+    }
+
+    [Fact]
+    public async Task GetSalesReportAsync_ShouldDisplayLineDiscounts()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(nameof(GetSalesReportAsync_ShouldDisplayLineDiscounts))
+            .Options;
+
+        await using var context = new ApplicationDbContext(options);
+        var mapper = new MapperConfiguration(cfg => cfg.AddProfile<MappingProfile>()).CreateMapper();
+        var service = new InvoiceService(context, new UOW(context, mapper), mapper);
+        var date = new DateTime(2026, 6, 10);
+
+        context.Set<Invoice>().Add(new Invoice
+        {
+            Id = 10,
+            InvoiceNumber = "SALE-DISCOUNT",
+            InvoiceType = InvoiceType.Sale,
+            Status = InvoiceStatus.Completed,
+            CreatedDate = date,
+            UpdatedDate = date,
+            SubTotal = 90m,
+            TotalAmount = 90m,
+            InvoiceLines = new List<InvoiceLine>
+            {
+                new()
+                {
+                    ProductId = 1,
+                    Quantity = 1m,
+                    UnitPrice = 100m,
+                    LineDiscountAmount = 10m,
+                    LineSubTotal = 90m,
+                    TaxAmount = 0m,
+                    UnitCost = 50m
+                }
+            }
+        });
+        await context.SaveChangesAsync();
+
+        var result = await service.GetSalesReportAsync(new FinancialSummaryFilterDto
+        {
+            From = date.Date,
+            To = date.Date.AddDays(1).AddTicks(-1),
+            IncludeReturns = false
+        });
+
+        Assert.True(result.Success);
+        var row = Assert.Single(result.Data.rows);
+        Assert.Equal(10m, row.Discount);
+        Assert.Equal(90m, row.Total);
+        Assert.Equal(10m, result.Data.summary.TotalDiscounts);
     }
 
     private static Invoice CreateInvoice(int id, string number, InvoiceType type, DateTime date)

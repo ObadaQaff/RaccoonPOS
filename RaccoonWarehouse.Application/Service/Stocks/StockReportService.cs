@@ -32,20 +32,23 @@ namespace RaccoonWarehouse.Application.Service.Stocks
             _uow = uow;
         }
 
-        public async Task<List<CurrentStockDto>> GetCurrentStockAsync(string? searchText = null, DateTime? asOfDate = null)
+        public async Task<List<CurrentStockDto>> GetCurrentStockAsync(string? searchText = null, DateTime? asOfDate = null, int? supplierId = null)
         {
             if (asOfDate.HasValue)
             {
                 var balanceRows = await GetStockBalanceByDateAsync(asOfDate.Value);
                 var normalizedDateSearch = string.IsNullOrWhiteSpace(searchText) ? null : searchText.Trim();
                 return balanceRows
-                    .Where(x => normalizedDateSearch == null ||
+                    .Where(x => (!supplierId.HasValue || supplierId.Value <= 0 || x.SupplierId == supplierId.Value) &&
+                                (normalizedDateSearch == null ||
                                 (x.ProductName?.Contains(normalizedDateSearch, StringComparison.OrdinalIgnoreCase) ?? false) ||
-                                (x.ITEMCODE?.Contains(normalizedDateSearch, StringComparison.OrdinalIgnoreCase) ?? false))
+                                (x.ITEMCODE?.Contains(normalizedDateSearch, StringComparison.OrdinalIgnoreCase) ?? false)))
                     .Select(x => new CurrentStockDto
                     {
                         ProductId = x.ProductId,
                         ProductName = x.ProductName,
+                        SupplierId = x.SupplierId,
+                        SupplierName = x.SupplierName,
                         ITEMCODE = x.ITEMCODE ?? string.Empty,
                         UnitName = x.UnitName,
                         Quantity = x.Quantity,
@@ -62,6 +65,8 @@ namespace RaccoonWarehouse.Application.Service.Stocks
             IQueryable<Stock> query = repo.AsQueryable()
                 .AsNoTracking()
                 .Include(s => s.Product)
+                    .ThenInclude(p => p.Supplier)
+                .Include(s => s.Product)
                     .ThenInclude(p => p.ProductUnits)
                         .ThenInclude(pu => pu.Unit)
                 .Include(s => s.ProductUnit)
@@ -70,6 +75,9 @@ namespace RaccoonWarehouse.Application.Service.Stocks
             var normalizedSearch = string.IsNullOrWhiteSpace(searchText)
                 ? null
                 : searchText.Trim();
+
+            if (supplierId.HasValue && supplierId.Value > 0)
+                query = query.Where(s => s.Product.SupplierId == supplierId.Value);
 
             if (!string.IsNullOrWhiteSpace(normalizedSearch))
             {
@@ -96,6 +104,8 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                     {
                         ProductId = group.Key,
                         ProductName = sample.Product?.Name,
+                        SupplierId = sample.Product?.SupplierId,
+                        SupplierName = sample.Product?.Supplier?.Name,
                         ITEMCODE = sample.Product?.ITEMCODE.ToString(),
                         UnitName = saleUnit?.Unit?.Name ?? sample.ProductUnit?.Unit?.Name,
                         Quantity = saleUnitFactor > 0 ? totalBaseQuantity / saleUnitFactor : totalBaseQuantity,
@@ -111,7 +121,7 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                 .ToList();
         }
 
-        public async Task<List<StockMovementDto>> GetStockMovementsAsync(DateTime? from, DateTime? to, int? productId = null)
+        public async Task<List<StockMovementDto>> GetStockMovementsAsync(DateTime? from, DateTime? to, int? productId = null, int? supplierId = null, StockMovementSource source = StockMovementSource.All, string? productSearchText = null)
         {
             var transactionRepo = _uow.GetRepository<StockTransaction>();
 
@@ -126,6 +136,20 @@ namespace RaccoonWarehouse.Application.Service.Stocks
 
             if (productId.HasValue && productId.Value > 0)
                 query = query.Where(x => x.ProductId == productId.Value);
+
+            if (!string.IsNullOrWhiteSpace(productSearchText))
+            {
+                var normalizedSearch = productSearchText.Trim();
+                var hasBarcode = long.TryParse(normalizedSearch, out var barcodeValue);
+                query = query.Where(x =>
+                    (x.Product.Name != null && x.Product.Name.Contains(normalizedSearch)) ||
+                    (hasBarcode && x.Product.ITEMCODE == barcodeValue));
+            }
+
+            if (supplierId.HasValue && supplierId.Value > 0)
+                query = query.Where(x => x.Product.SupplierId == supplierId.Value);
+
+            query = ApplyMovementSourceFilter(query, source);
 
             var rows = await query
                 .OrderByDescending(x => x.TransactionDate)
@@ -142,6 +166,8 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                     x.TransactionType,
                     ProductId = x.ProductId,
                     ProductName = x.Product.Name,
+                    SupplierId = x.Product.SupplierId,
+                    SupplierName = x.Product.Supplier != null ? x.Product.Supplier.Name : null,
                     BaseUnitName = x.Product.ProductUnits!
                         .Where(pu => pu.IsBaseUnit)
                         .Select(pu => pu.Unit != null ? pu.Unit.Name : null)
@@ -210,6 +236,8 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                     DocumentType = ResolveDocumentType(x.InvoiceType, x.TransactionType, x.HasVoucher, x.StockId.HasValue),
                     ProductId = x.ProductId,
                     ProductName = x.ProductName,
+                    SupplierId = x.SupplierId,
+                    SupplierName = x.SupplierName,
                     UnitName = x.BaseUnitName ?? x.ProductUnitName,
                     Quantity = x.Quantity,
                     AvailableQuantityAfterMovement = availableAfterMovement.TryGetValue(x.StockItemId, out var available)
@@ -225,17 +253,20 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                 .ToList();
         }
 
-        public async Task<List<LowStockDto>> GetLowStockAsync()
+        public async Task<List<LowStockDto>> GetLowStockAsync(int? supplierId = null)
         {
             var repo = _uow.GetRepository<Stock>();
 
             var stocks = await repo.AsQueryable()
                 .Include(s => s.Product)
+                    .ThenInclude(p => p.Supplier)
+                .Include(s => s.Product)
                     .ThenInclude(p => p.ProductUnits)
                         .ThenInclude(pu => pu.Unit)
                 .Include(s => s.ProductUnit)
                     .ThenInclude(pu => pu.Unit)
-                .Where(s => s.Product.MiniQuantity != null)
+                .Where(s => s.Product.MiniQuantity != null &&
+                            (!supplierId.HasValue || supplierId.Value <= 0 || s.Product.SupplierId == supplierId.Value))
                 .ToListAsync();
             var nearestLots = await GetNearestLotsByProductAsync();
 
@@ -249,6 +280,8 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                     {
                         ProductId = group.Key,
                         ProductName = sample.Product?.Name,
+                        SupplierId = sample.Product?.SupplierId,
+                        SupplierName = sample.Product?.Supplier?.Name,
                         ITEMCODE = sample.Product?.ITEMCODE.ToString(),
                         UnitName = GetBaseUnit(sample.Product, sample.ProductUnit)?.Unit?.Name ?? sample.ProductUnit?.Unit?.Name,
                         CurrentQuantity = group.Sum(GetNormalizedStockQuantity),
@@ -267,6 +300,8 @@ namespace RaccoonWarehouse.Application.Service.Stocks
             var transactionRepo = _uow.GetRepository<StockTransaction>();
             var nearestLots = await GetNearestLotsByProductAsync();
             IQueryable<StockTransaction> query = transactionRepo.AsQueryable()
+                .Include(x => x.Product)
+                    .ThenInclude(p => p.Supplier)
                 .Include(x => x.Product)
                     .ThenInclude(p => p.ProductUnits)
                         .ThenInclude(pu => pu.Unit)
@@ -291,6 +326,8 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                         ProductId = item.ProductId,
                         ProductUnitId = baseUnit?.Id ?? item.ProductUnitId,
                         ProductName = item.Product?.Name,
+                        SupplierId = item.Product?.SupplierId,
+                        SupplierName = item.Product?.Supplier?.Name,
                         ITEMCODE = item.Product?.ITEMCODE.ToString(),
                         UnitName = baseUnit?.Unit?.Name ?? item.ProductUnit?.Unit?.Name,
                         MinimumQuantity = item.Product?.MiniQuantity ?? 0m
@@ -337,6 +374,20 @@ namespace RaccoonWarehouse.Application.Service.Stocks
             if (filter.ProductId.HasValue)
                 transactionsQ = transactionsQ.Where(x => x.ProductId == filter.ProductId.Value);
 
+            if (!string.IsNullOrWhiteSpace(filter.ProductSearchText))
+            {
+                var normalizedSearch = filter.ProductSearchText.Trim();
+                var hasBarcode = long.TryParse(normalizedSearch, out var barcodeValue);
+                transactionsQ = transactionsQ.Where(x =>
+                    (x.Product.Name != null && x.Product.Name.Contains(normalizedSearch)) ||
+                    (hasBarcode && x.Product.ITEMCODE == barcodeValue));
+            }
+
+            if (filter.SupplierId.HasValue && filter.SupplierId.Value > 0)
+                transactionsQ = transactionsQ.Where(x => x.Product.SupplierId == filter.SupplierId.Value);
+
+            transactionsQ = ApplyMovementSourceFilter(transactionsQ, filter.Source);
+
             var transactions = await transactionsQ
                 .Select(x => new
                 {
@@ -347,6 +398,8 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                         .FirstOrDefault(),
                     x.ProductUnitId,
                     ProductName = x.Product.Name,
+                    SupplierId = x.Product.SupplierId,
+                    SupplierName = x.Product.Supplier != null ? x.Product.Supplier.Name : null,
                     ItemCode = x.Product.ITEMCODE,
                     BaseUnitName = x.Product.ProductUnits!
                         .Where(pu => pu.IsBaseUnit)
@@ -371,6 +424,8 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                         ProductId = item.ProductId,
                         ProductUnitId = item.BaseUnitId ?? item.ProductUnitId,
                         ProductName = item.ProductName,
+                        SupplierId = item.SupplierId,
+                        SupplierName = item.SupplierName,
                         ITEMCODE = item.ItemCode?.ToString(),
                         UnitName = item.BaseUnitName ?? item.ProductUnitName,
                         MinimumQuantity = item.MinimumQuantity ?? 0m
@@ -421,6 +476,8 @@ namespace RaccoonWarehouse.Application.Service.Stocks
 
             if (filter.ProductId.HasValue)
                 linesQ = linesQ.Where(l => l.ProductId == filter.ProductId.Value);
+            if (filter.SupplierId.HasValue && filter.SupplierId.Value > 0)
+                linesQ = linesQ.Where(l => l.Product != null && l.Product.SupplierId == filter.SupplierId.Value);
             // Profit must be based on financially valid documents only.
             // Draft, held, cancelled, unknown, and in-process documents must not affect P&L.
             linesQ = linesQ.Where(l =>
@@ -460,6 +517,8 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                         ProductId = line.ProductId,
                         ProductName = line.Product?.Name,
                         ITEMCODE = line.Product?.ITEMCODE.ToString(),
+                        SupplierId = line.Product?.SupplierId,
+                        SupplierName = line.Product?.Supplier?.Name,
                         UnitName = filter.GroupByUnit
                             ? line.ProductUnit?.Unit?.Name
                             : baseUnit?.Unit?.Name
@@ -469,14 +528,14 @@ namespace RaccoonWarehouse.Application.Service.Stocks
 
                 row.SalesQty += sign * (filter.GroupByUnit ? line.Quantity : GetNormalizedInvoiceLineQuantity(line));
                 row.SubTotal += sign * line.LineSubTotal;
-                row.Discount += sign * allocatedDiscount;
+                row.Discount += sign * (line.LineDiscountAmount + allocatedDiscount);
+                row.NetSales += sign * (line.LineSubTotal - allocatedDiscount);
                 row.Tax += sign * line.TaxAmount;
                 row.COGS += sign * (line.Quantity * line.UnitCost);
             }
 
             foreach (var row in dict.Values)
             {
-                row.NetSales = row.SubTotal - row.Discount;
                 row.GrossProfit = row.NetSales - row.COGS;
                 row.Margin = row.NetSales == 0 ? 0 : Math.Round((row.GrossProfit / row.NetSales) * 100m, 2);
             }
@@ -548,7 +607,7 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                 .ToList();
         }
 
-        public async Task<List<StockValuationRowDto>> GetStockValuationAsync()
+        public async Task<List<StockValuationRowDto>> GetStockValuationAsync(int? supplierId = null)
         {
             var repo = _uow.GetRepository<Stock>();
 
@@ -558,6 +617,7 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                         .ThenInclude(pu => pu.Unit)
                 .Include(s => s.ProductUnit)
                     .ThenInclude(pu => pu.Unit)
+                .Where(s => !supplierId.HasValue || supplierId.Value <= 0 || s.Product.SupplierId == supplierId.Value)
                 .ToListAsync();
             var nearestLots = await GetNearestLotsByProductAsync();
 
@@ -579,6 +639,8 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                         ProductId = group.Key,
                         ITEMCODE = sample.Product?.ITEMCODE.ToString() ?? string.Empty,
                         ProductName = sample.Product?.Name,
+                        SupplierId = sample.Product?.SupplierId,
+                        SupplierName = sample.Product?.Supplier?.Name,
                         UnitName = baseUnit?.Unit?.Name ?? sample.ProductUnit?.Unit?.Name,
                         Quantity = quantity,
                         UnitCost = unitCost,
@@ -590,6 +652,36 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                 .OrderByDescending(x => x.TotalValue)
                 .ThenBy(x => x.ProductName)
                 .ToList();
+        }
+
+        public async Task<List<ExpiringStockRowDto>> GetExpiringStockAsync(int daysAhead = 90, int? supplierId = null)
+        {
+            var today = DateTime.Today;
+            var until = today.AddDays(Math.Max(0, daysAhead));
+            var lots = await _uow.GetRepository<StockLot>().AsQueryable()
+                .AsNoTracking()
+                .Include(x => x.Product).ThenInclude(x => x!.Supplier)
+                .Include(x => x.ProductUnit).ThenInclude(x => x!.Unit)
+                .Where(x => x.RemainingBaseQuantity > 0 && x.ExpiryDate.HasValue &&
+                            x.ExpiryDate.Value.Date <= until &&
+                            (!supplierId.HasValue || supplierId.Value <= 0 || x.Product!.SupplierId == supplierId.Value))
+                .OrderBy(x => x.ExpiryDate)
+                .Select(x => new ExpiringStockRowDto
+                {
+                    ProductId = x.ProductId,
+                    ProductName = x.Product!.Name,
+                    ITEMCODE = x.Product.ITEMCODE.ToString(),
+                    SupplierId = x.Product.SupplierId,
+                    SupplierName = x.Product.Supplier != null ? x.Product.Supplier.Name : null,
+                    UnitName = x.ProductUnit != null && x.ProductUnit.Unit != null ? x.ProductUnit.Unit.Name : null,
+                    RemainingQuantity = x.RemainingBaseQuantity,
+                    PurchasePrice = x.PurchasePrice,
+                    TotalCost = x.RemainingBaseQuantity * x.PurchasePrice,
+                    ExpiryDate = x.ExpiryDate!.Value,
+                    DaysRemaining = EF.Functions.DateDiffDay(today, x.ExpiryDate.Value)
+                })
+                .ToListAsync();
+            return lots;
         }
 
         public async Task<List<StockVarianceRowDto>> GetStockVarianceAsync()
@@ -746,10 +838,8 @@ namespace RaccoonWarehouse.Application.Service.Stocks
         private async Task<Dictionary<int, StockLot>> GetNearestLotsByProductAsync()
         {
             var lotRepo = _uow.GetRepository<StockLot>();
-            var today = DateTime.Today;
             var lots = await lotRepo.GetAllAsQueryable()
-                .Where(l => l.RemainingQuantity > 0 &&
-                            (!l.ExpiryDate.HasValue || l.ExpiryDate.Value <= DateTime.MinValue.AddDays(1) || l.ExpiryDate.Value >= today))
+                .Where(l => l.RemainingQuantity > 0)
                 .Select(l => new StockLot
                 {
                     Id = l.Id,
@@ -774,10 +864,8 @@ namespace RaccoonWarehouse.Application.Service.Stocks
         private async Task<Dictionary<(int ProductId, int ProductUnitId), StockLot>> GetNearestLotsByProductUnitAsync()
         {
             var lotRepo = _uow.GetRepository<StockLot>();
-            var today = DateTime.Today;
             var lots = await lotRepo.GetAllAsQueryable()
-                .Where(l => l.RemainingQuantity > 0 &&
-                            (!l.ExpiryDate.HasValue || l.ExpiryDate.Value <= DateTime.MinValue.AddDays(1) || l.ExpiryDate.Value >= today))
+                .Where(l => l.RemainingQuantity > 0)
                 .Select(l => new StockLot
                 {
                     Id = l.Id,
@@ -837,6 +925,26 @@ namespace RaccoonWarehouse.Application.Service.Stocks
             return 0m;
         }
 
+        private static IQueryable<StockTransaction> ApplyMovementSourceFilter(
+            IQueryable<StockTransaction> query,
+            StockMovementSource source)
+        {
+            return source switch
+            {
+                StockMovementSource.Sale => query.Where(x => x.Invoice != null && x.Invoice.InvoiceType == InvoiceType.Sale),
+                StockMovementSource.Return => query.Where(x => x.Invoice != null && x.Invoice.InvoiceType == InvoiceType.Return),
+                StockMovementSource.Purchase => query.Where(x => x.Invoice != null && x.Invoice.InvoiceType == InvoiceType.Purchase),
+                StockMovementSource.PurchaseReturn => query.Where(x => x.Invoice != null && x.Invoice.InvoiceType == InvoiceType.PurchaseReturn),
+                StockMovementSource.StockIn => query.Where(x => x.InvoiceId == null && x.VoucherId == null && x.StockId.HasValue && x.TransactionType == TransactionType.Purchase),
+                StockMovementSource.StockOut => query.Where(x => x.InvoiceId == null && x.VoucherId == null && x.StockId.HasValue && x.TransactionType != TransactionType.Purchase),
+                StockMovementSource.Adjustment => query.Where(x => x.StockAdjustmentId.HasValue ||
+                    (x.InvoiceId == null && x.VoucherId == null && !x.StockId.HasValue && x.TransactionType == TransactionType.Adjustment)),
+                StockMovementSource.Damage => query.Where(x => x.TransactionType == TransactionType.Damage),
+                StockMovementSource.Voucher => query.Where(x => x.VoucherId.HasValue),
+                _ => query
+            };
+        }
+
         private static string ResolveDocumentType(InvoiceType? invoiceType, TransactionType transactionType, bool hasVoucher, bool hasStockDocument)
         {
             if (invoiceType.HasValue)
@@ -855,14 +963,15 @@ namespace RaccoonWarehouse.Application.Service.Stocks
 
     public interface IStockReportService
     {
-        Task<List<CurrentStockDto>> GetCurrentStockAsync(string? searchText = null, DateTime? asOfDate = null);
-        Task<List<StockMovementDto>> GetStockMovementsAsync(DateTime? from, DateTime? to, int? productId = null);
-        Task<List<LowStockDto>> GetLowStockAsync();
+        Task<List<CurrentStockDto>> GetCurrentStockAsync(string? searchText = null, DateTime? asOfDate = null, int? supplierId = null);
+        Task<List<StockMovementDto>> GetStockMovementsAsync(DateTime? from, DateTime? to, int? productId = null, int? supplierId = null, StockMovementSource source = StockMovementSource.All, string? productSearchText = null);
+        Task<List<LowStockDto>> GetLowStockAsync(int? supplierId = null);
         Task<List<StockBalanceByDateDto>> GetStockBalanceByDateAsync(DateTime date, bool includeInvoices = true);
         Task<List<InventoryMovementSummaryRowDto>> GetInventoryMovementSummaryAsync(InventoryMovementSummaryFilterDto filter);
         Task<List<ProductProfitRowDto>> GetProductProfitAsync(ProductProfitFilterDto filter);
         Task<List<InactiveProductRowDto>> GetInactiveProductsAsync(InactiveProductsFilterDto filter);
-        Task<List<StockValuationRowDto>> GetStockValuationAsync();
+        Task<List<StockValuationRowDto>> GetStockValuationAsync(int? supplierId = null);
+        Task<List<ExpiringStockRowDto>> GetExpiringStockAsync(int daysAhead = 90, int? supplierId = null);
         Task<List<StockVarianceRowDto>> GetStockVarianceAsync();
         Task<List<StockAdjustmentRowDto>> GetStockAdjustmentsAsync(DateTime? from, DateTime? to);
         Task<List<PriceListRowDto>> GetPriceListAsync();

@@ -13,6 +13,8 @@ namespace RaccoonWarehouse.Domain.Reports.Stocks.Dtos
 
             public string? ITEMCODE { get; set; }
             public string? ProductName { get; set; }
+            public int? SupplierId { get; set; }
+            public string? SupplierName { get; set; }
             public string? UnitName { get; set; }
 
             public decimal Quantity { get; set; }

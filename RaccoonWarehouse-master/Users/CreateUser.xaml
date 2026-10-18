@@ -7,11 +7,15 @@
         Title="إنشاء مستخدم"
         Height="820"
         Width="1280"
+        MinWidth="1100"
+        MinHeight="700"
         WindowStartupLocation="CenterScreen"
         WindowState="Maximized"
         FlowDirection="RightToLeft"
         Background="{StaticResource AppPageBackgroundBrush}">
-    <Grid>
+    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled">
+    <Grid MinHeight="760">
         <Grid.RowDefinitions>
             <RowDefinition Height="240"/>
             <RowDefinition Height="*"/>
@@ -97,12 +101,24 @@
                         <TextBox x:Name="ConfirmPassword" Style="{StaticResource AppTextInputStyle}"/>
                     </StackPanel>
 
-                    <StackPanel x:Name="RolePanel" Grid.Row="2" Grid.Column="0" Margin="0,0,18,18">
+                    <StackPanel x:Name="RolePanel" Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,0,0,18">
                         <TextBlock Text="نوع الحساب" Style="{StaticResource AppFieldLabelStyle}"/>
                         <ComboBox x:Name="Role" Style="{StaticResource AppComboBoxStyle}"/>
+                        <WrapPanel x:Name="QuickRolePanel" Margin="0,8,0,0" Visibility="Collapsed" HorizontalAlignment="Stretch">
+                            <RadioButton x:Name="CustomerRoleRadio" Content="عميل / Customer" Tag="Customer"
+                                         GroupName="QuickUserRole" Margin="0,0,18,10" FontSize="18" MinWidth="210"/>
+                            <RadioButton x:Name="SupplierRoleRadio" Content="مورد / Supplier" Tag="Supplier"
+                                         GroupName="QuickUserRole" Margin="0,0,18,10" FontSize="18" MinWidth="210"/>
+                            <RadioButton x:Name="DoctorRoleRadio" Content="طبيب / Doctor" Tag="Doctor"
+                                         GroupName="QuickUserRole" Margin="0,0,18,10" FontSize="18" MinWidth="210"/>
+                            <RadioButton x:Name="PharmacyRoleRadio" Content="صيدلية / Pharmacy"
+                                         Tag="Pharmacy" GroupName="QuickUserRole" Margin="0,0,18,10" FontSize="18" MinWidth="210"/>
+                            <RadioButton x:Name="WarehouseRoleRadio" Content="مستودع أدوية / Pharmaceutical warehouse"
+                                         Tag="PharmaceuticalWarehouse" GroupName="QuickUserRole" Margin="0,0,18,10" FontSize="18" MinWidth="280"/>
+                        </WrapPanel>
                     </StackPanel>
 
-                    <Border Grid.Row="3"
+                    <Border x:Name="BankDetailsPanel" Grid.Row="3"
                             Grid.ColumnSpan="2"
                             Padding="18"
                             Margin="0,0,0,18"
@@ -140,7 +156,7 @@
                         </Grid>
                     </Border>
 
-                    <Border Grid.Row="4"
+                    <Border x:Name="CreditDetailsPanel" Grid.Row="4"
                             Grid.ColumnSpan="2"
                             Padding="18"
                             Margin="0,0,0,18"
@@ -232,4 +248,5 @@
             </Border>
         </Grid>
     </Grid>
+    </ScrollViewer>
 </Window>

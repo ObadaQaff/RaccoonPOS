@@ -26,6 +26,14 @@ using RaccoonWarehouse.Domain.Products;
 using RaccoonWarehouse.Domain.Products.DTOs;
 using RaccoonWarehouse.Domain.PurchaseOrders;
 using RaccoonWarehouse.Domain.PurchaseOrders.DTOs;
+using RaccoonWarehouse.Domain.PurchaseRequests;
+using RaccoonWarehouse.Domain.PurchaseRequests.DTOs;
+using RaccoonWarehouse.Domain.GoodsReceipts;
+using RaccoonWarehouse.Domain.GoodsReceipts.DTOs;
+using RaccoonWarehouse.Domain.PurchaseInvoiceMatches;
+using RaccoonWarehouse.Domain.PurchaseInvoiceMatches.DTOs;
+using RaccoonWarehouse.Domain.PurchaseReturns;
+using RaccoonWarehouse.Domain.PurchaseReturns.DTOs;
 using RaccoonWarehouse.Domain.ProductUnits;
 using RaccoonWarehouse.Domain.ProductUnits.DTOs;
 using RaccoonWarehouse.Domain.Stock;
@@ -192,6 +200,38 @@ namespace RaccoonWarehouse.Application.Helper
             CreateMap<PurchaseOrder, PurchaseOrderReadDto>()
                 .ForMember(d => d.SupplierName, opt => opt.MapFrom(s => s.Supplier != null ? s.Supplier.Name : null))
                 .ForMember(d => d.LineCount, opt => opt.MapFrom(s => s.Lines.Count));
+
+            CreateMap<PurchaseRequestWriteDto, PurchaseRequest>()
+                .ForMember(d => d.Lines, opt => opt.Ignore());
+            CreateMap<PurchaseRequest, PurchaseRequestWriteDto>();
+            CreateMap<PurchaseRequest, PurchaseRequestReadDto>()
+                .ForMember(d => d.LineCount, opt => opt.MapFrom(s => s.Lines.Count));
+            CreateMap<PurchaseRequestLineWriteDto, PurchaseRequestLine>()
+                .ForMember(d => d.PurchaseRequest, opt => opt.Ignore())
+                .ForMember(d => d.PurchaseRequestId, opt => opt.Ignore());
+            CreateMap<PurchaseRequestLine, PurchaseRequestLineWriteDto>();
+            CreateMap<GoodsReceiptWriteDto, GoodsReceipt>()
+                .ForMember(d => d.Lines, opt => opt.Ignore());
+            CreateMap<GoodsReceipt, GoodsReceiptWriteDto>();
+            CreateMap<GoodsReceipt, GoodsReceiptReadDto>();
+            CreateMap<GoodsReceiptLineWriteDto, GoodsReceiptLine>()
+                .ForMember(d => d.GoodsReceipt, opt => opt.Ignore())
+                .ForMember(d => d.GoodsReceiptId, opt => opt.Ignore());
+            CreateMap<GoodsReceiptLine, GoodsReceiptLineWriteDto>();
+            CreateMap<PurchaseInvoiceMatchWriteDto, PurchaseInvoiceMatch>()
+                .ForMember(d => d.Lines, opt => opt.Ignore());
+            CreateMap<PurchaseInvoiceMatch, PurchaseInvoiceMatchReadDto>();
+            CreateMap<PurchaseInvoiceMatchLineWriteDto, PurchaseInvoiceMatchLine>()
+                .ForMember(d => d.PurchaseInvoiceMatch, opt => opt.Ignore())
+                .ForMember(d => d.PurchaseInvoiceMatchId, opt => opt.Ignore());
+            CreateMap<PurchaseInvoiceMatchLine, PurchaseInvoiceMatchLineWriteDto>();
+            CreateMap<PurchaseReturnWriteDto, PurchaseReturn>()
+                .ForMember(d => d.Lines, opt => opt.Ignore());
+            CreateMap<PurchaseReturn, PurchaseReturnWriteDto>();
+            CreateMap<PurchaseReturnLineWriteDto, PurchaseReturnLine>()
+                .ForMember(d => d.PurchaseReturn, opt => opt.Ignore())
+                .ForMember(d => d.PurchaseReturnId, opt => opt.Ignore());
+            CreateMap<PurchaseReturnLine, PurchaseReturnLineWriteDto>();
         }
     }
 }

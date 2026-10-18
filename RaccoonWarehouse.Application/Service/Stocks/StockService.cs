@@ -148,8 +148,8 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                 .Where(lot =>
                     lot.ProductId == productId &&
                     lot.Status == BatchStatus.Active &&
-                    lot.RemainingBaseQuantity > 0 &&
-                    (!lot.ExpiryDate.HasValue || lot.ExpiryDate.Value <= DateTime.MinValue.AddDays(1) || lot.ExpiryDate.Value >= today))
+                    lot.RemainingBaseQuantity > 0
+                    )
                 .SumAsync(lot => (decimal?)lot.RemainingBaseQuantity) ?? 0m;
 
             var availableQuantity = factor > 0 ? totalBaseQuantity / factor : totalBaseQuantity;
@@ -181,8 +181,8 @@ namespace RaccoonWarehouse.Application.Service.Stocks
             var totalsByProduct = await lotRepo.GetAllAsQueryable()
                 .Where(lot => productIds.Contains(lot.ProductId) &&
                               lot.Status == BatchStatus.Active &&
-                              lot.RemainingBaseQuantity > 0 &&
-                              (!lot.ExpiryDate.HasValue || lot.ExpiryDate.Value <= DateTime.MinValue.AddDays(1) || lot.ExpiryDate.Value >= DateTime.Today))
+                              lot.RemainingBaseQuantity > 0
+                              )
                 .GroupBy(lot => lot.ProductId)
                 .Select(group => new
                 {
@@ -503,8 +503,8 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                 .AsNoTracking()
                 .Where(lot => productIds.Contains(lot.ProductId) &&
                               lot.Status == BatchStatus.Active &&
-                              lot.RemainingBaseQuantity > 0 &&
-                              (!lot.ExpiryDate.HasValue || lot.ExpiryDate.Value <= DateTime.MinValue.AddDays(1) || lot.ExpiryDate.Value >= DateTime.Today))
+                               lot.RemainingBaseQuantity > 0
+                              )
                 .OrderBy(lot => lot.ProductId)
                 .ThenBy(lot => lot.ExpiryDate == null ? 1 : 0)
                 .ThenBy(lot => lot.ExpiryDate)
@@ -710,10 +710,8 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                 .AsNoTracking()
                 .Where(lot => productIdPage.Contains(lot.ProductId) &&
                              lot.Status == BatchStatus.Active &&
-                             lot.RemainingBaseQuantity > 0 &&
-                             (!lot.ExpiryDate.HasValue ||
-                              lot.ExpiryDate.Value <= DateTime.MinValue.AddDays(1) ||
-                              lot.ExpiryDate.Value >= DateTime.Today))
+                             lot.RemainingBaseQuantity > 0
+                             )
                 .GroupBy(lot => lot.ProductId)
                 .Select(group => new
                 {
@@ -786,68 +784,233 @@ namespace RaccoonWarehouse.Application.Service.Stocks
             return Result<PagedResult<PosBrowseItemDto>>.Ok(new PagedResult<PosBrowseItemDto>(items, totalCount, pageNumber, pageSize));
         }
 
-        public async Task<Result<List<PosProductSearchResultDto>>> SearchPosProductsAsync(
+        public Task<Result<List<PosProductSearchResultDto>>> SearchPosProductsAsync(
             string searchText,
-            int maxResults = 100)
+            int maxResults = 100,
+            int? supplierId = null)
+            => SearchPosProductsAsync(searchText, null, maxResults, supplierId, CancellationToken.None);
+
+        public async Task<Result<List<PosProductSearchResultDto>>> GetPosProductCatalogAsync(
+            CancellationToken cancellationToken = default)
         {
-            var terms = (searchText ?? string.Empty)
-                .Trim()
-                .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-
-            if (terms.Length == 0 || maxResults <= 0)
-                return Result<List<PosProductSearchResultDto>>.Ok(new List<PosProductSearchResultDto>());
-
-            var query = _uow.GetRepository<Stock>()
+            var catalog = await _uow.GetRepository<Product>()
                 .GetAllAsQueryable()
                 .AsNoTracking()
-                .Where(stock => stock.Quantity > 0 &&
-                                stock.Product != null &&
-                                !stock.Product.IsDeleted &&
-                                stock.ProductUnit != null);
+                .Where(product => !product.IsDeleted && product.ProductUnits != null)
+                .SelectMany(product => product.ProductUnits!.Select(unit => new PosProductSearchResultDto
+                {
+                    ProductId = product.Id,
+                    ProductName = product.Name,
+                    ItemCode = product.ITEMCODE,
+                    TaxExempt = product.TaxExempt,
+                    TaxRate = product.TaxRate,
+                    ProductUnitId = unit.Id,
+                    AlternateBarcode = unit.AlternateBarcode,
+                    UnitName = unit.Unit != null ? unit.Unit.Name : string.Empty,
+                    UnitSalePrice = unit.SalePrice,
+                    UnitPurchasePrice = unit.PurchasePrice,
+                    QuantityPerUnit = unit.QuantityPerUnit,
+                    IsBaseUnit = unit.IsBaseUnit,
+                    IsDefaultSaleUnit = unit.IsDefaultSaleUnit,
+                    IsDefaultPurchaseUnit = unit.IsDefaultPurchaseUnit,
+                    SupplierId = product.SupplierId,
+                    SupplierName = product.Supplier != null ? product.Supplier.Name : null
+                }))
+                .OrderBy(row => row.ProductName)
+                .ToListAsync(cancellationToken);
 
-            foreach (var term in terms)
+            return Result<List<PosProductSearchResultDto>>.Ok(catalog);
+        }
+
+        public async Task<Result<List<PosProductSearchResultDto>>> GetPosProductStockAsync(
+            IEnumerable<int> productIds,
+            CancellationToken cancellationToken = default)
+        {
+            var ids = productIds.Where(id => id > 0).Distinct().ToList();
+            if (ids.Count == 0)
+                return Result<List<PosProductSearchResultDto>>.Ok(new List<PosProductSearchResultDto>());
+
+            var stock = await _uow.GetRepository<StockLot>()
+                .GetAllAsQueryable()
+                .AsNoTracking()
+                .Where(lot => ids.Contains(lot.ProductId) &&
+                              lot.Status == BatchStatus.Active &&
+                              lot.RemainingQuantity > 0)
+                .GroupBy(lot => new { lot.ProductId, lot.ProductUnitId })
+                .Select(group => new PosProductSearchResultDto
+                {
+                    ProductId = group.Key.ProductId,
+                    ProductUnitId = group.Key.ProductUnitId,
+                    StockQuantity = group.Sum(lot => lot.RemainingQuantity),
+                    StockPurchasePrice = group.OrderBy(lot => lot.ExpiryDate == null ? 1 : 0)
+                        .ThenBy(lot => lot.ExpiryDate)
+                        .ThenBy(lot => lot.CreatedDate)
+                        .Select(lot => lot.PurchasePrice)
+                        .FirstOrDefault(),
+                    StockSalePrice = group.OrderBy(lot => lot.ExpiryDate == null ? 1 : 0)
+                        .ThenBy(lot => lot.ExpiryDate)
+                        .ThenBy(lot => lot.CreatedDate)
+                        .Select(lot => lot.SalePrice)
+                        .FirstOrDefault(),
+                    ExpiryDate = group.OrderBy(lot => lot.ExpiryDate == null ? 1 : 0)
+                        .ThenBy(lot => lot.ExpiryDate)
+                        .ThenBy(lot => lot.CreatedDate)
+                        .Select(lot => lot.ExpiryDate)
+                        .FirstOrDefault()
+                })
+                .ToListAsync(cancellationToken);
+
+            return Result<List<PosProductSearchResultDto>>.Ok(stock);
+        }
+
+        public async Task<Result<List<PosProductSearchResultDto>>> SearchPosProductsAsync(
+            string? productName,
+            string? barcode,
+            int maxResults = 100,
+            int? supplierId = null,
+            CancellationToken cancellationToken = default)
+        {
+            var terms = (productName ?? string.Empty)
+                .Trim()
+                .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            var normalizedBarcode = barcode?.Trim();
+
+            if (maxResults <= 0 || (terms.Length == 0 && string.IsNullOrWhiteSpace(normalizedBarcode) && (!supplierId.HasValue || supplierId.Value <= 0)))
+                return Result<List<PosProductSearchResultDto>>.Ok(new List<PosProductSearchResultDto>());
+
+            // Search the product catalog first, not the stock table. A product with
+            // zero stock (or no stock record yet) must still be visible in POS so
+            // the cashier can identify it and see that it is unavailable.
+            var productQuery = _uow.GetRepository<Product>()
+                .GetAllAsQueryable()
+                .AsNoTracking()
+                .Include(product => product.Supplier)
+                .Include(product => product.ProductUnits!)
+                    .ThenInclude(unit => unit.Unit)
+                .Where(product => !product.IsDeleted && product.ProductUnits != null);
+
+            if (supplierId.HasValue && supplierId.Value > 0)
+                productQuery = productQuery.Where(product => product.SupplierId == supplierId.Value);
+
+            if (!string.IsNullOrWhiteSpace(normalizedBarcode))
             {
-                var databaseTerm = term;
-                query = query.Where(stock =>
-                    (stock.Product!.Name != null &&
-                     EF.Functions.Like(stock.Product.Name, $"%{databaseTerm}%")) ||
-                    stock.Product.ITEMCODE.ToString().Contains(databaseTerm) ||
-                    stock.Product.ProductUnits!.Any(unit =>
-                        unit.AlternateBarcode != null &&
-                        EF.Functions.Like(unit.AlternateBarcode, $"%{databaseTerm}%")));
+                if (long.TryParse(normalizedBarcode, out var numericBarcode))
+                {
+                    productQuery = productQuery.Where(product =>
+                        product.ITEMCODE == numericBarcode ||
+                        product.ProductUnits!.Any(unit => unit.AlternateBarcode == normalizedBarcode));
+                }
+                else
+                {
+                    productQuery = productQuery.Where(product =>
+                        product.ProductUnits!.Any(unit => unit.AlternateBarcode == normalizedBarcode));
+                }
+            }
+            else
+            {
+                foreach (var term in terms)
+                {
+                    var databaseTerm = term;
+                    productQuery = productQuery.Where(product =>
+                        product.Name != null &&
+                        EF.Functions.Like(product.Name, $"%{databaseTerm}%"));
+                }
             }
 
-            var rows = await query
-                .OrderBy(stock => stock.Product!.Name)
-                .ThenByDescending(stock => stock.ProductUnit!.IsDefaultSaleUnit)
-                .ThenBy(stock => stock.ProductUnitId)
-                .Take(maxResults * 4)
-                .Select(stock => new PosProductSearchResultDto
+            var products = await productQuery
+                .OrderBy(product => product.Name)
+                .Take(maxResults)
+                .ToListAsync(cancellationToken);
+
+            if (products.Count == 0)
+                return Result<List<PosProductSearchResultDto>>.Ok(new List<PosProductSearchResultDto>());
+
+            var productIds = products.Select(product => product.Id).ToList();
+            // Use active stock lots as the source of truth for POS search. The
+            // summary Stock table does not carry expiry information and can be
+            // stale after purchase/return operations. Expired lots remain
+            // visible here intentionally; POS handles the confirmation before
+            // completing a sale.
+            var stockLotQuery = _uow.GetRepository<StockLot>()
+                .GetAllAsQueryable()
+                .AsNoTracking()
+                .Where(lot => productIds.Contains(lot.ProductId) &&
+                              lot.Status == BatchStatus.Active &&
+                              lot.RemainingQuantity > 0);
+
+            var stockByUnit = (await stockLotQuery
+                .GroupBy(lot => new { lot.ProductId, lot.ProductUnitId })
+                .Select(group => new
                 {
-                    ProductId = stock.ProductId,
-                    ProductName = stock.Product!.Name,
-                    ItemCode = stock.Product.ITEMCODE,
-                    TaxExempt = stock.Product.TaxExempt,
-                    TaxRate = stock.Product.TaxRate,
-                    ProductUnitId = stock.ProductUnitId,
-                    AlternateBarcode = stock.ProductUnit!.AlternateBarcode,
-                    UnitName = stock.ProductUnit.Unit != null ? stock.ProductUnit.Unit.Name : null,
-                    UnitSalePrice = stock.ProductUnit.SalePrice,
-                    UnitPurchasePrice = stock.ProductUnit.PurchasePrice,
-                    QuantityPerUnit = stock.ProductUnit.QuantityPerUnit,
-                    IsBaseUnit = stock.ProductUnit.IsBaseUnit,
-                    IsDefaultSaleUnit = stock.ProductUnit.IsDefaultSaleUnit,
-                    IsDefaultPurchaseUnit = stock.ProductUnit.IsDefaultPurchaseUnit,
-                    StockQuantity = stock.Quantity,
-                    StockPurchasePrice = stock.PurchasePrice,
-                    StockSalePrice = stock.SalePrice,
-                    ExpiryDate = null
+                    group.Key.ProductId,
+                    group.Key.ProductUnitId,
+                    Quantity = group.Sum(lot => lot.RemainingQuantity),
+                    PurchasePrice = group.OrderBy(lot => lot.ExpiryDate == null ? 1 : 0)
+                        .ThenBy(lot => lot.ExpiryDate)
+                        .ThenBy(lot => lot.CreatedDate)
+                        .Select(lot => lot.PurchasePrice)
+                        .FirstOrDefault(),
+                    SalePrice = group.OrderBy(lot => lot.ExpiryDate == null ? 1 : 0)
+                        .ThenBy(lot => lot.ExpiryDate)
+                        .ThenBy(lot => lot.CreatedDate)
+                        .Select(lot => lot.SalePrice)
+                        .FirstOrDefault(),
+                    ExpiryDate = group.OrderBy(lot => lot.ExpiryDate == null ? 1 : 0)
+                        .ThenBy(lot => lot.ExpiryDate)
+                        .ThenBy(lot => lot.CreatedDate)
+                        .Select(lot => lot.ExpiryDate)
+                        .FirstOrDefault()
                 })
-                .ToListAsync();
+                .ToListAsync(cancellationToken))
+                .ToDictionary(row => (row.ProductId, row.ProductUnitId));
+
+            var baseQuantityByProduct = await stockLotQuery
+                .GroupBy(lot => lot.ProductId)
+                .Select(group => new
+                {
+                    ProductId = group.Key,
+                    TotalBaseQuantity = group.Sum(lot => lot.RemainingBaseQuantity > 0
+                        ? lot.RemainingBaseQuantity
+                        : lot.RemainingQuantity * (lot.QuantityPerUnitSnapshot > 0 ? lot.QuantityPerUnitSnapshot : 1m))
+                })
+                .ToDictionaryAsync(row => row.ProductId, row => row.TotalBaseQuantity, cancellationToken);
+
+            var rows = products
+                .SelectMany(product => (product.ProductUnits ?? new List<ProductUnit>())
+                    .Where(unit => unit != null)
+                    .Select(unit =>
+                    {
+                        stockByUnit.TryGetValue((product.Id, unit.Id), out var stock);
+                        return new PosProductSearchResultDto
+                        {
+                            ProductId = product.Id,
+                            ProductName = product.Name,
+                            ItemCode = product.ITEMCODE,
+                            TaxExempt = product.TaxExempt,
+                            TaxRate = product.TaxRate,
+                            ProductUnitId = unit.Id,
+                            AlternateBarcode = unit.AlternateBarcode,
+                            UnitName = unit.Unit?.Name,
+                            UnitSalePrice = unit.SalePrice,
+                            UnitPurchasePrice = unit.PurchasePrice,
+                            QuantityPerUnit = unit.QuantityPerUnit,
+                            IsBaseUnit = unit.IsBaseUnit,
+                            IsDefaultSaleUnit = unit.IsDefaultSaleUnit,
+                            IsDefaultPurchaseUnit = unit.IsDefaultPurchaseUnit,
+                            StockQuantity = baseQuantityByProduct.TryGetValue(product.Id, out var totalBaseQuantity)
+                                ? totalBaseQuantity / (unit.QuantityPerUnit > 0 ? unit.QuantityPerUnit : 1m)
+                                : 0m,
+                            StockPurchasePrice = stock?.PurchasePrice ?? unit.PurchasePrice,
+                            StockSalePrice = stock?.SalePrice ?? unit.SalePrice,
+                            ExpiryDate = stock?.ExpiryDate,
+                            SupplierName = product.Supplier?.Name
+                        };
+                    }))
+                .ToList();
 
             return Result<List<PosProductSearchResultDto>>.Ok(
                 rows.GroupBy(row => row.ProductId)
-                    .Take(maxResults)
+                    .OrderBy(group => group.First().ProductName)
                     .SelectMany(group => group)
                     .ToList());
         }
@@ -935,8 +1098,8 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                 : await lotRepo.GetAllAsQueryable()
                     .Where(lot => outgoingProductIds.Contains(lot.ProductId) &&
                                   lot.Status == BatchStatus.Active &&
-                                  lot.RemainingBaseQuantity > 0 &&
-                                  (!lot.ExpiryDate.HasValue || lot.ExpiryDate.Value <= DateTime.MinValue.AddDays(1) || lot.ExpiryDate.Value >= DateTime.Today))
+                                  lot.RemainingBaseQuantity > 0
+                                  )
                     .ToListAsync();
             LogStockTiming("outgoing stock lots batch query", totalTiming, outgoingLotQueryTiming);
             var outgoingLotsByProduct = outgoingLots
@@ -1172,12 +1335,11 @@ namespace RaccoonWarehouse.Application.Service.Stocks
             int productId,
             StockMovementPostDto? hint = null)
         {
-            var today = DateTime.Today;
             IQueryable<StockLot> query = lotRepo.GetAllAsQueryable()
                 .Where(l => l.ProductId == productId &&
                             l.Status == BatchStatus.Active &&
-                            l.RemainingBaseQuantity > 0 &&
-                            (!l.ExpiryDate.HasValue || l.ExpiryDate.Value <= DateTime.MinValue.AddDays(1) || l.ExpiryDate.Value >= today));
+                            l.RemainingBaseQuantity > 0
+                            );
 
             if (hint?.ProductUnitId > 0)
                 query = query.Where(l => l.ProductUnitId == hint.ProductUnitId);
@@ -1223,8 +1385,8 @@ namespace RaccoonWarehouse.Application.Service.Stocks
         {
             var availableLots = lots.Where(lot =>
                 lot.Status == BatchStatus.Active &&
-                lot.RemainingBaseQuantity > 0 &&
-                (!lot.ExpiryDate.HasValue || lot.ExpiryDate.Value <= DateTime.MinValue.AddDays(1) || lot.ExpiryDate.Value >= DateTime.Today));
+                lot.RemainingBaseQuantity > 0
+                );
 
             if (hint?.ProductUnitId > 0)
                 availableLots = availableLots.Where(lot => lot.ProductUnitId == hint.ProductUnitId);
@@ -1267,8 +1429,8 @@ namespace RaccoonWarehouse.Application.Service.Stocks
         {
             var ordered = lots.Where(lot =>
                 lot.Status == BatchStatus.Active &&
-                lot.RemainingBaseQuantity > 0 &&
-                (!lot.ExpiryDate.HasValue || lot.ExpiryDate.Value <= DateTime.MinValue.AddDays(1) || lot.ExpiryDate.Value >= DateTime.Today));
+                lot.RemainingBaseQuantity > 0
+                );
 
             if (hint?.ProductUnitId > 0)
                 ordered = ordered.Where(lot => lot.ProductUnitId == hint.ProductUnitId);
@@ -1343,15 +1505,13 @@ namespace RaccoonWarehouse.Application.Service.Stocks
 
             var productIds = keys.Select(key => key.ProductId).Distinct().ToList();
             var productUnitIds = keys.Select(key => key.ProductUnitId).Distinct().ToList();
-            var today = now.Date;
-
             var lotsQueryTiming = Stopwatch.StartNew();
             var lots = await lotRepo.GetAllAsQueryable()
                 .Where(l => productIds.Contains(l.ProductId) &&
                             productUnitIds.Contains(l.ProductUnitId) &&
                             l.Status == BatchStatus.Active &&
-                            l.RemainingQuantity > 0 &&
-                            (!l.ExpiryDate.HasValue || l.ExpiryDate.Value <= DateTime.MinValue.AddDays(1) || l.ExpiryDate.Value >= today))
+                            l.RemainingQuantity > 0
+                            )
                 .ToListAsync();
             LogStockTiming("stock summary lots query", lotsQueryTiming, lotsQueryTiming);
 
@@ -1422,13 +1582,12 @@ namespace RaccoonWarehouse.Application.Service.Stocks
             int productUnitId,
             DateTime now)
         {
-            var today = now.Date;
             var lots = await lotRepo.GetAllAsQueryable()
                 .Where(l => l.ProductId == productId &&
                             l.ProductUnitId == productUnitId &&
                             l.Status == BatchStatus.Active &&
-                            l.RemainingQuantity > 0 &&
-                            (!l.ExpiryDate.HasValue || l.ExpiryDate.Value <= DateTime.MinValue.AddDays(1) || l.ExpiryDate.Value >= today))
+                            l.RemainingQuantity > 0
+                            )
                 .OrderBy(l => l.ExpiryDate == null ? 1 : 0)
                 .ThenBy(l => l.ExpiryDate)
                 .ThenBy(l => l.CreatedDate)
@@ -1596,7 +1755,10 @@ namespace RaccoonWarehouse.Application.Service.Stocks
         Task<Result<decimal>> GetAvailableQuantityInUnitAsync(int productId, int productUnitId);
         Task<Result<List<StockAvailabilityDto>>> GetAvailableQuantitiesInUnitsAsync(IEnumerable<StockAllocationRequestDto> requests);
         Task<Result<PagedResult<PosBrowseItemDto>>> GetPosBrowsePageAsync(int pageNumber, int pageSize, string? searchText, int? subCategoryId);
-        Task<Result<List<PosProductSearchResultDto>>> SearchPosProductsAsync(string searchText, int maxResults = 100);
+        Task<Result<List<PosProductSearchResultDto>>> SearchPosProductsAsync(string searchText, int maxResults = 100, int? supplierId = null);
+        Task<Result<List<PosProductSearchResultDto>>> SearchPosProductsAsync(string? productName, string? barcode, int maxResults = 100, int? supplierId = null, CancellationToken cancellationToken = default);
+        Task<Result<List<PosProductSearchResultDto>>> GetPosProductCatalogAsync(CancellationToken cancellationToken = default);
+        Task<Result<List<PosProductSearchResultDto>>> GetPosProductStockAsync(IEnumerable<int> productIds, CancellationToken cancellationToken = default);
         Task<Result<List<SubCategoryReadDto>>> GetPosBrowseSubCategoriesAsync();
         Task<Result<List<StockBatchLookupDto>>> GetBatchLookupAsync(int? productId = null);
         Task<Result<StockLotUpdateDto>> UpdateBatchMetadataAsync(StockLotUpdateDto dto);
