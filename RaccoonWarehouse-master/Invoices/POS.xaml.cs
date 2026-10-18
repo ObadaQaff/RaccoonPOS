@@ -1445,9 +1445,23 @@ namespace RaccoonWarehouse.Invoices
             DiscountTextBox.Text = discount.ToString("0.000");
             DiscountSummaryText.Text = discount.ToString("0.000");
             NetTotalText.Text = _currentInvoice.TotalAmount.ToString("0.000");
+
+            var invoiceItemCount = _invoiceLines.Count(line => line.ProductId > 0);
+            var invoiceQuantity = _invoiceLines
+                .Where(line => line.ProductId > 0)
+                .Sum(line => Math.Abs(line.Quantity));
+
+            InvoiceItemBadge.Text = $"{invoiceItemCount} صنف";
+            StatusItemCount.Text = $"العدد: {invoiceItemCount}";
+            StatusQtyCount.Text = $"الكمية: {invoiceQuantity:0.000}";
+            StatusTotal.Text = $"الإجمالي: {_currentInvoice.TotalAmount:0.000}";
         }
         #region Product, unit, stock, and pricing helpers
-        private async Task<bool> ApplyLinePricingFromProductAsync(InvoiceLineWriteDto line, ProductReadDto product, int? preferredUnitId = null)
+        private async Task<bool> ApplyLinePricingFromProductAsync(
+            InvoiceLineWriteDto line,
+            ProductReadDto product,
+            int? preferredUnitId = null,
+            decimal? knownUnitPurchasePrice = null)
         {
             if (!HasHydratedUnits(product))
                 product = await ResolveProductWithUnitsAsync(product);
@@ -1463,13 +1477,20 @@ namespace RaccoonWarehouse.Invoices
             if (selectedUnit == null)
                 return false;
 
-            var stocks = await GetAvailableStocksForProductAsync(product.Id);
-            var stock = stocks.FirstOrDefault(item => item.ProductUnitId == selectedUnit.Id);
+            // Product Search already has the selected unit's current cost. Reuse
+            // it for that path instead of loading the full stock graph again.
+            // FEFO allocation remains the authoritative stock/cost validation.
+            StockReadDto? stock = null;
+            if (!knownUnitPurchasePrice.HasValue)
+            {
+                var stocks = await GetAvailableStocksForProductAsync(product.Id);
+                stock = stocks.FirstOrDefault(item => item.ProductUnitId == selectedUnit.Id);
+            }
 
             var quantityPerUnit = selectedUnit.QuantityPerUnit > 0 ? selectedUnit.QuantityPerUnit : 1m;
             var unitPrice = selectedUnit.SalePrice;
             var lineTotal = line.Quantity * unitPrice;
-            var unitCost = stock?.PurchasePrice ?? selectedUnit.PurchasePrice;
+            var unitCost = knownUnitPurchasePrice ?? stock?.PurchasePrice ?? selectedUnit.PurchasePrice;
             var costTotal = line.Quantity * unitCost;
             var taxExempt = product.TaxExempt ?? false;
             var taxRate = taxExempt ? 0m : Math.Max(0m, product.TaxRate ?? 0m);
@@ -2051,12 +2072,24 @@ namespace RaccoonWarehouse.Invoices
             }
         }
 
-        private async Task<bool> AddProductToInvoiceAsync(ProductReadDto product, bool moveFocusToQuantity = true, int? preferredUnitId = null, decimal quantity = 1m, decimal? unitPriceOverride = null)
+        private async Task<bool> AddProductToInvoiceAsync(
+            ProductReadDto product,
+            bool moveFocusToQuantity = true,
+            int? preferredUnitId = null,
+            decimal quantity = 1m,
+            decimal? unitPriceOverride = null,
+            decimal? knownUnitPurchasePrice = null)
         {
             await _addProductGate.WaitAsync();
             try
             {
-                return await AddProductToInvoiceCoreAsync(product, moveFocusToQuantity, preferredUnitId, quantity, unitPriceOverride);
+                return await AddProductToInvoiceCoreAsync(
+                    product,
+                    moveFocusToQuantity,
+                    preferredUnitId,
+                    quantity,
+                    unitPriceOverride,
+                    knownUnitPurchasePrice);
             }
             finally
             {
@@ -2064,7 +2097,13 @@ namespace RaccoonWarehouse.Invoices
             }
         }
 
-        private async Task<bool> AddProductToInvoiceCoreAsync(ProductReadDto product, bool moveFocusToQuantity = true, int? preferredUnitId = null, decimal quantity = 1m, decimal? unitPriceOverride = null)
+        private async Task<bool> AddProductToInvoiceCoreAsync(
+            ProductReadDto product,
+            bool moveFocusToQuantity = true,
+            int? preferredUnitId = null,
+            decimal quantity = 1m,
+            decimal? unitPriceOverride = null,
+            decimal? knownUnitPurchasePrice = null)
         {
             if (product == null || quantity <= 0)
             {
@@ -2081,7 +2120,8 @@ namespace RaccoonWarehouse.Invoices
             LogPosTiming("add item start", timing, stepTiming);
 
             // 1. Resolve the catalog product and its sale units.
-            product = await ResolveProductWithUnitsAsync(product);
+            if (!HasHydratedUnits(product))
+                product = await ResolveProductWithUnitsAsync(product);
             LogPosTiming("add item resolve product and units", timing, stepTiming);
 
             var productUnits = product.ProductUnits?.ToList() ?? new List<ProductUnitReadDto>();
@@ -2124,7 +2164,7 @@ namespace RaccoonWarehouse.Invoices
                 }
 
                 line.Quantity = quantity;
-                if (!await ApplyLinePricingFromProductAsync(line, product, selectedUnit.Id))
+                if (!await ApplyLinePricingFromProductAsync(line, product, selectedUnit.Id, knownUnitPurchasePrice))
                 {
                     MessageBox.Show(UiText.T("لا توجد وحدات معرفة لهذا الصنف.", "There are no units defined for this item."), UiText.T("تنبيه", "Notice"));
                     return false;
@@ -2152,7 +2192,9 @@ namespace RaccoonWarehouse.Invoices
 
             // 4. Recalculate totals and restore the cashier's expected focus.
             RecalculateTotals();
-LogPosTiming("add item UI refresh and totals", timing, stepTiming);
+            // Refresh after Product Search/FEFO changes the invoice collection.
+            RefreshInvoiceGridAfterEdit();
+            LogPosTiming("add item UI refresh and totals", timing, stepTiming);
             PosPerformanceLogger.Write("add item total", timing.ElapsedMilliseconds, timing.ElapsedMilliseconds);
 
             if (moveFocusToQuantity)
@@ -3103,10 +3145,11 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
                         var selectedUnitId = row.SelectedUnit?.Id
                             ?? ProductUnitSelector.GetDefaultSaleUnit(row.Product.ProductUnits)?.Id
                             ?? 0;
-                        var availableForSelectedUnit = selectedUnitId > 0
-                            ? await GetAvailableQuantityForProductUnitAsync(row.Product.Id, selectedUnitId)
+                        var availableForSelectedUnit = selectedUnitId > 0 &&
+                                                       row.StockQuantitiesByUnitId.TryGetValue(selectedUnitId, out var cachedQuantity)
+                            ? cachedQuantity
                             : 0m;
-                        if (availableForSelectedUnit <= 0m)
+                        if (availableForSelectedUnit < row.Quantity)
                         {
                             MessageBox.Show(
                                 UiText.T("هذا الصنف غير متوفر حالياً في المخزون.", "This product is currently out of stock."),
@@ -3116,7 +3159,18 @@ LogPosTiming("add item UI refresh and totals", timing, stepTiming);
                             return false;
                         }
 
-                        var added = await AddProductToInvoiceAsync(row.Product, true, row.SelectedUnit?.Id, row.Quantity, row.SalePrice);
+                        var knownUnitPurchasePrice = row.PurchasePricesByUnitId.TryGetValue(
+                            selectedUnitId,
+                            out var cachedPurchasePrice)
+                            ? cachedPurchasePrice
+                            : (decimal?)null;
+                        var added = await AddProductToInvoiceAsync(
+                            row.Product,
+                            true,
+                            row.SelectedUnit?.Id,
+                            row.Quantity,
+                            row.SalePrice,
+                            knownUnitPurchasePrice);
                         return added;
                     },
                     disabledKeys)

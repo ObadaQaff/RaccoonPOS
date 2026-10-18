@@ -59,7 +59,7 @@
             </Grid>
         </Border>
         <Border Grid.Row="1" Margin="0,15,0,10" Background="White" CornerRadius="12" Padding="10" BorderBrush="#D0D7DD" BorderThickness="1">
-            <DataGrid x:Name="ProductsGrid" AutoGenerateColumns="False" IsReadOnly="False" SelectionMode="Single" SelectionUnit="CellOrRowHeader" FlowDirection="RightToLeft" CanUserAddRows="False" PreviewKeyDown="ProductsGrid_PreviewKeyDown">
+            <DataGrid x:Name="ProductsGrid" AutoGenerateColumns="False" IsReadOnly="False" SelectionMode="Single" SelectionUnit="CellOrRowHeader" FlowDirection="RightToLeft" CanUserAddRows="False" CanUserResizeColumns="False" HeadersVisibility="Column" RowHeaderWidth="0" ScrollViewer.HorizontalScrollBarVisibility="Auto" PreviewKeyDown="ProductsGrid_PreviewKeyDown">
                 <DataGrid.RowStyle>
                     <Style TargetType="DataGridRow">
                         <Setter Property="Foreground" Value="#263238"/>
@@ -76,21 +76,21 @@
                     </Style>
                 </DataGrid.RowStyle>
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="Stock status" Binding="{Binding StockStatus}" IsReadOnly="True" Width="130"/>
-                    <DataGridTextColumn Header="Expiry Date" Binding="{Binding ExpiryDate, StringFormat=yyyy-MM-dd}" ElementStyle="{StaticResource ProductValueTextStyle}" IsReadOnly="True" Width="150"/>
-                    <DataGridTextColumn Header="Supplier" Binding="{Binding Product.Supplier.Name, TargetNullValue=---}" IsReadOnly="True" Width="180"/>
-                    <DataGridTextColumn Header="الكود" Binding="{Binding ItemCode}" ElementStyle="{StaticResource ProductValueTextStyle}" IsReadOnly="True" Width="140"/>
-                    <DataGridTextColumn Header="اسم الصنف" Binding="{Binding ProductName}" ElementStyle="{StaticResource ProductValueTextStyle}" IsReadOnly="True" Width="*"/>
-                    <DataGridTemplateColumn Header="الوحدة" Width="150">
+                    <DataGridTextColumn Header="Stock status" Binding="{Binding StockStatus}" IsReadOnly="True" Width="95"/>
+                    <DataGridTextColumn Header="Expiry Date" Binding="{Binding ExpiryDate, StringFormat=yyyy-MM-dd}" ElementStyle="{StaticResource ProductValueTextStyle}" IsReadOnly="True" Width="115"/>
+                    <DataGridTextColumn Header="Supplier" Binding="{Binding Product.Supplier.Name, TargetNullValue=---}" IsReadOnly="True" Width="150"/>
+                    <DataGridTextColumn Header="الكود" Binding="{Binding ItemCode}" ElementStyle="{StaticResource ProductValueTextStyle}" IsReadOnly="True" Width="125"/>
+                    <DataGridTextColumn Header="اسم الصنف" Binding="{Binding ProductName}" ElementStyle="{StaticResource ProductValueTextStyle}" IsReadOnly="True" Width="360"/>
+                    <DataGridTemplateColumn Header="الوحدة" Width="110">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <ComboBox ItemsSource="{Binding Units}" SelectedItem="{Binding SelectedUnit, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" DisplayMemberPath="Unit.Name"/>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
-                    <DataGridTextColumn Header="الكمية" Binding="{Binding Quantity, UpdateSourceTrigger=LostFocus}" Width="100"/>
-                    <DataGridTextColumn Header="سعر البيع" Binding="{Binding SalePrice, Converter={StaticResource FlexibleDecimalConverter}}" IsReadOnly="True" Width="130"/>
-                    <DataGridTemplateColumn Header="إضافة" Width="100">
+                    <DataGridTextColumn Header="الكمية" Binding="{Binding Quantity, UpdateSourceTrigger=LostFocus}" Width="75"/>
+                    <DataGridTextColumn Header="سعر البيع" Binding="{Binding SalePrice, Converter={StaticResource FlexibleDecimalConverter}}" IsReadOnly="True" Width="95"/>
+                    <DataGridTemplateColumn Header="إضافة" Width="90">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <Button Content="إضافة" Padding="8,4" Click="AddProductBtn_Click" IsEnabled="{Binding CanAdd}"/>

@@ -145,10 +145,15 @@ namespace RaccoonWarehouse.Invoices
             lock (CatalogCacheSync)
             {
                 if (_catalogLoadTask != null &&
-                    DateTimeOffset.UtcNow - _catalogLoadedAt < CatalogCacheLifetime)
-                    return;
-
-                loadTask = _catalogLoadTask = LoadCatalogCacheAsync(stockService);
+                    (!_catalogLoadTask.IsCompleted ||
+                     DateTimeOffset.UtcNow - _catalogLoadedAt < CatalogCacheLifetime))
+                {
+                    loadTask = _catalogLoadTask;
+                }
+                else
+                {
+                    loadTask = _catalogLoadTask = LoadCatalogCacheAsync(stockService);
+                }
             }
 
             try
@@ -482,7 +487,8 @@ namespace RaccoonWarehouse.Invoices
                     searchRows = candidates
                         .Select(row => ApplyCachedStock(row, stockByUnit))
                         .GroupBy(row => row.ProductId)
-                        .OrderBy(group => group.First().ProductName)
+                        .OrderByDescending(group => group.Any(row => row.StockQuantity > MinimumSellableQuantity))
+                        .ThenBy(group => group.First().ProductName)
                         .SelectMany(group => group)
                         .Take(MaxSearchResults)
                         .ToList();
@@ -504,7 +510,8 @@ namespace RaccoonWarehouse.Invoices
                 _products.Clear();
                 foreach (var productRows in searchRows
                     .GroupBy(row => row.ProductId)
-                    .OrderBy(group => group.First().ProductName))
+                    .OrderByDescending(group => group.Any(row => row.StockQuantity > MinimumSellableQuantity))
+                    .ThenBy(group => group.First().ProductName))
                 {
                     var firstRow = productRows.First();
                     var productUnits = productRows
@@ -580,6 +587,15 @@ namespace RaccoonWarehouse.Invoices
                             .ToDictionary(group => group.Key, group => group
                                 .OrderByDescending(stock => stock.Quantity)
                                 .Select(stock => stock.SalePrice)
+                                .FirstOrDefault()),
+                        StockQuantitiesByUnitId = stocksByProductId
+                            .GroupBy(stock => stock.ProductUnitId)
+                            .ToDictionary(group => group.Key, group => group.Sum(stock => Math.Max(0m, stock.Quantity))),
+                        PurchasePricesByUnitId = stocksByProductId
+                            .GroupBy(stock => stock.ProductUnitId)
+                            .ToDictionary(group => group.Key, group => group
+                                .OrderByDescending(stock => stock.Quantity)
+                                .Select(stock => stock.PurchasePrice)
                                 .FirstOrDefault()),
                         HasStock = hasStock,
                         // The search dialog is also used by insurance/setup workflows,
@@ -779,6 +795,8 @@ private void ClearBtn_Click(object sender, RoutedEventArgs e)
             public ProductReadDto Product { get; set; } = new();
             public ObservableCollection<ProductUnitReadDto> Units { get; set; } = new();
             public Dictionary<int, decimal> SalePricesByUnitId { get; set; } = new();
+            public Dictionary<int, decimal> StockQuantitiesByUnitId { get; set; } = new();
+            public Dictionary<int, decimal> PurchasePricesByUnitId { get; set; } = new();
             public ProductUnitReadDto? SelectedUnit
             {
                 get => _selectedUnit;
@@ -801,5 +819,11 @@ private void ClearBtn_Click(object sender, RoutedEventArgs e)
             public string StockStatus => HasStock ? UiText.T("متوفر", "In stock") : UiText.T("غير متوفر", "Out of stock");
             public bool CanAdd { get => _canAdd; set { if (_canAdd == value) return; _canAdd = value; PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanAdd))); } }
             public event PropertyChangedEventHandler? PropertyChanged;
-        }    }
+        }
+
+        private void ProductsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+
+        }
+    }
 }
