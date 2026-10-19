@@ -416,17 +416,18 @@ namespace RaccoonWarehouse.Invoices
 
                 CreateNewInvoice();
 
-                // Load the lightweight catalog while the existing loading
-                // window is visible. This must complete before other scoped
-                // services query the shared DbContext.
-                await ProductSearchWindow.WarmCatalogCacheAsync(_stockService);
-
                 CurrentCasherName = session.CashierName;
                 await LoadCustomersAsync();
                 InvoiceGrid.ItemsSource = _invoiceLines;
                 CashierName.Text = CurrentCasherName.ToString();
                 ProductSearchBox.Clear();
                 BarcodeTextBox.Clear();
+
+                // Warm the large product catalog after the POS shell is ready.
+                // A separate scope keeps its DbContext isolated from the POS
+                // scope, so startup remains responsive without concurrent
+                // operations on the same DbContext instance.
+                _ = WarmProductCatalogInBackgroundAsync();
 
                 // The product-card/category browse area is hidden. Products for
                 // the invoice selector are loaded lazily when its dropdown opens.
@@ -441,6 +442,24 @@ namespace RaccoonWarehouse.Invoices
                 _loading.Hide();
                 FocusBarcodeGridCellDeferred();
 
+            }
+        }
+
+        private async Task WarmProductCatalogInBackgroundAsync()
+        {
+            try
+            {
+                using var scope = _serviceProvider.CreateScope();
+                var stockService = scope.ServiceProvider.GetRequiredService<IStockService>();
+                await ProductSearchWindow.WarmCatalogCacheAsync(stockService);
+            }
+            catch (OperationCanceledException)
+            {
+                // A newer catalog load or window shutdown may cancel the work.
+            }
+            catch
+            {
+                // Product Search will retry the cache load when it is opened.
             }
         }
 

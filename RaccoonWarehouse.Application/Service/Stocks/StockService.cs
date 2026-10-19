@@ -863,6 +863,14 @@ namespace RaccoonWarehouse.Application.Service.Stocks
             return Result<List<PosProductSearchResultDto>>.Ok(stock);
         }
 
+        private static string EscapeLikeFragment(string fragment)
+            => fragment
+                .Replace("\\", "\\\\")
+                .Replace("%", "\\%")
+                .Replace("_", "\\_")
+                .Replace("[", "\\[")
+                .Replace("]", "\\]");
+
         public async Task<Result<List<PosProductSearchResultDto>>> SearchPosProductsAsync(
             string? productName,
             string? barcode,
@@ -872,7 +880,7 @@ namespace RaccoonWarehouse.Application.Service.Stocks
         {
             var terms = (productName ?? string.Empty)
                 .Trim()
-                .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                .Split(new[] { ' ', '\t', '\r', '\n', '%' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             var normalizedBarcode = barcode?.Trim();
 
             if (maxResults <= 0 || (terms.Length == 0 && string.IsNullOrWhiteSpace(normalizedBarcode) && (!supplierId.HasValue || supplierId.Value <= 0)))
@@ -908,13 +916,10 @@ namespace RaccoonWarehouse.Application.Service.Stocks
             }
             else
             {
-                foreach (var term in terms)
-                {
-                    var databaseTerm = term;
-                    productQuery = productQuery.Where(product =>
-                        product.Name != null &&
-                        EF.Functions.Like(product.Name, $"%{databaseTerm}%"));
-                }
+                var orderedPattern = "%" + string.Join("%", terms.Select(EscapeLikeFragment)) + "%";
+                productQuery = productQuery.Where(product =>
+                    product.Name != null &&
+                    EF.Functions.Like(product.Name, orderedPattern, "\\"));
             }
 
             var products = await productQuery

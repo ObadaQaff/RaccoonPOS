@@ -80,7 +80,7 @@
                     <DataGridTextColumn Header="Expiry Date" Binding="{Binding ExpiryDate, StringFormat=yyyy-MM-dd}" ElementStyle="{StaticResource ProductValueTextStyle}" IsReadOnly="True" Width="115"/>
                     <DataGridTextColumn Header="Supplier" Binding="{Binding Product.Supplier.Name, TargetNullValue=---}" IsReadOnly="True" Width="150"/>
                     <DataGridTextColumn Header="الكود" Binding="{Binding ItemCode}" ElementStyle="{StaticResource ProductValueTextStyle}" IsReadOnly="True" Width="125"/>
-                    <DataGridTextColumn Header="اسم الصنف" Binding="{Binding ProductName}" ElementStyle="{StaticResource ProductValueTextStyle}" IsReadOnly="True" Width="360"/>
+                    <DataGridTextColumn Header="اسم الصنف" Binding="{Binding ProductName}" ElementStyle="{StaticResource ProductValueTextStyle}" IsReadOnly="True" Width="390"/>
                     <DataGridTemplateColumn Header="الوحدة" Width="110">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>

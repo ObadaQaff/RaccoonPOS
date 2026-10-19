@@ -671,11 +671,24 @@ namespace RaccoonWarehouse.Invoices
                        string.Equals(row.AlternateBarcode?.Trim(), barcode, StringComparison.OrdinalIgnoreCase);
             }
 
-            if (productName.Length < 2)
+            var fragments = productName
+                .Split(new[] { ' ', '\t', '\r', '\n', '%' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+            if (fragments.Length == 0)
                 return supplierId.HasValue;
 
-            return (row.ProductName ?? string.Empty).Contains(
-                productName, StringComparison.CurrentCultureIgnoreCase);
+            var candidate = row.ProductName ?? string.Empty;
+            var searchFrom = 0;
+            foreach (var fragment in fragments)
+            {
+                var matchAt = candidate.IndexOf(fragment, searchFrom, StringComparison.CurrentCultureIgnoreCase);
+                if (matchAt < 0)
+                    return false;
+
+                searchFrom = matchAt + fragment.Length;
+            }
+
+            return true;
         }
 
         private static PosProductSearchResultDto ApplyCachedStock(
