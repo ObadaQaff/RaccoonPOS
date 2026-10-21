@@ -921,6 +921,7 @@ END;";
             services.AddScoped<ICategoryService, CategoryService>();
             services.AddScoped<ISubCategoryService, SubCategoryService>();
             services.AddScoped<IPosProductCatalogService, PosProductCatalogService>();
+            services.AddSingleton<IPosProductCatalogRefreshQueue, PosProductCatalogRefreshQueue>();
             services.AddScoped<IProductService, ProductService>();
             services.AddScoped<IBrandService, BrandService>();
             services.AddScoped<IProductUnitService, ProductUnitService>();
@@ -960,7 +961,8 @@ END;";
                 sp.GetRequiredService<IMapper>(),
                 sp.GetRequiredService<IAccountingService>(),
                 sp.GetRequiredService<IInventoryCostingSettingsService>(),
-                sp.GetRequiredService<IPosProductCatalogService>()));
+                sp.GetRequiredService<IPosProductCatalogService>(),
+                sp.GetRequiredService<IPosProductCatalogRefreshQueue>()));
             services.AddScoped<IStockTransactionService, StockTransactionService>();
             services.AddScoped<IStockDocumentService>(sp => new StockDocumentService(
                 sp.GetRequiredService<ApplicationDbContext>(),

@@ -32,9 +32,10 @@ namespace RaccoonWarehouse.Application.Service.Stocks
         private readonly IAccountingService? _accountingService;
         private readonly IInventoryCostingSettingsService? _inventoryCostingSettingsService;
         private readonly IPosProductCatalogService? _posProductCatalogService;
+        private readonly IPosProductCatalogRefreshQueue? _posProductCatalogRefreshQueue;
 
         public StockService(ApplicationDbContext context, IUOW uow, IMapper mapper)
-            : this(context, uow, mapper, null, null)
+            : this(context, uow, mapper, null, null, null, null)
         {
         }
 
@@ -44,13 +45,15 @@ namespace RaccoonWarehouse.Application.Service.Stocks
             IMapper mapper,
             IAccountingService? accountingService,
             IInventoryCostingSettingsService? inventoryCostingSettingsService = null,
-            IPosProductCatalogService? posProductCatalogService = null) : base(context, uow, mapper)
+            IPosProductCatalogService? posProductCatalogService = null,
+            IPosProductCatalogRefreshQueue? posProductCatalogRefreshQueue = null) : base(context, uow, mapper)
         {
             _uow = uow;
             _mapper = mapper;
             _accountingService = accountingService;
             _inventoryCostingSettingsService = inventoryCostingSettingsService;
             _posProductCatalogService = posProductCatalogService;
+            _posProductCatalogRefreshQueue = posProductCatalogRefreshQueue;
         }
 
         public override Task<Result<StockWriteDto>> UpdateAsync(StockWriteDto dto)
@@ -1101,7 +1104,9 @@ namespace RaccoonWarehouse.Application.Service.Stocks
             return Result<List<SubCategoryReadDto>>.Ok(subCategories);
         }
 
-        public async Task<Result> PostMovementsAsync(IEnumerable<StockMovementPostDto> dtos)
+        public async Task<Result> PostMovementsAsync(
+            IEnumerable<StockMovementPostDto> dtos,
+            bool refreshCatalog = true)
         {
             var totalTiming = Stopwatch.StartNew();
             var stepTiming = Stopwatch.StartNew();
@@ -1348,11 +1353,8 @@ namespace RaccoonWarehouse.Application.Service.Stocks
 
             await _uow.CommitAsync();
             LogStockTiming("stock final database save", totalTiming, stepTiming);
-            if (_posProductCatalogService != null)
-            {
-                await _posProductCatalogService.RefreshProductsAsync(productIds);
-                await _uow.CommitAsync();
-            }
+            if (refreshCatalog)
+                _posProductCatalogRefreshQueue?.Enqueue(productIds);
             PosPerformanceLogger.Write("stock posting total", totalTiming.ElapsedMilliseconds, totalTiming.ElapsedMilliseconds);
             return Result.Ok("Stock movement posted successfully.");
         }
@@ -1682,8 +1684,6 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                     UpdatedDate = now
                 };
                 await stockRepo.AddAsync(stock);
-                if (_posProductCatalogService != null)
-                    await _posProductCatalogService.RefreshProductsAsync(new[] { productId });
                 return;
             }
 
@@ -1693,8 +1693,6 @@ namespace RaccoonWarehouse.Application.Service.Stocks
             stock.UpdatedDate = now;
             await stockRepo.UpdateAsync(stock);
 
-            if (_posProductCatalogService != null)
-                await _posProductCatalogService.RefreshProductsAsync(new[] { productId });
         }
 
         private async Task<bool> IsLotUsedAsync(StockLot lot)
@@ -1823,7 +1821,7 @@ namespace RaccoonWarehouse.Application.Service.Stocks
     public interface IStockService : IGenericService<Stock, StockWriteDto, StockReadDto>
     {
         Task<Result> PostMovementAsync(StockMovementPostDto dto);
-        Task<Result> PostMovementsAsync(IEnumerable<StockMovementPostDto> dtos);
+        Task<Result> PostMovementsAsync(IEnumerable<StockMovementPostDto> dtos, bool refreshCatalog = true);
         Task<Result<List<StockLotAllocationDto>>> AllocateOutgoingAsync(IEnumerable<StockAllocationRequestDto> requests);
         Task<Result<decimal>> GetAvailableQuantityInUnitAsync(int productId, int productUnitId);
         Task<Result<List<StockAvailabilityDto>>> GetAvailableQuantitiesInUnitsAsync(IEnumerable<StockAllocationRequestDto> requests);

@@ -44,6 +44,7 @@ namespace RaccoonWarehouse.Application.Service.Sales
         private readonly IAccountingOperationService _accountingOperationService;
         private readonly IUOW _uow;
         private readonly IAuditLogService _auditLogService;
+        private readonly IPosProductCatalogRefreshQueue? _posProductCatalogRefreshQueue;
 
         public SaleCheckoutService(
             IInvoiceService invoiceService,
@@ -51,7 +52,8 @@ namespace RaccoonWarehouse.Application.Service.Sales
             IFinancialTransactionService financialService,
             IAccountingOperationService accountingOperationService,
             IUOW uow,
-            IAuditLogService auditLogService)
+            IAuditLogService auditLogService,
+            IPosProductCatalogRefreshQueue? posProductCatalogRefreshQueue = null)
         {
             _invoiceService = invoiceService;
             _stockService = stockService;
@@ -59,6 +61,7 @@ namespace RaccoonWarehouse.Application.Service.Sales
             _accountingOperationService = accountingOperationService;
             _uow = uow;
             _auditLogService = auditLogService;
+            _posProductCatalogRefreshQueue = posProductCatalogRefreshQueue;
         }
 
         public async Task<Result<SaleCheckoutResult>> CompleteAsync(SaleCheckoutRequest request)
@@ -114,7 +117,16 @@ namespace RaccoonWarehouse.Application.Service.Sales
                 var savedInvoiceId = savedInvoice.Id > 0 ? savedInvoice.Id : request.Invoice.Id;
                 if (request.Invoice.DeferAccountingPosting)
                     await _accountingOperationService.EnqueueInvoiceAsync(request.Invoice);
-                var movementResult = await _stockService.PostMovementsAsync(request.StockMovementsFactory(savedInvoiceId));
+                var stockMovements = request.StockMovementsFactory(savedInvoiceId)?.ToList()
+                    ?? new List<StockMovementPostDto>();
+                var affectedProductIds = stockMovements
+                    .Select(movement => movement.ProductId)
+                    .Where(productId => productId > 0)
+                    .Distinct()
+                    .ToList();
+                var movementResult = await _stockService.PostMovementsAsync(
+                    stockMovements,
+                    refreshCatalog: false);
                 LogTiming("stock posting", timing, stepTiming);
                 if (!movementResult.Success)
                 {
@@ -141,6 +153,7 @@ namespace RaccoonWarehouse.Application.Service.Sales
                 }
 
                 await transaction.CommitAsync();
+                _posProductCatalogRefreshQueue?.Enqueue(affectedProductIds);
                 LogTiming("checkout transaction commit", timing, stepTiming);
                 PosPerformanceLogger.Write("checkout total", timing.ElapsedMilliseconds, timing.ElapsedMilliseconds);
                 await _auditLogService.WriteAsync(new AuditEvent(
