@@ -959,6 +959,14 @@
                               PreparingCellForEdit="InvoiceGrid_PreparingCellForEdit"
                               CellEditEnding="InvoiceGrid_CellEditEnding"
                               CurrentCellChanged="InvoiceGrid_CurrentCellChanged">
+                        <DataGrid.RowStyle>
+                            <Style TargetType="DataGridRow">
+                                <Setter Property="Background" Value="{Binding RowBackground}"/>
+                                <Setter Property="Foreground" Value="{Binding RowForeground}"/>
+                                <Setter Property="BorderBrush" Value="{Binding RowAccent}"/>
+                                <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                            </Style>
+                        </DataGrid.RowStyle>
                         <DataGrid.Columns>
                             <DataGridTemplateColumn Header="رمز المادة / Barcode" Width="190">
                                 <DataGridTemplateColumn.CellTemplate>
@@ -1015,7 +1023,7 @@
                                 </DataGridTemplateColumn.CellTemplate>
                                 <DataGridTemplateColumn.CellEditingTemplate>
                                     <DataTemplate>
-                                        <TextBox Text="{Binding Quantity, Mode=TwoWay, UpdateSourceTrigger=LostFocus, Converter={StaticResource AbsoluteQuantityConverter}, StringFormat={}{0:0.000}}"
+                                        <TextBox Text="{Binding Quantity, Mode=TwoWay, UpdateSourceTrigger=Explicit, Converter={StaticResource AbsoluteQuantityConverter}, StringFormat={}{0:0.000}}"
                                                  Padding="4,2" BorderThickness="0" Background="Transparent"
                                                  VerticalContentAlignment="Center" FlowDirection="LeftToRight"
                                                  Language="en-US"
@@ -1135,6 +1143,9 @@
                                  Width="110"
                                  Margin="0,0,0,4"
                                  HorizontalContentAlignment="Center"
+                                 Tag="Discount"
+                                 PreviewKeyDown="NumericEditor_PreviewKeyDown"
+                                 PreviewTextInput="NumericEditor_PreviewTextInput"
                                  TextChanged="DiscountTextBox_TextChanged"/>
                         <Border Background="#FDE8EA" CornerRadius="8" Padding="10,6" Margin="0,0,0,4">
                             <StackPanel Orientation="Horizontal">

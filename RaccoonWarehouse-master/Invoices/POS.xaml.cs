@@ -11,6 +11,8 @@ using RaccoonWarehouse.Application.Service.Stocks;
 using RaccoonWarehouse.Application.Service.StockTransactions;
 using RaccoonWarehouse.Application.Service.StockDocuments;
 using RaccoonWarehouse.Application.Service.Users;
+using RaccoonWarehouse.Application.Service.Units;
+using RaccoonWarehouse.Application.Service.Settings;
 using RaccoonWarehouse.Auth;
 using RaccoonWarehouse.Common;
 using RaccoonWarehouse.Common.Loading;
@@ -166,6 +168,7 @@ namespace RaccoonWarehouse.Invoices
         private readonly IInvoiceService _invoiceService;
         private readonly IProductService _productService;
         private readonly IProductUnitService _productUnitService;
+        private readonly IUnitService _unitService;
         private readonly IUserService _userService;
         private readonly IStockService _stockService;
         private readonly IStockTransactionService _stockTransactionService;
@@ -357,27 +360,37 @@ namespace RaccoonWarehouse.Invoices
         private bool _suppressUnitSelectionChanged;
         private bool _isLoadingHeldInvoice;
         private bool _isLoadingReturnInvoice;
+        private bool _returnPasswordConfirmed;
+        private bool _invoiceDiscountIsPercentage;
+        private decimal _invoiceDiscountPercent;
+        private bool _isUpdatingInvoiceDiscountText;
+        private InvoiceWriteDto? _returnOriginalInvoice;
         private Dictionary<PaymentType, decimal>? _returnPaymentLimits;
+        private Dictionary<PaymentType, decimal>? _returnPreviousPaymentAmounts;
         private ObservableCollection<InvoiceLineWriteDto> _invoiceLines
             = new ObservableCollection<InvoiceLineWriteDto>();
+        private readonly IPosRowColorRuleService _rowColorRuleService;
 
         #region Construction and initialization
         public POS(
                    IServiceProvider serviceProvider, IProductService productService,
                    IProductUnitService productUnitService,
+                   IUnitService unitService,
                    IStockService stockService, IUserService userService,
                    IInvoiceService invoiceService, ILoadingService loading,
                    IStockTransactionService stockTransactionService,
                    ICashierSessionService cashierSessionService,
                    IUserSession userSession,
                    IFinancialTransactionService financialService,
-                   ISaleCheckoutService saleCheckoutService
+                   ISaleCheckoutService saleCheckoutService,
+                   IPosRowColorRuleService rowColorRuleService
             )
         {
             #region Dependency initialization
             _serviceProvider = serviceProvider;
             _productService = productService;
             _productUnitService = productUnitService;
+            _unitService = unitService;
             _invoiceService = invoiceService;
             _userService = userService;
             _stockService = stockService;
@@ -387,6 +400,7 @@ namespace RaccoonWarehouse.Invoices
             _userSession = userSession;
             _financialService = financialService;
             _saleCheckoutService = saleCheckoutService;
+            _rowColorRuleService = rowColorRuleService;
 
             InitializeComponent();
             this.DataContext = this;
@@ -415,6 +429,7 @@ namespace RaccoonWarehouse.Invoices
                 }
 
                 CreateNewInvoice();
+                await _rowColorRuleService.GetRulesAsync();
 
                 CurrentCasherName = session.CashierName;
                 await LoadCustomersAsync();
@@ -585,6 +600,8 @@ namespace RaccoonWarehouse.Invoices
             };
 
             // ✅ UI
+            _returnPasswordConfirmed = false;
+            _returnOriginalInvoice = null;
             CurrentDateTextBlock.Text = DateTime.Now.ToString("yyyy/MM/dd");
 
             ConfigureReturnGrid(false);
@@ -693,12 +710,6 @@ namespace RaccoonWarehouse.Invoices
                 return;
             }
 
-            if (e.Key == Key.F1)
-            {
-                SearchProductBtn_Click(sender, new RoutedEventArgs());
-                e.Handled = true;
-                return;
-            }
             if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
             {
                 switch (e.Key)
@@ -744,12 +755,12 @@ namespace RaccoonWarehouse.Invoices
             switch (e.Key)
             {
                 case Key.F1:
-                    SearchProductBtn_Click(this, new RoutedEventArgs());
+                    FinishSaleBtn_Click(this, null);
                     e.Handled = true;
                     break;
 
                 case Key.F2:
-                    FinishSaleBtn_Click(this, null);
+                    SearchProductBtn_Click(this, new RoutedEventArgs());
                     e.Handled = true;
                     break;
 
@@ -1417,6 +1428,16 @@ namespace RaccoonWarehouse.Invoices
         }
 
         // ===================== INVOICE TOTALS AND LINE PRICING =====================
+        private decimal CalculateGrossSalesBeforeInvoiceDiscount()
+        {
+            var isReturnInvoice = _currentInvoice.InvoiceType is InvoiceType.Return or InvoiceType.PurchaseReturn;
+            return isReturnInvoice
+                ? _invoiceLines.Sum(line => line is ReturnInvoiceLine returnLine
+                    ? -(returnLine.ReturnedQuantity * line.UnitPrice)
+                    : line.Quantity * line.UnitPrice)
+                : _invoiceLines.Sum(line => line.LineTotal);
+        }
+
         private void RecalculateTotals()
         {
             var isReturnInvoice = _currentInvoice.InvoiceType is InvoiceType.Return or InvoiceType.PurchaseReturn;
@@ -1438,9 +1459,7 @@ namespace RaccoonWarehouse.Invoices
                     : Math.Round(signedTotal / divisor, 3);
             }
 
-            var grossSales = isReturnInvoice
-                ? _invoiceLines.Sum(GetSignedLineTotal)
-                : _invoiceLines.Sum(l => l.LineTotal);
+            var grossSales = CalculateGrossSalesBeforeInvoiceDiscount();
             _currentInvoice.SubTotal = isReturnInvoice
                 ? _invoiceLines.Sum(GetSignedLineSubtotal)
                 : _invoiceLines.Sum(l => l.LineSubTotal);
@@ -1452,16 +1471,43 @@ namespace RaccoonWarehouse.Invoices
                     ? -(returnLine.ReturnedQuantity * line.UnitCost)
                     : line.Quantity * line.UnitCost)
                 : _invoiceLines.Sum(l => l.Quantity * l.UnitCost);
+            var requestedDiscount = _invoiceDiscountIsPercentage
+                ? Math.Round(grossSales * _invoiceDiscountPercent / 100m, 3, MidpointRounding.AwayFromZero)
+                : _currentInvoice.DiscountAmount ?? 0m;
             var discount = grossSales > 0m
-                ? Math.Clamp(_currentInvoice.DiscountAmount ?? 0m, 0m, grossSales)
+                ? Math.Clamp(requestedDiscount, 0m, grossSales)
                 : 0m;
             _currentInvoice.DiscountAmount = discount;
             _currentInvoice.NetSales = _currentInvoice.SubTotal - discount;
             _currentInvoice.GrossProfit = _currentInvoice.NetSales - _currentInvoice.TotalCOGS;
             _currentInvoice.TotalAmount = grossSales - discount;
 
+            foreach (var line in _invoiceLines)
+            {
+                var decision = _rowColorRuleService.Classify(
+                    line.ExpiryDate == default ? null : line.ExpiryDate,
+                    line.AvailableQuantitySnapshot,
+                    line.LineDiscountPercent,
+                    line.SelectedProduct?.SubCategoryId,
+                    line.SelectedProduct?.SubCategory?.Name);
+                line.RowBackground = decision.BackgroundColor;
+                line.RowForeground = decision.ForegroundColor;
+                line.RowAccent = decision.AccentColor;
+                line.RefreshCalculatedProperties();
+            }
+
             TotalTextBlock.Text = _currentInvoice.TotalAmount.ToString("0.000");
-            DiscountTextBox.Text = discount.ToString("0.000");
+            _isUpdatingInvoiceDiscountText = true;
+            try
+            {
+                DiscountTextBox.Text = _invoiceDiscountIsPercentage
+                    ? $"{_invoiceDiscountPercent:0.000}%"
+                    : discount.ToString("0.000", CultureInfo.CurrentCulture);
+            }
+            finally
+            {
+                _isUpdatingInvoiceDiscountText = false;
+            }
             DiscountSummaryText.Text = discount.ToString("0.000");
             NetTotalText.Text = _currentInvoice.TotalAmount.ToString("0.000");
 
@@ -1643,7 +1689,7 @@ namespace RaccoonWarehouse.Invoices
                 return;
             }
 
-            if (header.Contains("الكمية") || header.Contains(UiText.Translate("الكمية")))
+            if (HeaderMatches(e.Column, "الكمية"))
             {
                 if (!TryParseDecimalInput(textBox.Text, out var quantity) || quantity <= 0)
                 {
@@ -1654,12 +1700,17 @@ namespace RaccoonWarehouse.Invoices
                 }
                 else
                 {
+                    if (!await EnsureFractionalSaleConfiguredAsync(line, quantity))
+                    {
+                        textBox.Text = line.Quantity.ToString("0.000", CultureInfo.InvariantCulture);
+                        return;
+                    }
+
                     if (_currentInvoice.InvoiceType is InvoiceType.Return or InvoiceType.Exchange)
                     {
                         line.Quantity = -quantity;
                         line.BaseQuantity = -quantity * (line.QuantityPerUnitSnapshot > 0 ? line.QuantityPerUnitSnapshot : 1m);
                         RecalculateTotals();
-                        InvoiceGrid.Items.Refresh();
                         return;
                     }
 
@@ -1676,7 +1727,6 @@ namespace RaccoonWarehouse.Invoices
                             UiText.T("تنبيه", "Notice"));
 
                         _invoiceLines.Remove(line);
-                        InvoiceGrid.Items.Refresh();
                         RecalculateTotals();
                         return;
                     }
@@ -1712,7 +1762,7 @@ namespace RaccoonWarehouse.Invoices
                 return;
             }
 
-            if (header.Contains("الكمية") || header.Contains(UiText.Translate("الكمية")))
+            if (HeaderMatches(e.Column, "الكمية"))
             {
                 _pendingFefoEditedLine = line;
                 _hasPendingFefoSplit = true;
@@ -1761,7 +1811,7 @@ namespace RaccoonWarehouse.Invoices
         private bool TryGetActiveCashierSession(out CashierSessionReadDto? session)
         {
             session = _userSession.CurrentCashierSession;
-            if (session != null)
+            if (session?.Status == SessionStatus.Open)
                 return true;
 
             ShowPaymentValidationMessage(
@@ -1897,6 +1947,9 @@ namespace RaccoonWarehouse.Invoices
                     SalePrice = row.UnitSalePrice,
                     PurchasePrice = row.UnitPurchasePrice,
                     QuantityPerUnit = row.QuantityPerUnit,
+                    AllowFractionalSale = row.AllowFractionalSale,
+                    FractionalPartsPerUnit = row.FractionalPartsPerUnit,
+                    FractionalPartName = row.FractionalPartName,
                     IsBaseUnit = row.IsBaseUnit,
                     IsDefaultSaleUnit = row.IsDefaultSaleUnit,
                     IsDefaultPurchaseUnit = row.IsDefaultPurchaseUnit,
@@ -2091,6 +2144,208 @@ namespace RaccoonWarehouse.Invoices
             }
         }
 
+        private async Task<bool> EnsureTapeUnitSelectedAsync(InvoiceLineWriteDto line, decimal quantity)
+        {
+            if (quantity == decimal.Truncate(quantity))
+                return true;
+
+            if (line.ProductId <= 0)
+                return false;
+
+            var product = line.SelectedProduct ?? await ResolveProductWithUnitsAsync(new ProductReadDto { Id = line.ProductId });
+            var units = product.ProductUnits?.ToList() ?? new List<ProductUnitReadDto>();
+            var tape = units.FirstOrDefault(unit =>
+                string.Equals(unit.Unit?.Name?.Trim(), "Tape", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(unit.Unit?.Name?.Trim(), "شريط", StringComparison.OrdinalIgnoreCase));
+
+            if (tape == null)
+            {
+                // Existing products may still have the legacy parts value. Use it
+                // once to create the new real Tape unit, then stop using the old
+                // fractional configuration flow.
+                var source = ProductUnitSelector.GetDefaultSaleUnit(units) ?? ProductUnitSelector.GetBaseUnit(units);
+                var parts = source?.FractionalPartsPerUnit ?? 0m;
+                if (source == null || parts < 2m || parts != decimal.Truncate(parts))
+                {
+                    MessageBox.Show(
+                        UiText.T("أضف وحدة Tape للصنف أولاً مع الكمية والسعر الخاصين بها.", "Add a Tape unit to this product first with its quantity and price."),
+                        UiText.T("وحدة Tape مطلوبة", "Tape unit required"),
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    return false;
+                }
+
+                var allUnits = await _unitService.GetAllAsync();
+                var tapeUnit = allUnits.Data?.FirstOrDefault(unit =>
+                    string.Equals(unit.Name?.Trim(), "Tape", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(unit.Name?.Trim(), "شريط", StringComparison.OrdinalIgnoreCase));
+
+                if (tapeUnit == null)
+                {
+                    var createUnit = await _unitService.CreateAsync(new UnitWriteDto
+                    {
+                        Name = "Tape",
+                        CreatedDate = DateTime.Now,
+                        UpdatedDate = DateTime.Now
+                    });
+                    if (!createUnit.Success || createUnit.Data == null)
+                        return false;
+
+                    tapeUnit = new UnitReadDto { Id = createUnit.Data.Id, Name = createUnit.Data.Name };
+                }
+
+                var createTape = await _productUnitService.CreateAsync(new ProductUnitWriteDto
+                {
+                    ProductId = product.Id,
+                    UnitId = tapeUnit.Id,
+                    SalePrice = Math.Round(source.SalePrice / parts, 3, MidpointRounding.AwayFromZero),
+                    PurchasePrice = Math.Round(source.PurchasePrice / parts, 3, MidpointRounding.AwayFromZero),
+                    QuantityPerUnit = source.QuantityPerUnit / parts,
+                    AllowFractionalSale = false,
+                    IsBaseUnit = false,
+                    IsDefaultSaleUnit = false,
+                    IsDefaultPurchaseUnit = false,
+                    CreatedDate = DateTime.Now,
+                    UpdatedDate = DateTime.Now
+                });
+
+                if (!createTape.Success)
+                    return false;
+
+                product = await ResolveProductWithUnitsAsync(product);
+                units = product.ProductUnits?.ToList() ?? new List<ProductUnitReadDto>();
+                tape = units.FirstOrDefault(unit => unit.UnitId == tapeUnit.Id);
+            }
+
+            if (tape == null)
+                return false;
+
+            if (line.ProductUnitId != tape.Id)
+            {
+                if (!await ApplyLinePricingFromProductAsync(line, product, tape.Id))
+                    return false;
+            }
+
+            line.UnitNameSnapshot = tape.Unit?.Name ?? "Tape";
+            return true;
+        }
+
+        private async Task<bool> EnsureFractionalSaleConfiguredAsync(InvoiceLineWriteDto line, decimal quantity)
+        {
+            return await EnsureTapeUnitSelectedAsync(line, quantity);
+
+#pragma warning disable CS0162
+            if (_currentInvoice.InvoiceType is InvoiceType.Return or InvoiceType.Exchange or InvoiceType.PurchaseReturn ||
+                quantity == decimal.Truncate(quantity))
+                return true;
+
+            if (!await EnsureLineProductUnitAsync(line))
+            {
+                MessageBox.Show("The product unit could not be loaded. Please select the product again.", "Fractional sale", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return false;
+            }
+
+            var unit = line.ProductUnit!;
+
+            if (!unit.AllowFractionalSale || unit.FractionalPartsPerUnit < 2m)
+            {
+                var dialog = new FractionalSaleConfigurationWindow(
+                    line.ProductName ?? "Product",
+                    unit.Unit?.Name ?? line.UnitNameSnapshot ?? "Package",
+                    line.UnitPrice)
+                {
+                    Owner = this
+                };
+
+                if (dialog.ShowDialog() != true)
+                    return false;
+
+                unit.AllowFractionalSale = true;
+                unit.FractionalPartsPerUnit = dialog.PartsPerUnit;
+                unit.FractionalPartName = dialog.PartName;
+
+                if (!await SaveFractionalSettingsAsync(unit))
+                    return false;
+            }
+
+            var fractionalParts = (quantity - decimal.Truncate(quantity)) * unit.FractionalPartsPerUnit;
+            var roundedParts = decimal.Round(fractionalParts, 0, MidpointRounding.AwayFromZero);
+            if (decimal.Abs(fractionalParts - roundedParts) > 0.0005m)
+            {
+                MessageBox.Show(
+                    $"Enter a quantity using complete {unit.FractionalPartName ?? "tape"} units. For {unit.FractionalPartsPerUnit:0} per package, examples are 0.1, 0.2, 1.1, and 1.2.",
+                    "Invalid fractional quantity",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return false;
+            }
+
+            return true;
+#pragma warning restore CS0162
+        }
+
+        private async Task<bool> EnsureAllFractionalSalesConfiguredAsync()
+        {
+            if (_currentInvoice.InvoiceType is InvoiceType.Return or InvoiceType.Exchange or InvoiceType.PurchaseReturn)
+                return true;
+
+            foreach (var line in _invoiceLines.Where(item => item.ProductId > 0 && item.Quantity > 0))
+            {
+                if (line.Quantity == decimal.Truncate(line.Quantity))
+                    continue;
+
+                if (!await EnsureFractionalSaleConfiguredAsync(line, line.Quantity))
+                    return false;
+            }
+
+            return true;
+        }
+
+        private async Task<bool> EnsureLineProductUnitAsync(InvoiceLineWriteDto line)
+        {
+            if (line.ProductUnit != null)
+                return true;
+
+            if (line.ProductId <= 0 || line.ProductUnitId <= 0)
+                return false;
+
+            var units = await GetAvailableUnitsForProductAsync(line.ProductId);
+            var unit = units.FirstOrDefault(item => item.Id == line.ProductUnitId);
+            if (unit == null)
+                return false;
+
+            line.ProductUnit = unit;
+            line.UnitNameSnapshot = unit.Unit?.Name;
+            return true;
+        }
+
+        private async Task<bool> SaveFractionalSettingsAsync(ProductUnitWriteDto unit)
+        {
+            var updateResult = await _productUnitService.UpdateAsync(new ProductUnitWriteDto
+            {
+                Id = unit.Id,
+                ProductId = unit.ProductId,
+                UnitId = unit.UnitId,
+                AlternateBarcode = unit.AlternateBarcode,
+                SalePrice = unit.SalePrice,
+                UnTaxedPrice = unit.UnTaxedPrice,
+                PurchasePrice = unit.PurchasePrice,
+                QuantityPerUnit = unit.QuantityPerUnit,
+                IsBaseUnit = unit.IsBaseUnit,
+                IsDefaultSaleUnit = unit.IsDefaultSaleUnit,
+                IsDefaultPurchaseUnit = unit.IsDefaultPurchaseUnit,
+                AllowFractionalSale = unit.AllowFractionalSale,
+                FractionalPartsPerUnit = unit.FractionalPartsPerUnit,
+                FractionalPartName = unit.FractionalPartName
+            });
+
+            if (updateResult.Success)
+                return true;
+
+            MessageBox.Show(updateResult.Message ?? "The fractional-sale setting could not be saved.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            return false;
+        }
+
         private async Task<bool> AddProductToInvoiceAsync(
             ProductReadDto product,
             bool moveFocusToQuantity = true,
@@ -2153,6 +2408,44 @@ namespace RaccoonWarehouse.Invoices
                         "The item exists in the system, but no units are defined for it."),
                     UiText.T("تنبيه", "Notice"));
                 return false;
+            }
+
+            if (quantity != decimal.Truncate(quantity))
+            {
+                var tapeLine = new InvoiceLineWriteDto
+                {
+                    ProductId = product.Id,
+                    ProductUnitId = selectedUnit.Id,
+                    ProductUnit = MapProductUnit(selectedUnit),
+                    SelectedProduct = product,
+                    Quantity = quantity,
+                    UnitPrice = unitPriceOverride ?? selectedUnit.SalePrice
+                };
+
+                if (!await EnsureTapeUnitSelectedAsync(tapeLine, quantity))
+                    return false;
+
+                product = await ResolveProductWithUnitsAsync(product);
+                selectedUnit = product.ProductUnits?.FirstOrDefault(unit => unit.Id == tapeLine.ProductUnitId)
+                    ?? selectedUnit;
+            }
+
+            // Product-search can add a requested quantity directly, so apply the
+            // same fractional-sale validation used by the invoice-grid editor.
+            // This must happen before merging into an existing line.
+            if (quantity != decimal.Truncate(quantity))
+            {
+                var fractionalValidationLine = new InvoiceLineWriteDto
+                {
+                    ProductId = product.Id,
+                    ProductUnitId = selectedUnit.Id,
+                    ProductUnit = MapProductUnit(selectedUnit),
+                    UnitNameSnapshot = selectedUnit.Unit?.Name,
+                    UnitPrice = unitPriceOverride ?? selectedUnit.SalePrice
+                };
+
+                if (!await EnsureFractionalSaleConfiguredAsync(fractionalValidationLine, quantity))
+                    return false;
             }
 
             // 2. Merge with an existing unit line or prepare a new invoice line.
@@ -2273,6 +2566,8 @@ namespace RaccoonWarehouse.Invoices
                     ProductId = templateLine.ProductId,
                     ProductName = templateLine.ProductName,
                     ProductUnitId = templateLine.ProductUnitId,
+                    ProductUnit = templateLine.ProductUnit,
+                    UnitNameSnapshot = templateLine.UnitNameSnapshot,
                     Quantity = allocation.Quantity,
                     QuantityPerUnitSnapshot = allocation.QuantityPerUnitSnapshot,
                     BaseQuantity = allocation.BaseQuantity,
@@ -2343,7 +2638,6 @@ namespace RaccoonWarehouse.Invoices
                 foreach (var line in matchingLines)
                     _invoiceLines.Remove(line);
 
-                InvoiceGrid.Items.Refresh();
                 RecalculateTotals();
                 MessageBox.Show(
                     UiText.T(
@@ -2431,7 +2725,7 @@ namespace RaccoonWarehouse.Invoices
 
         private async void FinishSaleBtn_Click(object sender, RoutedEventArgs e)
         {
-            await ProcessPaymentAsync(PaymentType.Cash);
+            await OpenSalePaymentWindowAsync();
         }
         private static TransactionType MapStockTransactionType(InvoiceType invoiceType)
         {
@@ -2545,7 +2839,6 @@ namespace RaccoonWarehouse.Invoices
                 }
 
                 RecalculateTotals();
-                InvoiceGrid.Items.Refresh();
                 return false;
             }
 
@@ -2692,60 +2985,11 @@ namespace RaccoonWarehouse.Invoices
                 : ConvertStockDocumentToReturnSource(stockDocument, invoiceNumber);
         }
 
-        private async Task<Dictionary<PaymentType, decimal>> BuildReturnPaymentLimitsAsync(InvoiceWriteDto originalInvoice)
-        {
-            var originalPayments = originalInvoice.Payments?
-                .Where(payment => payment.Amount > 0m)
-                .GroupBy(payment => payment.PaymentType)
-                .ToDictionary(group => group.Key, group => group.Sum(payment => payment.Amount))
-                ?? new Dictionary<PaymentType, decimal>();
-
-            if (originalPayments.Count == 0 && originalInvoice.PaymentType.HasValue)
-            {
-                originalPayments[originalInvoice.PaymentType.Value] = Math.Abs(originalInvoice.TotalAmount);
-            }
-
-            if (originalPayments.Count == 0)
-                return originalPayments;
-
-            var previousReturns = await _invoiceService.GetAllWriteDtoWithFilteringAndIncludeAsync(
-                invoice => invoice.OriginalInvoiceId == originalInvoice.InvoiceNumber &&
-                           (invoice.InvoiceType == InvoiceType.Return ||
-                            invoice.InvoiceType == InvoiceType.PurchaseReturn),
-                invoice => invoice.Payments);
-
-            foreach (var previousReturn in previousReturns?.Data ?? new List<InvoiceWriteDto>())
-            {
-                var payments = previousReturn.Payments?.Where(payment => payment.Amount > 0m).ToList()
-                    ?? new List<InvoicePaymentWriteDto>();
-
-                if (payments.Count == 0 && previousReturn.PaymentType.HasValue)
-                {
-                    payments.Add(new InvoicePaymentWriteDto
-                    {
-                        PaymentType = previousReturn.PaymentType.Value,
-                        Amount = Math.Abs(previousReturn.TotalAmount)
-                    });
-                }
-
-                foreach (var payment in payments)
-                {
-                    if (originalPayments.ContainsKey(payment.PaymentType))
-                        originalPayments[payment.PaymentType] -= payment.Amount;
-                }
-            }
-
-            return originalPayments
-                .Where(pair => pair.Value > 0.0005m)
-                .ToDictionary(pair => pair.Key, pair => Math.Round(pair.Value, 3));
-        }
-
         private async Task<bool> ConfigureReturnPaymentAllocationsAsync(PaymentType selectedPaymentType)
         {
             if (_currentInvoice.InvoiceType is not (InvoiceType.Return or InvoiceType.PurchaseReturn))
                 return true;
 
-            var limits = _returnPaymentLimits ?? new Dictionary<PaymentType, decimal>();
             var returnTotal = Math.Round(Math.Abs(_currentInvoice.TotalAmount), 3);
             if (returnTotal <= 0m)
             {
@@ -2755,19 +2999,46 @@ namespace RaccoonWarehouse.Invoices
                 return false;
             }
 
-            if (limits.Count == 0 || limits.Values.Sum() + 0.0005m < returnTotal)
+            if (selectedPaymentType == PaymentType.Credit)
             {
                 ShowPaymentValidationMessage(
-                    UiText.T("لا يوجد رصيد كافٍ من طرق الدفع الأصلية لإتمام هذا الإرجاع.", "The original payment methods do not have enough remaining refundable balance for this return."),
-                    UiText.T("تنبيه", "Notice"));
+                    UiText.T("Credit payment is not allowed for returns.", "Credit payment is not allowed for returns."),
+                    UiText.T("Invalid refund payment method", "Invalid refund payment method"));
                 return false;
             }
 
-            // Keep the payment method selected on the POS automatically when
-            // it has enough refundable balance. The allocation dialog is only
-            // needed when the return must be split across methods.
-            if (limits.TryGetValue(selectedPaymentType, out var available) &&
-                available + 0.0005m >= returnTotal)
+            var selectedPayments = _currentInvoice.Payments?
+                .Where(payment => payment.Amount > 0m)
+                .ToList() ?? new List<InvoicePaymentWriteDto>();
+
+            if (selectedPayments.Count > 1)
+            {
+                if (selectedPayments.Any(payment => payment.PaymentType == PaymentType.Credit) ||
+                    Math.Round(selectedPayments.Sum(payment => payment.Amount), 3) != returnTotal)
+                {
+                    ShowPaymentValidationMessage(
+                        UiText.T("Credit cannot be used in a refund split.", "Credit cannot be used in a refund split."),
+                        UiText.T("Invalid refund payment method", "Invalid refund payment method"));
+                    return false;
+                }
+
+                _currentInvoice.PaymentType = selectedPayments[0].PaymentType;
+                return true;
+            }
+
+            // A return may use any non-credit payment method. Keep this
+            // legacy dictionary only as a broad allow-list for the existing
+            // payment window path; it no longer mirrors the original invoice.
+            // A return may use any non-credit payment method. The original
+            // method balance is intentionally not a cap; InvoiceService
+            // still enforces the overall refundable invoice balance.
+            var limits = Enum.GetValues<PaymentType>()
+                .Where(type => type != PaymentType.Credit)
+                .ToDictionary(type => type, _ => returnTotal);
+
+            // Keep the selected payment method automatically when the return
+            // is not split. A method may go negative by its own balance.
+            if (limits.ContainsKey(selectedPaymentType))
             {
                 _currentInvoice.PaymentType = selectedPaymentType;
                 _currentInvoice.Payments = new List<InvoicePaymentWriteDto>
@@ -2800,6 +3071,110 @@ namespace RaccoonWarehouse.Invoices
                 .ToList();
             _currentInvoice.PaymentType = paymentWindow.SelectedPayments[0].PaymentType;
             return true;
+        }
+
+        private static List<InvoicePaymentWriteDto> GetPositivePaymentAllocations(InvoiceWriteDto invoice)
+        {
+            var payments = invoice.Payments?.Where(payment => payment.Amount > 0m).ToList()
+                ?? new List<InvoicePaymentWriteDto>();
+
+            if (payments.Count == 0 && invoice.PaymentType.HasValue)
+            {
+                payments.Add(new InvoicePaymentWriteDto
+                {
+                    PaymentType = invoice.PaymentType.Value,
+                    Amount = Math.Abs(invoice.TotalAmount)
+                });
+            }
+
+            return payments;
+        }
+
+        private void AddReturnPaymentMethodAuditNote()
+        {
+            if (_currentInvoice.InvoiceType is not (InvoiceType.Return or InvoiceType.PurchaseReturn) ||
+                _returnOriginalInvoice == null)
+                return;
+
+            var originalPayments = GetPositivePaymentAllocations(_returnOriginalInvoice);
+            var refundPayments = GetPositivePaymentAllocations(_currentInvoice);
+            var originalByMethod = originalPayments
+                .GroupBy(payment => payment.PaymentType)
+                .ToDictionary(group => group.Key, group => Math.Round(group.Sum(payment => payment.Amount), 3));
+            var refundByMethod = refundPayments
+                .GroupBy(payment => payment.PaymentType)
+                .ToDictionary(group => group.Key, group => Math.Round(group.Sum(payment => payment.Amount), 3));
+            var previousByMethod = _returnPreviousPaymentAmounts ?? new Dictionary<PaymentType, decimal>();
+            var methodShortages = new List<(PaymentType Method, decimal Amount)>();
+            foreach (var method in originalByMethod.Keys.Union(previousByMethod.Keys).Union(refundByMethod.Keys))
+            {
+                var remainingMethodAmount = originalByMethod.GetValueOrDefault(method) -
+                                             previousByMethod.GetValueOrDefault(method);
+                var shortage = Math.Round(refundByMethod.GetValueOrDefault(method) - remainingMethodAmount, 3);
+                if (shortage > 0.0005m)
+                    methodShortages.Add((method, shortage));
+            }
+
+            var decreases = new List<(PaymentType Method, decimal Amount)>();
+            var increases = new List<(PaymentType Method, decimal Amount)>();
+            foreach (var method in originalByMethod.Keys.Union(refundByMethod.Keys))
+            {
+                var originalAmount = originalByMethod.GetValueOrDefault(method);
+                var refundAmount = refundByMethod.GetValueOrDefault(method);
+                var difference = Math.Round(refundAmount - originalAmount, 3);
+
+                if (difference < -0.0005m)
+                    decreases.Add((method, Math.Abs(difference)));
+                else if (difference > 0.0005m)
+                    increases.Add((method, difference));
+            }
+
+            if (decreases.Count == 0 && increases.Count == 0 && methodShortages.Count == 0)
+                return;
+
+            const string marker = "Return refund payment allocation differs from original invoice.";
+            if (_currentInvoice.Notes?.Contains(marker, StringComparison.OrdinalIgnoreCase) == true ||
+                _currentInvoice.Notes?.Contains("Return refund payment method differs from original invoice.", StringComparison.OrdinalIgnoreCase) == true)
+                return;
+
+            var originalSummary = string.Join(", ", originalPayments.Select(payment =>
+                $"{GetPaymentTypeDisplayName(payment.PaymentType)} {payment.Amount:0.000}"));
+            var refundSummary = string.Join(", ", refundPayments.Select(payment =>
+                $"{GetPaymentTypeDisplayName(payment.PaymentType)} {payment.Amount:0.000}"));
+            var transfers = new List<string>();
+            for (var decreaseIndex = 0; decreaseIndex < decreases.Count; decreaseIndex++)
+            {
+                for (var increaseIndex = 0; increaseIndex < increases.Count; increaseIndex++)
+                {
+                    if (decreases[decreaseIndex].Amount <= 0m || increases[increaseIndex].Amount <= 0m)
+                        continue;
+
+                    var movedAmount = Math.Min(decreases[decreaseIndex].Amount, increases[increaseIndex].Amount);
+                    transfers.Add(
+                        $"{movedAmount:0.000} moved from {GetPaymentTypeDisplayName(decreases[decreaseIndex].Method)} " +
+                        $"to {GetPaymentTypeDisplayName(increases[increaseIndex].Method)}");
+                    decreases[decreaseIndex] = (
+                        decreases[decreaseIndex].Method,
+                        decreases[decreaseIndex].Amount - movedAmount);
+                    increases[increaseIndex] = (
+                        increases[increaseIndex].Method,
+                        increases[increaseIndex].Amount - movedAmount);
+                }
+            }
+
+            var transferSummary = transfers.Count == 0
+                ? "Payment allocations changed"
+                : string.Join("; ", transfers);
+            var shortageSummary = methodShortages.Count == 0
+                ? string.Empty
+                : " " + string.Join("; ", methodShortages.Select(shortage =>
+                    $"{GetPaymentTypeDisplayName(shortage.Method)} exceeded its remaining refundable balance by {shortage.Amount:0.000}"));
+            var note = UiText.T(
+                $"{marker} {transferSummary} بسبب فاتورة إرجاع. Original payment(s): {originalSummary}; refund payment(s): {refundSummary}.",
+                $"{marker} {transferSummary} because of a return invoice.{shortageSummary} Original payment(s): {originalSummary}; refund payment(s): {refundSummary}.");
+            _currentInvoice.Notes = string.IsNullOrWhiteSpace(_currentInvoice.Notes)
+                ? note
+                : $"{_currentInvoice.Notes.Trim()} | {note}";
         }
 
         private bool IsNegativeLineAllowedByOriginalInvoice(
@@ -2879,7 +3254,7 @@ namespace RaccoonWarehouse.Invoices
                 return false;
             }
 
-            if (originalInvoice.PaymentType == PaymentType.Credit)
+            if (originalInvoice.PaymentType == PaymentType.Credit && _currentInvoice.PaymentType == PaymentType.Credit)
             {
                 if (_currentInvoice.PaymentType != PaymentType.Credit)
                 {
@@ -3102,6 +3477,7 @@ namespace RaccoonWarehouse.Invoices
             _hasPendingFefoSplit = false;
             _isProcessingPendingFefoSplit = false;
             _returnPaymentLimits = null;
+            _returnPreviousPaymentAmounts = null;
 
             _invoiceLines.Clear();
             InvoiceGrid.SelectedItem = null;
@@ -3110,7 +3486,11 @@ namespace RaccoonWarehouse.Invoices
             InvoiceGrid.Items.Refresh();
 
             TotalTextBlock.Text = "0.000";
+            _invoiceDiscountIsPercentage = false;
+            _invoiceDiscountPercent = 0m;
+            _isUpdatingInvoiceDiscountText = true;
             DiscountTextBox.Text = "0";
+            _isUpdatingInvoiceDiscountText = false;
             DiscountSummaryText.Text = "0.000";
             NetTotalText.Text = "0.000";
 
@@ -3192,7 +3572,8 @@ namespace RaccoonWarehouse.Invoices
                             knownUnitPurchasePrice);
                         return added;
                     },
-                    disabledKeys)
+                    disabledKeys,
+                    _rowColorRuleService)
                 {
                     Owner = this
                 };
@@ -4019,6 +4400,37 @@ namespace RaccoonWarehouse.Invoices
                 .ToDictionary(group => group.Key, group => group.Sum(line => Math.Abs(line.Quantity)));
         }
 
+        private async Task<Dictionary<PaymentType, decimal>> LoadPreviouslyReturnedPaymentAmountsAsync(string originalDocumentNumber)
+        {
+            var result = await _invoiceService.GetAllWriteDtoWithFilteringAndIncludeAsync(
+                invoice => invoice.OriginalInvoiceId == originalDocumentNumber &&
+                           (invoice.InvoiceType == InvoiceType.Return ||
+                            invoice.InvoiceType == InvoiceType.PurchaseReturn),
+                invoice => invoice.Payments);
+
+            var amounts = new Dictionary<PaymentType, decimal>();
+            foreach (var invoice in result?.Data ?? new List<InvoiceWriteDto>())
+            {
+                var payments = invoice.Payments?
+                    .Where(payment => payment.Amount > 0m)
+                    .ToList() ?? new List<InvoicePaymentWriteDto>();
+
+                if (payments.Count == 0 && invoice.PaymentType.HasValue)
+                {
+                    payments.Add(new InvoicePaymentWriteDto
+                    {
+                        PaymentType = invoice.PaymentType.Value,
+                        Amount = Math.Abs(invoice.TotalAmount)
+                    });
+                }
+
+                foreach (var payment in payments)
+                    amounts[payment.PaymentType] = amounts.GetValueOrDefault(payment.PaymentType) + payment.Amount;
+            }
+
+            return amounts.ToDictionary(pair => pair.Key, pair => Math.Round(pair.Value, 3));
+        }
+
         //returns 
         private async void ReturnItemBtn_Click(object sender, RoutedEventArgs e)
         {
@@ -4034,7 +4446,8 @@ namespace RaccoonWarehouse.Invoices
                 var win = new ReturnInvoiceWindow(
                     _invoiceService,
                     _userSession,
-                    _serviceProvider.GetRequiredService<RaccoonWarehouse.Application.Service.AuthService.IAuthService>());
+                    _serviceProvider.GetRequiredService<RaccoonWarehouse.Application.Service.AuthService.IAuthService>(),
+                    _productService);
                 if (win.ShowDialog() != true)
                     return;
 
@@ -4090,8 +4503,7 @@ namespace RaccoonWarehouse.Invoices
                 }
 
                 var previouslyReturned = await LoadPreviouslyReturnedQuantitiesAsync(win.OriginalInvoiceId);
-                _returnPaymentLimits = await BuildReturnPaymentLimitsAsync(originalInvoice);
-
+                var previouslyReturnedPayments = await LoadPreviouslyReturnedPaymentAmountsAsync(win.OriginalInvoiceId);
                 _loading.Hide();
                 loadingShown = false;
 
@@ -4103,6 +4515,11 @@ namespace RaccoonWarehouse.Invoices
                 PrepareGridForReturnLoad();
                 await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.DataBind);
                 CreateNewInvoice(returnType, win.OriginalInvoiceId);
+                _returnOriginalInvoice = originalInvoice;
+                _returnPreviousPaymentAmounts = previouslyReturnedPayments;
+                _returnPaymentLimits = Enum.GetValues<PaymentType>()
+                    .Where(type => type != PaymentType.Credit)
+                    .ToDictionary(type => type, _ => Math.Abs(originalInvoice.TotalAmount));
                 _invoiceLines.Clear();
 
                 if (returnType == InvoiceType.PurchaseReturn)
@@ -4223,14 +4640,64 @@ namespace RaccoonWarehouse.Invoices
             await ProcessPaymentAsync(PaymentType.Credit);
         }
 
+        private async Task OpenSalePaymentWindowAsync()
+        {
+            if (_invoiceLines == null || _invoiceLines.Count == 0)
+                return;
+
+            CommitActiveInvoiceEdits();
+            if (!await EnsureAllFractionalSalesConfiguredAsync())
+                return;
+
+            PrepareInvoiceForSave();
+            RecalculateTotals();
+            var total = Math.Round(Math.Abs(_currentInvoice.TotalAmount), 3);
+            if (total <= 0m)
+                return;
+
+            var paymentWindow = new ChangeInvoicePaymentWindow(
+                null,
+                _allCustomers ?? Enumerable.Empty<UserReadDto>(),
+                _currentInvoice.CustomerId,
+                total,
+                payments: null)
+            {
+                Owner = this
+            };
+
+            if (paymentWindow.ShowDialog() != true || paymentWindow.SelectedPayments.Count == 0)
+                return;
+
+            _currentInvoice.Payments = paymentWindow.SelectedPayments.Select(payment => new InvoicePaymentWriteDto
+            {
+                PaymentType = payment.PaymentType,
+                Amount = payment.Amount
+            }).ToList();
+            _currentInvoice.PaymentType = paymentWindow.SelectedPayments[0].PaymentType;
+
+            if (paymentWindow.SelectedCustomerId.HasValue)
+            {
+                _currentInvoice.CustomerId = paymentWindow.SelectedCustomerId;
+                SelectInvoiceCustomer(paymentWindow.SelectedCustomerId);
+            }
+
+            await ProcessPaymentAsync(_currentInvoice.PaymentType.Value);
+        }
+
         private async void SplitPaymentBtn_Click(object sender, RoutedEventArgs e)
         {
             if (_invoiceLines == null || _invoiceLines.Count == 0)
                 return;
 
+            CommitActiveInvoiceEdits();
+            if (!await EnsureAllFractionalSalesConfiguredAsync())
+                return;
+
             PrepareInvoiceForSave();
-            var total = Math.Abs(_invoiceLines.Sum(line => line.Quantity * line.UnitPrice)
-                - (_currentInvoice.DiscountAmount ?? 0m));
+            RecalculateTotals();
+            var total = Math.Round(Math.Abs(_currentInvoice.TotalAmount), 3);
+            if (total <= 0m)
+                return;
             var paymentWindow = new ChangeInvoicePaymentWindow(
                 null,
                 _allCustomers ?? Enumerable.Empty<UserReadDto>(),
@@ -4405,11 +4872,25 @@ namespace RaccoonWarehouse.Invoices
 
         private void DiscountTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
-            if (!IsLoaded || _currentInvoice == null)
+            if (!IsLoaded || _currentInvoice == null || _isUpdatingInvoiceDiscountText)
                 return;
 
-            if (decimal.TryParse(DiscountTextBox.Text, out var discount))
-                _currentInvoice.DiscountAmount = Math.Max(0m, discount);
+            var rawDiscount = DiscountTextBox.Text?.Trim() ?? string.Empty;
+            var isPercentage = rawDiscount.EndsWith('%');
+            var enteredDiscount = isPercentage
+                ? rawDiscount[..^1].Trim()
+                : rawDiscount;
+
+            if (!TryParseDecimalInput(enteredDiscount, out var discountValue) || discountValue < 0m)
+                return;
+
+            if (isPercentage && discountValue > 100m)
+                return;
+
+            _invoiceDiscountIsPercentage = isPercentage;
+            _invoiceDiscountPercent = isPercentage ? discountValue : 0m;
+            if (!isPercentage)
+                _currentInvoice.DiscountAmount = Math.Max(0m, discountValue);
 
             RecalculateTotals();
         }
@@ -4713,6 +5194,9 @@ namespace RaccoonWarehouse.Invoices
                         SalePrice = row.UnitSalePrice,
                         PurchasePrice = row.UnitPurchasePrice,
                         QuantityPerUnit = row.QuantityPerUnit,
+                        AllowFractionalSale = row.AllowFractionalSale,
+                        FractionalPartsPerUnit = row.FractionalPartsPerUnit,
+                        FractionalPartName = row.FractionalPartName,
                         IsBaseUnit = row.IsBaseUnit,
                         IsDefaultSaleUnit = row.IsDefaultSaleUnit,
                         IsDefaultPurchaseUnit = row.IsDefaultPurchaseUnit,
@@ -4754,6 +5238,9 @@ namespace RaccoonWarehouse.Invoices
                             SalePrice = row.StockSalePrice,
                             PurchasePrice = row.StockPurchasePrice,
                             QuantityPerUnit = row.QuantityPerUnit,
+                            AllowFractionalSale = row.AllowFractionalSale,
+                            FractionalPartsPerUnit = row.FractionalPartsPerUnit,
+                            FractionalPartName = row.FractionalPartName,
                             IsBaseUnit = row.IsBaseUnit,
                             IsDefaultSaleUnit = row.IsDefaultSaleUnit,
                             IsDefaultPurchaseUnit = row.IsDefaultPurchaseUnit,
@@ -5685,6 +6172,19 @@ namespace RaccoonWarehouse.Invoices
         #endregion
         #region Payment and financial posting
 
+        private void CommitActiveInvoiceEdits()
+        {
+            try
+            {
+                InvoiceGrid.CommitEdit(DataGridEditingUnit.Cell, true);
+                InvoiceGrid.CommitEdit(DataGridEditingUnit.Row, true);
+            }
+            catch (InvalidOperationException)
+            {
+                // There may be no active grid edit; keep the current values.
+            }
+        }
+
         private void ShowPaymentValidationMessage(
             string message,
             string title,
@@ -5707,9 +6207,109 @@ namespace RaccoonWarehouse.Invoices
             _ => paymentType.ToString()
         };
 
+        private async Task<bool> ConfirmReturnPasswordAtCompletionAsync()
+        {
+            var currentUser = _userSession.CurrentUser;
+            if (currentUser == null)
+                return false;
+
+            var authService = _serviceProvider.GetRequiredService<RaccoonWarehouse.Application.Service.AuthService.IAuthService>();
+            var prompt = new Window
+            {
+                Title = UiText.T("تأكيد كلمة مرور الإرجاع", "Return password confirmation"),
+                Width = 390,
+                Height = 250,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Owner = this,
+                ResizeMode = ResizeMode.NoResize,
+                WindowStyle = WindowStyle.ToolWindow,
+                FlowDirection = FlowDirection.RightToLeft
+            };
+
+            var username = new TextBox
+            {
+                Text = currentUser.Name,
+                Margin = new Thickness(0, 8, 0, 8),
+                Height = 32
+            };
+            var password = new PasswordBox
+            {
+                Margin = new Thickness(0, 0, 0, 12),
+                Height = 32
+            };
+            var message = new TextBlock
+            {
+                Text = UiText.T(
+                    "أدخل اسم مستخدم وكلمة مرور المدير أو المسؤول لإتمام عملية الإرجاع.",
+                    "Enter an Admin or Manager username and password to complete the return."),
+                TextWrapping = TextWrapping.Wrap
+            };
+            var confirm = new Button
+            {
+                Content = UiText.T("تأكيد", "Confirm"),
+                Width = 100,
+                Margin = new Thickness(0, 0, 8, 0),
+                IsDefault = true
+            };
+            var cancel = new Button
+            {
+                Content = UiText.T("إلغاء", "Cancel"),
+                Width = 100,
+                IsCancel = true
+            };
+            var buttons = new StackPanel
+            {
+                Orientation = System.Windows.Controls.Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Center
+            };
+            buttons.Children.Add(confirm);
+            buttons.Children.Add(cancel);
+
+            var panel = new StackPanel { Margin = new Thickness(18) };
+            panel.Children.Add(message);
+            panel.Children.Add(username);
+            panel.Children.Add(password);
+            panel.Children.Add(buttons);
+            prompt.Content = panel;
+
+            confirm.Click += async (_, _) =>
+            {
+                confirm.IsEnabled = false;
+                try
+                {
+                    var auth = await authService.AuthenticateAsync(username.Text.Trim(), password.Password);
+                    prompt.DialogResult = auth.Success && auth.User != null &&
+                        auth.User.Role is RaccoonWarehouse.Domain.Enums.UserRole.Admin or RaccoonWarehouse.Domain.Enums.UserRole.Manager;
+                }
+                finally
+                {
+                    if (prompt.IsVisible)
+                        confirm.IsEnabled = true;
+                }
+            };
+            cancel.Click += (_, _) => prompt.DialogResult = false;
+            prompt.Loaded += (_, _) => password.Focus();
+
+            var accepted = prompt.ShowDialog() == true;
+            if (!accepted)
+            {
+                MessageBox.Show(
+                    UiText.T("كلمة المرور غير صحيحة أو تم إلغاء العملية.", "The password is incorrect or the operation was cancelled."),
+                    UiText.T("تم رفض الإرجاع", "Return denied"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+            }
+
+            return accepted;
+        }
+
         private async Task ProcessPaymentAsync(PaymentType paymentType)
         {
             if (_isProcessingPayment)
+                return;
+
+            CommitActiveInvoiceEdits();
+            if (!await EnsureAllFractionalSalesConfiguredAsync())
                 return;
 
             _isProcessingPayment = true;
@@ -5754,6 +6354,15 @@ namespace RaccoonWarehouse.Invoices
                 if (_currentInvoice.InvoiceType is InvoiceType.Return or InvoiceType.PurchaseReturn)
                 {
                     HideLoadingForDialog();
+                    if (paymentType == PaymentType.Credit ||
+                        _currentInvoice.Payments?.Any(payment => payment.PaymentType == PaymentType.Credit && payment.Amount > 0m) == true)
+                    {
+                        ShowPaymentValidationMessage(
+                            UiText.T("Credit payment is not allowed for returns.", "Credit payment is not allowed for returns."),
+                            UiText.T("Invalid refund payment method", "Invalid refund payment method"));
+                        return;
+                    }
+
                     if (_returnPaymentLimits == null || !_returnPaymentLimits.ContainsKey(paymentType))
                     {
                         var allowedMethods = _returnPaymentLimits?.Keys
@@ -5791,6 +6400,15 @@ namespace RaccoonWarehouse.Invoices
                         MessageBoxImage.Question) != MessageBoxResult.Yes)
                     return;
 
+                if ((_currentInvoice.InvoiceType is InvoiceType.Return or InvoiceType.PurchaseReturn) &&
+                    !_returnPasswordConfirmed)
+                {
+                    if (!await ConfirmReturnPasswordAtCompletionAsync())
+                        return;
+
+                    _returnPasswordConfirmed = true;
+                }
+
                 ShowLoadingForWork();
                 if (!await ValidateReturnOrExchangeAgainstOriginalInvoiceAsync())
                 {
@@ -5812,6 +6430,11 @@ namespace RaccoonWarehouse.Invoices
 
                 // 2. Prepare lines, expand FEFO allocations, and calculate final amounts.
                 PrepareInvoiceForSave();
+                // Preserve the already-calculated invoice total, including line and
+                // invoice discounts, before FEFO expansion creates replacement lines.
+                // The expanded lines are used for stock/accounting details, but must
+                // not replace the authoritative checkout total.
+                var preparedInvoiceTotal = _currentInvoice.TotalAmount;
                 var expandedLines = await ExpandInvoiceLinesByFefoAsync(_invoiceLines);
                 if (expandedLines == null)
                 {
@@ -5841,11 +6464,9 @@ namespace RaccoonWarehouse.Invoices
                     : expandedLines.Sum(l => l.Quantity * l.UnitCost);
                 _currentInvoice.NetSales = _currentInvoice.SubTotal - (_currentInvoice.DiscountAmount ?? 0m);
                 _currentInvoice.GrossProfit = _currentInvoice.NetSales - _currentInvoice.TotalCOGS;
-                var calculatedGrossTotal = _currentInvoice.InvoiceType is InvoiceType.Return or InvoiceType.PurchaseReturn
-                    ? expandedLines.Sum(l => l.Quantity * l.UnitPrice)
-                    : expandedLines.Sum(l => l.LineTotal);
-                var calculatedTotal = calculatedGrossTotal - (_currentInvoice.DiscountAmount ?? 0m);
-                _currentInvoice.TotalAmount = signlessPurchaseReturn ? Math.Abs(calculatedTotal) : calculatedTotal;
+                _currentInvoice.TotalAmount = signlessPurchaseReturn
+                    ? Math.Abs(preparedInvoiceTotal)
+                    : preparedInvoiceTotal;
 
                 // 3. Collect check details and validate credit-customer requirements.
                 var checkAllocation = _currentInvoice.Payments?.FirstOrDefault(payment => payment.PaymentType == PaymentType.Check);
@@ -5875,6 +6496,8 @@ namespace RaccoonWarehouse.Invoices
 
                     ShowLoadingForWork();
                 }
+
+                AddReturnPaymentMethodAuditNote();
 
                 // 4. Complete the atomic checkout, then print and reset the draft.
                 _currentInvoice.DeferAccountingPosting = true;
@@ -6098,6 +6721,20 @@ namespace RaccoonWarehouse.Invoices
                 if (win.ShowDialog() == true)
                 {
                     RefreshSessionButtons();
+
+                    // A finalized cashier session must end the current login session.
+                    // Close POS first so the user cannot continue working while the
+                    // dashboard transitions back to the login window.
+                    var dashboard = System.Windows.Application.Current.Windows
+                        .OfType<RaccoonWarehouse.Dashboard>()
+                        .FirstOrDefault();
+
+                    Close();
+
+                    if (dashboard != null)
+                        dashboard.LogoutAfterSessionClosed();
+                    else
+                        _userSession.EndSession();
                 }
             }
             catch (Exception ex)

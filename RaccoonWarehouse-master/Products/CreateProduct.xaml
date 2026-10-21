@@ -115,6 +115,10 @@
                                 <TextBlock Text="الكمية لكل وحدة" Style="{StaticResource AppFieldLabelStyle}"/>
                                 <TextBox x:Name="QuantityPerUnitTextBox" Style="{StaticResource AppTextInputStyle}" />
                             </StackPanel>
+                              <StackPanel Margin="6,0,14,10">
+                                  <TextBlock Text="Allow fractional sale / السماح بالبيع الجزئي" Style="{StaticResource AppFieldLabelStyle}"/>
+                                  <CheckBox x:Name="AllowFractionalSaleCheckBox" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                              </StackPanel>
                             <StackPanel Margin="6,0,14,10">
                                 <TextBlock Text="الرمز المماثل / Alternate barcode" Style="{StaticResource AppFieldLabelStyle}"/>
                                 <TextBox x:Name="AlternateBarcodeTextBox" Style="{StaticResource AppTextInputStyle}" />

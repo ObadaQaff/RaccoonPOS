@@ -129,12 +129,19 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                     ApplyPurchaseDiscountAndTax(dto.InvoiceLines, dto.DiscountAmount, dto.CostPriceIncludesTax);
 
                 // 2) احسب قيم الفاتورة
-                var grossSales = dto.InvoiceLines.Sum(x => x.Quantity * x.UnitPrice);
+                // Sales totals must include both invoice-level and line-level discounts.
+                // The line total is already normalized above, so use the same gross
+                // semantics used for line tax/profit calculations.
+                var grossSales = dto.InvoiceLines.Sum(x =>
+                    GetGrossLineTotal(dto.InvoiceType, x.Quantity, x.UnitPrice) - x.LineDiscountAmount);
                 dto.SubTotal = dto.InvoiceLines.Sum(x => x.LineSubTotal);
                 dto.TotalTax = dto.InvoiceLines.Sum(x => x.TaxAmount);
-                dto.TotalAmount = dto.InvoiceType is InvoiceType.Purchase or InvoiceType.PurchaseReturn
+                var calculatedTotal = dto.InvoiceType is InvoiceType.Purchase or InvoiceType.PurchaseReturn
                     ? dto.SubTotal - (dto.DiscountAmount ?? 0m) + dto.TotalTax
                     : grossSales - (dto.DiscountAmount ?? 0m);
+                dto.TotalAmount = dto.InvoiceType == InvoiceType.Return
+                    ? -calculatedTotal
+                    : calculatedTotal;
                 dto.TotalCOGS = dto.InvoiceLines.Sum(x => x.Quantity * CalculateEffectivePurchaseCost(
                     x.UnitCost,
                     x.TaxRate,
@@ -503,9 +510,6 @@ namespace RaccoonWarehouse.Application.Service.Invoices
             if (originalPayments.Count == 0 && original.PaymentType.HasValue)
                 originalPayments[original.PaymentType.Value] = Math.Abs(original.TotalAmount);
 
-            var originalWasCreditOnly = originalPayments.Count == 1 &&
-                originalPayments.ContainsKey(PaymentType.Credit);
-
             var previousReturns = await invoiceRepo.GetAllAsQueryable()
                 .AsNoTracking()
                 .Include(invoice => invoice.Payments)
@@ -547,6 +551,21 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 });
             }
 
+            if (dto.InvoiceType is InvoiceType.Return or InvoiceType.PurchaseReturn)
+            {
+                if (requestedPayments.Any(payment => payment.PaymentType == PaymentType.Credit))
+                    return "Credit payment is not allowed for returns.";
+
+                var originalTotal = Math.Abs(original.TotalAmount);
+                var previousReturnTotal = previousReturns.Sum(previousReturn => Math.Abs(previousReturn.TotalAmount));
+                var remainingRefundableTotal = Math.Max(0m, originalTotal - previousReturnTotal);
+                var requestedTotal = requestedPayments.Sum(payment => payment.Amount);
+                if (requestedTotal > remainingRefundableTotal + 0.0005m)
+                    return "The return amount exceeds the remaining refundable amount for the original invoice.";
+
+                return null;
+            }
+
             foreach (var payment in requestedPayments)
             {
                 if (!originalPayments.TryGetValue(payment.PaymentType, out var remainingAmount))
@@ -555,12 +574,6 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 if (payment.Amount > remainingAmount + 0.0005m)
                     return $"The return amount for {payment.PaymentType} exceeds the remaining refundable amount.";
             }
-
-            if (originalWasCreditOnly && dto.PaymentType != PaymentType.Credit)
-                return "A return or exchange from a credit invoice must also use credit payment.";
-
-            if (originalWasCreditOnly && original.CustomerId != dto.CustomerId)
-                return "The credit customer must match the original invoice customer.";
 
             return null;
         }
@@ -657,12 +670,16 @@ namespace RaccoonWarehouse.Application.Service.Invoices
             if (dto.InvoiceType is InvoiceType.Purchase or InvoiceType.PurchaseReturn)
                 ApplyPurchaseDiscountAndTax(dto.InvoiceLines!, dto.DiscountAmount, dto.CostPriceIncludesTax);
 
-            var grossSales = dto.InvoiceLines.Sum(x => x.Quantity * x.UnitPrice);
+            var grossSales = dto.InvoiceLines.Sum(x =>
+                GetGrossLineTotal(dto.InvoiceType, x.Quantity, x.UnitPrice) - x.LineDiscountAmount);
             dto.SubTotal = dto.InvoiceLines.Sum(x => x.LineSubTotal);
             dto.TotalTax = dto.InvoiceLines.Sum(x => x.TaxAmount);
-            dto.TotalAmount = dto.InvoiceType is InvoiceType.Purchase or InvoiceType.PurchaseReturn
+            var calculatedTotal = dto.InvoiceType is InvoiceType.Purchase or InvoiceType.PurchaseReturn
                 ? dto.SubTotal - (dto.DiscountAmount ?? 0m) + dto.TotalTax
                 : grossSales - (dto.DiscountAmount ?? 0m);
+            dto.TotalAmount = dto.InvoiceType == InvoiceType.Return
+                ? -calculatedTotal
+                : calculatedTotal;
             dto.TotalCOGS = dto.InvoiceLines.Sum(x => x.Quantity * CalculateEffectivePurchaseCost(
                 x.UnitCost,
                 x.TaxRate,
@@ -708,7 +725,8 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 ApplyPurchaseDiscountAndTax(invoice.InvoiceLines, invoice.DiscountAmount, invoice.CostPriceIncludesTax);
 
             // 2) Invoice totals
-            var grossSales = invoice.InvoiceLines.Sum(l => l.Quantity * l.UnitPrice);
+            var grossSales = invoice.InvoiceLines.Sum(l =>
+                GetGrossLineTotal(invoice.InvoiceType, l.Quantity, l.UnitPrice) - l.LineDiscountAmount);
             invoice.SubTotal = invoice.InvoiceLines.Sum(l => l.LineSubTotal);
             invoice.TotalTax = invoice.InvoiceLines.Sum(l => l.TaxAmount);
 
@@ -719,7 +737,9 @@ namespace RaccoonWarehouse.Application.Service.Invoices
             invoice.NetSales = invoice.SubTotal - discount;             // قبل الضريبة
             invoice.GrossProfit = invoice.NetSales - invoice.TotalCOGS; // الربح
 
-            invoice.TotalAmount = invoice.InvoiceType is InvoiceType.Purchase or InvoiceType.PurchaseReturn
+            invoice.TotalAmount = invoice.InvoiceType == InvoiceType.Return
+                ? -(grossSales - discount)
+                : invoice.InvoiceType is InvoiceType.Purchase or InvoiceType.PurchaseReturn
                 ? invoice.SubTotal - discount + invoice.TotalTax
                 : grossSales - discount;  // النهائي شامل الضريبة
         }
@@ -760,7 +780,7 @@ namespace RaccoonWarehouse.Application.Service.Invoices
         private static decimal GetGrossLineTotal(InvoiceType invoiceType, decimal quantity, decimal unitPrice)
         {
             var gross = quantity * unitPrice;
-            return invoiceType == InvoiceType.PurchaseReturn
+            return invoiceType is InvoiceType.Return or InvoiceType.PurchaseReturn
                 ? Math.Abs(gross)
                 : Math.Max(0m, gross);
         }
@@ -911,7 +931,9 @@ namespace RaccoonWarehouse.Application.Service.Invoices
             DateTime? dateFrom,
             DateTime? dateTo,
             string? invoiceNumber = null,
-            string? customerName = null)
+            string? customerName = null,
+            string? productName = null,
+            string? barcode = null)
         {
             try
             {
@@ -933,6 +955,30 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 {
                     var number = invoiceNumber.Trim();
                     query = query.Where(invoice => invoice.InvoiceNumber == number);
+                }
+
+                if (!string.IsNullOrWhiteSpace(productName))
+                {
+                    var product = productName.Trim();
+                    query = query.Where(invoice => _context.Set<InvoiceLine>().Any(line =>
+                        line.InvoiceId == invoice.Id &&
+                        line.ProductId > 0 &&
+                        line.Product != null &&
+                        line.Product.Name != null &&
+                        line.Product.Name.Contains(product)));
+                }
+
+                if (!string.IsNullOrWhiteSpace(barcode))
+                {
+                    var barcodeText = barcode.Trim();
+                    var hasItemCode = long.TryParse(barcodeText, out var itemCode);
+                    query = query.Where(invoice => _context.Set<InvoiceLine>().Any(line =>
+                        line.InvoiceId == invoice.Id &&
+                        line.ProductId > 0 &&
+                        ((hasItemCode && line.Product != null && line.Product.ITEMCODE == itemCode) ||
+                         (line.ProductUnit != null &&
+                          line.ProductUnit.AlternateBarcode != null &&
+                          line.ProductUnit.AlternateBarcode.Contains(barcodeText)))));
                 }
 
                 if (!string.IsNullOrWhiteSpace(customerName))
@@ -1373,7 +1419,9 @@ namespace RaccoonWarehouse.Application.Service.Invoices
             DateTime? dateFrom,
             DateTime? dateTo,
             string? invoiceNumber = null,
-            string? customerName = null);
+            string? customerName = null,
+            string? productName = null,
+            string? barcode = null);
 
         Task<InvoiceReadDto?> FindPOSInvoiceByFalconNumberAsync(
             string falconInvoiceNumber,

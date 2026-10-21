@@ -3,6 +3,7 @@ namespace RaccoonWarehouse.Domain.Products.DTOs
     public sealed class PosProductSearchResultDto
     {
         public int ProductId { get; set; }
+        public int SubCategoryId { get; set; }
         public string? ProductName { get; set; }
         public long? ItemCode { get; set; }
         public bool? TaxExempt { get; set; }
@@ -13,6 +14,9 @@ namespace RaccoonWarehouse.Domain.Products.DTOs
         public decimal UnitSalePrice { get; set; }
         public decimal UnitPurchasePrice { get; set; }
         public decimal QuantityPerUnit { get; set; }
+        public bool AllowFractionalSale { get; set; }
+        public decimal FractionalPartsPerUnit { get; set; }
+        public string? FractionalPartName { get; set; }
         public bool IsBaseUnit { get; set; }
         public bool IsDefaultSaleUnit { get; set; }
         public bool IsDefaultPurchaseUnit { get; set; }

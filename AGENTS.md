@@ -20,6 +20,12 @@ These instructions apply to the repository rooted at `C:\Users\obadaqafisheh\sou
 - Do not use destructive commands unless I explicitly approve them.
 - Do not modify unrelated files.
 
+## SQL Delivery
+- When a database update script is requested, paste the complete SQL directly in the chat for copy/paste.
+- Do not provide only a file path or file link.
+- SQL scripts may also be saved in the repository, but the chat response must contain the full script.
+- Never execute production SQL automatically.
+
 ## Response Style
 - Keep responses concise.
 - Explain what changed after the work is done.

@@ -219,6 +219,41 @@ public class AccountingServiceReportTests
     }
 
     [Fact]
+    public async Task PostInvoiceEntryAsync_SplitPaymentWithDiscount_ShouldRemainBalanced()
+    {
+        var service = CreateService(nameof(PostInvoiceEntryAsync_SplitPaymentWithDiscount_ShouldRemainBalanced), out var context);
+        await service.EnsureDefaultAccountsAsync();
+
+        var result = await service.PostInvoiceEntryAsync(new InvoiceWriteDto
+        {
+            Id = 102,
+            InvoiceNumber = "S-102",
+            InvoiceType = InvoiceType.Sale,
+            Status = InvoiceStatus.Posted,
+            CreatedDate = new DateTime(2026, 10, 21),
+            SubTotal = 5.629m,
+            TotalTax = 0.221m,
+            TotalAmount = 5.750m,
+            DiscountAmount = 0.100m,
+            Payments = new List<InvoicePaymentWriteDto>
+            {
+                new() { PaymentType = PaymentType.Cash, Amount = 1.917m },
+                new() { PaymentType = PaymentType.Visa, Amount = 1.916m },
+                new() { PaymentType = PaymentType.Master, Amount = 1.917m }
+            }
+        });
+
+        var entry = await context.Set<RaccoonWarehouse.Domain.Accounting.JournalEntries.JournalEntry>()
+            .Include(x => x.Lines)
+            .SingleAsync(x => x.ReferenceType == "Invoice" && x.ReferenceId == 102);
+
+        Assert.True(result.Success);
+        Assert.Equal(entry.Lines.Sum(x => x.Debit), entry.Lines.Sum(x => x.Credit));
+        Assert.Equal(5.850m, entry.Lines.Sum(x => x.Debit));
+        Assert.Equal(4, entry.Lines.Count(x => x.Debit > 0));
+    }
+
+    [Fact]
     public async Task PostInvoiceEntryAsync_CreditPurchase_ShouldCreditPayablesAndTagSupplier()
     {
         var service = CreateService(nameof(PostInvoiceEntryAsync_CreditPurchase_ShouldCreditPayablesAndTagSupplier), out var context);

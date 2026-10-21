@@ -386,7 +386,7 @@ namespace RaccoonWarehouse.Invoices
         private bool TryGetActiveCashierSession(out CashierSessionReadDto? session)
         {
             session = _userSession.CurrentCashierSession;
-            if (session != null)
+            if (session?.Status == SessionStatus.Open)
                 return true;
 
             MessageBox.Show(UiText.T("لا توجد جلسة كاشير مفتوحة. الرجاء فتح جلسة أولاً.", "There is no open cashier session. Please open a session first."), UiText.T("خطأ", "Error"));

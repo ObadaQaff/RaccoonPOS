@@ -31,6 +31,8 @@ using System.Windows.Threading;
 using System.Threading;
 using RaccoonWarehouse.Helpers.Localization;
 using RaccoonWarehouse.Helpers;
+using RaccoonWarehouse.Application.Service.Settings;
+using RaccoonWarehouse.Domain.Settings;
 
 namespace RaccoonWarehouse.Invoices
 {
@@ -85,6 +87,7 @@ namespace RaccoonWarehouse.Invoices
         private readonly IProductService _productService;
         private readonly IStockService _stockService;
         private readonly IUserService _userService;
+        private readonly IPosRowColorRuleService? _rowColorRuleService;
         private readonly Func<ProductSearchRow, Task<bool>>? _onAddProduct;
         private readonly HashSet<string> _disabledProductKeys;
         private readonly DispatcherTimer _searchDebounceTimer = new() { Interval = TimeSpan.FromMilliseconds(150) };
@@ -108,13 +111,15 @@ namespace RaccoonWarehouse.Invoices
             IStockService stockService,
             IUserService userService,
             Func<ProductSearchRow, Task<bool>>? onAddProduct = null,
-            IEnumerable<string>? disabledProductKeys = null)
+            IEnumerable<string>? disabledProductKeys = null,
+            IPosRowColorRuleService? rowColorRuleService = null)
         {
             InitializeComponent();
             UiText.ApplyWindow(this);
             _productService = productService;
             _stockService = stockService;
             _userService = userService;
+            _rowColorRuleService = rowColorRuleService;
             _onAddProduct = onAddProduct;
             _disabledProductKeys = disabledProductKeys != null
                 ? new HashSet<string>(disabledProductKeys)
@@ -126,14 +131,30 @@ namespace RaccoonWarehouse.Invoices
 
         private async void ProductSearchWindow_Loaded(object sender, RoutedEventArgs e)
         {
-            await WarmCatalogCacheAsync();
-            await LoadSupplierFilterAsync();
-            await Dispatcher.BeginInvoke(() =>
+            var initializationLockAcquired = false;
+            try
             {
-                SearchTextBox.Focus();
-                Keyboard.Focus(SearchTextBox);
-                SearchTextBox.SelectAll();
-            }, DispatcherPriority.Input);
+                // Serialize initialization with searches so the same scoped
+                // DbContext is not queried concurrently.
+                await _serviceCallLock.WaitAsync();
+                initializationLockAcquired = true;
+
+                await WarmCatalogCacheAsync();
+                if (_rowColorRuleService != null)
+                    await _rowColorRuleService.GetRulesAsync();
+                await LoadSupplierFilterAsync();
+                await Dispatcher.BeginInvoke(() =>
+                {
+                    SearchTextBox.Focus();
+                    Keyboard.Focus(SearchTextBox);
+                    SearchTextBox.SelectAll();
+                }, DispatcherPriority.Input);
+            }
+            finally
+            {
+                if (initializationLockAcquired)
+                    _serviceCallLock.Release();
+            }
         }
 
         private async Task WarmCatalogCacheAsync()
@@ -465,9 +486,11 @@ namespace RaccoonWarehouse.Invoices
                 return;
             }
 
+            var serviceCallLockAcquired = false;
             try
             {
                 await _serviceCallLock.WaitAsync(cancellationToken);
+                serviceCallLockAcquired = true;
 
                 List<PosProductSearchResultDto> searchRows;
                 if (TryGetLoadedCatalog(out var catalog))
@@ -525,6 +548,9 @@ namespace RaccoonWarehouse.Invoices
                             SalePrice = row.UnitSalePrice,
                             PurchasePrice = row.UnitPurchasePrice,
                             QuantityPerUnit = row.QuantityPerUnit,
+                            AllowFractionalSale = row.AllowFractionalSale,
+                            FractionalPartsPerUnit = row.FractionalPartsPerUnit,
+                            FractionalPartName = row.FractionalPartName,
                             IsBaseUnit = row.IsBaseUnit,
                             IsDefaultSaleUnit = row.IsDefaultSaleUnit,
                             IsDefaultPurchaseUnit = row.IsDefaultPurchaseUnit,
@@ -538,6 +564,7 @@ namespace RaccoonWarehouse.Invoices
                         ITEMCODE = firstRow.ItemCode,
                         TaxExempt = firstRow.TaxExempt,
                         TaxRate = firstRow.TaxRate,
+                        SubCategoryId = firstRow.SubCategoryId,
                         ProductUnits = productUnits
                     };
                     var stocksByProductId = productRows
@@ -555,6 +582,9 @@ namespace RaccoonWarehouse.Invoices
                                 SalePrice = row.UnitSalePrice,
                                 PurchasePrice = row.UnitPurchasePrice,
                                 QuantityPerUnit = row.QuantityPerUnit,
+                                AllowFractionalSale = row.AllowFractionalSale,
+                                FractionalPartsPerUnit = row.FractionalPartsPerUnit,
+                                FractionalPartName = row.FractionalPartName,
                                 IsBaseUnit = row.IsBaseUnit,
                                 IsDefaultSaleUnit = row.IsDefaultSaleUnit,
                                 IsDefaultPurchaseUnit = row.IsDefaultPurchaseUnit,
@@ -581,6 +611,7 @@ namespace RaccoonWarehouse.Invoices
                     var searchRow = new ProductSearchRow
                     {
                         Product = product,
+                        RowColor = _rowColorRuleService?.Classify(product.CurrentExpiryDate, product.CurrentStockQuantity, 0m, product.SubCategoryId),
                         Units = new ObservableCollection<ProductUnitReadDto>(productUnits),
                         SalePricesByUnitId = stocksByProductId
                             .GroupBy(stock => stock.ProductUnitId)
@@ -622,13 +653,11 @@ namespace RaccoonWarehouse.Invoices
                 ProductsGrid.Items.Refresh();
                 UiText.ApplyTranslations(ProductsGrid);
             }
-            catch (TaskCanceledException)
+            catch (Exception ex) when (IsExpectedSearchCancellation(ex, cancellationToken))
             {
-                // EF Core reports a canceled database command as TaskCanceledException.
-            }
-            catch (OperationCanceledException)
-            {
-                // A newer keystroke superseded this search.
+                // EF Core/SqlClient can wrap a canceled database command in an
+                // InvalidOperationException. A newer keystroke superseding this
+                // search is expected and must not show an error.
             }
             catch (Exception ex)
             {
@@ -637,9 +666,33 @@ namespace RaccoonWarehouse.Invoices
             finally
             {
                 await RestoreSearchFocusAsync();
-                if (_serviceCallLock.CurrentCount == 0)
+                if (serviceCallLockAcquired)
                     _serviceCallLock.Release();
             }
+        }
+
+        private static bool IsExpectedSearchCancellation(Exception exception, CancellationToken cancellationToken)
+        {
+            if (!cancellationToken.IsCancellationRequested)
+                return false;
+
+            for (var current = exception; current != null; current = current.InnerException)
+            {
+                if (current is OperationCanceledException)
+                    return true;
+
+                // SQL Server reports a canceled command as SqlException, and
+                // EF may wrap it in InvalidOperationException when an execution
+                // strategy is active. Only suppress the known cancellation
+                // message; genuine database failures remain visible.
+                if (current.GetType().FullName == "Microsoft.Data.SqlClient.SqlException" &&
+                    current.Message.Contains("Operation cancelled by user", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private async Task RestoreSearchFocusAsync()
@@ -711,6 +764,9 @@ namespace RaccoonWarehouse.Invoices
                 UnitSalePrice = row.UnitSalePrice,
                 UnitPurchasePrice = row.UnitPurchasePrice,
                 QuantityPerUnit = row.QuantityPerUnit,
+                AllowFractionalSale = row.AllowFractionalSale,
+                FractionalPartsPerUnit = row.FractionalPartsPerUnit,
+                FractionalPartName = row.FractionalPartName,
                 IsBaseUnit = row.IsBaseUnit,
                 IsDefaultSaleUnit = row.IsDefaultSaleUnit,
                 IsDefaultPurchaseUnit = row.IsDefaultPurchaseUnit,
@@ -806,6 +862,9 @@ private void ClearBtn_Click(object sender, RoutedEventArgs e)
             private decimal _salePrice;
             private ProductUnitReadDto? _selectedUnit;
             public ProductReadDto Product { get; set; } = new();
+            public PosRowColorDecision? RowColor { get; set; }
+            public string RowBackground => RowColor?.BackgroundColor ?? "#FFFFFF";
+            public string RowForeground => RowColor?.ForegroundColor ?? "#263238";
             public ObservableCollection<ProductUnitReadDto> Units { get; set; } = new();
             public Dictionary<int, decimal> SalePricesByUnitId { get; set; } = new();
             public Dictionary<int, decimal> StockQuantitiesByUnitId { get; set; } = new();

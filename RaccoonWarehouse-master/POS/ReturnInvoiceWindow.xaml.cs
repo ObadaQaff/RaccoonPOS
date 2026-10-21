@@ -1,12 +1,16 @@
 using RaccoonWarehouse.Application.Service.Invoices;
 using RaccoonWarehouse.Application.Service.AuthService;
+using RaccoonWarehouse.Application.Service.Products;
 using RaccoonWarehouse.Application.Service.Users;
+using RaccoonWarehouse.Core.Common;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Invoices.DTOs;
 using RaccoonWarehouse.Helpers.Localization;
 using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Threading;
 
 namespace RaccoonWarehouse.POS
 {
@@ -15,29 +19,59 @@ namespace RaccoonWarehouse.POS
         private readonly IInvoiceService _invoiceService;
         private readonly IUserSession _userSession;
         private readonly IAuthService _authService;
+        private readonly IProductService _productService;
         private readonly ObservableCollection<ReturnInvoiceLookupRow> _rows = new();
+        private readonly DispatcherTimer _productSuggestionTimer = new() { Interval = TimeSpan.FromMilliseconds(180) };
+        private readonly SemaphoreSlim _serviceCallLock = new(1, 1);
+        private List<string> _productNameCatalog = new();
         private bool _isBusy;
+        private bool _isApplyingProductSuggestion;
 
         public string OriginalInvoiceId { get; private set; } = string.Empty;
 
-        public ReturnInvoiceWindow(IInvoiceService invoiceService, IUserSession userSession, IAuthService authService)
+        public ReturnInvoiceWindow(
+            IInvoiceService invoiceService,
+            IUserSession userSession,
+            IAuthService authService,
+            IProductService productService)
         {
             InitializeComponent();
             UiText.ApplyWindow(this);
             _invoiceService = invoiceService;
             _userSession = userSession;
             _authService = authService;
+            _productService = productService;
             ResultsGrid.ItemsSource = _rows;
+            _productSuggestionTimer.Tick += ProductSuggestionTimer_Tick;
             Loaded += async (_, _) =>
             {
-                if (!await ConfirmReturnPasswordAsync())
-                {
-                    Close();
-                    return;
-                }
-
+                await LoadProductNameCatalogAsync();
                 await SearchAsync();
             };
+        }
+
+        private async Task LoadProductNameCatalogAsync()
+        {
+            try
+            {
+                await _serviceCallLock.WaitAsync();
+                try
+                {
+                    var result = await _productService.GetProductNameCatalogAsync();
+                    _productNameCatalog = result.Success
+                        ? result.Data ?? new List<string>()
+                        : new List<string>();
+                }
+                finally
+                {
+                    _serviceCallLock.Release();
+                }
+            }
+            catch
+            {
+                // The invoice search remains available if the optional suggestion catalog fails.
+                _productNameCatalog = new List<string>();
+            }
         }
 
         private async Task<bool> ConfirmReturnPasswordAsync()
@@ -96,6 +130,114 @@ namespace RaccoonWarehouse.POS
 
         private async void Search_Click(object sender, RoutedEventArgs e) => await SearchAsync();
 
+        private void ProductNameTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (_isApplyingProductSuggestion)
+                return;
+
+            _productSuggestionTimer.Stop();
+            ProductSuggestionsListBox.ItemsSource = null;
+            ProductSuggestionsPopup.IsOpen = false;
+
+            if (ProductNameTextBox.Text.Trim().Length >= 2)
+                _productSuggestionTimer.Start();
+        }
+
+        private async void ProductSuggestionTimer_Tick(object? sender, EventArgs e)
+        {
+            _productSuggestionTimer.Stop();
+            var searchText = ProductNameTextBox.Text.Trim();
+
+            if (searchText.Length < 2)
+                return;
+
+            try
+            {
+                var suggestions = _productNameCatalog
+                    .Where(name => MatchesProductName(name, searchText))
+                    .Take(15)
+                    .ToList();
+
+                if (!string.Equals(searchText, ProductNameTextBox.Text.Trim(), StringComparison.Ordinal))
+                    return;
+
+                ProductSuggestionsListBox.ItemsSource = suggestions;
+                ProductSuggestionsPopup.IsOpen = suggestions.Count > 0;
+            }
+            catch
+            {
+                ProductSuggestionsListBox.ItemsSource = null;
+                ProductSuggestionsPopup.IsOpen = false;
+            }
+        }
+
+        private static bool MatchesProductName(string productName, string searchText)
+        {
+            var terms = searchText
+                .Split(new[] { ' ', '\t', '\r', '\n', '%' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            var searchStart = 0;
+
+            foreach (var term in terms)
+            {
+                var matchIndex = productName.IndexOf(term, searchStart, StringComparison.OrdinalIgnoreCase);
+                if (matchIndex < 0)
+                    return false;
+
+                searchStart = matchIndex + term.Length;
+            }
+
+            return terms.Length > 0;
+        }
+
+        private void ProductNameTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Down && ProductSuggestionsPopup.IsOpen && ProductSuggestionsListBox.Items.Count > 0)
+            {
+                ProductSuggestionsListBox.Focus();
+                ProductSuggestionsListBox.SelectedIndex = 0;
+                e.Handled = true;
+            }
+            else if (e.Key == Key.Escape)
+            {
+                ProductSuggestionsPopup.IsOpen = false;
+            }
+        }
+
+        private void ProductSuggestionsListBox_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter && ProductSuggestionsListBox.SelectedItem is string suggestion)
+            {
+                ApplyProductSuggestion(suggestion);
+                e.Handled = true;
+            }
+            else if (e.Key == Key.Escape)
+            {
+                ProductSuggestionsPopup.IsOpen = false;
+                ProductNameTextBox.Focus();
+                e.Handled = true;
+            }
+        }
+
+        private void ProductSuggestionsListBox_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            if (ProductSuggestionsListBox.SelectedItem is string suggestion)
+            {
+                ApplyProductSuggestion(suggestion);
+                e.Handled = true;
+            }
+        }
+
+        private void ApplyProductSuggestion(string suggestion)
+        {
+            _isApplyingProductSuggestion = true;
+            ProductNameTextBox.Text = suggestion;
+            ProductNameTextBox.CaretIndex = ProductNameTextBox.Text.Length;
+            _isApplyingProductSuggestion = false;
+            ProductSuggestionsPopup.IsOpen = false;
+            ProductSuggestionsListBox.SelectedItem = null;
+            ProductNameTextBox.Focus();
+        }
+
         private async Task SearchAsync()
         {
             if (_isBusy)
@@ -104,10 +246,35 @@ namespace RaccoonWarehouse.POS
             try
             {
                 _isBusy = true;
-                var result = await _invoiceService.SearchReturnInvoiceHeadersAsync(
-                    DateFrom.SelectedDate,
-                    DateTo.SelectedDate,
-                    InvoiceNumberTextBox.Text?.Trim());
+                if (!int.TryParse(DaysBackTextBox.Text?.Trim(), out var daysBack) || daysBack < 0)
+                {
+                    MessageBox.Show(
+                        UiText.T("أدخل عدد أيام صحيحاً: 0 لليوم، 1 للأمس، وهكذا.", "Enter a valid number of days: 0 for today, 1 for yesterday, and so on."),
+                        UiText.T("قيمة غير صحيحة", "Invalid value"),
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    DaysBackTextBox.Focus();
+                    DaysBackTextBox.SelectAll();
+                    return;
+                }
+
+                var selectedDate = DateTime.Today.AddDays(-daysBack);
+                await _serviceCallLock.WaitAsync();
+                Result<List<ReturnInvoiceLookupDto>> result;
+                try
+                {
+                    result = await _invoiceService.SearchReturnInvoiceHeadersAsync(
+                        selectedDate,
+                        selectedDate,
+                        InvoiceNumberTextBox.Text?.Trim(),
+                        null,
+                        ProductNameTextBox.Text?.Trim(),
+                        BarcodeTextBox.Text?.Trim());
+                }
+                finally
+                {
+                    _serviceCallLock.Release();
+                }
 
                 if (!result.Success)
                 {
@@ -176,6 +343,13 @@ namespace RaccoonWarehouse.POS
         }
 
         private void Cancel_Click(object sender, RoutedEventArgs e) => Close();
+
+        protected override void OnClosed(EventArgs e)
+        {
+            _productSuggestionTimer.Stop();
+            _serviceCallLock.Dispose();
+            base.OnClosed(e);
+        }
 
         public sealed class ReturnInvoiceLookupRow
         {

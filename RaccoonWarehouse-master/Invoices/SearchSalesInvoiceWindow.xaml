@@ -62,12 +62,20 @@
 
                 <StackPanel Margin="10">
                     <TextBlock Text="من تاريخ"/>
-                    <DatePicker x:Name="DateFrom" Width="200"/>
+                    <TextBox x:Name="DaysBackTxt"
+                             Style="{StaticResource InputBoxStyle}"
+                             Width="200"
+                             Text="0"
+                             Visibility="Collapsed"
+                             ToolTip="0 = today, 1 = yesterday, 2 = two days ago"/>
                 </StackPanel>
 
                 <StackPanel Margin="10">
                     <TextBlock Text="إلى تاريخ"/>
-                    <DatePicker x:Name="DateTo" Width="200"/>
+                    <TextBlock Text="0 = today, 1 = yesterday, 2 = two days ago"
+                               Foreground="#666666"/>
+                    <DatePicker x:Name="DateFrom" Width="200" Visibility="Collapsed"/>
+                    <DatePicker x:Name="DateTo" Width="200" Visibility="Collapsed"/>
                 </StackPanel>
 
             </UniformGrid>

@@ -95,6 +95,21 @@ namespace RaccoonWarehouse.Application.Service.Products
             return Result<ProductReadDto>.Ok(_mapper.Map<ProductReadDto>(product));
         }
 
+        public async Task<Result<List<string>>> GetProductNameCatalogAsync()
+        {
+            var names = await _uow.GetRepository<Product>()
+                .GetAllAsQueryable()
+                .AsNoTracking()
+                .Where(product => !product.IsDeleted &&
+                                  product.Name != null)
+                .OrderBy(product => product.Name)
+                .Select(product => product.Name!)
+                .Distinct()
+                .ToListAsync();
+
+            return Result<List<string>>.Ok(names);
+        }
+
         public async Task<Result> ApplyTaxToProductUnitsAsync(Product product)
         {
             var taxRate = product.TaxRate ?? 0m;
@@ -348,6 +363,7 @@ namespace RaccoonWarehouse.Application.Service.Products
     {
         Task<Result<ProductReadDto>> GetByIdWithUnitsAsync(int productId);
         Task<Result<ProductReadDto>> FindByBarcodeAsync(string barcode);
+        Task<Result<List<string>>> GetProductNameCatalogAsync();
         Task<Result> ApplyTaxToProductUnitsAsync(int productId);
         Task<Result> ApplyTaxToProductUnitsAsync(Product product);
         Task<Result> UpdateProductWithUnitsAsync(

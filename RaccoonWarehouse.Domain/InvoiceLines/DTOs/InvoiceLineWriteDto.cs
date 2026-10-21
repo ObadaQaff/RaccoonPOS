@@ -187,10 +187,17 @@ namespace RaccoonWarehouse.Domain.InvoiceLines.DTOs
             }
         }
         public decimal LineTotal => Math.Max(0m, Quantity * UnitPrice - LineDiscountAmount);
+        // UI-only POS row presentation. It is never persisted with the invoice.
+        public string RowBackground { get; set; } = "#FFFFFF";
+        public string RowForeground { get; set; } = "#263238";
+        public string RowAccent { get; set; } = "#90A4AE";
         public void RefreshCalculatedProperties()
         {
             OnPropertyChanged(nameof(LineTotal));
             OnPropertyChanged(nameof(CostTotal));
+            OnPropertyChanged(nameof(RowBackground));
+            OnPropertyChanged(nameof(RowForeground));
+            OnPropertyChanged(nameof(RowAccent));
         }
         private DateTime _expiryDate;
         public DateTime ExpiryDate

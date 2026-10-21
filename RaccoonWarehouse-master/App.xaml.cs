@@ -995,6 +995,7 @@ END;";
             services.AddSingleton<AccountService>();
             services.AddScoped<ILanguageSettingsService, LanguageSettingsService>();
             services.AddScoped<IInventoryCostingSettingsService, InventoryCostingSettingsService>();
+            services.AddScoped<IPosRowColorRuleService, PosRowColorRuleService>();
             services.AddScoped<IPermissionService, PermissionService>();
             services.AddScoped<IReportPermissionService, ReportPermissionService>();
             services.AddScoped<IDelegateService, DelegateService>();
@@ -1003,6 +1004,7 @@ END;";
             services.AddScoped<IEmployeeFeatureService, EmployeeFeatureService>();
             services.AddSingleton<ILoadingService, LoadingService>();
             services.AddScoped<ICashierSessionService, CashierSessionService>();
+            services.AddScoped<ICashierSessionSettlementService, CashierSessionSettlementService>();
             services.AddScoped<IAuthService, AuthService>();
             services.AddSingleton<INotificationService, NotificationService>();
             services.AddAppModule(new ReportsAppModule());
@@ -1167,6 +1169,7 @@ END;";
             services.AddTransient<RaccoonWarehouse.Settings.AuditLogsWindow>();
             services.AddTransient<LanguageSettingsWindow>();
             services.AddTransient<InventoryCostingSettingsWindow>();
+            services.AddTransient<PosRowColorSettingsWindow>();
             #endregion
 
         }

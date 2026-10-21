@@ -33,10 +33,11 @@ namespace RaccoonWarehouse.Application.Service.Cashers
             // ✅ Prevent multiple open sessions for same cashier
             var hasOpen = _uow.CashierSessions
                 .GetAllAsQueryable()
-                .Any(s => s.CashierId == cashierId && s.Status == SessionStatus.Open);
+                .Any(s => s.CashierId == cashierId
+                    && (s.Status == SessionStatus.Open || s.Status == SessionStatus.Closing));
 
             if (hasOpen)
-                throw new Exception("There is already an open session for this cashier.");
+                throw new Exception("There is already an open or closing session for this cashier.");
 
             var session = new CashierSession
             {
@@ -74,6 +75,32 @@ namespace RaccoonWarehouse.Application.Service.Cashers
             await _uow.CommitAsync();
         }
 
+        public async Task CloseSessionAsync(int sessionId, CashierSessionSettlementDto settlement, CashierSessionSettlementReadDto calculated)
+        {
+            if (settlement.CountedCash < 0 || settlement.CountedVisa < 0)
+                throw new InvalidOperationException("Closing amounts cannot be negative.");
+
+            var session = await _uow.CashierSessions.GetByIdAsync(sessionId)
+                ?? throw new InvalidOperationException("Session not found.");
+
+            if (session.Status == SessionStatus.Closed)
+                throw new InvalidOperationException("Session already closed.");
+
+            session.ClosedAt = DateTime.Now;
+            session.EndingBalance = settlement.CountedCash;
+            session.ExpectedClosingBalance = calculated.ExpectedCash;
+            session.DifferenceAmount = calculated.CashDifference;
+            session.ExpectedVisa = calculated.ExpectedVisa;
+            session.CountedVisa = settlement.CountedVisa;
+            session.VisaDifference = calculated.VisaDifference;
+            session.ClosingNotes = settlement.ClosingNotes;
+            session.ClosedBy = settlement.ClosedBy;
+            session.UpdatedBy = settlement.ClosedBy;
+            session.Status = SessionStatus.Closed;
+
+            await _uow.CommitAsync();
+        }
+
         // ✅ Optional: get current open session for cashier
         public Task<CashierSessionReadDto?> GetOpenSessionAsync(int cashierId)
         {
@@ -99,6 +126,17 @@ namespace RaccoonWarehouse.Application.Service.Cashers
             return session == null ? null : _mapper.Map<CashierSessionReadDto>(session);
         }
 
+        public async Task<CashierSessionReadDto?> GetClosingSessionByCashierAsync(int cashierId)
+        {
+            var session = _uow.CashierSessions
+                .GetAllAsQueryable()
+                .Where(s => s.CashierId == cashierId && s.Status == SessionStatus.Closing)
+                .OrderByDescending(s => s.OpenedAt)
+                .FirstOrDefault();
+
+            return session == null ? null : _mapper.Map<CashierSessionReadDto>(session);
+        }
+
     }
 
     public interface ICashierSessionService
@@ -106,9 +144,11 @@ namespace RaccoonWarehouse.Application.Service.Cashers
     {
         Task<CashierSessionReadDto> OpenSessionAsync(int cashierId, decimal startBalance);
         Task CloseSessionAsync(int sessionId, decimal endingBalance);
+        Task CloseSessionAsync(int sessionId, CashierSessionSettlementDto settlement, CashierSessionSettlementReadDto calculated);
 
         Task<CashierSessionReadDto?> GetOpenSessionAsync(int cashierId);
         Task<CashierSessionReadDto?> GetOpenSessionByCashierAsync(int cashierId);
+        Task<CashierSessionReadDto?> GetClosingSessionByCashierAsync(int cashierId);
 
     }
 }

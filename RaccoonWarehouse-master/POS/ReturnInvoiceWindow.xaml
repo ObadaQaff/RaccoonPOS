@@ -2,8 +2,10 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Select Return Invoice / اختيار فاتورة الإرجاع"
-        Width="1050"
-        Height="650"
+        Width="1500"
+        MinWidth="1250"
+        Height="700"
+        MinHeight="560"
         WindowStartupLocation="CenterScreen"
         ResizeMode="CanResize"
         Background="#F5F6FA"
@@ -29,23 +31,52 @@
         <Border Grid.Row="1" Background="White" CornerRadius="8" Padding="12" Margin="0,12,0,12"
                 BorderBrush="#D8E1E6" BorderThickness="1">
             <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="170"/>
+                    <ColumnDefinition Width="90"/>
                     <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="170"/>
+                    <ColumnDefinition Width="190"/>
                     <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="220"/>
-                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="280"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="260"/>
+                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="120"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="From / من" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                <DatePicker x:Name="DateFrom" Grid.Column="1"/>
-                <TextBlock Grid.Column="2" Text="To / إلى" VerticalAlignment="Center" Margin="18,0,8,0"/>
-                <DatePicker x:Name="DateTo" Grid.Column="3"/>
-                <TextBlock Grid.Column="4" Text="Number / رقم الفاتورة" VerticalAlignment="Center" Margin="18,0,8,0"/>
-                <TextBox x:Name="InvoiceNumberTextBox" Grid.Column="5" Height="32" Padding="6"/>
-                <Button Grid.Column="7" Content="Search / بحث" Height="32" Margin="12,0,0,0"
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="Days back / عدد الأيام" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <TextBox x:Name="DaysBackTextBox" Grid.Row="0" Grid.Column="1" Text="0" Height="32" Padding="6"/>
+                <TextBlock Grid.Row="0" Grid.Column="2" Text="Number / رقم الفاتورة" VerticalAlignment="Center" Margin="18,0,8,0"/>
+                <TextBox x:Name="InvoiceNumberTextBox" Grid.Row="0" Grid.Column="3" Height="32" Padding="6"/>
+                <TextBlock Grid.Row="0" Grid.Column="4" Text="Product name / اسم الصنف" VerticalAlignment="Center" Margin="18,0,8,0"/>
+                <Grid Grid.Row="0" Grid.Column="5">
+                    <TextBox x:Name="ProductNameTextBox" Height="32" Padding="6"
+                             TextChanged="ProductNameTextBox_TextChanged"
+                             PreviewKeyDown="ProductNameTextBox_PreviewKeyDown"/>
+                    <Popup x:Name="ProductSuggestionsPopup"
+                           PlacementTarget="{Binding ElementName=ProductNameTextBox}"
+                           Placement="Bottom"
+                           StaysOpen="False"
+                           AllowsTransparency="True"
+                           Focusable="False">
+                        <Border Width="280" MaxHeight="230" Background="White"
+                                BorderBrush="#B7CAD8" BorderThickness="1"
+                                CornerRadius="4" Padding="2">
+                            <ListBox x:Name="ProductSuggestionsListBox"
+                                     PreviewKeyDown="ProductSuggestionsListBox_PreviewKeyDown"
+                                     PreviewMouseLeftButtonUp="ProductSuggestionsListBox_PreviewMouseLeftButtonUp"
+                                     DisplayMemberPath="."/>
+                        </Border>
+                    </Popup>
+                </Grid>
+                <TextBlock Grid.Row="0" Grid.Column="6" Text="Barcode / الباركود" VerticalAlignment="Center" Margin="18,0,8,0"/>
+                <TextBox x:Name="BarcodeTextBox" Grid.Row="0" Grid.Column="7" Height="32" Padding="6"/>
+                <Button Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="10"
+                        Content="Search / بحث" Width="150" Height="34"
+                        HorizontalAlignment="Center" Margin="0,12,0,0"
                         Style="{StaticResource PrimaryButtonStyle}" Click="Search_Click"/>
             </Grid>
         </Border>
@@ -55,10 +86,10 @@
             <DataGrid x:Name="ResultsGrid" AutoGenerateColumns="False" IsReadOnly="True"
                       SelectionMode="Single" MouseDoubleClick="Select_Click">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="Number / رقم الفاتورة" Binding="{Binding InvoiceNumber}" Width="170"/>
-                    <DataGridTextColumn Header="Date / التاريخ" Binding="{Binding CreatedDate, StringFormat=yyyy-MM-dd HH:mm}" Width="170"/>
+                    <DataGridTextColumn Header="Number / رقم الفاتورة" Binding="{Binding InvoiceNumber}" Width="190"/>
+                    <DataGridTextColumn Header="Date / التاريخ" Binding="{Binding CreatedDate, StringFormat=yyyy-MM-dd HH:mm}" Width="190"/>
                     <DataGridTextColumn Header="Customer / العميل" Binding="{Binding CustomerName}" Width="*"/>
-                    <DataGridTextColumn Header="Payment / طريقة الدفع" Binding="{Binding PaymentMethodDisplay}" Width="220"/>
+                    <DataGridTextColumn Header="Payment / طريقة الدفع" Binding="{Binding PaymentMethodDisplay}" Width="240"/>
                     <DataGridTextColumn Header="Total / الإجمالي" Binding="{Binding TotalAmount, StringFormat=N3}" Width="140"/>
                     <DataGridTextColumn Header="Return status / حالة الإرجاع" Binding="{Binding ReturnStatus}" Width="230"/>
                 </DataGrid.Columns>

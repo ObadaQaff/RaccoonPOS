@@ -17,6 +17,7 @@ public class PurchaseReturnWriteDto
     public int? SupplierId { get; set; }
     public int? OriginalInvoiceId { get; set; }
     public int? GoodsReceiptId { get; set; }
+    public int? CashierSessionId { get; set; }
     public string? Reason { get; set; }
     public DateTime ReturnDate { get; set; }
     public ICollection<PurchaseReturnLineWriteDto> Lines { get; set; } = new List<PurchaseReturnLineWriteDto>();

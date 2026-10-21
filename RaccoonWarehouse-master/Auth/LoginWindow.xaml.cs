@@ -128,9 +128,12 @@ namespace RaccoonWarehouse.Auth
                 await _auditLogService.WriteAsync(new RaccoonWarehouse.Core.Audit.AuditEvent("Login"));
 
                 var openSession = await _cashierSessionService.GetOpenSessionByCashierAsync(user.Id);
+                var closingSession = openSession == null
+                    ? await _cashierSessionService.GetClosingSessionByCashierAsync(user.Id)
+                    : null;
                 CashierSessionReadDto session;
 
-                if (openSession == null)
+                if (openSession == null && closingSession == null)
                 {
                     var startWin = _serviceProvider.GetRequiredService<StartCashierSessionWindow>();
                     var ok = startWin.ShowDialog();
@@ -146,7 +149,7 @@ namespace RaccoonWarehouse.Auth
                 }
                 else
                 {
-                    session = openSession;
+                    session = openSession ?? closingSession!;
                     session.CashierName = user.Name;
                     _userSession.AttachCashierSession(session);
                 }

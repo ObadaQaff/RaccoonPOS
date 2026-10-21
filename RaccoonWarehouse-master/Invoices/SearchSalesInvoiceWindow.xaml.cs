@@ -32,6 +32,18 @@ namespace RaccoonWarehouse.Invoices
             CustomerTxt.ItemsSource = _allUsers;
             _isSal = isSal;
             _isPOS = isPOS;
+            if (_isPOS == true)
+            {
+                DaysBackTxt.Visibility = Visibility.Visible;
+                DateFrom.Visibility = Visibility.Collapsed;
+                DateTo.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                DaysBackTxt.Visibility = Visibility.Collapsed;
+                DateFrom.Visibility = Visibility.Visible;
+                DateTo.Visibility = Visibility.Visible;
+            }
             PartyFilterLabel.Text = _isSal == false
                 ? UiText.T("اسم المورد", "Supplier name")
                 : UiText.T("اسم الزبون", "Customer name");
@@ -141,11 +153,34 @@ namespace RaccoonWarehouse.Invoices
         }
         private async void SearchBtn_Click(object sender, RoutedEventArgs e)
         {
+            DateTime? fromDate = DateFrom.SelectedDate;
+            DateTime? toDate = DateTo.SelectedDate;
+
+            if (_isPOS == true)
+            {
+                if (!int.TryParse(DaysBackTxt.Text?.Trim(), out var daysBack) || daysBack < 0)
+                {
+                    MessageBox.Show(
+                        "Enter a valid number of days: 0 for today, 1 for yesterday, and so on.",
+                        "Invalid date range",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    DaysBackTxt.Focus();
+                    DaysBackTxt.SelectAll();
+                    return;
+                }
+
+                var today = DateTime.Today;
+                var selectedDate = today.AddDays(-daysBack);
+                fromDate = selectedDate;
+                toDate = selectedDate;
+            }
+
             var result = await _invoiceService.SearchSalesInvoicesAsync(
                 InvoiceNumberTxt.Text?.Trim(),
                 CustomerTxt.Text,
-                DateFrom.SelectedDate,
-                DateTo.SelectedDate,
+                fromDate,
+                toDate,
                 _isSal,
                 _isPOS
             );

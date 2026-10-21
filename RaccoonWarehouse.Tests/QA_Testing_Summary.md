@@ -1,5 +1,42 @@
 # QA Testing Summary
 
+## 2026-10-20 - Voucher cashier-session linkage
+
+### Scope
+- Fixed receipt and payment voucher creation so the voucher row stores the active `CashierSessionId` alongside the cashier ID.
+- Added a safe voucher-session index and schema validation to the manual settlement SQL script.
+- Preserved historical vouchers; no automatic data repair was executed.
+
+### Verification
+- Isolated-output WPF application build: passed with 0 errors; existing warnings remain (998 warnings).
+- Normal output build was blocked by the running application/debugger locking existing DLLs; this was avoided by building to a separate output directory.
+
+### Manual verification remains
+- Start a new cashier session.
+- Create and post a receipt voucher and a payment voucher.
+- Open close-session and calculate settlement.
+- Confirm both vouchers appear in the session-action list and Cash/Visa values are included once.
+
+## 2026-10-20 - Complete cashier-session action settlement
+
+### Scope
+- Included session-linked sales, sales returns, purchase invoices, purchase returns, and all posted voucher types in the cashier session action summary.
+- Expanded Cash/Visa settlement rules with purchase-side directions and invoice-linked voucher de-duplication.
+- Added session tracking for standalone confirmed purchase returns.
+- Added a scrollable session-action list to the close-session window and aligned the cashier dashboard invoice/voucher scope.
+
+### Verification
+- Full solution build: passed with 0 errors; existing warnings remain (1060 warnings).
+- Full automated test suite: 142 passed, 9 failed, 0 skipped out of 151.
+- The failed tests are existing failures in voucher CRUD, endpoint-order reporting, stock expiry, purchase-expiry validation, and accounting reversal areas; no failure was reported from the changed settlement or purchase-return files.
+- Production SQL was not executed.
+
+### Manual verification remains
+- Apply the updated SQL script in a backed-up test database first.
+- Create sale, sale return, purchase, purchase return, receipt, payment, and other voucher actions in one cashier session.
+- Confirm every action appears once in the close-session action list and cashier dashboard.
+- Confirm invoice-linked vouchers appear as actions but are not counted twice in expected Cash/Visa totals.
+
 ## 2026-10-17 - Arabic mojibake cleanup
 
 ### Scope
@@ -2392,5 +2429,116 @@ The solution still reports existing warnings, including package compatibility/se
 - The endpoint-order test failure is unrelated to discount handling and remains from the existing test baseline.
 - Manual verification is still recommended for a sale containing line and invoice discounts in each report screen.
 
+## 2026-10-21 - Persistent cashier settlement snapshot
+
+### Scope
+- The first successful Cash/Visa calculation is persisted on the open cashier session.
+- Reopening the close-session window restores the saved amounts, expected values, differences, and session actions.
+- Counted Cash and Visa become read-only after the snapshot is saved.
+- Final session closing continues to save the definitive counted amounts and notes.
+- Added manual SQL columns for settlement snapshot state; no production SQL was executed.
+
+### Verification
+- Full solution build: passed with 0 errors and existing warnings.
+- Full test suite: 151 tests; 142 passed and 9 failed in pre-existing unrelated areas.
+- Manual UI verification remains required after applying the database script: calculate, close window, reopen, confirm values are restored and locked, then close the session.
+
 ### Remaining risks
+- The application requires the new `CashierSession` columns from `CASHIER_SESSION_SETTLEMENT_DATABASE_UPDATE.sql` before this workflow can run against the database.
+- The existing unrelated test failures remain documented and were not changed by this feature.
+
+## 2026-10-21 - Modal cashier settlement completion
+
+### Scope
+- Removed the Back button from the cashier settlement window.
+- Prevented the window X button and Alt+F4 from abandoning an unfinished settlement.
+- The window can close only after the session is successfully saved and finalized.
+- Background application interaction remains blocked through the modal dialog flow.
+
+### Verification
+- Manual verification is required for invalid input, calculated-but-unsaved state, close attempts, and successful final save.
+
+### Remaining risks
+- Manual Arabic UI verification is still recommended for the cashier settlement window.
+
+## 2026-10-21 - POS split-payment completion flow
+
+### Scope
+- F1 and the Finish Cash button now open the payment allocation window before saving the invoice.
+- F2 remains the product-search shortcut; F4 remains an alternate finish shortcut.
+- The payment amount starts with the full invoice total.
+- Enter/Add records a payment allocation, recalculates the remaining amount, and disables the used payment method.
+- The invoice can be saved only when all payment allocations equal the invoice total.
+- Existing invoice checkout, credit-customer, check, return, inventory, and accounting validation paths remain in use.
+
+### Verification
+- Full solution build: passed with 0 errors and existing warnings.
+- Manual verification remains required for full payment, partial payment, multiple methods, duplicate method prevention, incomplete totals, credit payment, check payment, and return payment flows.
+
+### Remaining risks
+- The WPF payment-window scenarios require manual execution because they cannot be fully exercised by the headless test suite.
+
+## 2026-10-21 - Split-payment layout and automatic logout after session close
+
+### Scope
+- Redesigned the split-payment dialog with clearer cards, larger amount values, responsive header spacing, and a vertical scrollbar for smaller windows.
+- Closing a cashier session from POS now closes POS and returns the user to the login window automatically.
+- Canceling or failing the session close does not log the user out.
+
+### Verification
+- Full solution build: passed with 0 errors and 1,010 existing warnings.
+- Manual verification remains required for resized payment dialogs, long amounts, successful session close, and canceled session close.
+
+### Remaining risks
+- The WPF visual layout and login transition require manual verification on the target display resolution.
+
+## 2026-10-21 - Commit item discounts before payment allocation
+
+### Scope
+- Commits the active invoice grid cell and row before opening split payment or processing direct payment.
+- Prevents the split-payment dialog from using the old pre-discount total while the edited discount is still active in the grid.
+
+### Verification
+- Full solution build: passed with 0 errors and 1,010 existing warnings.
+- Manual verification remains required for item amount discounts, item percentage discounts, invoice discounts, split payment, and direct cash payment.
+
+## 2026-10-21 - Discount-aware split-payment total
+
+### Scope
+- Split payment now recalculates the invoice total immediately before opening the payment window.
+- Item-level and invoice-level discounts are included in the amount shown and validated for payment.
+
+### Verification
+- Full solution build: passed with 0 errors and existing warnings.
+- Manual verification remains required for discounted full payment and discounted split payment.
 - Manual Arabic UI verification is still recommended to confirm the visible "فتح سند القبض" button in the running application.
+## 2026-10-21 Checkout Save Performance and Discount Consistency
+
+- Updated `InvoiceService` so sales totals use the normalized line total after `LineDiscountAmount`; this keeps split-payment validation aligned with the POS-displayed total.
+- Updated `StockService.AllocateOutgoingAsync` to order FEFO/FIFO lots once per product within one invoice save instead of repeating the same sort for every line.
+- Final unit, stock, expiry, FEFO/FIFO, payment, and transaction checks remain enabled.
+- Full test run after the change: 142 passed, 9 failed, 0 skipped, 151 total. The nine failures match the existing baseline failures documented elsewhere in this report; none is a compile failure from this change.
+- Full solution build compiled all project dependencies, but the final WPF output copy was blocked by the currently running Visual Studio/RaccoonWarehouse process locking its DLLs. No application process was stopped.
+
+## 2026-10-21 Product Search Cancellation Handling
+
+- Product search cancellation is intentional: typing a new character cancels the previous stock query.
+- `GetPosProductStockAsync` now converts cancellation caused by its supplied search token into an empty result; genuine database exceptions are still propagated.
+- The search window continues to ignore stale results and releases its service-call lock in `finally`.
+- Visual Studio may still break on first-chance `TaskCanceledException` if exception settings are configured to break when thrown. Disable that exception in Exception Settings to debug normally; this is not an application error.
+
+## 2026-10-21 Return Payment Total Validation
+
+- Customer-return line totals now use the absolute refundable line value during service normalization instead of being clamped to zero by the negative return quantity.
+- Customer-return `TotalAmount` remains negative for accounting and cashier settlement, while payment validation compares positive payment allocations with the absolute refund amount.
+- Application build passed with 0 errors.
+- Full test run: 144 passed, 8 failed, 0 skipped, 152 total. The failures are existing unrelated voucher, report, accounting-void, and purchase-validation test failures.
+- Manual verification remains required for a customer return with a discount, direct cash payment, split payment, and the resulting accounting/cashier totals.
+
+## 2026-10-21 Return Payment Difference Audit Note
+
+- Return invoices now compare original and refund payment allocations by method and record an explicit audit note when amounts or methods differ.
+- The note identifies transfers such as `2.000 moved from Cash to Visa` and includes the original and refund allocation summaries.
+- No database schema change was required; the existing invoice `Notes` field is used.
+- Application build passed with 0 errors.
+- Manual verification remains required for Cash-to-Visa, Visa-to-Cash, multi-method split refunds, same-method amount changes, and unchanged payment allocations.

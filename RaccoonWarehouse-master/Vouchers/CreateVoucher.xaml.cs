@@ -333,6 +333,7 @@ namespace RaccoonWarehouse.Vouchers
                     VoucherType = VoucherType.Receipt, // أو حسب شاشتك (Receipt/Payment)
                     Amount = amount,
                     CasherId = session.CashierId,
+                    CashierSessionId = session.Id,
                     WarehouseId = WarehouseComboBox.SelectedValue != null ? (int)WarehouseComboBox.SelectedValue : null,
                     CustomerId = AccountComboBox.SelectedValue != null ? (int)AccountComboBox.SelectedValue : null,
                     Notes = ReceiptDescription.Text,

@@ -5,6 +5,7 @@ using RaccoonWarehouse.Application.Service.Invoices;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Application.Service.Vouchers;
 using RaccoonWarehouse.Domain.Cashiers.DTOs;
+using RaccoonWarehouse.Domain.Accounting.Enums;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Invoices.DTOs;
 using RaccoonWarehouse.Domain.POS.VM;
@@ -281,7 +282,6 @@ namespace RaccoonWarehouse.POS
                         type: null))
                     .Where(v => v.CreatedDate >= from && v.CreatedDate <= to)
                     .Where(v => MatchesCashierScope(v.CashierSessionId, v.CasherId, selectedCashier.Id, sessionIds, isSpecificSession))
-                    .Where(v => v.VoucherType is VoucherType.Receipt or VoucherType.Payment)
                     .OrderBy(v => v.CreatedDate)
                     .ToList();
 
@@ -294,12 +294,15 @@ namespace RaccoonWarehouse.POS
                     dateFrom: from,
                     dateTo: to,
                     isSal: null,
-                    isPOS: true,
+                    isPOS: null,
                     status: null);
 
                 var sessionInvoices = invoiceResult.Success && invoiceResult.Data != null
                     ? invoiceResult.Data
-                        .Where(invoice => invoice.InvoiceType is InvoiceType.Sale or InvoiceType.Return)
+                        .Where(invoice => invoice.InvoiceType is InvoiceType.Sale
+                            or InvoiceType.Return
+                            or InvoiceType.Purchase
+                            or InvoiceType.PurchaseReturn)
                         .Where(invoice => invoice.Status is InvoiceStatus.Completed or InvoiceStatus.Posted)
                         .Where(invoice => MatchesCashierScope(
                             invoice.CashierSessionId,
@@ -324,7 +327,7 @@ namespace RaccoonWarehouse.POS
                 _vm.TotalSales = 0;
                 _vm.TotalDiscount = 0;
                 _vm.TotalFinancialTransactions = 0;
-                UpdatePaymentTotals(sessionInvoices);
+                UpdatePaymentTotals(sessionInvoices, sessionVouchers);
                 UpdateVoucherTotals(sessionVouchers, sessionInvoices);
                 _vm.TotalDocuments = rows.Count;
                 // Display movement totals as positive incoming/outgoing values.
@@ -415,7 +418,7 @@ namespace RaccoonWarehouse.POS
 
         private static SessionTransactionRowDto BuildInvoiceRow(InvoiceReadDto invoice, string cashierName)
         {
-            var isReturn = invoice.InvoiceType == InvoiceType.Return;
+            var isReturn = invoice.InvoiceType is InvoiceType.Return or InvoiceType.Purchase;
             var referenceText = !string.IsNullOrWhiteSpace(invoice.OriginalInvoiceId)
                 ? invoice.OriginalInvoiceId
                 : invoice.Voucher?.VoucherNumber ?? invoice.InvoiceNumber;
@@ -468,8 +471,15 @@ namespace RaccoonWarehouse.POS
             IEnumerable<InvoiceReadDto> invoices,
             IEnumerable<VoucherReadDto> vouchers)
         {
-            var invoiceCash = invoices
+            var sessionInvoices = invoices
                 .Where(invoice => invoice.CashierSessionId == session.Id)
+                .ToList();
+            var linkedVoucherIds = sessionInvoices
+                .Where(invoice => invoice.VoucherId.HasValue)
+                .Select(invoice => invoice.VoucherId!.Value)
+                .ToHashSet();
+
+            var invoiceCash = sessionInvoices
                 .Sum(invoice =>
                 {
                     var allocatedCash = (invoice.Payments ?? new List<InvoicePaymentReadDto>())
@@ -479,16 +489,17 @@ namespace RaccoonWarehouse.POS
                     if (allocatedCash == 0m && invoice.PaymentType == PaymentType.Cash)
                         allocatedCash = Math.Abs(invoice.TotalAmount);
 
-                    return invoice.InvoiceType == InvoiceType.Return
+                    return invoice.InvoiceType is InvoiceType.Return or InvoiceType.Purchase
                         ? -allocatedCash
                         : allocatedCash;
                 });
 
             var voucherCash = vouchers
                 .Where(voucher => voucher.CashierSessionId == session.Id)
+                .Where(voucher => !linkedVoucherIds.Contains(voucher.Id))
+                .Where(voucher => voucher.PostingStatus == AccountingPostingStatus.Posted)
                 .Where(voucher => voucher.PaymentType == PaymentType.Cash)
-                .Where(voucher => voucher.VoucherType is VoucherType.Receipt or VoucherType.Payment)
-                .Sum(voucher => voucher.VoucherType == VoucherType.Receipt
+                .Sum(voucher => IsIncomingVoucher(voucher.VoucherType)
                     ? Math.Abs(voucher.Amount)
                     : -Math.Abs(voucher.Amount));
 
@@ -611,15 +622,23 @@ namespace RaccoonWarehouse.POS
             };
         }
 
-        private void UpdatePaymentTotals(IReadOnlyCollection<InvoiceReadDto> invoices)
+        private void UpdatePaymentTotals(
+            IReadOnlyCollection<InvoiceReadDto> invoices,
+            IReadOnlyCollection<VoucherReadDto> vouchers)
         {
-            CashTotalTextBlock.Text = FormatInvoicePaymentTotal(invoices, PaymentType.Cash);
-            VisaTotalTextBlock.Text = FormatInvoicePaymentTotal(invoices, PaymentType.Visa);
-            CreditTotalTextBlock.Text = FormatInvoicePaymentTotal(invoices, PaymentType.Credit);
-            MasterTotalTextBlock.Text = FormatInvoicePaymentTotal(invoices, PaymentType.Master);
-            DebitTotalTextBlock.Text = FormatInvoicePaymentTotal(invoices, PaymentType.Debit);
-            CheckTotalTextBlock.Text = FormatInvoicePaymentTotal(invoices, PaymentType.Check);
-            MobileTotalTextBlock.Text = FormatInvoicePaymentTotal(invoices, PaymentType.MobilePayment);
+            var invoiceVoucherIds = invoices
+                .Where(invoice => invoice.VoucherId.HasValue)
+                .Select(invoice => invoice.VoucherId!.Value)
+                .ToHashSet();
+            var standaloneVouchers = vouchers.Where(voucher => !invoiceVoucherIds.Contains(voucher.Id)).ToList();
+
+            CashTotalTextBlock.Text = FormatPaymentTotal(invoices, standaloneVouchers, PaymentType.Cash);
+            VisaTotalTextBlock.Text = FormatPaymentTotal(invoices, standaloneVouchers, PaymentType.Visa);
+            CreditTotalTextBlock.Text = FormatPaymentTotal(invoices, standaloneVouchers, PaymentType.Credit);
+            MasterTotalTextBlock.Text = FormatPaymentTotal(invoices, standaloneVouchers, PaymentType.Master);
+            DebitTotalTextBlock.Text = FormatPaymentTotal(invoices, standaloneVouchers, PaymentType.Debit);
+            CheckTotalTextBlock.Text = FormatPaymentTotal(invoices, standaloneVouchers, PaymentType.Check);
+            MobileTotalTextBlock.Text = FormatPaymentTotal(invoices, standaloneVouchers, PaymentType.MobilePayment);
         }
 
         private void UpdateVoucherTotals(
@@ -667,24 +686,24 @@ namespace RaccoonWarehouse.POS
             if (allocations <= 0m && invoice.PaymentType == paymentType)
                 allocations = Math.Abs(invoice.TotalAmount);
 
-            if (invoice.InvoiceType == InvoiceType.Return)
+            if (invoice.InvoiceType is InvoiceType.Return or InvoiceType.Purchase)
                 return -allocations;
 
             return allocations;
         }
 
         private static string FormatPaymentTotal(
-            IEnumerable<VoucherReadDto> vouchers,
             IEnumerable<InvoiceReadDto> invoices,
+            IEnumerable<VoucherReadDto> vouchers,
             PaymentType paymentType)
-            => (vouchers
-                .Where(v => v.PaymentType == paymentType)
-                .Sum(v => Math.Abs(v.Amount))
-                + invoices
-                    .SelectMany(invoice => invoice.Payments ?? new List<InvoicePaymentReadDto>())
-                    .Where(payment => payment.PaymentType == paymentType && payment.Amount > 0m)
-                    .Sum(payment => payment.Amount))
+            => (invoices.Sum(invoice => GetSignedInvoicePaymentAmount(invoice, paymentType))
+                + vouchers
+                    .Where(v => v.PaymentType == paymentType && v.PostingStatus == AccountingPostingStatus.Posted)
+                    .Sum(v => IsIncomingVoucher(v.VoucherType) ? Math.Abs(v.Amount) : -Math.Abs(v.Amount)))
                 .ToString("N2");
+
+        private static bool IsIncomingVoucher(VoucherType voucherType) => voucherType is
+            VoucherType.Sales or VoucherType.Receipt or VoucherType.ReturnPurchase or VoucherType.Adjustment;
 
         private static SessionTransactionRowDto BuildFinancialRow(RaccoonWarehouse.Domain.FinancialTransactions.DTOs.FinancialTransactionReadDto tx, string cashierName)
         {

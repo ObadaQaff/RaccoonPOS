@@ -273,6 +273,9 @@ public partial class POS
                     UpdatedDate = stock.ProductUnit.Unit.UpdatedDate
                 },
             QuantityPerUnit = stock.ProductUnit?.QuantityPerUnit ?? 1m,
+            AllowFractionalSale = stock.ProductUnit?.AllowFractionalSale ?? false,
+            FractionalPartsPerUnit = stock.ProductUnit?.FractionalPartsPerUnit ?? 0m,
+            FractionalPartName = stock.ProductUnit?.FractionalPartName,
             PurchasePrice = stock.PurchasePrice,
             SalePrice = stock.SalePrice,
             IsDefaultSaleUnit = stock.ProductUnit?.IsDefaultSaleUnit ?? false,
@@ -297,6 +300,9 @@ public partial class POS
                     UpdatedDate = unit.Unit.UpdatedDate
                 },
             QuantityPerUnit = unit.QuantityPerUnit,
+            AllowFractionalSale = unit.AllowFractionalSale,
+            FractionalPartsPerUnit = unit.FractionalPartsPerUnit,
+            FractionalPartName = unit.FractionalPartName,
             PurchasePrice = unit.PurchasePrice,
             SalePrice = unit.SalePrice,
             IsBaseUnit = unit.IsBaseUnit,

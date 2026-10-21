@@ -181,7 +181,9 @@ namespace RaccoonWarehouse.Application.Service.Sales
                 SourceId = invoiceId,
                 CashierSessionId = session.Id,
                 CashierId = session.CashierId,
-                Notes = $"{invoice.InvoiceType} Invoice #{invoice.InvoiceNumber}"
+                Notes = string.IsNullOrWhiteSpace(invoice.Notes)
+                    ? $"{invoice.InvoiceType} Invoice #{invoice.InvoiceNumber}"
+                    : $"{invoice.InvoiceType} Invoice #{invoice.InvoiceNumber} | {invoice.Notes}"
             };
         }
 

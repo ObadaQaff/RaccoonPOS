@@ -33,6 +33,7 @@ using RaccoonWarehouse.Products.Reports;
 using RaccoonWarehouse.FinancialTransactions.Reports;
 using RaccoonWarehouse.FinancialTransactions;
 using RaccoonWarehouse.Settings;
+using System.Linq;
 using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Core.Modules;
 using RaccoonWarehouse.Navigation.Modules;
@@ -809,6 +810,17 @@ namespace RaccoonWarehouse
                     return;
             }
 
+            CompleteLogoutAndReturnToLogin();
+        }
+
+        public void LogoutAfterSessionClosed()
+        {
+            CompleteLogoutAndReturnToLogin();
+        }
+
+        private void CompleteLogoutAndReturnToLogin()
+        {
+            var app = (App)System.Windows.Application.Current;
             _userSession.EndSession();
             Hide();
 

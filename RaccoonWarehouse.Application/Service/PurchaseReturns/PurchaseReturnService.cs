@@ -55,6 +55,7 @@ public sealed class PurchaseReturnService : IPurchaseReturnService
         entity.ReturnDate = dto.ReturnDate == default ? now : dto.ReturnDate;
         entity.Status = PurchaseReturnStatus.Approved;
         entity.CreatedBy = _session.CurrentUser?.Id;
+        entity.CashierSessionId = dto.CashierSessionId ?? _session.CurrentCashierSessionId;
         entity.CreatedDate = now;
         entity.UpdatedDate = now;
         entity.Lines = dto.Lines.Select(x => _mapper.Map<PurchaseReturnLine>(x)).ToList();
@@ -73,6 +74,8 @@ public sealed class PurchaseReturnService : IPurchaseReturnService
             return Result<PurchaseReturnWriteDto>.Ok(_mapper.Map<PurchaseReturnWriteDto>(entity), "Purchase return was already confirmed; no duplicate stock deduction was created.");
         if (entity.Status != PurchaseReturnStatus.Approved)
             return Result<PurchaseReturnWriteDto>.Fail("Only approved purchase returns can be confirmed.");
+
+        entity.CashierSessionId ??= _session.CurrentCashierSessionId;
 
         var receiptLines = await _db.GoodsReceiptLines.Where(x => entity.Lines.Select(y => y.GoodsReceiptLineId).Contains(x.Id)).ToDictionaryAsync(x => x.Id);
         var movements = entity.Lines.Select(line =>

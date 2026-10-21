@@ -326,6 +326,9 @@ namespace RaccoonWarehouse.Products
                 SalePrice = salePrice,
                 PurchasePrice = purchasePrice,
                 QuantityPerUnit = qty,
+                AllowFractionalSale = AllowFractionalSaleCheckBox.IsChecked == true,
+                FractionalPartsPerUnit = 0m,
+                FractionalPartName = null,
                 IsBaseUnit = IsBaseUnitCheckBox.IsChecked == true,
                 IsDefaultSaleUnit = IsDefaultSaleUnitCheckBox.IsChecked == true,
                 IsDefaultPurchaseUnit = IsDefaultPurchaseUnitCheckBox.IsChecked == true,
@@ -366,10 +369,21 @@ namespace RaccoonWarehouse.Products
             row.Children.Add(CreateUnitInfoBlock(UiText.T("سعر البيع", "Sale Price"), unit.SalePrice.ToString()));
             row.Children.Add(CreateUnitInfoBlock(UiText.T("سعر الشراء", "Purchase Price"), unit.PurchasePrice.ToString()));
             row.Children.Add(CreateUnitInfoBlock(UiText.T("الكمية", "Quantity"), unit.QuantityPerUnit.ToString()));
+            row.Children.Add(CreateUnitInfoBlock(UiText.T("بيع جزئي", "Fractional sale"), unit.AllowFractionalSale ? UiText.T("نعم", "Yes") : UiText.T("لا", "No")));
+            row.Children.Add(CreateUnitInfoBlock(UiText.T("الأجزاء لكل عبوة", "Parts per package"), unit.FractionalPartsPerUnit > 0 ? unit.FractionalPartsPerUnit.ToString("0") : "-"));
+            row.Children.Add(CreateUnitInfoBlock(UiText.T("اسم الجزء", "Fraction name"), unit.FractionalPartName ?? "-"));
             row.Children.Add(CreateUnitInfoBlock(UiText.T("الرمز المماثل", "Alternate barcode"), unit.AlternateBarcode ?? "-"));
             row.Children.Add(CreateUnitInfoBlock(UiText.T("أساسية", "Primary"), unit.IsBaseUnit ? UiText.T("نعم", "Yes") : UiText.T("لا", "No")));
             row.Children.Add(CreateUnitInfoBlock(UiText.T("بيع", "Sale"), unit.IsDefaultSaleUnit ? UiText.T("افتراضي", "Default") : "-"));
             row.Children.Add(CreateUnitInfoBlock(UiText.T("شراء", "Purchase"), unit.IsDefaultPurchaseUnit ? UiText.T("افتراضي", "Default") : "-"));
+
+            // Fractional sales use a dedicated Tape unit; do not show the
+            // legacy parts/name columns in the unit summary.
+            if (row.Children.Count > 6)
+            {
+                row.Children.RemoveAt(6);
+                row.Children.RemoveAt(5);
+            }
 
             var removeButton = new Button
             {
@@ -461,6 +475,10 @@ namespace RaccoonWarehouse.Products
             if (units.Any(u => u.SalePrice <= 0))
                 return UiText.T("سعر البيع يجب أن يكون أكبر من صفر لكل وحدة.", "Sale price must be greater than zero for every unit.");
 
+            if (false && units.Any(u => u.AllowFractionalSale &&
+                              (u.FractionalPartsPerUnit < 2m || u.FractionalPartsPerUnit != decimal.Truncate(u.FractionalPartsPerUnit))))
+                return UiText.T("عدد الأجزاء للبيع الجزئي يجب أن يكون رقماً صحيحاً أكبر من 1.", "Parts per package must be a whole number greater than 1 for fractional sale.");
+
             if (units.GroupBy(u => u.UnitId).Any(g => g.Count() > 1))
                 return UiText.T("لا يمكن تكرار نفس الوحدة أكثر من مرة.", "The same unit cannot be repeated more than once.");
 
@@ -473,6 +491,7 @@ namespace RaccoonWarehouse.Products
             SalePriceTextBox.Clear();
             PurchasePriceTextBox.Clear();
             QuantityPerUnitTextBox.Clear();
+            AllowFractionalSaleCheckBox.IsChecked = false;
             AlternateBarcodeTextBox.Clear();
             IsBaseUnitCheckBox.IsChecked = false;
             IsDefaultSaleUnitCheckBox.IsChecked = false;

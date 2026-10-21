@@ -80,6 +80,7 @@ namespace RaccoonWarehouse.Navigation.Modules
                 "Settings.Accounting" or
                 "Settings.Language" or
                 "Settings.InventoryCosting" or
+                "Settings.PosRowColors" or
                 "Settings.SwitchDatabase";
         }
 
@@ -147,6 +148,14 @@ namespace RaccoonWarehouse.Navigation.Modules
                     }
 
                     WindowManager.ShowDialog<InventoryCostingSettingsWindow>(WindowSizeType.SmallSquare);
+                    return;
+                case "Settings.PosRowColors":
+                    if (!await HasPermissionAsync("Settings.ManageSettings"))
+                    {
+                        MessageBox.Show(UiText.T("ليس لديك صلاحية تعديل الإعدادات.", "You do not have permission to edit settings."));
+                        return;
+                    }
+                    WindowManager.ShowDialog<PosRowColorSettingsWindow>(WindowSizeType.LargeRectangle);
                     return;
                 case "Settings.Language":
                     if (!await HasPermissionAsync("Settings.ManageSettings"))

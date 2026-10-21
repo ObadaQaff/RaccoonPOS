@@ -477,10 +477,21 @@ namespace RaccoonWarehouse.Products
             row.Children.Add(CreateEditableDecimalPanel(UiText.T("سعر البيع", "Sale Price"), unit.SalePrice.ToString(), 100));
             row.Children.Add(CreateEditableDecimalPanel(UiText.T("سعر الشراء", "Purchase Price"), unit.PurchasePrice.ToString(), 100));
             row.Children.Add(CreateEditableDecimalPanel(UiText.T("الكمية لكل وحدة", "Quantity per Unit"), unit.QuantityPerUnit.ToString(), 110));
+            row.Children.Add(CreateCheckPanel(UiText.T("بيع جزئي", "Fractional sale"), unit.AllowFractionalSale));
+            row.Children.Add(CreateEditableDecimalPanel(UiText.T("الأجزاء لكل عبوة", "Parts per package"), unit.FractionalPartsPerUnit > 0 ? unit.FractionalPartsPerUnit.ToString("0") : string.Empty, 110));
+            row.Children.Add(CreateEditableTextPanel(UiText.T("اسم الجزء", "Fraction name"), unit.FractionalPartName ?? string.Empty, 130));
             row.Children.Add(CreateEditableTextPanel(UiText.T("الرمز المماثل", "Alternate barcode"), unit.AlternateBarcode ?? string.Empty, 150));
             row.Children.Add(CreateCheckPanel(UiText.T("أساسية", "Primary"), unit.IsBaseUnit));
             row.Children.Add(CreateCheckPanel(UiText.T("بيع", "Sale"), unit.IsDefaultSaleUnit));
             row.Children.Add(CreateCheckPanel(UiText.T("شراء", "Purchase"), unit.IsDefaultPurchaseUnit));
+
+            // Fractional sales now use a dedicated Tape product unit. Remove the
+            // legacy per-unit parts/name editors from the generated row.
+            if (row.Children.Count > 6)
+            {
+                row.Children.RemoveAt(6);
+                row.Children.RemoveAt(5);
+            }
 
             var deleteBtn = new Button
             {
@@ -627,6 +638,9 @@ namespace RaccoonWarehouse.Products
                 SalePrice = salePrice,
                 PurchasePrice = purchasePrice,
                 QuantityPerUnit = qty,
+                AllowFractionalSale = AllowFractionalSaleCheckBox.IsChecked == true,
+                FractionalPartsPerUnit = 0m,
+                FractionalPartName = null,
                 IsBaseUnit = IsBaseUnitCheckBox.IsChecked == true,
                 IsDefaultSaleUnit = IsDefaultSaleUnitCheckBox.IsChecked == true,
                 IsDefaultPurchaseUnit = IsDefaultPurchaseUnitCheckBox.IsChecked == true,
@@ -731,13 +745,17 @@ namespace RaccoonWarehouse.Products
                 var saleBox = ((row.Children[1] as StackPanel)?.Children[1] as TextBox);
                 var purchaseBox = ((row.Children[2] as StackPanel)?.Children[1] as TextBox);
                 var qtyBox = ((row.Children[3] as StackPanel)?.Children[1] as TextBox);
-                var alternateBarcodeBox = ((row.Children[4] as StackPanel)?.Children[1] as TextBox);
-                var baseCheck = ((row.Children[5] as StackPanel)?.Children[1] as CheckBox);
-                var saleCheck = ((row.Children[6] as StackPanel)?.Children[1] as CheckBox);
-                var purchaseCheck = ((row.Children[7] as StackPanel)?.Children[1] as CheckBox);
+                var fractionalCheck = ((row.Children[4] as StackPanel)?.Children[1] as CheckBox);
+                var fractionalPartsBox = (TextBox?)null;
+                var fractionalNameBox = (TextBox?)null;
+                var alternateBarcodeBox = ((row.Children[5] as StackPanel)?.Children[1] as TextBox);
+                var baseCheck = ((row.Children[6] as StackPanel)?.Children[1] as CheckBox);
+                var saleCheck = ((row.Children[7] as StackPanel)?.Children[1] as CheckBox);
+                var purchaseCheck = ((row.Children[8] as StackPanel)?.Children[1] as CheckBox);
 
                 if (saleBox == null || purchaseBox == null || qtyBox == null ||
-                    alternateBarcodeBox == null || baseCheck == null || saleCheck == null || purchaseCheck == null)
+                    fractionalCheck == null || alternateBarcodeBox == null || baseCheck == null ||
+                    saleCheck == null || purchaseCheck == null)
                 {
                     continue;
                 }
@@ -754,6 +772,7 @@ namespace RaccoonWarehouse.Products
                 unit.AverageCostWithoutTax = Math.Round(Math.Max(purchase, 0m), 3);
                 unit.CostWithoutTax = Math.Round(Math.Max(purchase, 0m), 3);
                 unit.QuantityPerUnit = qty;
+                unit.AllowFractionalSale = fractionalCheck.IsChecked == true;
                 unit.AlternateBarcode = string.IsNullOrWhiteSpace(alternateBarcodeBox.Text) ? null : alternateBarcodeBox.Text.Trim();
                 unit.IsBaseUnit = baseCheck.IsChecked == true;
                 unit.IsDefaultSaleUnit = saleCheck.IsChecked == true;
@@ -797,6 +816,7 @@ namespace RaccoonWarehouse.Products
             SalePriceTextBox.Clear();
             PurchasePriceTextBox.Clear();
             QuantityPerUnitTextBox.Clear();
+            AllowFractionalSaleCheckBox.IsChecked = false;
             AlternateBarcodeTextBox.Clear();
             UnitComboBox.SelectedIndex = -1;
             IsBaseUnitCheckBox.IsChecked = false;

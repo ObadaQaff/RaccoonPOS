@@ -113,6 +113,8 @@
     </Style>
 
     <Style x:Key="AppSearchTextBoxStyle" TargetType="TextBox" BasedOn="{StaticResource AppTextInputStyle}"/>
+    <!-- Backward-compatible alias used by settings dialogs. -->
+    <Style x:Key="AppTextBoxStyle" TargetType="TextBox" BasedOn="{StaticResource AppTextInputStyle}"/>
 
     <Style x:Key="AppComboBoxStyle" TargetType="ComboBox">
         <Setter Property="Height" Value="54"/>

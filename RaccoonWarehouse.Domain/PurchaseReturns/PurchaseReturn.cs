@@ -9,6 +9,7 @@ public class PurchaseReturn : BaseEntity
     public int? SupplierId { get; set; }
     public int? OriginalInvoiceId { get; set; }
     public int? GoodsReceiptId { get; set; }
+    public int? CashierSessionId { get; set; }
     public PurchaseReturnStatus Status { get; set; } = PurchaseReturnStatus.Draft;
     public string? Reason { get; set; }
     public DateTime ReturnDate { get; set; }

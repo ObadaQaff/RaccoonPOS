@@ -11,6 +11,7 @@ namespace RaccoonWarehouse.Domain.Enums
         Open,
         Closed,
         Suspended,
+        Closing,
         
 
     }

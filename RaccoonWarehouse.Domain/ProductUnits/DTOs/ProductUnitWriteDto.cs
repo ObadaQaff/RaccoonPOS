@@ -24,6 +24,9 @@ namespace RaccoonWarehouse.Domain.ProductUnits.DTOs
         public decimal LastCostWithoutTax { get; set; }
         public decimal CostWithoutTax { get; set; }
         public decimal QuantityPerUnit { get; set; }
+        public bool AllowFractionalSale { get; set; }
+        public decimal FractionalPartsPerUnit { get; set; }
+        public string? FractionalPartName { get; set; }
         public ProductWriteDto? Product { get; set; }
         public int ProductId { get; set; }
         public UnitWriteDto? Unit { get; set; }

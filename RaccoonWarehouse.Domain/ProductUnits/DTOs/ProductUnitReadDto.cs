@@ -19,6 +19,9 @@ namespace RaccoonWarehouse.Domain.ProductUnits.DTOs
         public decimal UnTaxedPrice { get; set; }
         public decimal PurchasePrice { get; set; }
         public decimal QuantityPerUnit { get; set; }
+        public bool AllowFractionalSale { get; set; }
+        public decimal FractionalPartsPerUnit { get; set; }
+        public string? FractionalPartName { get; set; }
         public ProductReadDto? Product { get; set; }
         public int ProductId { get; set; }
         public UnitReadDto? Unit { get; set; }

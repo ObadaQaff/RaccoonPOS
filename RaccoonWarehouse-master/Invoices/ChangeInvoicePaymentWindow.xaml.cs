@@ -29,7 +29,7 @@ namespace RaccoonWarehouse.Invoices
             }, PaymentType.ToString());
         }
 
-        private sealed record PaymentChoice(PaymentType Value, string Arabic, string English, decimal? MaximumAmount = null)
+        private sealed record PaymentChoice(PaymentType Value, string Arabic, string English, decimal? MaximumAmount = null, bool IsEnabled = true)
         {
             #if false
             public string DisplayName
@@ -83,20 +83,12 @@ namespace RaccoonWarehouse.Invoices
             InitializeComponent();
             UiText.ApplyWindow(this);
             TitleText.Text = UiText.T("تغيير طريقة الدفع", "Change payment method");
+            RemainingAmountLabelTextBlock.Text = UiText.T("المبلغ المتبقي", "Remaining amount");
             SaveButton.Content = UiText.T("حفظ", "Save");
             CancelButton.Content = UiText.T("إلغاء", "Cancel");
             CustomerLabel.Text = UiText.T("العميل", "Customer");
             _allowedPaymentAmounts = allowedPaymentAmounts;
-            var visibleChoices = _allowedPaymentAmounts == null
-                ? _choices
-                : _choices
-                    .Where(choice => _allowedPaymentAmounts.TryGetValue(choice.Value, out var amount) && amount > 0.0005m)
-                    .Select(choice => choice with { MaximumAmount = _allowedPaymentAmounts[choice.Value] })
-                    .ToList();
-            PaymentMethodComboBox.ItemsSource = visibleChoices;
             PaymentMethodComboBox.DisplayMemberPath = nameof(PaymentChoice.DisplayName);
-            PaymentMethodComboBox.SelectedItem = visibleChoices.FirstOrDefault(x => x.Value == currentPaymentType)
-                ?? visibleChoices.FirstOrDefault();
             _allCustomers = (customers ?? Enumerable.Empty<UserReadDto>())
                 .Where(x => x.Id > 0 && !string.IsNullOrWhiteSpace(x.Name))
                 .GroupBy(x => x.Id)
@@ -105,6 +97,7 @@ namespace RaccoonWarehouse.Invoices
             CustomerComboBox.ItemsSource = _allCustomers;
             CustomerComboBox.SelectedItem = _allCustomers.FirstOrDefault(x => x.Id == currentCustomerId);
             _invoiceTotal = Math.Abs(invoiceTotal);
+            InvoiceTotalTextBlock.Text = _invoiceTotal.ToString("0.000", System.Globalization.CultureInfo.CurrentCulture);
             if (payments != null)
                 _payments.AddRange(payments.Where(payment => payment.Amount > 0m).Select(payment => new PaymentLine
                 {
@@ -121,9 +114,41 @@ namespace RaccoonWarehouse.Invoices
             ((DataGridTextColumn)PaymentsGrid.Columns[1]).Header = UiText.T("المبلغ", "Amount");
             PaymentsGrid.Columns[2].Header = UiText.T("حذف", "Remove");
             AddPaymentButton.Content = UiText.T("إضافة", "Add");
-            PaymentAmountTextBox.Text = "0.000";
+            RefreshPaymentChoices(currentPaymentType);
+            UpdateRemainingAmountText();
             PaymentMethodComboBox.SelectionChanged += PaymentMethodComboBox_SelectionChanged;
             UpdateCustomerVisibility();
+        }
+
+        private void RefreshPaymentChoices(PaymentType? preferredPaymentType = null)
+        {
+            var choices = _choices
+                .Where(choice => _allowedPaymentAmounts == null ||
+                    (_allowedPaymentAmounts.TryGetValue(choice.Value, out var amount) && amount > 0.0005m))
+                .Select(choice => choice with
+                {
+                    MaximumAmount = _allowedPaymentAmounts != null && _allowedPaymentAmounts.TryGetValue(choice.Value, out var maximum)
+                        ? maximum
+                        : null,
+                    IsEnabled = !_payments.Any(payment => payment.PaymentType == choice.Value)
+                })
+                .ToList();
+
+            var selectedValue = preferredPaymentType ?? SelectedPaymentType;
+            PaymentMethodComboBox.ItemsSource = choices;
+            PaymentMethodComboBox.SelectedItem = choices.FirstOrDefault(choice =>
+                    choice.Value == selectedValue && choice.IsEnabled)
+                ?? choices.FirstOrDefault(choice => choice.IsEnabled);
+        }
+
+        private void UpdateRemainingAmountText()
+        {
+            var remaining = Math.Max(0m, _invoiceTotal - _payments.Sum(payment => payment.Amount));
+            RemainingAmountTextBlock.Text = remaining.ToString("0.000", System.Globalization.CultureInfo.CurrentCulture);
+            PaymentAmountTextBox.Text = remaining.ToString("0.000", System.Globalization.CultureInfo.CurrentCulture);
+            PaymentAmountTextBox.SelectAll();
+            SaveButton.IsEnabled = _invoiceTotal > 0m &&
+                Math.Round(_payments.Sum(payment => payment.Amount), 3) == Math.Round(_invoiceTotal, 3);
         }
 
         private void PaymentMethodComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e) => UpdateCustomerVisibility();
@@ -289,8 +314,19 @@ namespace RaccoonWarehouse.Invoices
                 !decimal.TryParse(PaymentAmountTextBox.Text, out var amount) || amount <= 0m)
                 return;
 
-            if (_payments.Any(payment => payment.PaymentType == choice.Value))
+            if (!choice.IsEnabled || _payments.Any(payment => payment.PaymentType == choice.Value))
                 return;
+
+            var remaining = Math.Round(_invoiceTotal - _payments.Sum(payment => payment.Amount), 3);
+            if (amount > remaining + 0.0005m)
+            {
+                MessageBox.Show(
+                    UiText.T($"المبلغ المتبقي هو {remaining:0.000}.", $"The remaining amount is {remaining:0.000}."),
+                    UiText.T("تنبيه", "Notice"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
 
             if (_allowedPaymentAmounts != null &&
                 (!_allowedPaymentAmounts.TryGetValue(choice.Value, out var allowedAmount) ||
@@ -306,6 +342,17 @@ namespace RaccoonWarehouse.Invoices
 
             _payments.Add(new PaymentLine { PaymentType = choice.Value, Amount = amount });
             PaymentsGrid.Items.Refresh();
+            RefreshPaymentChoices();
+            UpdateRemainingAmountText();
+        }
+
+        private void PaymentAmountTextBox_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        {
+            if (e.Key != System.Windows.Input.Key.Enter)
+                return;
+
+            e.Handled = true;
+            AddPaymentButton_Click(sender, new RoutedEventArgs());
         }
 
         private void RemovePaymentButton_Click(object sender, RoutedEventArgs e)
@@ -314,6 +361,8 @@ namespace RaccoonWarehouse.Invoices
             {
                 _payments.Remove(payment);
                 PaymentsGrid.Items.Refresh();
+                RefreshPaymentChoices(payment.PaymentType);
+                UpdateRemainingAmountText();
             }
         }
 

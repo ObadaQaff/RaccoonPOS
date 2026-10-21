@@ -435,20 +435,24 @@ namespace RaccoonWarehouse.Application.Service.Accounting
             var isPurchaseSide = invoice.InvoiceType is InvoiceType.Purchase or InvoiceType.PurchaseReturn;
             void AddSettlementDebit(decimal amount, string description)
             {
-                foreach (var payment in paymentAllocations)
+                var allocatedAmounts = AllocateSettlementAmount(amount, paymentAllocations);
+                for (var index = 0; index < paymentAllocations.Count; index++)
                 {
+                    var payment = paymentAllocations[index];
                     var accountId = accountIds[GetSettlementAccountCodeKey(payment.PaymentType, isPurchaseSide)];
-                    AddDebit(lines, accountId, amount * payment.Share, description,
+                    AddDebit(lines, accountId, allocatedAmounts[index], description,
                         customerId: payment.PaymentType == PaymentType.Credit && !isPurchaseSide ? invoice.CustomerId : null,
                         supplierId: payment.PaymentType == PaymentType.Credit && isPurchaseSide ? invoice.SupplierId : null);
                 }
             }
             void AddSettlementCredit(decimal amount, string description)
             {
-                foreach (var payment in paymentAllocations)
+                var allocatedAmounts = AllocateSettlementAmount(amount, paymentAllocations);
+                for (var index = 0; index < paymentAllocations.Count; index++)
                 {
+                    var payment = paymentAllocations[index];
                     var accountId = accountIds[GetSettlementAccountCodeKey(payment.PaymentType, isPurchaseSide)];
-                    AddCredit(lines, accountId, amount * payment.Share, description,
+                    AddCredit(lines, accountId, allocatedAmounts[index], description,
                         customerId: payment.PaymentType == PaymentType.Credit && !isPurchaseSide ? invoice.CustomerId : null,
                         supplierId: payment.PaymentType == PaymentType.Credit && isPurchaseSide ? invoice.SupplierId : null);
                 }
@@ -1685,6 +1689,36 @@ namespace RaccoonWarehouse.Application.Service.Accounting
             return payments
                 .Select(payment => new PaymentAllocation(payment.PaymentType, payment.Amount / total))
                 .ToList();
+        }
+
+        private static IReadOnlyList<decimal> AllocateSettlementAmount(
+            decimal amount,
+            IReadOnlyList<PaymentAllocation> paymentAllocations)
+        {
+            if (paymentAllocations.Count == 0)
+                return Array.Empty<decimal>();
+
+            var allocated = new decimal[paymentAllocations.Count];
+            var remaining = decimal.Round(amount, 3, MidpointRounding.AwayFromZero);
+
+            for (var index = 0; index < paymentAllocations.Count; index++)
+            {
+                if (index == paymentAllocations.Count - 1)
+                {
+                    allocated[index] = decimal.Round(remaining, 3, MidpointRounding.AwayFromZero);
+                    break;
+                }
+
+                var shareAmount = decimal.Round(
+                    amount * paymentAllocations[index].Share,
+                    3,
+                    MidpointRounding.AwayFromZero);
+
+                allocated[index] = shareAmount;
+                remaining -= shareAmount;
+            }
+
+            return allocated;
         }
 
         private static string GetSettlementAccountCodeKey(PaymentType? paymentType, bool isPurchaseSide)
