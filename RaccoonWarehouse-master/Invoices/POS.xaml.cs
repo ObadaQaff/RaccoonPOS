@@ -6533,6 +6533,7 @@ namespace RaccoonWarehouse.Invoices
                 if (printChoice == MessageBoxResult.Yes)
                     await PrintSavedSmallInvoiceAsync(checkoutResult.Data.SavedInvoice.Id);
 
+                ProductSearchWindow.InvalidateCatalogCache();
                 ResetPOS();
             }
             catch (Exception ex)

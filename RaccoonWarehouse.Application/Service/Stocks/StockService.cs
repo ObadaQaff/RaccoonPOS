@@ -19,6 +19,7 @@ using RaccoonWarehouse.Domain.StockLots;
 using RaccoonWarehouse.Domain.StockTransactions;
 using RaccoonWarehouse.Domain.Units;
 using RaccoonWarehouse.Domain.POS.DTOs;
+using RaccoonWarehouse.Domain.POS;
 using RaccoonWarehouse.Domain.SubCategories.DTOs;
 using System.Diagnostics;
 
@@ -30,6 +31,7 @@ namespace RaccoonWarehouse.Application.Service.Stocks
         private readonly IMapper _mapper;
         private readonly IAccountingService? _accountingService;
         private readonly IInventoryCostingSettingsService? _inventoryCostingSettingsService;
+        private readonly IPosProductCatalogService? _posProductCatalogService;
 
         public StockService(ApplicationDbContext context, IUOW uow, IMapper mapper)
             : this(context, uow, mapper, null, null)
@@ -41,12 +43,14 @@ namespace RaccoonWarehouse.Application.Service.Stocks
             IUOW uow,
             IMapper mapper,
             IAccountingService? accountingService,
-            IInventoryCostingSettingsService? inventoryCostingSettingsService = null) : base(context, uow, mapper)
+            IInventoryCostingSettingsService? inventoryCostingSettingsService = null,
+            IPosProductCatalogService? posProductCatalogService = null) : base(context, uow, mapper)
         {
             _uow = uow;
             _mapper = mapper;
             _accountingService = accountingService;
             _inventoryCostingSettingsService = inventoryCostingSettingsService;
+            _posProductCatalogService = posProductCatalogService;
         }
 
         public override Task<Result<StockWriteDto>> UpdateAsync(StockWriteDto dto)
@@ -821,35 +825,40 @@ namespace RaccoonWarehouse.Application.Service.Stocks
         public async Task<Result<List<PosProductSearchResultDto>>> GetPosProductCatalogAsync(
             CancellationToken cancellationToken = default)
         {
-            var catalog = await _uow.GetRepository<Product>()
-                .GetAllAsQueryable()
-                .AsNoTracking()
-                .Where(product => !product.IsDeleted && product.ProductUnits != null)
-                .SelectMany(product => product.ProductUnits!.Select(unit => new PosProductSearchResultDto
+            if (_posProductCatalogService == null)
+                return Result<List<PosProductSearchResultDto>>.Fail("POS product catalog service is not configured.");
+
+            var catalog = (await _posProductCatalogService.GetCatalogAsync(cancellationToken))
+                .Select(entry => new PosProductSearchResultDto
                 {
-                    ProductId = product.Id,
-                    SubCategoryId = product.SubCategoryId,
-                    ProductName = product.Name,
-                    ItemCode = product.ITEMCODE,
-                    TaxExempt = product.TaxExempt,
-                    TaxRate = product.TaxRate,
-                    ProductUnitId = unit.Id,
-                    AlternateBarcode = unit.AlternateBarcode,
-                    UnitName = unit.Unit != null ? unit.Unit.Name : string.Empty,
-                    UnitSalePrice = unit.SalePrice,
-                    UnitPurchasePrice = unit.PurchasePrice,
-                    QuantityPerUnit = unit.QuantityPerUnit,
-                    AllowFractionalSale = unit.AllowFractionalSale,
-                    FractionalPartsPerUnit = unit.FractionalPartsPerUnit,
-                    FractionalPartName = unit.FractionalPartName,
-                    IsBaseUnit = unit.IsBaseUnit,
-                    IsDefaultSaleUnit = unit.IsDefaultSaleUnit,
-                    IsDefaultPurchaseUnit = unit.IsDefaultPurchaseUnit,
-                    SupplierId = product.SupplierId,
-                    SupplierName = product.Supplier != null ? product.Supplier.Name : null
-                }))
-                .OrderBy(row => row.ProductName)
-                .ToListAsync(cancellationToken);
+                    ProductId = entry.ProductId,
+                    SubCategoryId = entry.SubCategoryId,
+                    ProductName = entry.ProductName,
+                    ItemCode = entry.ItemCode,
+                    TaxExempt = entry.TaxExempt,
+                    TaxRate = entry.TaxRate,
+                    ProductUnitId = entry.ProductUnitId,
+                    AlternateBarcode = entry.AlternateBarcode,
+                    UnitName = entry.UnitName,
+                    UnitSalePrice = entry.UnitSalePrice,
+                    UnitPurchasePrice = entry.UnitPurchasePrice,
+                    QuantityPerUnit = entry.QuantityPerUnit,
+                    AllowFractionalSale = entry.AllowFractionalSale,
+                    FractionalPartsPerUnit = entry.FractionalPartsPerUnit,
+                    FractionalPartName = entry.FractionalPartName,
+                    IsBaseUnit = entry.IsBaseUnit,
+                    IsDefaultSaleUnit = entry.IsDefaultSaleUnit,
+                    IsDefaultPurchaseUnit = entry.IsDefaultPurchaseUnit,
+                    SupplierId = entry.SupplierId,
+                    SupplierName = entry.SupplierName,
+                    StockQuantity = entry.StockQuantity,
+                    StockPurchasePrice = entry.StockPurchasePrice,
+                    StockSalePrice = entry.StockSalePrice,
+                    ExpiryDate = entry.ExpiryDate,
+                    AvailableToSale = entry.AvailableToSale,
+                    StockStatus = entry.StockStatus
+                })
+                .ToList();
 
             return Result<List<PosProductSearchResultDto>>.Ok(catalog);
         }
@@ -1044,6 +1053,12 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                             FractionalPartsPerUnit = unit.FractionalPartsPerUnit,
                             FractionalPartName = unit.FractionalPartName,
                             ExpiryDate = stock?.ExpiryDate,
+                            AvailableToSale = baseQuantityByProduct.TryGetValue(product.Id, out var availableBaseQuantity)
+                                && availableBaseQuantity > 0m,
+                            StockStatus = baseQuantityByProduct.TryGetValue(product.Id, out var statusBaseQuantity)
+                                && statusBaseQuantity > 0m
+                                ? (stock?.ExpiryDate?.Date < DateTime.Today ? "Expired" : "Available")
+                                : "OutOfStock",
                             SupplierName = product.Supplier?.Name
                         };
                     }))
@@ -1093,6 +1108,12 @@ namespace RaccoonWarehouse.Application.Service.Stocks
             var items = dtos?.ToList() ?? new List<StockMovementPostDto>();
             if (items.Count == 0)
                 return Result.Ok("No stock movements to post.");
+
+            var productIds = items
+                .Select(item => item.ProductId)
+                .Where(productId => productId > 0)
+                .Distinct()
+                .ToList();
 
             var errors = new List<string>();
             foreach (var dto in items)
@@ -1327,6 +1348,11 @@ namespace RaccoonWarehouse.Application.Service.Stocks
 
             await _uow.CommitAsync();
             LogStockTiming("stock final database save", totalTiming, stepTiming);
+            if (_posProductCatalogService != null)
+            {
+                await _posProductCatalogService.RefreshProductsAsync(productIds);
+                await _uow.CommitAsync();
+            }
             PosPerformanceLogger.Write("stock posting total", totalTiming.ElapsedMilliseconds, totalTiming.ElapsedMilliseconds);
             return Result.Ok("Stock movement posted successfully.");
         }
@@ -1530,7 +1556,7 @@ namespace RaccoonWarehouse.Application.Service.Stocks
             return Math.Round((lot.PurchasePrice / lotFactor) * targetFactor, 3);
         }
 
-        private static async Task SyncStockSummariesAsync(
+        private async Task SyncStockSummariesAsync(
             IGenericRepository<Stock> stockRepo,
             IGenericRepository<StockLot> lotRepo,
             IEnumerable<(int ProductId, int ProductUnitId)> touchedKeys,
@@ -1612,10 +1638,11 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                 stock.SalePrice = currentLot?.SalePrice ?? 0m;
                 stock.UpdatedDate = now;
             }
+
             LogStockTiming("stock summary in-memory recalculation", recalculationTiming, recalculationTiming);
         }
 
-        private static async Task SyncStockSummaryAsync(
+        private async Task SyncStockSummaryAsync(
             IGenericRepository<Stock> stockRepo,
             IGenericRepository<StockLot> lotRepo,
             int productId,
@@ -1655,6 +1682,8 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                     UpdatedDate = now
                 };
                 await stockRepo.AddAsync(stock);
+                if (_posProductCatalogService != null)
+                    await _posProductCatalogService.RefreshProductsAsync(new[] { productId });
                 return;
             }
 
@@ -1663,6 +1692,9 @@ namespace RaccoonWarehouse.Application.Service.Stocks
             stock.SalePrice = currentLot?.SalePrice ?? 0m;
             stock.UpdatedDate = now;
             await stockRepo.UpdateAsync(stock);
+
+            if (_posProductCatalogService != null)
+                await _posProductCatalogService.RefreshProductsAsync(new[] { productId });
         }
 
         private async Task<bool> IsLotUsedAsync(StockLot lot)

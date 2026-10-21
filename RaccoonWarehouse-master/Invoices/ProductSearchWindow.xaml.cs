@@ -139,7 +139,19 @@ namespace RaccoonWarehouse.Invoices
                 await _serviceCallLock.WaitAsync();
                 initializationLockAcquired = true;
 
-                await WarmCatalogCacheAsync();
+                try
+                {
+                    await WarmCatalogCacheAsync();
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(
+                        $"POS product catalog could not be loaded. Please verify the catalog database update.\n\n{ex.Message}",
+                        UiText.T("Ø®Ø·Ø£", "Catalog loading error"),
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Error);
+                }
+
                 if (_rowColorRuleService != null)
                     await _rowColorRuleService.GetRulesAsync();
                 await LoadSupplierFilterAsync();
@@ -188,6 +200,17 @@ namespace RaccoonWarehouse.Invoices
                     if (ReferenceEquals(_catalogLoadTask, loadTask))
                         _catalogLoadTask = null;
                 }
+
+                throw;
+            }
+        }
+
+        public static void InvalidateCatalogCache()
+        {
+            lock (CatalogCacheSync)
+            {
+                _catalogLoadedAt = DateTimeOffset.MinValue;
+                _catalogLoadTask = null;
             }
         }
 
@@ -463,6 +486,14 @@ namespace RaccoonWarehouse.Invoices
             {
                 // Cancellation is expected when a newer search supersedes this one.
             }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"POS product catalog could not be loaded.\n\n{ex.Message}",
+                    UiText.T("Ø®Ø·Ø£", "Catalog loading error"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
         }
 
         private async Task PerformSearchAsync()
@@ -489,43 +520,36 @@ namespace RaccoonWarehouse.Invoices
             var serviceCallLockAcquired = false;
             try
             {
-                await _serviceCallLock.WaitAsync(cancellationToken);
+                // Do not cancel the semaphore wait itself. A newer keystroke
+                // should make this search stale, not surface an exception.
+                await _serviceCallLock.WaitAsync();
                 serviceCallLockAcquired = true;
 
+                if (cancellationToken.IsCancellationRequested)
+                    return;
+
                 List<PosProductSearchResultDto> searchRows;
-                if (TryGetLoadedCatalog(out var catalog))
+                if (!TryGetLoadedCatalog(out var catalog))
                 {
-                    var candidates = catalog
-                        .Where(row => MatchesCatalogFilter(row, text, barcode, _selectedSupplierId))
-                        .GroupBy(row => row.ProductId)
-                        .SelectMany(group => group)
-                        .Take(MaxSearchResults * 20)
-                        .ToList();
-
-                    var stockResult = await _stockService.GetPosProductStockAsync(
-                        candidates.Select(row => row.ProductId), cancellationToken);
-                    var stockByUnit = (stockResult.Data ?? new List<PosProductSearchResultDto>())
-                        .ToDictionary(row => (row.ProductId, row.ProductUnitId));
-
-                    searchRows = candidates
-                        .Select(row => ApplyCachedStock(row, stockByUnit))
-                        .GroupBy(row => row.ProductId)
-                        .OrderByDescending(group => group.Any(row => row.StockQuantity > MinimumSellableQuantity))
-                        .ThenBy(group => group.First().ProductName)
-                        .SelectMany(group => group)
-                        .Take(MaxSearchResults)
-                        .ToList();
+                    await WarmCatalogCacheAsync();
+                    if (cancellationToken.IsCancellationRequested || !TryGetLoadedCatalog(out catalog))
+                        return;
                 }
-                else
-                {
-                    var searchResult = await _stockService.SearchPosProductsAsync(
-                        text.Length >= 2 ? text : null,
-                        barcode.Length > 0 ? barcode : null,
-                        MaxSearchResults,
-                        _selectedSupplierId,
-                        cancellationToken);
-                    searchRows = searchResult?.Data ?? new List<PosProductSearchResultDto>();
-                }
+
+                var candidates = catalog
+                    .Where(row => MatchesCatalogFilter(row, text, barcode, _selectedSupplierId))
+                    .GroupBy(row => row.ProductId)
+                    .SelectMany(group => group)
+                    .Take(MaxSearchResults * 20)
+                    .ToList();
+
+                searchRows = candidates
+                    .GroupBy(row => row.ProductId)
+                    .OrderByDescending(group => group.Any(row => row.AvailableToSale || row.StockQuantity > MinimumSellableQuantity))
+                    .ThenBy(group => group.First().ProductName)
+                    .SelectMany(group => group)
+                    .Take(MaxSearchResults)
+                    .ToList();
 
                 if (searchVersion != _searchVersion)
                     return;
@@ -743,42 +767,6 @@ namespace RaccoonWarehouse.Invoices
 
             return true;
         }
-
-        private static PosProductSearchResultDto ApplyCachedStock(
-            PosProductSearchResultDto row,
-            IReadOnlyDictionary<(int ProductId, int ProductUnitId), PosProductSearchResultDto> stockByUnit)
-        {
-            if (!stockByUnit.TryGetValue((row.ProductId, row.ProductUnitId), out var stock))
-                return row;
-
-            return new PosProductSearchResultDto
-            {
-                ProductId = row.ProductId,
-                ProductName = row.ProductName,
-                ItemCode = row.ItemCode,
-                TaxExempt = row.TaxExempt,
-                TaxRate = row.TaxRate,
-                ProductUnitId = row.ProductUnitId,
-                AlternateBarcode = row.AlternateBarcode,
-                UnitName = row.UnitName,
-                UnitSalePrice = row.UnitSalePrice,
-                UnitPurchasePrice = row.UnitPurchasePrice,
-                QuantityPerUnit = row.QuantityPerUnit,
-                AllowFractionalSale = row.AllowFractionalSale,
-                FractionalPartsPerUnit = row.FractionalPartsPerUnit,
-                FractionalPartName = row.FractionalPartName,
-                IsBaseUnit = row.IsBaseUnit,
-                IsDefaultSaleUnit = row.IsDefaultSaleUnit,
-                IsDefaultPurchaseUnit = row.IsDefaultPurchaseUnit,
-                StockQuantity = stock.StockQuantity,
-                StockPurchasePrice = stock.StockPurchasePrice,
-                StockSalePrice = stock.StockSalePrice,
-                ExpiryDate = stock.ExpiryDate,
-                SupplierId = row.SupplierId,
-                SupplierName = row.SupplierName
-            };
-        }
-
 
         private void ProductsGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
         {

@@ -1,6 +1,7 @@
 ﻿using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using RaccoonWarehouse.Application.Service.Generic;
+using RaccoonWarehouse.Application.Service.Stocks;
 using RaccoonWarehouse.Core.Common;
 using RaccoonWarehouse.Core.Interface;
 using RaccoonWarehouse.Data;
@@ -23,10 +24,16 @@ namespace RaccoonWarehouse.Application.Service.Products
     {
         private readonly IUOW _uow;
         private readonly IMapper _mapper;
-        public ProductService(ApplicationDbContext context, IUOW uow, IMapper mapper) : base(context, uow, mapper)
+        private readonly IPosProductCatalogService? _posProductCatalogService;
+        public ProductService(
+            ApplicationDbContext context,
+            IUOW uow,
+            IMapper mapper,
+            IPosProductCatalogService? posProductCatalogService = null) : base(context, uow, mapper)
         {
             _uow = uow;
             _mapper = mapper;
+            _posProductCatalogService = posProductCatalogService;
         }
 
         public override async Task<Result<ProductWriteDto>> CreateAsync(ProductWriteDto dto)
@@ -250,6 +257,12 @@ namespace RaccoonWarehouse.Application.Service.Products
             }
 
             await _uow.CommitAsync();
+
+            if (_posProductCatalogService != null)
+            {
+                await _posProductCatalogService.RefreshProductsAsync(new[] { product.Id });
+                await _uow.CommitAsync();
+            }
 
             return Result.Ok("Product and units updated successfully.");
         }

@@ -32,6 +32,7 @@ using RaccoonWarehouse.Domain.PurchaseControl;
 using RaccoonWarehouse.Domain.Audit;
 using RaccoonWarehouse.Domain.Products;
 using RaccoonWarehouse.Domain.ProductUnits;
+using RaccoonWarehouse.Domain.POS;
 using RaccoonWarehouse.Domain.Relations;
 using RaccoonWarehouse.Domain.Settings;
 using RaccoonWarehouse.Domain.Stock;
@@ -627,6 +628,16 @@ namespace RaccoonWarehouse.Data
                 stockLot.Status,
                 stockLot.RemainingQuantity
             });
+
+            modelBuilder.Entity<PosProductCatalogEntry>()
+                .HasIndex(entry => new { entry.ProductId, entry.ProductUnitId })
+                .IsUnique();
+            modelBuilder.Entity<PosProductCatalogEntry>()
+                .HasIndex(entry => entry.AlternateBarcode);
+            modelBuilder.Entity<PosProductCatalogEntry>()
+                .HasIndex(entry => entry.ProductName);
+            modelBuilder.Entity<PosProductCatalogEntry>()
+                .HasIndex(entry => entry.AvailableToSale);
 
             modelBuilder.Entity<ProductUnit>()
                 .HasOne(pu => pu.Unit)

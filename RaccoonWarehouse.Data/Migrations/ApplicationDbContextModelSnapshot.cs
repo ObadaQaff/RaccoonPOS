@@ -80,7 +80,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("FiscalYearId", "AccountId", "BranchId", "CostCenterId", "WarehouseId", "PartyUserId");
 
-                    b.ToTable("AccountOpeningBalances");
+                    b.ToTable("AccountOpeningBalances", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Accounting.Accounts.Account", b =>
@@ -176,7 +176,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("ParentAccountId");
 
-                    b.ToTable("Accounts");
+                    b.ToTable("Accounts", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Accounting.Banks.BankAccount", b =>
@@ -223,7 +223,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("GlAccountId");
 
-                    b.ToTable("BankAccounts");
+                    b.ToTable("BankAccounts", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Accounting.Banks.BankStatement", b =>
@@ -261,7 +261,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("BankAccountId", "StatementDate");
 
-                    b.ToTable("BankStatements");
+                    b.ToTable("BankStatements", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Accounting.Banks.BankStatementLine", b =>
@@ -307,7 +307,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("BankStatementId", "TransactionDate");
 
-                    b.ToTable("BankStatementLines");
+                    b.ToTable("BankStatementLines", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Accounting.JournalEntries.JournalEntry", b =>
@@ -398,7 +398,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("FiscalYearId");
 
-                    b.ToTable("JournalEntries");
+                    b.ToTable("JournalEntries", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Accounting.JournalEntries.JournalEntryLine", b =>
@@ -501,7 +501,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("JournalEntryId", "LineNumber")
                         .IsUnique();
 
-                    b.ToTable("JournalEntryLines");
+                    b.ToTable("JournalEntryLines", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Accounting.Operations.AccountingOperation", b =>
@@ -616,7 +616,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("FiscalYearId", "PeriodNumber")
                         .IsUnique();
 
-                    b.ToTable("AccountingPeriods");
+                    b.ToTable("AccountingPeriods", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Accounting.Periods.FiscalYear", b =>
@@ -667,7 +667,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("Code")
                         .IsUnique();
 
-                    b.ToTable("FiscalYears");
+                    b.ToTable("FiscalYears", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Accounting.RecurringJournals.RecurringJournal", b =>
@@ -710,7 +710,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("NextRunDate");
 
-                    b.ToTable("RecurringJournals");
+                    b.ToTable("RecurringJournals", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Accounting.RecurringJournals.RecurringJournalLine", b =>
@@ -755,7 +755,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("RecurringJournalId");
 
-                    b.ToTable("RecurringJournalLines");
+                    b.ToTable("RecurringJournalLines", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Accounting.TaxRates.TaxRate", b =>
@@ -795,7 +795,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("Name", "TaxType");
 
-                    b.ToTable("TaxRates");
+                    b.ToTable("TaxRates", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Audit.AuditLog", b =>
@@ -847,7 +847,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("CreatedDate", "UserId");
 
-                    b.ToTable("AuditLogs");
+                    b.ToTable("AuditLogs", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Branches.Branch", b =>
@@ -898,7 +898,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("Code")
                         .IsUnique();
 
-                    b.ToTable("Branches");
+                    b.ToTable("Branches", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Brands.Brand", b =>
@@ -924,7 +924,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Brand");
+                    b.ToTable("Brand", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Cashiers.CashierSession", b =>
@@ -985,7 +985,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("CashierId");
 
-                    b.ToTable("CashierSession");
+                    b.ToTable("CashierSession", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Categories.Category", b =>
@@ -1014,7 +1014,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Category");
+                    b.ToTable("Category", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Checks.Check", b =>
@@ -1069,7 +1069,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("VoucherId");
 
-                    b.ToTable("Check");
+                    b.ToTable("Check", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.CostCenters.CostCenter", b =>
@@ -1122,7 +1122,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("ParentCostCenterId");
 
-                    b.ToTable("CostCenters");
+                    b.ToTable("CostCenters", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Currencies.Currency", b =>
@@ -1177,7 +1177,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("Code")
                         .IsUnique();
 
-                    b.ToTable("Currencies");
+                    b.ToTable("Currencies", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Currencies.ExchangeRate", b =>
@@ -1213,7 +1213,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("FromCurrencyId", "ToCurrencyId", "EffectiveDate");
 
-                    b.ToTable("ExchangeRates");
+                    b.ToTable("ExchangeRates", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Delegates.Delegate", b =>
@@ -1283,7 +1283,7 @@ namespace RaccoonWarehouse.Data.Migrations
                         .IsUnique()
                         .HasFilter("[UserId] IS NOT NULL");
 
-                    b.ToTable("Delegate");
+                    b.ToTable("Delegate", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Employees.Employee", b =>
@@ -1386,7 +1386,7 @@ namespace RaccoonWarehouse.Data.Migrations
                         .IsUnique()
                         .HasFilter("[UserId] IS NOT NULL");
 
-                    b.ToTable("Employee");
+                    b.ToTable("Employee", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.FinancialTransactions.FinancialTransaction", b =>
@@ -1483,7 +1483,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("SourceType", "SourceId");
 
-                    b.ToTable("FinancialTransaction");
+                    b.ToTable("FinancialTransaction", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Insurance.InsuranceAttachment", b =>
@@ -1527,7 +1527,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("OwnerType", "OwnerId");
 
-                    b.ToTable("InsuranceAttachments");
+                    b.ToTable("InsuranceAttachments", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Insurance.InsuranceBeneficiaryCategory", b =>
@@ -1563,7 +1563,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("Code")
                         .IsUnique();
 
-                    b.ToTable("InsuranceBeneficiaryCategories");
+                    b.ToTable("InsuranceBeneficiaryCategories", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Insurance.InsuranceClaim", b =>
@@ -1645,7 +1645,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("InsuranceCompanyId", "Status", "SubmissionDate");
 
-                    b.ToTable("InsuranceClaims");
+                    b.ToTable("InsuranceClaims", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Insurance.InsuranceClaimAdjustment", b =>
@@ -1681,7 +1681,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("InsuranceClaimAdjustments");
+                    b.ToTable("InsuranceClaimAdjustments", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Insurance.InsuranceClaimBatch", b =>
@@ -1737,7 +1737,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("InsuranceClaimBatches");
+                    b.ToTable("InsuranceClaimBatches", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Insurance.InsuranceClaimLine", b =>
@@ -1787,7 +1787,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("InsuranceClaimId", "InvoiceLineId")
                         .IsUnique();
 
-                    b.ToTable("InsuranceClaimLines");
+                    b.ToTable("InsuranceClaimLines", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Insurance.InsuranceClaimPayment", b =>
@@ -1829,7 +1829,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("InsuranceClaimPayments");
+                    b.ToTable("InsuranceClaimPayments", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Insurance.InsuranceClaimPaymentAllocation", b =>
@@ -1861,7 +1861,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("InsuranceClaimPaymentId", "InsuranceClaimId")
                         .IsUnique();
 
-                    b.ToTable("InsuranceClaimPaymentAllocations");
+                    b.ToTable("InsuranceClaimPaymentAllocations", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Insurance.InsuranceCompany", b =>
@@ -1924,7 +1924,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("Code")
                         .IsUnique();
 
-                    b.ToTable("InsuranceCompanies");
+                    b.ToTable("InsuranceCompanies", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Insurance.InsuranceContract", b =>
@@ -1984,7 +1984,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("ContractNumber")
                         .IsUnique();
 
-                    b.ToTable("InsuranceContracts");
+                    b.ToTable("InsuranceContracts", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Insurance.InsuranceContractVersion", b =>
@@ -2024,7 +2024,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("InsuranceContractId", "VersionNumber")
                         .IsUnique();
 
-                    b.ToTable("InsuranceContractVersions");
+                    b.ToTable("InsuranceContractVersions", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Insurance.InsuranceCoverageRule", b =>
@@ -2087,7 +2087,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("InsuranceCoverageRules");
+                    b.ToTable("InsuranceCoverageRules", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Insurance.InsuranceEligibilityCheck", b =>
@@ -2135,7 +2135,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("InsuranceMemberPolicyId", "CheckedAt");
 
-                    b.ToTable("InsuranceEligibilityChecks");
+                    b.ToTable("InsuranceEligibilityChecks", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Insurance.InsuranceExclusion", b =>
@@ -2173,7 +2173,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("InsuranceExclusions");
+                    b.ToTable("InsuranceExclusions", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Insurance.InsuranceInvoiceCoverage", b =>
@@ -2237,7 +2237,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("InvoiceId")
                         .IsUnique();
 
-                    b.ToTable("InsuranceInvoiceCoverages");
+                    b.ToTable("InsuranceInvoiceCoverages", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Insurance.InsuranceInvoiceCoverageLine", b =>
@@ -2316,7 +2316,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("InsuranceInvoiceCoverageId", "InvoiceLineId")
                         .IsUnique();
 
-                    b.ToTable("InsuranceInvoiceCoverageLines");
+                    b.ToTable("InsuranceInvoiceCoverageLines", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Insurance.InsuranceMemberPolicy", b =>
@@ -2389,7 +2389,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("InsuranceCompanyId", "MemberNumber");
 
-                    b.ToTable("InsuranceMemberPolicies");
+                    b.ToTable("InsuranceMemberPolicies", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Insurance.InsuranceNetwork", b =>
@@ -2428,7 +2428,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("Code")
                         .IsUnique();
 
-                    b.ToTable("InsuranceNetworks");
+                    b.ToTable("InsuranceNetworks", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Insurance.InsurancePlan", b =>
@@ -2479,7 +2479,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("InsuranceContractId", "Code")
                         .IsUnique();
 
-                    b.ToTable("InsurancePlans");
+                    b.ToTable("InsurancePlans", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Insurance.InsurancePreAuthorization", b =>
@@ -2537,7 +2537,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("AuthorizationNumber")
                         .IsUnique();
 
-                    b.ToTable("InsurancePreAuthorizations");
+                    b.ToTable("InsurancePreAuthorizations", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Insurance.InsurancePreAuthorizationLine", b =>
@@ -2587,7 +2587,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("InsurancePreAuthorizationId", "ProductId")
                         .IsUnique();
 
-                    b.ToTable("InsurancePreAuthorizationLines");
+                    b.ToTable("InsurancePreAuthorizationLines", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Integration.IntegrationInbox", b =>
@@ -2755,7 +2755,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("ProductUnitId");
 
-                    b.ToTable("InvoiceLine");
+                    b.ToTable("InvoiceLine", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Invoices.Invoice", b =>
@@ -2923,7 +2923,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("VoucherId");
 
-                    b.ToTable("Invoice");
+                    b.ToTable("Invoice", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Invoices.InvoicePayment", b =>
@@ -2954,7 +2954,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("InvoiceId");
 
-                    b.ToTable("InvoicePayments");
+                    b.ToTable("InvoicePayments", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Permissions.PermissionDefinition", b =>
@@ -3008,7 +3008,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("Key")
                         .IsUnique();
 
-                    b.ToTable("PermissionDefinitions");
+                    b.ToTable("PermissionDefinitions", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Permissions.ReportPermission", b =>
@@ -3040,7 +3040,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("ReportKey", "Role")
                         .IsUnique();
 
-                    b.ToTable("ReportPermissions");
+                    b.ToTable("ReportPermissions", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Permissions.RolePermission", b =>
@@ -3072,7 +3072,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("Role", "PermissionKey")
                         .IsUnique();
 
-                    b.ToTable("RolePermissions");
+                    b.ToTable("RolePermissions", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Permissions.UserPermission", b =>
@@ -3104,7 +3104,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("UserId", "PermissionKey")
                         .IsUnique();
 
-                    b.ToTable("UserPermissions");
+                    b.ToTable("UserPermissions", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.ProductUnits.ProductUnit", b =>
@@ -3166,7 +3166,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("UnitId1");
 
-                    b.ToTable("ProductUnit");
+                    b.ToTable("ProductUnit", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Products.Product", b =>
@@ -3230,7 +3230,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("SubCategoryId");
 
-                    b.ToTable("Product");
+                    b.ToTable("Product", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.PurchaseOrders.PurchaseOrder", b =>
@@ -3325,7 +3325,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("SupplierId");
 
-                    b.ToTable("PurchaseOrders");
+                    b.ToTable("PurchaseOrders", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.PurchaseOrders.PurchaseOrderLine", b =>
@@ -3401,7 +3401,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("PurchaseOrderId");
 
-                    b.ToTable("PurchaseOrderLines");
+                    b.ToTable("PurchaseOrderLines", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Relations.SubCategoryBrand", b =>
@@ -3430,7 +3430,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("SubCategoryId");
 
-                    b.ToTable("SubCategoryBrand");
+                    b.ToTable("SubCategoryBrand", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Settings.AppSetting", b =>
@@ -3462,7 +3462,121 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("Key")
                         .IsUnique();
 
-                    b.ToTable("AppSettings");
+                    b.ToTable("AppSettings", (string)null);
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.POS.PosProductCatalogEntry", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("AllowFractionalSale")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("AvailableToSale")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("AlternateBarcode")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("ExpiryDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("FractionalPartName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal>("FractionalPartsPerUnit")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsBaseUnit")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDefaultPurchaseUnit")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDefaultSaleUnit")
+                        .HasColumnType("bit");
+
+                    b.Property<long?>("ItemCode")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ProductName")
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int>("ProductId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ProductUnitId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("QuantityPerUnit")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<decimal>("StockPurchasePrice")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<decimal>("StockQuantity")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<decimal>("StockSalePrice")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<string>("StockStatus")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("SubCategoryId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("TaxRate")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<bool?>("TaxExempt")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal>("UnitPurchasePrice")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<decimal>("UnitSalePrice")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<string>("UnitName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("SupplierName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("SupplierId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AlternateBarcode");
+                    b.HasIndex("AvailableToSale");
+                    b.HasIndex("ProductName");
+                    b.HasIndex("ProductId", "ProductUnitId").IsUnique();
+
+                    b.ToTable("PosProductCatalogEntry", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Stock.Stock", b =>
@@ -3511,7 +3625,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("WarehouseId", "ProductId", "ProductUnitId");
 
-                    b.ToTable("Stock");
+                    b.ToTable("Stock", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.StockAdjustments.StockAdjustment", b =>
@@ -3591,7 +3705,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("StockAdjustment");
+                    b.ToTable("StockAdjustment", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.StockDocuments.StockDocument", b =>
@@ -3670,7 +3784,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("SupplierId");
 
-                    b.ToTable("StockDocument");
+                    b.ToTable("StockDocument", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.StockItems.StockItem", b =>
@@ -3742,7 +3856,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("StockDocumentId", "LineNumber");
 
-                    b.ToTable("StockItem");
+                    b.ToTable("StockItem", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.StockLots.StockLot", b =>
@@ -3827,7 +3941,7 @@ namespace RaccoonWarehouse.Data.Migrations
                         .IsUnique()
                         .HasFilter("[ReplacesStockLotId] IS NOT NULL");
 
-                    b.ToTable("StockLot");
+                    b.ToTable("StockLot", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.StockTransactions.StockTransaction", b =>
@@ -3949,7 +4063,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("SourceType", "SourceId");
 
-                    b.ToTable("StockTransaction");
+                    b.ToTable("StockTransaction", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.SubCategories.SubCategory", b =>
@@ -3983,7 +4097,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("ParentCategoryId");
 
-                    b.ToTable("SubCategory");
+                    b.ToTable("SubCategory", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Taxs.Tax", b =>
@@ -4013,7 +4127,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Tax");
+                    b.ToTable("Tax", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Units.Unit", b =>
@@ -4036,7 +4150,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Unit");
+                    b.ToTable("Unit", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Users.User", b =>
@@ -4102,7 +4216,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("User");
+                    b.ToTable("User", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Vouchers.Voucher", b =>
@@ -4181,7 +4295,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("ReferenceNumber");
 
-                    b.ToTable("Voucher");
+                    b.ToTable("Voucher", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Warehouses.Warehouse", b =>
@@ -4228,7 +4342,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Warehouse");
+                    b.ToTable("Warehouse", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Accounting.AccountOpeningBalances.AccountOpeningBalance", b =>

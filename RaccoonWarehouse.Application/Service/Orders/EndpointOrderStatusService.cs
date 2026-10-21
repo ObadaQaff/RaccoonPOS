@@ -36,19 +36,22 @@ namespace RaccoonWarehouse.Application.Service.Orders
         private readonly IAccountingService _accountingService;
         private readonly IMapper _mapper;
         private readonly IBoxCartApiService _boxCartApiService;
+        private readonly IPosProductCatalogService? _posProductCatalogService;
 
         public EndpointOrderStatusService(
             ApplicationDbContext context,
             IStockService stockService,
             IAccountingService accountingService,
             IMapper mapper,
-            IBoxCartApiService? boxCartApiService = null)
+            IBoxCartApiService? boxCartApiService = null,
+            IPosProductCatalogService? posProductCatalogService = null)
         {
             _context = context;
             _stockService = stockService;
             _accountingService = accountingService;
             _mapper = mapper;
             _boxCartApiService = boxCartApiService ?? new BoxCartApiService();
+            _posProductCatalogService = posProductCatalogService;
         }
 
         public async Task<Result> ApplyStatusAsync(
@@ -634,6 +637,9 @@ namespace RaccoonWarehouse.Application.Service.Orders
                 stock.LastMovementDate = now;
                 stock.UpdatedDate = now;
             }
+
+            if (_posProductCatalogService != null)
+                await _posProductCatalogService.RefreshProductsAsync(keys.Select(key => key.ProductId), cancellationToken);
 
             await _context.SaveChangesAsync(cancellationToken);
         }
