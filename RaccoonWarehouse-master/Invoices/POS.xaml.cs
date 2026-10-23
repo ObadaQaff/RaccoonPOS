@@ -36,6 +36,7 @@ using RaccoonWarehouse.Domain.Stock.DTOs;
 using RaccoonWarehouse.Domain.StockTransactions.DTOs;
 using RaccoonWarehouse.Domain.StockDocuments.DTOs;
 using RaccoonWarehouse.Domain.StockItems.DTOs;
+using RaccoonWarehouse.Domain.Settings;
 using RaccoonWarehouse.Domain.SubCategories.DTOs;
 using RaccoonWarehouse.Domain.Users.DTOs;
 using RaccoonWarehouse.Domain.Units.DTOs;
@@ -133,6 +134,7 @@ namespace RaccoonWarehouse.Invoices
                     QuantityPerUnitSnapshot = snapshot.QuantityPerUnitSnapshot,
                     UnitPrice = snapshot.UnitPrice,
                     UnitCost = snapshot.UnitCost,
+                    PurchaseAcquisitionCost = snapshot.PurchaseAcquisitionCost,
                     AvailableQuantitySnapshot = snapshot.AvailableQuantitySnapshot,
                     UnitNameSnapshot = snapshot.UnitNameSnapshot,
                     UnitName = snapshot.UnitName,
@@ -344,6 +346,7 @@ namespace RaccoonWarehouse.Invoices
         private InvoiceLineWriteDto? _pendingFefoEditedLine;
         private bool _hasPendingFefoSplit;
         private bool _isProcessingPendingFefoSplit;
+        private readonly HashSet<InvoiceLineWriteDto> _quantityEditsProcessedByEnter = new();
         private int _posResetVersion;
         private readonly HashSet<int> _loadedProductIds = new();
         private readonly Dictionary<(int ProductId, int ProductUnitId), StockReadDto> _stockLookup = new();
@@ -409,6 +412,7 @@ namespace RaccoonWarehouse.Invoices
             _browseSearchDebounceTimer.Tick += BrowseSearchDebounceTimer_Tick;
             Loaded += POS_Loaded;
             Closed += POS_Closed;
+            ProductUnitService.UnitsChanged += PartialSaleUnitsChanged;
         }
 
         #endregion
@@ -429,19 +433,22 @@ namespace RaccoonWarehouse.Invoices
                 }
 
                 CreateNewInvoice();
-                await _rowColorRuleService.GetRulesAsync();
-
                 CurrentCasherName = session.CashierName;
-                await LoadCustomersAsync();
                 InvoiceGrid.ItemsSource = _invoiceLines;
                 CashierName.Text = CurrentCasherName.ToString();
                 ProductSearchBox.Clear();
                 BarcodeTextBox.Clear();
 
+                // Make the invoice grid and barcode cell usable immediately.
+                // Customer and row-color data are non-blocking startup work.
+                _ = LoadPosStartupDataInBackgroundAsync();
+
                 // Warm the large product catalog after the POS shell is ready.
                 // A separate scope keeps its DbContext isolated from the POS
                 // scope, so startup remains responsive without concurrent
                 // operations on the same DbContext instance.
+                ProductSearchWindow.InvalidateCatalogCache();
+                _rowColorRuleService.InvalidateCache();
                 _ = WarmProductCatalogInBackgroundAsync();
 
                 // The product-card/category browse area is hidden. Products for
@@ -460,12 +467,33 @@ namespace RaccoonWarehouse.Invoices
             }
         }
 
+        private async Task LoadPosStartupDataInBackgroundAsync()
+        {
+            try
+            {
+                // Customer lookup uses the POS context; color rules and the
+                // catalog warm in a separate scope below.
+                await LoadCustomersAsync();
+            }
+            catch (OperationCanceledException)
+            {
+                // POS may close while optional startup data is loading.
+            }
+            catch
+            {
+                // Optional startup data can be loaded again when needed.
+            }
+        }
+
         private async Task WarmProductCatalogInBackgroundAsync()
         {
             try
             {
                 using var scope = _serviceProvider.CreateScope();
                 var stockService = scope.ServiceProvider.GetRequiredService<IStockService>();
+                // Warm shared rules before the large catalog using this isolated context.
+                var colorRules = scope.ServiceProvider.GetRequiredService<IPosRowColorRuleService>();
+                await colorRules.GetRulesAsync();
                 await ProductSearchWindow.WarmCatalogCacheAsync(stockService);
             }
             catch (OperationCanceledException)
@@ -478,18 +506,10 @@ namespace RaccoonWarehouse.Invoices
             }
         }
 
-        private void OpenInsuranceInvoiceBtn_Click(object sender, RoutedEventArgs e)
+        private async void OpenInsuranceInvoiceBtn_Click(object sender, RoutedEventArgs e)
         {
-            try
-            {
-                var window = _serviceProvider.GetRequiredService<RaccoonWarehouse.Insurance.InsuranceInvoiceWindow>();
-                window.Owner = this;
-                window.ShowDialog();
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(ex.Message, UiText.T("خطأ", "Error"));
-            }
+            try { await OpenPosInsuranceDetailsAsync(); }
+            catch (Exception ex) { MessageBox.Show(ex.Message, UiText.T("خطأ", "Error")); }
         }
 
         private async Task LoadCustomersAsync(int? selectCustomerId = null)
@@ -560,6 +580,8 @@ namespace RaccoonWarehouse.Invoices
 
         private void POS_Closed(object? sender, EventArgs e)
         {
+            _partialSaleWindowClosed = true;
+            ProductUnitService.UnitsChanged -= PartialSaleUnitsChanged;
             _productSearchResetTimer.Tick -= ProductSearchResetTimer_Tick;
             _browseSearchDebounceTimer.Tick -= BrowseSearchDebounceTimer_Tick;
             _browseLoadCts?.Cancel();
@@ -582,6 +604,7 @@ namespace RaccoonWarehouse.Invoices
             if (!TryGetActiveCashierSession(out var session))
                 return;
 
+            ResetDistributedInvoiceDiscount();
             _invoiceLines.Clear();
             _invoiceLines.Add(new InvoiceLineWriteDto());
 
@@ -1030,6 +1053,25 @@ namespace RaccoonWarehouse.Invoices
                     }
                 }
 
+                var isQuantityColumn = HeaderMatches(currentColumn, "الكمية");
+                if (isQuantityColumn && currentItem is InvoiceLineWriteDto quantityLine)
+                {
+                    var quantityCell = FindCell(grid, quantityLine, currentColumn);
+                    var quantityEditor = Keyboard.FocusedElement as TextBox
+                        ?? (quantityCell == null ? null : FindVisualChild<TextBox>(quantityCell));
+
+                    if (quantityEditor != null)
+                    {
+                        var quantityProcessed = await ProcessQuantityEditAsync(quantityLine, quantityEditor);
+                        _quantityEditsProcessedByEnter.Add(quantityLine);
+                        if (!quantityProcessed)
+                        {
+                            e.Handled = true;
+                            return;
+                        }
+                    }
+                }
+
                 try
                 {
                     grid.CommitEdit(DataGridEditingUnit.Cell, true);
@@ -1440,6 +1482,7 @@ namespace RaccoonWarehouse.Invoices
 
         private void RecalculateTotals()
         {
+            RefreshDistributedInvoiceDiscount();
             var isReturnInvoice = _currentInvoice.InvoiceType is InvoiceType.Return or InvoiceType.PurchaseReturn;
 
             decimal GetSignedLineTotal(InvoiceLineWriteDto line)
@@ -1471,8 +1514,10 @@ namespace RaccoonWarehouse.Invoices
                     ? -(returnLine.ReturnedQuantity * line.UnitCost)
                     : line.Quantity * line.UnitCost)
                 : _invoiceLines.Sum(l => l.Quantity * l.UnitCost);
-            var requestedDiscount = _invoiceDiscountIsPercentage
-                ? Math.Round(grossSales * _invoiceDiscountPercent / 100m, 3, MidpointRounding.AwayFromZero)
+            // Distributed discounts are already included in LineTotal.
+            // Keep legacy held-invoice header amounts until the user replaces them.
+            var requestedDiscount = _hasDistributedInvoiceDiscount
+                ? 0m
                 : _currentInvoice.DiscountAmount ?? 0m;
             var discount = grossSales > 0m
                 ? Math.Clamp(requestedDiscount, 0m, grossSales)
@@ -1489,7 +1534,9 @@ namespace RaccoonWarehouse.Invoices
                     line.AvailableQuantitySnapshot,
                     line.LineDiscountPercent,
                     line.SelectedProduct?.SubCategoryId,
-                    line.SelectedProduct?.SubCategory?.Name);
+                    line.SelectedProduct?.SubCategory?.Name,
+                    scope: "POS",
+                    productId: line.ProductId);
                 line.RowBackground = decision.BackgroundColor;
                 line.RowForeground = decision.ForegroundColor;
                 line.RowAccent = decision.AccentColor;
@@ -1500,15 +1547,16 @@ namespace RaccoonWarehouse.Invoices
             _isUpdatingInvoiceDiscountText = true;
             try
             {
-                DiscountTextBox.Text = _invoiceDiscountIsPercentage
-                    ? $"{_invoiceDiscountPercent:0.000}%"
-                    : discount.ToString("0.000", CultureInfo.CurrentCulture);
+                if (!DiscountTextBox.IsKeyboardFocusWithin)
+                    DiscountTextBox.Text = GetInvoiceDiscountInputText(discount);
             }
             finally
             {
                 _isUpdatingInvoiceDiscountText = false;
             }
-            DiscountSummaryText.Text = discount.ToString("0.000");
+            DiscountSummaryText.Text = (_hasDistributedInvoiceDiscount
+                ? _invoiceDiscountRows.Values.Sum()
+                : discount).ToString("0.000");
             NetTotalText.Text = _currentInvoice.TotalAmount.ToString("0.000");
 
             var invoiceItemCount = _invoiceLines.Count(line => line.ProductId > 0);
@@ -1520,6 +1568,7 @@ namespace RaccoonWarehouse.Invoices
             StatusItemCount.Text = $"العدد: {invoiceItemCount}";
             StatusQtyCount.Text = $"الكمية: {invoiceQuantity:0.000}";
             StatusTotal.Text = $"الإجمالي: {_currentInvoice.TotalAmount:0.000}";
+            UpdateInsuranceSummary();
         }
         #region Product, unit, stock, and pricing helpers
         private async Task<bool> ApplyLinePricingFromProductAsync(
@@ -1528,6 +1577,9 @@ namespace RaccoonWarehouse.Invoices
             int? preferredUnitId = null,
             decimal? knownUnitPurchasePrice = null)
         {
+            var shouldApplyDefaultDiscount = line.UnitPrice == 0m
+                && line.LineDiscountAmount == 0m;
+
             if (!HasHydratedUnits(product))
                 product = await ResolveProductWithUnitsAsync(product);
 
@@ -1583,9 +1635,93 @@ namespace RaccoonWarehouse.Invoices
             line.AvailableQuantitySnapshot = product.CurrentStockQuantity;
             line.UnitNameSnapshot = selectedUnit.Unit?.Name;
 
+            if (shouldApplyDefaultDiscount)
+            {
+                var defaultDiscountPercent = _rowColorRuleService.GetDefaultDiscountPercent(
+                    product.SubCategoryId,
+                    product.SubCategory?.Name,
+                    scope: "POS",
+                    productId: product.Id);
+
+                if (defaultDiscountPercent is > 0m)
+                {
+                    var candidatePercent = Math.Clamp(defaultDiscountPercent.Value, 0m, 100m);
+                    if (!IsLineDiscountBlocked(line, candidatePercent))
+                    {
+                        line.LineDiscountIsPercentage = true;
+                        line.LineDiscountPercent = candidatePercent;
+                        line.LineDiscountInput = $"{candidatePercent:0.000}%";
+                        RecalculateLineFromCurrentValues(line);
+                    }
+                }
+            }
+
             return true;
         }
         #endregion
+
+        private async Task<bool> ProcessQuantityEditAsync(InvoiceLineWriteDto line, TextBox textBox)
+        {
+            line.PartialSaleResolved = false;
+            if (!TryParseDecimalInput(textBox.Text, out var quantity) || quantity <= 0m)
+            {
+                MessageBox.Show(
+                    UiText.T("ÙŠØ±Ø¬Ù‰ Ø¥Ø¯Ø®Ø§Ù„ ÙƒÙ…ÙŠØ© ØµØ­ÙŠØ­Ø© Ø£ÙƒØ¨Ø± Ù…Ù† ØµÙØ±.", "Please enter a valid quantity greater than zero."),
+                    UiText.T("ØªÙ†Ø¨ÙŠÙ‡", "Notice"));
+                return false;
+            }
+
+            var partialSale = await ResolvePartialSaleAsync(line, quantity);
+            if (!partialSale.Success)
+            {
+                textBox.Text = line.Quantity.ToString("0.000", CultureInfo.InvariantCulture);
+                return false;
+            }
+
+            quantity = partialSale.Quantity;
+            if (quantity == decimal.Truncate(quantity))
+                line.PartialSaleResolved = false;
+            textBox.Text = quantity.ToString("0.000", CultureInfo.InvariantCulture);
+
+            if (_currentInvoice.InvoiceType is InvoiceType.Return or InvoiceType.Exchange)
+            {
+                line.Quantity = -quantity;
+                line.BaseQuantity = -quantity * (line.QuantityPerUnitSnapshot > 0 ? line.QuantityPerUnitSnapshot : 1m);
+                RecalculateLineFromCurrentValues(line);
+                RecalculateTotals();
+                return true;
+            }
+
+            line.Quantity = quantity;
+            var availableQuantity = await GetAvailableQuantityForProductUnitAsync(line.ProductId, line.ProductUnitId);
+            line.AvailableQuantitySnapshot = availableQuantity;
+            if (availableQuantity <= 0m)
+            {
+                MessageBox.Show(
+                    UiText.T(
+                        $"Ø§Ù„ØµÙ†Ù {line.ProductName} ØºÙŠØ± Ù…ØªÙˆÙØ± Ø­Ø§Ù„ÙŠØ§Ù‹ ÙÙŠ Ø§Ù„Ù…Ø®Ø²Ù†ØŒ ÙˆØªÙ…Øª Ø¥Ø²Ø§Ù„ØªÙ‡ Ù…Ù† Ø§Ù„ÙÙØ§ØªÙˆØ±Ø©.",
+                        $"The item {line.ProductName} is currently unavailable in stock and was removed from the invoice."),
+                    UiText.T("ØªÙ†Ø¨ÙŠÙ‡", "Notice"));
+                _invoiceLines.Remove(line);
+                RecalculateTotals();
+                return false;
+            }
+
+            if (quantity > availableQuantity)
+            {
+                MessageBox.Show(
+                    UiText.T(
+                        $"Ø§Ù„ÙƒÙ…ÙŠØ© Ø§Ù„Ù…Ø·Ù„ÙˆØ¨Ø© Ù„Ù„ØµÙ†Ù {line.ProductName} Ø£ÙƒØ¨Ø± Ù…Ù† Ø§Ù„ÙƒÙ…ÙŠØ© Ø§Ù„Ù…ØªÙˆÙØ±Ø©. Ø³ÙŠØªÙ… ØªØ¹Ø¯ÙŠÙ„ Ø§Ù„ÙƒÙ…ÙŠØ© Ø¥Ù„Ù‰ Ø§Ù„ÙƒÙ…ÙŠØ© Ø§Ù„Ù…ØªÙˆÙØ±Ø©.",
+                        $"The requested quantity for {line.ProductName} is greater than available stock. The quantity will be adjusted to the available quantity."),
+                    UiText.T("ØªÙ†Ø¨ÙŠÙ‡", "Notice"));
+                line.Quantity = availableQuantity;
+                textBox.Text = availableQuantity.ToString("0.000", CultureInfo.InvariantCulture);
+            }
+
+            RecalculateLineFromCurrentValues(line);
+            RecalculateTotals();
+            return true;
+        }
 
         private async void InvoiceGrid_CellEditEnding(object sender, DataGridCellEditEndingEventArgs e)
         {
@@ -1602,6 +1738,9 @@ namespace RaccoonWarehouse.Invoices
             if (header.Contains("Discount", StringComparison.OrdinalIgnoreCase))
             {
                 var rawDiscount = textBox.Text.Trim();
+                if (_invoiceDiscountRows.ContainsKey(line) &&
+                    string.Equals(rawDiscount, line.LineDiscountInput.Trim(), StringComparison.Ordinal))
+                    return;
                 var isPercentage = rawDiscount.EndsWith('%');
                 var enteredDiscount = isPercentage ? rawDiscount[..^1].Trim() : rawDiscount;
                 var grossLineTotal = Math.Abs(line.Quantity * line.UnitPrice);
@@ -1629,6 +1768,16 @@ namespace RaccoonWarehouse.Invoices
                     }
                     else
                     {
+                        var candidateDiscountPercent = grossLineTotal <= 0m
+                            ? 0m
+                            : Math.Round(discountAmount / grossLineTotal * 100m, 3, MidpointRounding.AwayFromZero);
+                        if (IsLineDiscountBlocked(line, candidateDiscountPercent))
+                        {
+                            textBox.Text = line.LineDiscountInput;
+                            return;
+                        }
+
+                        DetachDistributedInvoiceDiscount(line);
                         line.LineDiscountIsPercentage = isPercentage;
                         line.LineDiscountAmount = discountAmount;
                         line.LineDiscountInput = isPercentage
@@ -1680,6 +1829,13 @@ namespace RaccoonWarehouse.Invoices
                 }
                 else
                 {
+                    if (IsLineDiscountBlocked(line, discountPercent))
+                    {
+                        textBox.Text = line.LineDiscountPercent.ToString("0.000", CultureInfo.InvariantCulture);
+                        return;
+                    }
+
+                    DetachDistributedInvoiceDiscount(line);
                     line.LineDiscountPercent = discountPercent;
                     textBox.Text = line.LineDiscountPercent.ToString("0.000", CultureInfo.InvariantCulture);
                 }
@@ -1691,6 +1847,11 @@ namespace RaccoonWarehouse.Invoices
 
             if (HeaderMatches(e.Column, "الكمية"))
             {
+                if (_quantityEditsProcessedByEnter.Remove(line))
+                    return;
+
+                // A new edit must pass through partial-sale validation again.
+                line.PartialSaleResolved = false;
                 if (!TryParseDecimalInput(textBox.Text, out var quantity) || quantity <= 0)
                 {
                     MessageBox.Show(UiText.T("يرجى إدخال كمية صحيحة أكبر من صفر.", "Please enter a valid quantity greater than zero."), UiText.T("تنبيه", "Notice"));
@@ -1700,11 +1861,16 @@ namespace RaccoonWarehouse.Invoices
                 }
                 else
                 {
-                    if (!await EnsureFractionalSaleConfiguredAsync(line, quantity))
+                    var partialSale = await ResolvePartialSaleAsync(line, quantity);
+                    if (!partialSale.Success)
                     {
                         textBox.Text = line.Quantity.ToString("0.000", CultureInfo.InvariantCulture);
                         return;
                     }
+                    quantity = partialSale.Quantity;
+                    if (quantity == decimal.Truncate(quantity))
+                        line.PartialSaleResolved = false;
+                    textBox.Text = quantity.ToString("0.000", CultureInfo.InvariantCulture);
 
                     if (_currentInvoice.InvoiceType is InvoiceType.Return or InvoiceType.Exchange)
                     {
@@ -1917,7 +2083,7 @@ namespace RaccoonWarehouse.Invoices
                 CultureInfo.InvariantCulture,
                 out var numericBarcode);
 
-            var searchResult = await _stockService.SearchPosProductsAsync(normalizedBarcode, 100);
+            var searchResult = await _stockService.SearchPosProductsAsync(null, normalizedBarcode, 100);
             var rows = searchResult?.Data ?? new List<PosProductSearchResultDto>();
             var productGroups = rows.GroupBy(row => row.ProductId).ToList();
 
@@ -1950,6 +2116,8 @@ namespace RaccoonWarehouse.Invoices
                     AllowFractionalSale = row.AllowFractionalSale,
                     FractionalPartsPerUnit = row.FractionalPartsPerUnit,
                     FractionalPartName = row.FractionalPartName,
+                    FractionalSalePrice = row.FractionalSalePrice,
+                    FractionalSaleCost = row.FractionalSaleCost,
                     IsBaseUnit = row.IsBaseUnit,
                     IsDefaultSaleUnit = row.IsDefaultSaleUnit,
                     IsDefaultPurchaseUnit = row.IsDefaultPurchaseUnit,
@@ -2144,206 +2312,61 @@ namespace RaccoonWarehouse.Invoices
             }
         }
 
-        private async Task<bool> EnsureTapeUnitSelectedAsync(InvoiceLineWriteDto line, decimal quantity)
-        {
-            if (quantity == decimal.Truncate(quantity))
-                return true;
-
-            if (line.ProductId <= 0)
-                return false;
-
-            var product = line.SelectedProduct ?? await ResolveProductWithUnitsAsync(new ProductReadDto { Id = line.ProductId });
-            var units = product.ProductUnits?.ToList() ?? new List<ProductUnitReadDto>();
-            var tape = units.FirstOrDefault(unit =>
-                string.Equals(unit.Unit?.Name?.Trim(), "Tape", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(unit.Unit?.Name?.Trim(), "شريط", StringComparison.OrdinalIgnoreCase));
-
-            if (tape == null)
-            {
-                // Existing products may still have the legacy parts value. Use it
-                // once to create the new real Tape unit, then stop using the old
-                // fractional configuration flow.
-                var source = ProductUnitSelector.GetDefaultSaleUnit(units) ?? ProductUnitSelector.GetBaseUnit(units);
-                var parts = source?.FractionalPartsPerUnit ?? 0m;
-                if (source == null || parts < 2m || parts != decimal.Truncate(parts))
-                {
-                    MessageBox.Show(
-                        UiText.T("أضف وحدة Tape للصنف أولاً مع الكمية والسعر الخاصين بها.", "Add a Tape unit to this product first with its quantity and price."),
-                        UiText.T("وحدة Tape مطلوبة", "Tape unit required"),
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Warning);
-                    return false;
-                }
-
-                var allUnits = await _unitService.GetAllAsync();
-                var tapeUnit = allUnits.Data?.FirstOrDefault(unit =>
-                    string.Equals(unit.Name?.Trim(), "Tape", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(unit.Name?.Trim(), "شريط", StringComparison.OrdinalIgnoreCase));
-
-                if (tapeUnit == null)
-                {
-                    var createUnit = await _unitService.CreateAsync(new UnitWriteDto
-                    {
-                        Name = "Tape",
-                        CreatedDate = DateTime.Now,
-                        UpdatedDate = DateTime.Now
-                    });
-                    if (!createUnit.Success || createUnit.Data == null)
-                        return false;
-
-                    tapeUnit = new UnitReadDto { Id = createUnit.Data.Id, Name = createUnit.Data.Name };
-                }
-
-                var createTape = await _productUnitService.CreateAsync(new ProductUnitWriteDto
-                {
-                    ProductId = product.Id,
-                    UnitId = tapeUnit.Id,
-                    SalePrice = Math.Round(source.SalePrice / parts, 3, MidpointRounding.AwayFromZero),
-                    PurchasePrice = Math.Round(source.PurchasePrice / parts, 3, MidpointRounding.AwayFromZero),
-                    QuantityPerUnit = source.QuantityPerUnit / parts,
-                    AllowFractionalSale = false,
-                    IsBaseUnit = false,
-                    IsDefaultSaleUnit = false,
-                    IsDefaultPurchaseUnit = false,
-                    CreatedDate = DateTime.Now,
-                    UpdatedDate = DateTime.Now
-                });
-
-                if (!createTape.Success)
-                    return false;
-
-                product = await ResolveProductWithUnitsAsync(product);
-                units = product.ProductUnits?.ToList() ?? new List<ProductUnitReadDto>();
-                tape = units.FirstOrDefault(unit => unit.UnitId == tapeUnit.Id);
-            }
-
-            if (tape == null)
-                return false;
-
-            if (line.ProductUnitId != tape.Id)
-            {
-                if (!await ApplyLinePricingFromProductAsync(line, product, tape.Id))
-                    return false;
-            }
-
-            line.UnitNameSnapshot = tape.Unit?.Name ?? "Tape";
-            return true;
-        }
-
-        private async Task<bool> EnsureFractionalSaleConfiguredAsync(InvoiceLineWriteDto line, decimal quantity)
-        {
-            return await EnsureTapeUnitSelectedAsync(line, quantity);
-
-#pragma warning disable CS0162
-            if (_currentInvoice.InvoiceType is InvoiceType.Return or InvoiceType.Exchange or InvoiceType.PurchaseReturn ||
-                quantity == decimal.Truncate(quantity))
-                return true;
-
-            if (!await EnsureLineProductUnitAsync(line))
-            {
-                MessageBox.Show("The product unit could not be loaded. Please select the product again.", "Fractional sale", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return false;
-            }
-
-            var unit = line.ProductUnit!;
-
-            if (!unit.AllowFractionalSale || unit.FractionalPartsPerUnit < 2m)
-            {
-                var dialog = new FractionalSaleConfigurationWindow(
-                    line.ProductName ?? "Product",
-                    unit.Unit?.Name ?? line.UnitNameSnapshot ?? "Package",
-                    line.UnitPrice)
-                {
-                    Owner = this
-                };
-
-                if (dialog.ShowDialog() != true)
-                    return false;
-
-                unit.AllowFractionalSale = true;
-                unit.FractionalPartsPerUnit = dialog.PartsPerUnit;
-                unit.FractionalPartName = dialog.PartName;
-
-                if (!await SaveFractionalSettingsAsync(unit))
-                    return false;
-            }
-
-            var fractionalParts = (quantity - decimal.Truncate(quantity)) * unit.FractionalPartsPerUnit;
-            var roundedParts = decimal.Round(fractionalParts, 0, MidpointRounding.AwayFromZero);
-            if (decimal.Abs(fractionalParts - roundedParts) > 0.0005m)
-            {
-                MessageBox.Show(
-                    $"Enter a quantity using complete {unit.FractionalPartName ?? "tape"} units. For {unit.FractionalPartsPerUnit:0} per package, examples are 0.1, 0.2, 1.1, and 1.2.",
-                    "Invalid fractional quantity",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
-                return false;
-            }
-
-            return true;
-#pragma warning restore CS0162
-        }
-
         private async Task<bool> EnsureAllFractionalSalesConfiguredAsync()
         {
             if (_currentInvoice.InvoiceType is InvoiceType.Return or InvoiceType.Exchange or InvoiceType.PurchaseReturn)
                 return true;
 
-            foreach (var line in _invoiceLines.Where(item => item.ProductId > 0 && item.Quantity > 0))
+            // Shortcuts are converted at the point of entry. Never reinterpret
+            // stored quantities or stock-lot fractions as new keyboard input.
+            foreach (var line in _invoiceLines.Where(line => line.ProductId > 0 && line.Quantity > 0m &&
+                         line.Quantity != decimal.Truncate(line.Quantity) && !line.PartialSaleResolved))
             {
-                if (line.Quantity == decimal.Truncate(line.Quantity))
+                // Payment can be clicked while the asynchronous cell-commit
+                // handler is still finishing. Re-run the configured in-memory
+                // resolution so a valid partial line is not rejected because
+                // its UI-only marker has not been restored yet.
+                if (await TryResolveConfiguredPartialSaleAsync(line))
                     continue;
 
-                if (!await EnsureFractionalSaleConfiguredAsync(line, line.Quantity))
-                    return false;
+                MessageBox.Show(this,
+                    UiText.T("أعد إدخال الكمية الجزئية من حقل الكمية ليتم تحويلها إلى أشرطة كاملة قبل الحفظ.",
+                        "Re-enter the partial quantity in the quantity field so it is converted to whole tapes before saving."),
+                    UiText.T("تنبيه", "Notice"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                return false;
             }
-
             return true;
         }
 
-        private async Task<bool> EnsureLineProductUnitAsync(InvoiceLineWriteDto line)
+        private async Task<bool> TryResolveConfiguredPartialSaleAsync(InvoiceLineWriteDto line)
         {
-            if (line.ProductUnit != null)
-                return true;
-
-            if (line.ProductId <= 0 || line.ProductUnitId <= 0)
+            if (!ProductSearchWindow.TryGetCachedProductUnits(line.ProductId, out var units))
                 return false;
 
-            var units = await GetAvailableUnitsForProductAsync(line.ProductId);
-            var unit = units.FirstOrDefault(item => item.Id == line.ProductUnitId);
-            if (unit == null)
+            var source = units.FirstOrDefault(unit => unit.Id == line.ProductUnitId);
+            if (source == null || !source.AllowFractionalSale ||
+                ProductUnitService.IsTapeUnitName(source.Unit?.Name) ||
+                source.QuantityPerUnit <= 0m || source.FractionalPartsPerUnit < 2m ||
+                source.FractionalPartsPerUnit != decimal.Truncate(source.FractionalPartsPerUnit))
                 return false;
 
-            line.ProductUnit = unit;
-            line.UnitNameSnapshot = unit.Unit?.Name;
-            return true;
-        }
+            var tapeUnit = units.FirstOrDefault(unit => ProductUnitService.IsTapeUnitName(unit.Unit?.Name));
+            var hasValidParts = source.FractionalPartsPerUnit >= 2m &&
+                                source.FractionalPartsPerUnit == decimal.Truncate(source.FractionalPartsPerUnit);
+            var fractionalPrice = source.FractionalSalePrice
+                ?? (hasValidParts ? Math.Round(source.SalePrice / source.FractionalPartsPerUnit, 3, MidpointRounding.AwayFromZero) : tapeUnit?.SalePrice);
+            var fractionalCost = source.FractionalSaleCost
+                ?? (hasValidParts ? Math.Round(source.PurchasePrice / source.FractionalPartsPerUnit, 3, MidpointRounding.AwayFromZero) : tapeUnit?.PurchasePrice);
+            if (fractionalPrice is null or <= 0m || fractionalCost is null or < 0m)
+                return false;
 
-        private async Task<bool> SaveFractionalSettingsAsync(ProductUnitWriteDto unit)
-        {
-            var updateResult = await _productUnitService.UpdateAsync(new ProductUnitWriteDto
-            {
-                Id = unit.Id,
-                ProductId = unit.ProductId,
-                UnitId = unit.UnitId,
-                AlternateBarcode = unit.AlternateBarcode,
-                SalePrice = unit.SalePrice,
-                UnTaxedPrice = unit.UnTaxedPrice,
-                PurchasePrice = unit.PurchasePrice,
-                QuantityPerUnit = unit.QuantityPerUnit,
-                IsBaseUnit = unit.IsBaseUnit,
-                IsDefaultSaleUnit = unit.IsDefaultSaleUnit,
-                IsDefaultPurchaseUnit = unit.IsDefaultPurchaseUnit,
-                AllowFractionalSale = unit.AllowFractionalSale,
-                FractionalPartsPerUnit = unit.FractionalPartsPerUnit,
-                FractionalPartName = unit.FractionalPartName
-            });
+            var digit = (line.Quantity - decimal.Truncate(line.Quantity)) * 10m;
+            if (digit <= 0m || digit != decimal.Truncate(digit) ||
+                !ProductUnitService.TryConvertPartialQuantity(line.Quantity, source.FractionalPartsPerUnit, out _))
+                return false;
 
-            if (updateResult.Success)
-                return true;
-
-            MessageBox.Show(updateResult.Message ?? "The fractional-sale setting could not be saved.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            return false;
+            var resolution = await ResolvePartialSaleAsync(line, line.Quantity);
+            return resolution.Success && line.PartialSaleResolved;
         }
 
         private async Task<bool> AddProductToInvoiceAsync(
@@ -2410,42 +2433,29 @@ namespace RaccoonWarehouse.Invoices
                 return false;
             }
 
+            if (!ValidateProductSalePolicy(product))
+                return false;
+
             if (quantity != decimal.Truncate(quantity))
             {
-                var tapeLine = new InvoiceLineWriteDto
+                var partialLine = new InvoiceLineWriteDto
                 {
                     ProductId = product.Id,
+                    ProductName = product.Name,
                     ProductUnitId = selectedUnit.Id,
                     ProductUnit = MapProductUnit(selectedUnit),
                     SelectedProduct = product,
                     Quantity = quantity,
                     UnitPrice = unitPriceOverride ?? selectedUnit.SalePrice
                 };
-
-                if (!await EnsureTapeUnitSelectedAsync(tapeLine, quantity))
+                var partialSale = await ResolvePartialSaleAsync(partialLine, quantity);
+                if (!partialSale.Success)
                     return false;
-
-                product = await ResolveProductWithUnitsAsync(product);
-                selectedUnit = product.ProductUnits?.FirstOrDefault(unit => unit.Id == tapeLine.ProductUnitId)
-                    ?? selectedUnit;
-            }
-
-            // Product-search can add a requested quantity directly, so apply the
-            // same fractional-sale validation used by the invoice-grid editor.
-            // This must happen before merging into an existing line.
-            if (quantity != decimal.Truncate(quantity))
-            {
-                var fractionalValidationLine = new InvoiceLineWriteDto
-                {
-                    ProductId = product.Id,
-                    ProductUnitId = selectedUnit.Id,
-                    ProductUnit = MapProductUnit(selectedUnit),
-                    UnitNameSnapshot = selectedUnit.Unit?.Name,
-                    UnitPrice = unitPriceOverride ?? selectedUnit.SalePrice
-                };
-
-                if (!await EnsureFractionalSaleConfiguredAsync(fractionalValidationLine, quantity))
-                    return false;
+                quantity = partialSale.Quantity;
+                product = partialLine.SelectedProduct!;
+                selectedUnit = product.ProductUnits!.First(unit => unit.Id == partialLine.ProductUnitId);
+                unitPriceOverride = partialLine.UnitPrice;
+                knownUnitPurchasePrice = partialLine.UnitCost;
             }
 
             // 2. Merge with an existing unit line or prepare a new invoice line.
@@ -2538,6 +2548,11 @@ namespace RaccoonWarehouse.Invoices
             if (!matchingLines.Any())
                 return null;
 
+            // Preserve existing item discounts. Checkout still allocates and
+            // validates every stock lot without merging these independent rows.
+            if (matchingLines.Any(line => line.LineDiscountAmount > 0m && !_invoiceDiscountRows.ContainsKey(line)))
+                return null;
+
             var templateLine = matchingLines.First();
             var insertIndex = _invoiceLines.IndexOf(templateLine);
             var totalQuantity = matchingLines.Sum(l => l.Quantity);
@@ -2573,6 +2588,8 @@ namespace RaccoonWarehouse.Invoices
                     BaseQuantity = allocation.BaseQuantity,
                     UnitPrice = templateLine.UnitPrice,
                     UnitCost = allocation.PurchasePrice,
+                        PurchaseAcquisitionCost = allocation.HasAllocatedPurchaseCost
+                            ? Math.Round(allocation.Quantity * allocation.PurchasePrice, 6) : null,
                     TaxExempt = templateLine.TaxExempt,
                     TaxRate = templateLine.TaxRate,
                     ExpiryDate = allocation.ExpiryDate ?? templateLine.ExpiryDate,
@@ -2605,6 +2622,13 @@ namespace RaccoonWarehouse.Invoices
                 .ToList();
 
             if (!matchingLines.Any())
+            {
+                RecalculateLineFromCurrentValues(sourceLine);
+                RecalculateTotals();
+                return sourceLine;
+            }
+
+            if (matchingLines.Any(line => line.LineDiscountAmount > 0m && !_invoiceDiscountRows.ContainsKey(line)))
             {
                 RecalculateLineFromCurrentValues(sourceLine);
                 RecalculateTotals();
@@ -2696,6 +2720,8 @@ namespace RaccoonWarehouse.Invoices
                     BaseQuantity = allocation.BaseQuantity,
                     UnitPrice = templateLine.UnitPrice,
                     UnitCost = allocation.PurchasePrice,
+                        PurchaseAcquisitionCost = allocation.HasAllocatedPurchaseCost
+                            ? Math.Round(allocation.Quantity * allocation.PurchasePrice, 6) : null,
                     TaxExempt = templateLine.TaxExempt,
                     TaxRate = templateLine.TaxRate,
                     ExpiryDate = allocation.ExpiryDate ?? templateLine.ExpiryDate,
@@ -2757,6 +2783,36 @@ namespace RaccoonWarehouse.Invoices
                 {
                     var quantityPerUnit = line.QuantityPerUnitSnapshot > 0 ? line.QuantityPerUnitSnapshot : 1m;
                     var baseQuantity = line.BaseQuantity != 0 ? line.BaseQuantity : line.Quantity * quantityPerUnit;
+                    var fractionalWriteUnit = line.ProductUnit;
+                    var fractionalReadUnit = line.SelectedProduct?.ProductUnits?
+                        .FirstOrDefault(unit => unit.Id == line.ProductUnitId)
+                        ?? Products.FirstOrDefault(product => product.Id == line.ProductId)?.ProductUnits?
+                            .FirstOrDefault(unit => unit.Id == line.ProductUnitId);
+                    var allowsFractionalSale = fractionalWriteUnit?.AllowFractionalSale
+                        ?? fractionalReadUnit?.AllowFractionalSale
+                        ?? false;
+                    var fractionalPartsPerUnit = fractionalWriteUnit?.FractionalPartsPerUnit
+                        ?? fractionalReadUnit?.FractionalPartsPerUnit
+                        ?? 0m;
+
+                    // The final stock movement must not depend on the temporary
+                    // PartialSaleResolved UI flag. If the saved unit allows
+                    // fractional sale, convert the decimal shorthand here as
+                    // the authoritative last step before posting stock.
+                    if (allowsFractionalSale &&
+                        fractionalPartsPerUnit >= 2m &&
+                        fractionalPartsPerUnit == decimal.Truncate(fractionalPartsPerUnit) &&
+                        line.Quantity != decimal.Truncate(line.Quantity))
+                    {
+                        var sign = line.Quantity < 0m ? -1m : 1m;
+                        var absoluteQuantity = Math.Abs(line.Quantity);
+                        var wholeUnits = decimal.Truncate(absoluteQuantity);
+                        var partsSold = wholeUnits * fractionalPartsPerUnit +
+                                        (absoluteQuantity - wholeUnits) * 10m;
+                        baseQuantity = sign * Math.Round(
+                            partsSold / fractionalPartsPerUnit * quantityPerUnit,
+                            6, MidpointRounding.AwayFromZero);
+                    }
 
                     return new StockMovementPostDto
                     {
@@ -2771,6 +2827,8 @@ namespace RaccoonWarehouse.Invoices
                             : -baseQuantity,
                         UnitPrice = line.UnitPrice,
                         PurchasePrice = line.UnitCost,
+                        PurchaseAcquisitionCost = line.PurchaseAcquisitionCost.HasValue && line.Quantity < 0
+                            ? Math.Round(Math.Abs(line.Quantity) * line.UnitCost, 6) : null,
                         SalePrice = line.UnitPrice,
                         ExpiryDate = line.ExpiryDate,
                         TransactionType = MapStockTransactionType(_currentInvoice.InvoiceType, line.Quantity),
@@ -2869,6 +2927,9 @@ namespace RaccoonWarehouse.Invoices
                 .GroupBy(allocation => allocation.RequestIndex)
                 .ToDictionary(group => group.Key, group => group.ToList());
 
+            if (!TryPrepareAllocatedInvoiceDiscounts(positiveLines, allocationsByRequest, out var allocatedInvoiceDiscounts))
+                return null;
+
             foreach (var returnLine in sourceLines.Where(line => line.Quantity < 0))
             {
                 var signedLine = CloneLineSnapshot(returnLine, returnLine.Quantity, returnLine.OriginalInvoiceId);
@@ -2888,22 +2949,30 @@ namespace RaccoonWarehouse.Invoices
                     return null;
                 }
 
+                var allocationIndex = 0;
                 foreach (var allocation in lineAllocations)
                 {
                     var splitLine = new InvoiceLineWriteDto
                     {
+                        SelectedProduct = sourceLine.SelectedProduct,
                         ProductId = sourceLine.ProductId,
                         ProductName = sourceLine.ProductName,
                         ProductUnitId = sourceLine.ProductUnitId,
+                        ProductUnit = sourceLine.ProductUnit,
                         UnitNameSnapshot = sourceLine.UnitNameSnapshot ?? sourceLine.ProductUnit?.Unit?.Name,
                         Quantity = allocation.Quantity,
                         QuantityPerUnitSnapshot = allocation.QuantityPerUnitSnapshot,
                         BaseQuantity = allocation.BaseQuantity,
+                        PartialSaleResolved = sourceLine.PartialSaleResolved,
                         UnitPrice = sourceLine.UnitPrice,
-                        LineDiscountAmount = sourceLine.Quantity == 0m
-                            ? 0m
-                            : Math.Round(sourceLine.LineDiscountAmount * allocation.Quantity / sourceLine.Quantity, 3, MidpointRounding.AwayFromZero),
+                        LineDiscountAmount = allocatedInvoiceDiscounts.TryGetValue(index, out var distributedAmounts)
+                            ? distributedAmounts[allocationIndex]
+                            : sourceLine.Quantity == 0m
+                                ? 0m
+                                : Math.Round(sourceLine.LineDiscountAmount * allocation.Quantity / sourceLine.Quantity, 3, MidpointRounding.AwayFromZero),
                         UnitCost = allocation.PurchasePrice,
+                        PurchaseAcquisitionCost = allocation.HasAllocatedPurchaseCost
+                            ? Math.Round(allocation.Quantity * allocation.PurchasePrice, 6) : null,
                         TaxExempt = sourceLine.TaxExempt,
                         TaxRate = sourceLine.TaxRate,
                         ExpiryDate = allocation.ExpiryDate ?? sourceLine.ExpiryDate,
@@ -2914,6 +2983,7 @@ namespace RaccoonWarehouse.Invoices
 
                     RecalculateLineFromCurrentValues(splitLine);
                     expandedLines.Add(splitLine);
+                    allocationIndex++;
                 }
             }
 
@@ -2951,11 +3021,143 @@ namespace RaccoonWarehouse.Invoices
                 return false;
             }
 
+            if (!ValidateInvoiceDiscountPolicies())
+                return false;
+
+            if (!ValidateInvoiceSalePolicies())
+                return false;
+
             /* if (CustomerComboBox.SelectedItem == null)
              {
                  MessageBox.Show("يرجى اختيار العميل", "تنبيه");
                  return false;
              }*/
+
+            return true;
+        }
+
+        private PosRowColorDecision GetProductSaleDecision(ProductReadDto product, decimal discountPercent = 0m)
+            => _rowColorRuleService.Classify(
+                product.CurrentExpiryDate,
+                product.CurrentStockQuantity,
+                discountPercent,
+                product.SubCategoryId,
+                product.SubCategory?.Name,
+                scope: "POS",
+                productId: product.Id);
+
+        private PosRowColorDecision GetLineSaleDecision(InvoiceLineWriteDto line, decimal? discountPercent = null)
+            => _rowColorRuleService.Classify(
+                line.ExpiryDate == default ? null : line.ExpiryDate,
+                line.AvailableQuantitySnapshot,
+                discountPercent ?? line.LineDiscountPercent,
+                line.SelectedProduct?.SubCategoryId,
+                line.SelectedProduct?.SubCategory?.Name,
+                scope: "POS",
+                productId: line.ProductId);
+
+        private bool ValidateProductSalePolicy(ProductReadDto product)
+        {
+            var decision = GetProductSaleDecision(product);
+            if (decision.BlocksSale)
+            {
+                MessageBox.Show(
+                    UiText.T("لا يمكن بيع هذا الصنف حسب قيود نقطة البيع.", "This product cannot be sold because of the active POS rule."),
+                    UiText.T("البيع محظور", "Sale blocked"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return false;
+            }
+
+            if (!decision.RequiresConfirmation)
+                return true;
+
+            var result = MessageBox.Show(
+                UiText.T($"الصنف يطابق القاعدة: {decision.RuleName}. هل تريد المتابعة؟",
+                    $"This product matches the rule '{decision.RuleName}'. Continue?"),
+                UiText.T("تأكيد البيع", "Confirm sale"),
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+            return result == MessageBoxResult.Yes;
+        }
+
+        private bool ValidateInvoiceSalePolicies()
+        {
+            foreach (var line in _invoiceLines.Where(line => line.ProductId > 0 && line.Quantity > 0))
+            {
+                var decision = GetLineSaleDecision(line);
+                if (!decision.BlocksSale)
+                    continue;
+
+                MessageBox.Show(
+                    UiText.T("لا يمكن بيع أحد الأصناف بسبب قيد نقطة البيع.", "One or more invoice items are blocked by a POS rule."),
+                    UiText.T("البيع محظور", "Sale blocked"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return false;
+            }
+
+            return true;
+        }
+
+        private bool IsLineDiscountBlocked(InvoiceLineWriteDto line, decimal discountPercent)
+        {
+            var decision = GetLineSaleDecision(line, discountPercent);
+            if (!decision.BlocksDiscount)
+                return false;
+
+            if (decision.DiscountLimitPercent.HasValue)
+            {
+                MessageBox.Show(
+                    UiText.T(
+                        $"\u0644\u0627 \u064a\u0645\u0643\u0646 \u0623\u0646 \u064a\u062a\u062c\u0627\u0648\u0632 \u062e\u0635\u0645 \u0627\u0644\u0635\u0646\u0641 {line.ProductName} \u0646\u0633\u0628\u0629 {decision.DiscountLimitPercent.Value:0.###}% \u062d\u0633\u0628 \u0627\u0644\u0642\u0627\u0639\u062f\u0629 {decision.RuleName}.",
+                        $"Discount for {line.ProductName} cannot exceed {decision.DiscountLimitPercent.Value:0.###}% (rule: {decision.RuleName})."),
+                    UiText.T("\u0627\u0644\u062e\u0635\u0645 \u0645\u062d\u062f\u0648\u062f", "Discount limit reached"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return true;
+            }
+
+            MessageBox.Show(
+                UiText.T("لا يسمح بتطبيق خصم على هذا الصنف حسب قاعدة نقطة البيع.", "Discount is blocked for this item by a POS rule."),
+                UiText.T("الخصم محظور", "Discount blocked"),
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            return true;
+        }
+
+        private bool ValidateInvoiceDiscountPolicies()
+        {
+            if (!ValidateDistributedInvoiceDiscount())
+                return false;
+
+            var saleLines = _invoiceLines
+                .Where(line => line.ProductId > 0 && line.Quantity > 0)
+                .ToList();
+
+            foreach (var line in saleLines)
+            {
+                var lineDiscountPercent = _invoiceDiscountRows.ContainsKey(line)
+                    ? _invoiceDiscountPercent
+                    : line.LineDiscountPercent;
+                if (lineDiscountPercent > 0m && IsLineDiscountBlocked(line, lineDiscountPercent))
+                    return false;
+            }
+
+            var grossSales = CalculateGrossSalesBeforeInvoiceDiscount();
+            var invoiceDiscountAmount = Math.Abs(_currentInvoice.DiscountAmount ?? 0m);
+            var invoiceDiscountPercent = grossSales <= 0m
+                ? 0m
+                : Math.Round(invoiceDiscountAmount / Math.Abs(grossSales) * 100m, 3, MidpointRounding.AwayFromZero);
+
+            if (invoiceDiscountPercent <= 0m)
+                return true;
+
+            foreach (var line in saleLines)
+            {
+                if (IsLineDiscountBlocked(line, invoiceDiscountPercent))
+                    return false;
+            }
 
             return true;
         }
@@ -3479,6 +3681,7 @@ namespace RaccoonWarehouse.Invoices
             _returnPaymentLimits = null;
             _returnPreviousPaymentAmounts = null;
 
+            ResetDistributedInvoiceDiscount();
             _invoiceLines.Clear();
             InvoiceGrid.SelectedItem = null;
             InvoiceGrid.SelectedCells.Clear();
@@ -3573,7 +3776,8 @@ namespace RaccoonWarehouse.Invoices
                         return added;
                     },
                     disabledKeys,
-                    _rowColorRuleService)
+                    _rowColorRuleService,
+                    ruleScope: "ProductSearch")
                 {
                     Owner = this
                 };
@@ -4022,7 +4226,15 @@ namespace RaccoonWarehouse.Invoices
         #region Held invoices
         private async void HoldSaleBtn_Click(object sender, RoutedEventArgs e)
         {
+            if (_posInsuranceDetails != null)
+            { MessageBox.Show(this, UiText.T("أكمل فاتورة التأمين أو أزل التأمين قبل التعليق.", "Complete the insurance invoice or remove insurance before holding it.")); return; }
             if (_isHoldingInvoice || _isProcessingPayment || _isLoadingHeldInvoice)
+                return;
+
+            if (DiscountTextBox.IsKeyboardFocusWithin && !ApplyInvoiceDiscountInput())
+                return;
+            RecalculateTotals();
+            if (!ValidateDistributedInvoiceDiscount())
                 return;
 
             var linesToHold = _invoiceLines
@@ -4159,6 +4371,7 @@ namespace RaccoonWarehouse.Invoices
         }
         private async Task LoadInvoiceIntoPOSAsync(InvoiceReadDto invoice)
         {
+            ResetDistributedInvoiceDiscount();
             _invoiceLines.Clear();
 
             var heldLines = (invoice.InvoiceLines ?? Enumerable.Empty<InvoiceLineReadDto>()).ToList();
@@ -4482,6 +4695,17 @@ namespace RaccoonWarehouse.Invoices
                 }
 
             ReturnSourceLoaded:
+                if (originalInvoice.InvoiceType == InvoiceType.Purchase && originalInvoice.InvoiceLines?.Any(x => x.PurchaseAcquisitionCost.HasValue) == true)
+                {
+                    _loading.Hide();
+                    loadingShown = false;
+                    if (!TryGetActiveCashierSession(out var returnSession) || !await ConfirmReturnPasswordAtCompletionAsync()) return;
+                    var bonusReturn = new PurchaseBonusReturnWindow(
+                        _serviceProvider.GetRequiredService<RaccoonWarehouse.Application.Service.Purchases.PurchaseBonusReturnService>(),
+                        originalInvoice.Id, returnSession, originalInvoice.PaymentType == PaymentType.Credit) { Owner = this };
+                    bonusReturn.ShowDialog();
+                    return;
+                }
                 if (originalInvoice.InvoiceLines == null)
                 {
                     _loading.Hide();
@@ -4520,6 +4744,7 @@ namespace RaccoonWarehouse.Invoices
                 _returnPaymentLimits = Enum.GetValues<PaymentType>()
                     .Where(type => type != PaymentType.Credit)
                     .ToDictionary(type => type, _ => Math.Abs(originalInvoice.TotalAmount));
+                ResetDistributedInvoiceDiscount();
                 _invoiceLines.Clear();
 
                 if (returnType == InvoiceType.PurchaseReturn)
@@ -4642,10 +4867,15 @@ namespace RaccoonWarehouse.Invoices
 
         private async Task OpenSalePaymentWindowAsync()
         {
+            if (_posInsuranceDetails != null) { await OpenInsurancePaymentAsync(); return; }
             if (_invoiceLines == null || _invoiceLines.Count == 0)
                 return;
 
             CommitActiveInvoiceEdits();
+            if (DiscountTextBox.IsKeyboardFocusWithin && !ApplyInvoiceDiscountInput())
+                return;
+            if (!ValidateDistributedInvoiceDiscount())
+                return;
             if (!await EnsureAllFractionalSalesConfiguredAsync())
                 return;
 
@@ -4686,10 +4916,15 @@ namespace RaccoonWarehouse.Invoices
 
         private async void SplitPaymentBtn_Click(object sender, RoutedEventArgs e)
         {
+            if (_posInsuranceDetails != null) { await OpenInsurancePaymentAsync(); return; }
             if (_invoiceLines == null || _invoiceLines.Count == 0)
                 return;
 
             CommitActiveInvoiceEdits();
+            if (DiscountTextBox.IsKeyboardFocusWithin && !ApplyInvoiceDiscountInput())
+                return;
+            if (!ValidateDistributedInvoiceDiscount())
+                return;
             if (!await EnsureAllFractionalSalesConfiguredAsync())
                 return;
 
@@ -4870,28 +5105,9 @@ namespace RaccoonWarehouse.Invoices
             DiscountTextBox.SelectAll();
         }
 
-        private void DiscountTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        private void InvoiceDiscount_LostFocus(object sender, RoutedEventArgs e)
         {
-            if (!IsLoaded || _currentInvoice == null || _isUpdatingInvoiceDiscountText)
-                return;
-
-            var rawDiscount = DiscountTextBox.Text?.Trim() ?? string.Empty;
-            var isPercentage = rawDiscount.EndsWith('%');
-            var enteredDiscount = isPercentage
-                ? rawDiscount[..^1].Trim()
-                : rawDiscount;
-
-            if (!TryParseDecimalInput(enteredDiscount, out var discountValue) || discountValue < 0m)
-                return;
-
-            if (isPercentage && discountValue > 100m)
-                return;
-
-            _invoiceDiscountIsPercentage = isPercentage;
-            _invoiceDiscountPercent = isPercentage ? discountValue : 0m;
-            if (!isPercentage)
-                _currentInvoice.DiscountAmount = Math.Max(0m, discountValue);
-
+            ApplyInvoiceDiscountInput();
             RecalculateTotals();
         }
 
@@ -5197,6 +5413,8 @@ namespace RaccoonWarehouse.Invoices
                         AllowFractionalSale = row.AllowFractionalSale,
                         FractionalPartsPerUnit = row.FractionalPartsPerUnit,
                         FractionalPartName = row.FractionalPartName,
+                        FractionalSalePrice = row.FractionalSalePrice,
+                        FractionalSaleCost = row.FractionalSaleCost,
                         IsBaseUnit = row.IsBaseUnit,
                         IsDefaultSaleUnit = row.IsDefaultSaleUnit,
                         IsDefaultPurchaseUnit = row.IsDefaultPurchaseUnit,
@@ -5241,6 +5459,8 @@ namespace RaccoonWarehouse.Invoices
                             AllowFractionalSale = row.AllowFractionalSale,
                             FractionalPartsPerUnit = row.FractionalPartsPerUnit,
                             FractionalPartName = row.FractionalPartName,
+                            FractionalSalePrice = row.FractionalSalePrice,
+                            FractionalSaleCost = row.FractionalSaleCost,
                             IsBaseUnit = row.IsBaseUnit,
                             IsDefaultSaleUnit = row.IsDefaultSaleUnit,
                             IsDefaultPurchaseUnit = row.IsDefaultPurchaseUnit,
@@ -5946,6 +6166,14 @@ namespace RaccoonWarehouse.Invoices
             if (sender is not TextBox textBox)
                 return;
 
+            if (ReferenceEquals(textBox, DiscountTextBox) && e.Key == Key.Enter)
+            {
+                ApplyInvoiceDiscountInput();
+                RecalculateTotals();
+                e.Handled = true;
+                return;
+            }
+
             if (e.Key is Key.Decimal or Key.OemPeriod or Key.OemComma)
             {
                 InsertDecimalSeparator(textBox);
@@ -5998,6 +6226,9 @@ namespace RaccoonWarehouse.Invoices
         private void ApplyDiscountEditorValue(TextBox textBox, InvoiceLineWriteDto line)
         {
             var rawDiscount = textBox.Text.Trim();
+            if (_invoiceDiscountRows.ContainsKey(line) &&
+                string.Equals(rawDiscount, line.LineDiscountInput.Trim(), StringComparison.Ordinal))
+                return;
             var isPercentage = rawDiscount.EndsWith('%');
             var enteredDiscount = isPercentage ? rawDiscount[..^1].Trim() : rawDiscount;
             var grossLineTotal = Math.Abs(line.Quantity * line.UnitPrice);
@@ -6017,6 +6248,16 @@ namespace RaccoonWarehouse.Invoices
                 return;
             }
 
+            var candidateDiscountPercent = grossLineTotal <= 0m
+                ? 0m
+                : Math.Round(discountAmount / grossLineTotal * 100m, 3, MidpointRounding.AwayFromZero);
+            if (IsLineDiscountBlocked(line, candidateDiscountPercent))
+            {
+                textBox.Text = line.LineDiscountInput;
+                return;
+            }
+
+            DetachDistributedInvoiceDiscount(line);
             line.LineDiscountIsPercentage = isPercentage;
             line.LineDiscountAmount = discountAmount;
             line.LineDiscountInput = isPercentage
@@ -6305,10 +6546,16 @@ namespace RaccoonWarehouse.Invoices
 
         private async Task ProcessPaymentAsync(PaymentType paymentType)
         {
+            if (_posInsuranceDetails != null && !_insurancePaymentReady)
+            { await OpenInsurancePaymentAsync(); return; }
             if (_isProcessingPayment)
                 return;
 
             CommitActiveInvoiceEdits();
+            if (DiscountTextBox.IsKeyboardFocusWithin && !ApplyInvoiceDiscountInput())
+                return;
+            if (!ValidateDistributedInvoiceDiscount())
+                return;
             if (!await EnsureAllFractionalSalesConfiguredAsync())
                 return;
 
@@ -6347,10 +6594,6 @@ namespace RaccoonWarehouse.Invoices
                 if (_currentInvoice.InvoiceType is InvoiceType.Return or InvoiceType.PurchaseReturn)
                     RecalculateTotals();
 
-                _loading.Show();
-                loadingShown = true;
-                LogPosTiming("click to processing indicator", timing, stepTiming);
-
                 if (_currentInvoice.InvoiceType is InvoiceType.Return or InvoiceType.PurchaseReturn)
                 {
                     HideLoadingForDialog();
@@ -6380,12 +6623,12 @@ namespace RaccoonWarehouse.Invoices
                         return;
 
                     paymentType = _currentInvoice.PaymentType ?? paymentType;
-                    ShowLoadingForWork();
                 }
 
                 _currentInvoice.PaymentType = paymentType;
 
                 // 1. Validate draft lines, return rules, and cashier session.
+                RecalculateTotals();
                 if (!CanSaveInvoice())
                 {
                     StopForValidationMessage();
@@ -6504,6 +6747,7 @@ namespace RaccoonWarehouse.Invoices
                 var checkoutResult = await _saleCheckoutService.CompleteAsync(new SaleCheckoutRequest
                 {
                     Invoice = _currentInvoice,
+                    InsuranceDetails = _posInsuranceDetails,
                     Session = session,
                     StockMovementsFactory = savedInvoiceId => BuildPosStockMovements(expandedLines, savedInvoiceId, session)
                 });

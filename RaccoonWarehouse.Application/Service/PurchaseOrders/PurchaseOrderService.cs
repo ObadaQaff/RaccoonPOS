@@ -24,11 +24,12 @@ namespace RaccoonWarehouse.Application.Service.PurchaseOrders
     public interface IPurchaseOrderService
     {
         Task<Result<PurchaseOrderWriteDto>> CreateAsync(PurchaseOrderWriteDto dto);
-        Task<Result<PurchaseOrderWriteDto>> CreateFromPurchaseRequestAsync(int purchaseRequestId);
+        Task<Result<List<PurchaseOrderWriteDto>>> CreateFromPurchaseRequestAsync(int purchaseRequestId);
         Task<Result<List<PurchaseOrderReadDto>>> GetAllAsync();
         Task<Result<PurchaseOrderWriteDto>> GetByIdAsync(int id);
         Task<Result<PurchaseOrderWriteDto>> ApproveAsync(int id);
         Task<Result<PurchaseOrderWriteDto>> RejectAsync(int id, string reason);
+        Task<Result<PurchaseOrderWriteDto>> MarkPaidAsync(int id, string note);
     }
 
     public sealed class PurchaseOrderService : IPurchaseOrderService
@@ -86,6 +87,22 @@ namespace RaccoonWarehouse.Application.Service.PurchaseOrders
                     return Result<PurchaseOrderWriteDto>.Fail("Purchase order lines must match their purchase request products.");
             }
 
+            var unitIds = dto.Lines.Select(line => line.ProductUnitId).Distinct().ToList();
+            var units = await _db.Set<ProductUnit>().Include(unit => unit.Product)
+                .Where(unit => unitIds.Contains(unit.Id)).ToDictionaryAsync(unit => unit.Id);
+            foreach (var line in dto.Lines)
+            {
+                if (!units.TryGetValue(line.ProductUnitId, out var unit) || unit.Product == null
+                    || unit.ProductId != line.ProductId)
+                    return Result<PurchaseOrderWriteDto>.Fail("Every purchase order line must have a product, unit, and positive quantity.");
+                line.TaxExempt = unit.Product.TaxExempt ?? false;
+                line.TaxRate = line.TaxExempt ? 0m : Math.Max(0m, unit.Product.TaxRate ?? 0m);
+                line.QuantityPerUnitSnapshot = unit.QuantityPerUnit > 0m ? unit.QuantityPerUnit : 1m;
+                line.BaseQuantity = line.Quantity * line.QuantityPerUnitSnapshot;
+                if (line.UnitCost == 0m && line.UnitPrice > 0m) line.UnitCost = line.UnitPrice;
+            }
+            CalculateTotals(dto);
+
             var now = DateTime.Now;
             var entity = _mapper.Map<PurchaseOrder>(dto);
             entity.OrderNumber = string.IsNullOrWhiteSpace(dto.OrderNumber)
@@ -109,54 +126,106 @@ namespace RaccoonWarehouse.Application.Service.PurchaseOrders
             return Result<PurchaseOrderWriteDto>.Ok(_mapper.Map<PurchaseOrderWriteDto>(entity), "Purchase order submitted for approval.");
         }
 
-        public async Task<Result<PurchaseOrderWriteDto>> CreateFromPurchaseRequestAsync(int purchaseRequestId)
+        public async Task<Result<List<PurchaseOrderWriteDto>>> CreateFromPurchaseRequestAsync(int purchaseRequestId)
         {
             if (!await _permissionService.HasCurrentUserPermissionAsync("PurchaseOrder.Create"))
-                return Result<PurchaseOrderWriteDto>.Fail("You do not have permission to create purchase orders.");
+                return Result<List<PurchaseOrderWriteDto>>.Fail("You do not have permission to create purchase orders.");
 
             var request = await _db.PurchaseRequests
                 .Include(x => x.Lines)
                 .FirstOrDefaultAsync(x => x.Id == purchaseRequestId);
             if (request == null)
-                return Result<PurchaseOrderWriteDto>.Fail("Purchase request was not found.");
+                return Result<List<PurchaseOrderWriteDto>>.Fail("Purchase request was not found.");
             if (request.Status != PurchaseRequestStatus.Approved)
-                return Result<PurchaseOrderWriteDto>.Fail("Only approved purchase requests can generate purchase orders.");
-            if (request.Lines.Count == 0)
-                return Result<PurchaseOrderWriteDto>.Fail("The approved purchase request has no lines.");
-            if (request.Lines.Any(x => !x.ProductId.HasValue))
-                return Result<PurchaseOrderWriteDto>.Fail("This PR contains free-text items. Link each item to a catalog product before creating a PO.");
+                return Result<List<PurchaseOrderWriteDto>>.Fail("Only approved purchase requests can generate purchase orders.");
 
-            var productIds = request.Lines.Select(x => x.ProductId!.Value).Distinct().ToList();
-            var units = await _db.Set<ProductUnit>()
-                .Where(x => productIds.Contains(x.ProductId))
-                .GroupBy(x => x.ProductId)
-                .Select(group => group.OrderByDescending(x => x.IsDefaultPurchaseUnit).ThenByDescending(x => x.IsBaseUnit).First())
-                .ToDictionaryAsync(x => x.ProductId);
+            var approvedRequestLines = request.Lines
+                .Where(x => x.Decision == PurchaseRequestLineDecision.Approved && x.ApprovedQuantity > 0)
+                .ToList();
+            if (approvedRequestLines.Count == 0)
+                return Result<List<PurchaseOrderWriteDto>>.Fail("The approved purchase request has no approved lines.");
+            if (approvedRequestLines.Any(x => !x.ProductId.HasValue || !x.ProductUnitId.HasValue))
+                return Result<List<PurchaseOrderWriteDto>>.Fail("Approved free-text lines cannot create a purchase order. Link each approved item to a catalog product first.");
+            await using var transaction = await _db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
+            var approvedLineIds = approvedRequestLines.Select(x => x.Id).ToList();
+            var alreadyOrderedLineIds = await _db.Set<PurchaseOrderLine>()
+                .Where(x => x.PurchaseRequestLineId.HasValue && approvedLineIds.Contains(x.PurchaseRequestLineId.Value))
+                .Select(x => x.PurchaseRequestLineId!.Value)
+                .Distinct()
+                .ToListAsync();
+            if (alreadyOrderedLineIds.Count > 0)
+                return Result<List<PurchaseOrderWriteDto>>.Fail("One or more approved lines already belong to a purchase order. Duplicate purchase orders were not created.");
 
-            var lines = new List<PurchaseOrderLineWriteDto>();
-            foreach (var requestLine in request.Lines)
+            var requestedUnitIds = approvedRequestLines
+                .Select(x => x.ProductUnitId!.Value)
+                .Distinct()
+                .ToList();
+            var requestedUnits = await _db.Set<ProductUnit>()
+                .Include(unit => unit.Product)
+                .Where(x => requestedUnitIds.Contains(x.Id))
+                .ToDictionaryAsync(x => x.Id);
+
+            foreach (var requestLine in approvedRequestLines)
             {
-                if (!units.TryGetValue(requestLine.ProductId!.Value, out var unit))
-                    return Result<PurchaseOrderWriteDto>.Fail($"No purchase unit is configured for product {requestLine.ProductId}.");
-                lines.Add(new PurchaseOrderLineWriteDto
+                if (!requestedUnits.TryGetValue(requestLine.ProductUnitId!.Value, out var unit) ||
+                    unit.ProductId != requestLine.ProductId!.Value || unit.Product == null)
+                    return Result<List<PurchaseOrderWriteDto>>.Fail($"The approved purchase unit is not valid for {requestLine.ItemName}.");
+            }
+
+            var now = DateTime.Now;
+            var createdOrders = new List<PurchaseOrder>();
+            foreach (var supplierGroup in approvedRequestLines.GroupBy(x => x.SupplierId))
+            {
+                var orderLines = supplierGroup.Select(requestLine =>
                 {
-                    PurchaseRequestLineId = requestLine.Id,
-                    ProductId = requestLine.ProductId.Value,
-                    ProductUnitId = unit.Id,
-                    Quantity = requestLine.ApprovedQuantity > 0 ? requestLine.ApprovedQuantity : requestLine.RequestedQuantity,
-                    QuantityPerUnitSnapshot = unit.QuantityPerUnit > 0 ? unit.QuantityPerUnit : 1m,
-                    UnitPrice = unit.PurchasePrice,
-                    UnitCost = unit.PurchasePrice,
-                    TaxExempt = true
+                    var unit = requestedUnits[requestLine.ProductUnitId!.Value];
+                    var quantityPerUnit = unit.QuantityPerUnit > 0 ? unit.QuantityPerUnit : 1m;
+                    return new PurchaseOrderLine
+                    {
+                        PurchaseRequestLineId = requestLine.Id,
+                        ProductId = requestLine.ProductId!.Value,
+                        ProductUnitId = unit.Id,
+                        Quantity = requestLine.ApprovedQuantity,
+                        QuantityPerUnitSnapshot = quantityPerUnit,
+                        BaseQuantity = requestLine.ApprovedQuantity * quantityPerUnit,
+                        UnitPrice = requestLine.ApprovedUnitPrice,
+                        UnitCost = requestLine.ApprovedUnitPrice,
+                        TaxExempt = unit.Product!.TaxExempt ?? false,
+                        TaxRate = unit.Product.TaxExempt == true ? 0m : Math.Max(0m, unit.Product.TaxRate ?? 0m),
+                        CreatedDate = now,
+                        UpdatedDate = now
+                    };
+                }).ToList();
+
+                createdOrders.Add(new PurchaseOrder
+                {
+                    OrderNumber = $"PO-{now:yyyyMMddHHmmssfff}-{Guid.NewGuid().ToString("N")[..8]}",
+                    Status = PurchaseOrderStatus.Submitted,
+                    SupplierId = supplierGroup.Key,
+                    Notes = supplierGroup.Key.HasValue
+                        ? $"Generated from approved PR {request.RequestNumber}."
+                        : $"Generated from approved PR {request.RequestNumber}. Supplier not specified.",
+                    DocumentDate = now,
+                    CostPriceIncludesTax = true,
+                    CreatedBy = _userSession.CurrentUser?.Id,
+                    SubmittedBy = _userSession.CurrentUser?.Id,
+                    CreatedDate = now,
+                    UpdatedDate = now,
+                    Lines = orderLines
                 });
             }
 
-            return await CreateAsync(new PurchaseOrderWriteDto
-            {
-                Notes = $"Generated from approved PR {request.RequestNumber}.",
-                DocumentDate = DateTime.Now,
-                Lines = lines
-            });
+            foreach (var order in createdOrders)
+                CalculateEntityTotals(order);
+
+            await _db.PurchaseOrders.AddRangeAsync(createdOrders);
+            await _db.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            var result = createdOrders.Select(_mapper.Map<PurchaseOrderWriteDto>).ToList();
+            return Result<List<PurchaseOrderWriteDto>>.Ok(
+                result,
+                $"Created {result.Count} purchase order(s) from approved PR {request.RequestNumber}.");
         }
 
         public async Task<Result<List<PurchaseOrderReadDto>>> GetAllAsync()
@@ -170,7 +239,29 @@ namespace RaccoonWarehouse.Application.Service.PurchaseOrders
                 .Include(x => x.Lines)
                 .OrderByDescending(x => x.CreatedDate)
                 .ToListAsync();
-            return Result<List<PurchaseOrderReadDto>>.Ok(_mapper.Map<List<PurchaseOrderReadDto>>(orders));
+            var productIds = orders.SelectMany(order => order.Lines).Select(line => line.ProductId).Distinct().ToList();
+            var products = productIds.Count == 0
+                ? new List<Product>()
+                : await _db.Set<Product>().IgnoreQueryFilters().AsNoTracking()
+                    .Where(product => productIds.Contains(product.Id))
+                    .Select(product => new Product { Id = product.Id, Name = product.Name, ITEMCODE = product.ITEMCODE })
+                    .ToListAsync();
+            var catalog = products.ToDictionary(product => product.Id);
+            var rows = _mapper.Map<List<PurchaseOrderReadDto>>(orders);
+            var sourceById = orders.ToDictionary(order => order.Id);
+            foreach (var row in rows)
+            {
+                row.SetFilterLines(sourceById[row.Id].Lines.Select(line =>
+                {
+                    catalog.TryGetValue(line.ProductId, out var product);
+                    return new PurchaseOrderFilterLineDto
+                    {
+                        ProductId = line.ProductId, ProductName = product?.Name,
+                        Barcode = product?.ITEMCODE?.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                    };
+                }));
+            }
+            return Result<List<PurchaseOrderReadDto>>.Ok(rows);
         }
 
         public async Task<Result<PurchaseOrderWriteDto>> GetByIdAsync(int id)
@@ -194,7 +285,7 @@ namespace RaccoonWarehouse.Application.Service.PurchaseOrders
             var products = await _db.Set<Product>()
                 .AsNoTracking()
                 .Where(x => productIds.Contains(x.Id))
-                .ToDictionaryAsync(x => x.Id, x => x.Name);
+                .ToDictionaryAsync(x => x.Id);
             var units = await _db.Set<ProductUnit>()
                 .AsNoTracking()
                 .Include(x => x.Unit)
@@ -203,13 +294,72 @@ namespace RaccoonWarehouse.Application.Service.PurchaseOrders
 
             foreach (var line in dto.Lines)
             {
-                if (products.TryGetValue(line.ProductId, out var productName))
-                    line.ProductName = productName;
+                if (products.TryGetValue(line.ProductId, out var product))
+                    line.ProductName = product.Name;
                 if (units.TryGetValue(line.ProductUnitId, out var unitName))
                     line.UnitName = unitName;
             }
 
+            // Repair only the returned view for the old PR-generation zero-tax bug.
+            // No tracked entities or saved historical orders are modified on a read.
+            if (ShouldRefreshLegacyTax(dto))
+            {
+                foreach (var line in dto.Lines)
+                {
+                    if (!products.TryGetValue(line.ProductId, out var product)) continue;
+                    line.TaxExempt = product.TaxExempt ?? false;
+                    line.TaxRate = line.TaxExempt ? 0m : Math.Max(0m, product.TaxRate ?? 0m);
+                }
+                CalculateTotals(dto);
+            }
+
             return Result<PurchaseOrderWriteDto>.Ok(dto);
+        }
+
+        private static bool ShouldRefreshLegacyTax(PurchaseOrderWriteDto order) =>
+            order.PaymentStatus == PurchaseOrderPaymentStatus.Unpaid && !order.ConvertedInvoiceId.HasValue
+            && order.Status is PurchaseOrderStatus.Submitted or PurchaseOrderStatus.Approved
+            && order.TotalTax == 0m && order.Lines.Count > 0
+            && order.Lines.All(line => line.PurchaseRequestLineId.HasValue
+                && line.TaxExempt && line.TaxRate == 0m && line.TaxAmount == 0m);
+
+        private static void CalculateTotals(PurchaseOrderWriteDto order)
+        {
+            var taxes = new List<(PurchaseOrderLineWriteDto Line, decimal Tax)>();
+            foreach (var line in order.Lines)
+            {
+                var gross = Math.Round(Math.Max(0m, line.Quantity * line.UnitCost), 3);
+                line.LineDiscountAmount = Math.Round(Math.Clamp(line.LineDiscountAmount, 0m, gross), 3);
+                var amount = gross - line.LineDiscountAmount;
+                var rate = line.TaxExempt ? 0m : Math.Max(0m, line.TaxRate);
+                line.LineSubTotal = order.CostPriceIncludesTax && rate > 0m
+                    ? Math.Round(amount / (1m + rate / 100m), 3) : amount;
+                var tax = order.CostPriceIncludesTax ? amount - line.LineSubTotal : line.LineSubTotal * rate / 100m;
+                taxes.Add((line, rate > 0m ? tax : 0m));
+            }
+            order.SubTotal = Math.Round(order.Lines.Sum(line => line.LineSubTotal), 3);
+            order.DiscountAmount = Math.Round(Math.Clamp(order.DiscountAmount ?? 0m, 0m, order.SubTotal), 3);
+            var ratio = order.SubTotal > 0m ? (order.SubTotal - order.DiscountAmount.Value) / order.SubTotal : 0m;
+            foreach (var (line, tax) in taxes)
+                line.TaxAmount = Math.Round(tax * ratio, 3);
+            order.TotalTax = order.Lines.Sum(line => line.TaxAmount);
+            order.TotalAmount = Math.Round(order.SubTotal - order.DiscountAmount.Value + order.TotalTax, 3);
+        }
+
+        private void CalculateEntityTotals(PurchaseOrder order)
+        {
+            var dto = _mapper.Map<PurchaseOrderWriteDto>(order);
+            CalculateTotals(dto);
+            order.SubTotal = dto.SubTotal;
+            order.TotalTax = dto.TotalTax;
+            order.DiscountAmount = dto.DiscountAmount;
+            order.TotalAmount = dto.TotalAmount;
+            foreach (var (entityLine, dtoLine) in order.Lines.Zip(dto.Lines))
+            {
+                entityLine.LineDiscountAmount = dtoLine.LineDiscountAmount;
+                entityLine.LineSubTotal = dtoLine.LineSubTotal;
+                entityLine.TaxAmount = dtoLine.TaxAmount;
+            }
         }
 
         public async Task<Result<PurchaseOrderWriteDto>> ApproveAsync(int id)
@@ -234,6 +384,34 @@ namespace RaccoonWarehouse.Application.Service.PurchaseOrders
             return Result<PurchaseOrderWriteDto>.Ok(
                 _mapper.Map<PurchaseOrderWriteDto>(order),
                 "Purchase order approved. No inventory or accounting entry was posted.");
+        }
+
+        public async Task<Result<PurchaseOrderWriteDto>> MarkPaidAsync(int id, string note)
+        {
+            if (!await _permissionService.HasCurrentUserPermissionAsync("PurchaseOrder.MarkPaid"))
+                return Result<PurchaseOrderWriteDto>.Fail("You do not have permission to mark purchase orders as paid.");
+            if (string.IsNullOrWhiteSpace(note))
+                return Result<PurchaseOrderWriteDto>.Fail("A payment note is required.");
+
+            var order = await _db.PurchaseOrders.FirstOrDefaultAsync(x => x.Id == id);
+            if (order == null)
+                return Result<PurchaseOrderWriteDto>.Fail("Purchase order was not found.");
+            if (order.Status is PurchaseOrderStatus.Rejected or PurchaseOrderStatus.Cancelled)
+                return Result<PurchaseOrderWriteDto>.Fail("Rejected or cancelled purchase orders cannot be marked as paid.");
+            if (order.PaymentStatus == PurchaseOrderPaymentStatus.Paid)
+                return Result<PurchaseOrderWriteDto>.Fail("This purchase order is already marked as paid.");
+
+            var now = DateTime.Now;
+            order.PaymentStatus = PurchaseOrderPaymentStatus.Paid;
+            order.PaidBy = _userSession.CurrentUser?.Id;
+            order.PaidDate = now;
+            order.PaymentNote = note.Trim();
+            order.UpdatedDate = now;
+            await _db.SaveChangesAsync();
+
+            return Result<PurchaseOrderWriteDto>.Ok(
+                _mapper.Map<PurchaseOrderWriteDto>(order),
+                "Purchase order payment status updated to paid.");
         }
 
         private async Task<string> GeneratePurchaseInvoiceNumberAsync(string orderNumber)

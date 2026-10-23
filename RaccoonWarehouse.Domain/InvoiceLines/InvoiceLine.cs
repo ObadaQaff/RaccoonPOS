@@ -26,6 +26,12 @@ namespace RaccoonWarehouse.Domain.InvoiceLines
         public decimal Quantity { get; set; }
         public decimal LineDiscountAmount { get; set; }
         public decimal FreeQuantity { get; set; }
+        public string? BonusRatio { get; set; }
+        // Null identifies old/ordinary lines; this snapshot excludes recoverable input VAT.
+        public decimal? PurchaseAcquisitionCost { get; set; }
+        // Original purchase line for an explicit paid/free purchase return.
+        public int? SourcePurchaseLineId { get; set; }
+
         public decimal QuantityPerUnitSnapshot { get; set; } = 1m;
         public decimal BaseQuantity { get; set; }
         public decimal UnitPrice { get; set; }

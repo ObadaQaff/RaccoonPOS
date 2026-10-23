@@ -1,3 +1,5 @@
+using RaccoonWarehouse.Application.Service.Insurance;
+using RaccoonWarehouse.Domain.Insurance;
 using RaccoonWarehouse.Application.Service.FinancialTransactions;
 using RaccoonWarehouse.Application.Service.Invoices;
 using RaccoonWarehouse.Application.Service.Stocks;
@@ -21,6 +23,7 @@ namespace RaccoonWarehouse.Application.Service.Sales
     public sealed class SaleCheckoutRequest
     {
         public InvoiceWriteDto Invoice { get; init; } = new();
+        public PosInsuranceBillingDto? InsuranceDetails { get; init; }
         public CashierSessionReadDto Session { get; init; } = new();
         public Func<int, IEnumerable<StockMovementPostDto>> StockMovementsFactory { get; init; } = _ => Array.Empty<StockMovementPostDto>();
     }
@@ -38,6 +41,8 @@ namespace RaccoonWarehouse.Application.Service.Sales
 
     public sealed class SaleCheckoutService : ISaleCheckoutService
     {
+        private readonly IAccountingService? _immediateAccounting;
+        private readonly PosInsuranceBillingService? _insuranceBilling;
         private readonly IInvoiceService _invoiceService;
         private readonly IStockService _stockService;
         private readonly IFinancialTransactionService _financialService;
@@ -53,8 +58,12 @@ namespace RaccoonWarehouse.Application.Service.Sales
             IAccountingOperationService accountingOperationService,
             IUOW uow,
             IAuditLogService auditLogService,
-            IPosProductCatalogRefreshQueue? posProductCatalogRefreshQueue = null)
+            IPosProductCatalogRefreshQueue? posProductCatalogRefreshQueue = null,
+            PosInsuranceBillingService? insuranceBilling = null,
+            IAccountingService? immediateAccounting = null)
         {
+            _immediateAccounting = immediateAccounting;
+            _insuranceBilling = insuranceBilling;
             _invoiceService = invoiceService;
             _stockService = stockService;
             _financialService = financialService;
@@ -73,50 +82,80 @@ namespace RaccoonWarehouse.Application.Service.Sales
             await using var transaction = await _uow.BeginTransactionAsync();
             try
             {
+                var invoice = request.Invoice;
+                PosInsuranceBillingDto? insuranceSnapshot = null;
+                if (request.InsuranceDetails != null)
+                {
+                    if (_insuranceBilling == null) throw new InvalidOperationException("Insurance billing is unavailable.");
+                    var prepared = await _insuranceBilling.PrepareAsync(invoice, request.InsuranceDetails);
+                    if (!prepared.Success || prepared.Data == null)
+                    {
+                        await transaction.RollbackAsync();
+                        if (request.InsuranceDetails != null) _insuranceBilling?.DiscardTrackingAfterRollback();
+                        return Result<SaleCheckoutResult>.Fail(prepared.Message);
+                    }
+                    invoice = prepared.Data.Invoice;
+                    insuranceSnapshot = prepared.Data.Snapshot;
+                }
                 // POS can retain an invoice id after a draft/held invoice was deleted or
                 // rolled back. Do not try to update a row that no longer exists.
-                if (request.Invoice.Id > 0)
+                if (invoice.Id > 0)
                 {
                     var existingInvoiceResult = await _invoiceService.GetAllWriteDtoWithFilteringAndIncludeAsync(
-                        invoice => invoice.Id == request.Invoice.Id);
+                        row => row.Id == invoice.Id);
                     if (!existingInvoiceResult.Success || existingInvoiceResult.Data?.Any() != true)
-                        request.Invoice.Id = 0;
+                        invoice.Id = 0;
                 }
 
                 // A failed checkout can leave an unfinished draft inside the current transaction
                 // boundary. Reuse that draft on retry instead of attempting to create the same
                 // invoice number again. Completed/posted invoices are never reused here.
-                if (request.Invoice.Id <= 0
-                    && request.Invoice.IsPOS == true
-                    && !string.IsNullOrWhiteSpace(request.Invoice.InvoiceNumber))
+                if (invoice.Id <= 0
+                    && invoice.IsPOS == true
+                    && !string.IsNullOrWhiteSpace(invoice.InvoiceNumber))
                 {
                     var draftResult = await _invoiceService.GetAllWriteDtoWithFilteringAndIncludeAsync(
-                        invoice => invoice.InvoiceNumber == request.Invoice.InvoiceNumber
-                            && invoice.IsPOS == true
-                            && invoice.CasherId == request.Invoice.CasherId
-                            && invoice.CashierSessionId == request.Invoice.CashierSessionId
-                            && (invoice.Status == InvoiceStatus.Draft || invoice.Status == InvoiceStatus.OnHold));
+                        row => row.InvoiceNumber == invoice.InvoiceNumber
+                            && row.IsPOS == true
+                            && row.CasherId == invoice.CasherId
+                            && row.CashierSessionId == invoice.CashierSessionId
+                            && (row.Status == InvoiceStatus.Draft || row.Status == InvoiceStatus.OnHold));
 
                     var existingDraft = draftResult.Success ? draftResult.Data?.FirstOrDefault() : null;
                     if (existingDraft != null)
-                        request.Invoice.Id = existingDraft.Id;
+                        invoice.Id = existingDraft.Id;
                 }
 
-                var invoiceResult = request.Invoice.Id > 0
-                    ? await _invoiceService.UpdateAsync(request.Invoice)
-                    : await _invoiceService.CreateAsync(request.Invoice);
+                var invoiceResult = invoice.Id > 0
+                    ? await _invoiceService.UpdateAsync(invoice)
+                    : await _invoiceService.CreateAsync(invoice);
                 LogTiming("invoice save", timing, stepTiming);
 
                 if (!invoiceResult.Success || invoiceResult.Data == null)
                 {
                     await transaction.RollbackAsync();
+                    if (request.InsuranceDetails != null) _insuranceBilling?.DiscardTrackingAfterRollback();
                     return Result<SaleCheckoutResult>.Fail(invoiceResult.Message ?? "Failed to save the invoice.");
                 }
 
                 var savedInvoice = invoiceResult.Data;
-                var savedInvoiceId = savedInvoice.Id > 0 ? savedInvoice.Id : request.Invoice.Id;
-                if (request.Invoice.DeferAccountingPosting)
-                    await _accountingOperationService.EnqueueInvoiceAsync(request.Invoice);
+                var savedInvoiceId = savedInvoice.Id > 0 ? savedInvoice.Id : invoice.Id;
+                if (insuranceSnapshot != null)
+                {
+                    if (_immediateAccounting == null)
+                        throw new InvalidOperationException("Insurance accounting is unavailable.");
+                    await _insuranceBilling!.SaveCoverageAndClaimAsync(savedInvoice, insuranceSnapshot);
+                    // The claim must not commit before its company receivable reaches the ledger.
+                    var posting = await _immediateAccounting.PostInvoiceEntryAsync(savedInvoice);
+                    if (!posting.Success)
+                    {
+                        await transaction.RollbackAsync();
+                        _insuranceBilling.DiscardTrackingAfterRollback();
+                        return Result<SaleCheckoutResult>.Fail("Insurance accounting posting failed: " + posting.Message);
+                    }
+                }
+                else if (invoice.DeferAccountingPosting)
+                    await _accountingOperationService.EnqueueInvoiceAsync(savedInvoice);
                 var stockMovements = request.StockMovementsFactory(savedInvoiceId)?.ToList()
                     ?? new List<StockMovementPostDto>();
                 var affectedProductIds = stockMovements
@@ -131,6 +170,7 @@ namespace RaccoonWarehouse.Application.Service.Sales
                 if (!movementResult.Success)
                 {
                     await transaction.RollbackAsync();
+                    if (request.InsuranceDetails != null) _insuranceBilling?.DiscardTrackingAfterRollback();
                     return Result<SaleCheckoutResult>.Fail(movementResult.Message ?? "Failed to update stock.");
                 }
 
@@ -145,13 +185,16 @@ namespace RaccoonWarehouse.Application.Service.Sales
                     });
                 }
 
-                foreach (var payment in paymentAllocations.Where(payment => payment.PaymentType != PaymentType.Credit))
+                foreach (var payment in paymentAllocations.Where(payment => payment.Amount > 0m && payment.PaymentType is not (PaymentType.Credit or PaymentType.InsuranceReceivable)))
                 {
                     await _accountingOperationService.EnqueueFinancialAsync(
                         BuildFinancialPost(savedInvoice, savedInvoiceId, request.Session, payment.PaymentType, payment.Amount),
                         savedInvoice.InvoiceNumber ?? savedInvoiceId.ToString());
                 }
 
+                // Persist patient receipt queue rows before committing the insurance transaction.
+                if (insuranceSnapshot != null)
+                    await _uow.CommitAsync();
                 await transaction.CommitAsync();
                 _posProductCatalogRefreshQueue?.Enqueue(affectedProductIds);
                 LogTiming("checkout transaction commit", timing, stepTiming);
@@ -173,6 +216,7 @@ namespace RaccoonWarehouse.Application.Service.Sales
             catch
             {
                 await transaction.RollbackAsync();
+                if (request.InsuranceDetails != null) _insuranceBilling?.DiscardTrackingAfterRollback();
                 throw;
             }
         }

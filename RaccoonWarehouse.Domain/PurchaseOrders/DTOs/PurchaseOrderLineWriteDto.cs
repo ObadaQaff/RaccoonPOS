@@ -20,5 +20,6 @@ namespace RaccoonWarehouse.Domain.PurchaseOrders.DTOs
         public decimal TaxRate { get; set; }
         public decimal TaxAmount { get; set; }
         public decimal LineSubTotal { get; set; }
+        public decimal LineTotal => LineSubTotal + TaxAmount;
     }
 }

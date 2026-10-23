@@ -120,6 +120,22 @@
                                   <CheckBox x:Name="AllowFractionalSaleCheckBox" VerticalAlignment="Center" HorizontalAlignment="Center"/>
                               </StackPanel>
                             <StackPanel Margin="6,0,14,10">
+                                <TextBlock Text="Parts per package / الأجزاء لكل عبوة" Style="{StaticResource AppFieldLabelStyle}"/>
+                                <TextBox x:Name="FractionalPartsPerUnitTextBox" Style="{StaticResource AppTextInputStyle}" />
+                            </StackPanel>
+                            <StackPanel Margin="6,0,14,10">
+                                <TextBlock Text="Partial sale price / سعر البيع الجزئي" Style="{StaticResource AppFieldLabelStyle}"/>
+                                <TextBox x:Name="FractionalSalePriceTextBox" Style="{StaticResource AppTextInputStyle}" />
+                            </StackPanel>
+                            <StackPanel Margin="6,0,14,10">
+                                <TextBlock Text="Partial sale cost / تكلفة البيع الجزئي" Style="{StaticResource AppFieldLabelStyle}"/>
+                                <TextBox x:Name="FractionalSaleCostTextBox" Style="{StaticResource AppTextInputStyle}" />
+                            </StackPanel>
+                            <StackPanel Margin="6,0,14,10">
+                                <TextBlock Text="Fraction name / اسم الجزء" Style="{StaticResource AppFieldLabelStyle}"/>
+                                <TextBox x:Name="FractionalPartNameTextBox" Style="{StaticResource AppTextInputStyle}" />
+                              </StackPanel>
+                            <StackPanel Margin="6,0,14,10">
                                 <TextBlock Text="الرمز المماثل / Alternate barcode" Style="{StaticResource AppFieldLabelStyle}"/>
                                 <TextBox x:Name="AlternateBarcodeTextBox" Style="{StaticResource AppTextInputStyle}" />
                             </StackPanel>

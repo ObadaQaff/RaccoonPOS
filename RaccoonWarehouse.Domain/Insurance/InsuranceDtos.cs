@@ -2,6 +2,7 @@ namespace RaccoonWarehouse.Domain.Insurance;
 
 public sealed class InsuranceCompanyDto
 {
+    public decimal ContractualDiscountPercent { get; set; }
     public int Id { get; set; }
     public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
@@ -18,6 +19,7 @@ public sealed class InsuranceCompanyDto
 
 public sealed class InsuranceCompanyWriteDto
 {
+    public decimal ContractualDiscountPercent { get; set; }
     public int Id { get; set; }
     public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;

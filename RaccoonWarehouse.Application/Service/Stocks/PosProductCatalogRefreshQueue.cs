@@ -17,6 +17,27 @@ namespace RaccoonWarehouse.Application.Service.Stocks
     /// </summary>
     public sealed class PosProductCatalogRefreshQueue : IPosProductCatalogRefreshQueue
     {
+        public static event Action? CatalogRefreshed;
+
+        private static void NotifyCatalogRefreshed()
+        {
+            var handlers = CatalogRefreshed;
+            if (handlers == null)
+                return;
+
+            foreach (Action handler in handlers.GetInvocationList())
+            {
+                try
+                {
+                    handler();
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[POS catalog notification] {ex}");
+                }
+            }
+        }
+
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly Channel<int> _productIds = Channel.CreateUnbounded<int>(
             new UnboundedChannelOptions
@@ -70,6 +91,7 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                     var catalogService = scope.ServiceProvider.GetRequiredService<IPosProductCatalogService>();
                     await catalogService.RefreshProductsAsync(productIds);
                     await scope.ServiceProvider.GetRequiredService<IUOW>().CommitAsync();
+                    NotifyCatalogRefreshed();
                 }
                 catch (Exception ex)
                 {

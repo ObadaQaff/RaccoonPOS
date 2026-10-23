@@ -8,6 +8,7 @@ namespace RaccoonWarehouse.Domain.PurchaseOrders
     {
         public string OrderNumber { get; set; } = string.Empty;
         public PurchaseOrderStatus Status { get; set; } = PurchaseOrderStatus.Submitted;
+        public PurchaseOrderPaymentStatus PaymentStatus { get; set; } = PurchaseOrderPaymentStatus.Unpaid;
         public int? SupplierId { get; set; }
         public User? Supplier { get; set; }
         public int? WarehouseId { get; set; }
@@ -28,6 +29,9 @@ namespace RaccoonWarehouse.Domain.PurchaseOrders
         public int? RejectedBy { get; set; }
         public DateTime? RejectedDate { get; set; }
         public string? RejectionReason { get; set; }
+        public int? PaidBy { get; set; }
+        public DateTime? PaidDate { get; set; }
+        public string? PaymentNote { get; set; }
         public int? ConvertedInvoiceId { get; set; }
         public ICollection<PurchaseOrderLine> Lines { get; set; } = new List<PurchaseOrderLine>();
     }

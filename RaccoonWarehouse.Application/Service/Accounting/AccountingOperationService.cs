@@ -258,7 +258,7 @@ public sealed class AccountingOperationProcessor
     {
         using var scope = _scopeFactory.CreateScope();
         var uow = scope.ServiceProvider.GetRequiredService<IUOW>();
-        var operation = await uow.GetRepository<AccountingOperation>()
+         var operation = await uow.GetRepository<AccountingOperation>()
             .GetAllAsQueryable()
             .Where(item => (item.Status == AccountingOperationStatus.Pending || item.Status == AccountingOperationStatus.Failed) &&
                            (ignoreSchedule || !item.NextAttemptDate.HasValue || item.NextAttemptDate <= DateTime.Now) &&

@@ -8,6 +8,7 @@ namespace RaccoonWarehouse.Application.Service.Stocks
     public interface IPosProductCatalogService
     {
         Task<IReadOnlyList<PosProductCatalogEntry>> GetCatalogAsync(CancellationToken cancellationToken = default);
+        Task<IReadOnlyList<PosProductCatalogEntry>> SearchByBarcodeAsync(string barcode, CancellationToken cancellationToken = default);
         Task RefreshAllAsync(CancellationToken cancellationToken = default);
         Task RefreshProductsAsync(IEnumerable<int> productIds, CancellationToken cancellationToken = default);
     }
@@ -37,6 +38,8 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                     pu.AllowFractionalSale,
                     pu.FractionalPartsPerUnit,
                     pu.FractionalPartName,
+                    pu.FractionalSalePrice,
+                    pu.FractionalSaleCost,
                     pu.IsBaseUnit,
                     pu.IsDefaultSaleUnit,
                     pu.IsDefaultPurchaseUnit,
@@ -109,6 +112,8 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                     unit.AllowFractionalSale,
                     unit.FractionalPartsPerUnit,
                     unit.FractionalPartName,
+                    unit.FractionalSalePrice,
+                    unit.FractionalSaleCost,
                     unit.IsBaseUnit,
                     unit.IsDefaultSaleUnit,
                     unit.IsDefaultPurchaseUnit,
@@ -159,6 +164,8 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                     target.AllowFractionalSale = source.AllowFractionalSale,
                     target.FractionalPartsPerUnit = source.FractionalPartsPerUnit,
                     target.FractionalPartName = source.FractionalPartName,
+                    target.FractionalSalePrice = source.FractionalSalePrice,
+                    target.FractionalSaleCost = source.FractionalSaleCost,
                     target.IsBaseUnit = source.IsBaseUnit,
                     target.IsDefaultSaleUnit = source.IsDefaultSaleUnit,
                     target.IsDefaultPurchaseUnit = source.IsDefaultPurchaseUnit,
@@ -190,6 +197,8 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                     AllowFractionalSale,
                     FractionalPartsPerUnit,
                     FractionalPartName,
+                    FractionalSalePrice,
+                    FractionalSaleCost,
                     IsBaseUnit,
                     IsDefaultSaleUnit,
                     IsDefaultPurchaseUnit,
@@ -222,6 +231,8 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                     source.AllowFractionalSale,
                     source.FractionalPartsPerUnit,
                     source.FractionalPartName,
+                    source.FractionalSalePrice,
+                    source.FractionalSaleCost,
                     source.IsBaseUnit,
                     source.IsDefaultSaleUnit,
                     source.IsDefaultPurchaseUnit,
@@ -269,6 +280,35 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                 .ToListAsync(cancellationToken);
         }
 
+        public async Task<IReadOnlyList<PosProductCatalogEntry>> SearchByBarcodeAsync(
+            string barcode,
+            CancellationToken cancellationToken = default)
+        {
+            var normalizedBarcode = barcode?.Trim();
+            if (string.IsNullOrWhiteSpace(normalizedBarcode))
+                return Array.Empty<PosProductCatalogEntry>();
+
+            var query = _context.Set<PosProductCatalogEntry>()
+                .AsNoTracking()
+                .Where(entry => entry.IsActive);
+
+            if (long.TryParse(normalizedBarcode, out var numericBarcode))
+            {
+                query = query.Where(entry =>
+                    entry.ItemCode == numericBarcode ||
+                    entry.AlternateBarcode == normalizedBarcode);
+            }
+            else
+            {
+                query = query.Where(entry => entry.AlternateBarcode == normalizedBarcode);
+            }
+
+            return await query
+                .OrderBy(entry => entry.ProductName)
+                .ThenBy(entry => entry.UnitName)
+                .ToListAsync(cancellationToken);
+        }
+
         public async Task RefreshAllAsync(CancellationToken cancellationToken = default)
         {
             await _context.Database.ExecuteSqlRawAsync(RebuildCatalogSql, cancellationToken);
@@ -307,6 +347,8 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                     AllowFractionalSale = unit.AllowFractionalSale,
                     FractionalPartsPerUnit = unit.FractionalPartsPerUnit,
                     FractionalPartName = unit.FractionalPartName,
+                    FractionalSalePrice = unit.FractionalSalePrice,
+                    FractionalSaleCost = unit.FractionalSaleCost,
                     IsBaseUnit = unit.IsBaseUnit,
                     IsDefaultSaleUnit = unit.IsDefaultSaleUnit,
                     IsDefaultPurchaseUnit = unit.IsDefaultPurchaseUnit,
@@ -393,6 +435,8 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                 entry.AllowFractionalSale = unit.AllowFractionalSale;
                 entry.FractionalPartsPerUnit = unit.FractionalPartsPerUnit;
                 entry.FractionalPartName = unit.FractionalPartName;
+                entry.FractionalSalePrice = unit.FractionalSalePrice;
+                entry.FractionalSaleCost = unit.FractionalSaleCost;
                 entry.IsBaseUnit = unit.IsBaseUnit;
                 entry.IsDefaultSaleUnit = unit.IsDefaultSaleUnit;
                 entry.IsDefaultPurchaseUnit = unit.IsDefaultPurchaseUnit;
@@ -442,6 +486,8 @@ namespace RaccoonWarehouse.Application.Service.Stocks
             public bool AllowFractionalSale { get; set; }
             public decimal FractionalPartsPerUnit { get; set; }
             public string? FractionalPartName { get; set; }
+            public decimal? FractionalSalePrice { get; set; }
+            public decimal? FractionalSaleCost { get; set; }
             public bool IsBaseUnit { get; set; }
             public bool IsDefaultSaleUnit { get; set; }
             public bool IsDefaultPurchaseUnit { get; set; }

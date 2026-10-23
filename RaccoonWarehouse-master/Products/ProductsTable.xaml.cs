@@ -43,6 +43,9 @@ namespace RaccoonWarehouse.Products
         private string _currentBarcodeSearch = string.Empty;
         private int? _currentSupplierId;
         private int _searchVersion;
+        private int _appliedSearchVersion = -1;
+        private Task _pendingSearchTask = Task.CompletedTask;
+        private bool _activatingSearchResult;
         private readonly SemaphoreSlim _loadSemaphore = new(1, 1);
         private List<RaccoonWarehouse.Domain.Users.DTOs.UserReadDto> _supplierLookupItems = new();
         private bool _isFilteringSuppliers;
@@ -212,31 +215,65 @@ namespace RaccoonWarehouse.Products
             }
         }
 
-        private void ProductSearchTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
+        private async void ProductSearchTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
         {
-            if (e.Key == Key.Down)
+            if (e.Key is not (Key.Down or Key.Enter)) return;
+            e.Handled = true;
+            if (e.IsRepeat || _activatingSearchResult) return;
+            _activatingSearchResult = true;
+            try
             {
-                FocusFirstFilteredProduct();
-                e.Handled = true;
-                return;
-            }
-
-            if (e.Key == Key.Enter)
-            {
-                if (FocusFirstFilteredProduct())
+                // Only barcode Enter bypasses the typing delay. Name Enter/Down waits
+                // for the existing debounced search instead of querying on every key.
+                var immediate = ReferenceEquals(sender, SearchByBarcodeTextBox) && e.Key == Key.Enter;
+                if (!await WaitForCurrentSearchAsync(immediate)) return;
+                if (FocusFirstFilteredProduct() && e.Key == Key.Enter)
                     Update_Product(this, new RoutedEventArgs());
-
-                e.Handled = true;
             }
+            catch (Exception ex)
+            {
+                if (IsVisible)
+                    MessageBox.Show(this, $"{UiText.T("تعذر البحث في الأصناف.", "Failed to search products.")} {ex.Message}",
+                        UiText.T("خطأ", "Error"), MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally { _activatingSearchResult = false; }
         }
 
-        private void ProductsTable1_PreviewKeyDown(object sender, KeyEventArgs e)
+        private async void ProductsTable1_PreviewKeyDown(object sender, KeyEventArgs e)
         {
-            if (e.Key != Key.Enter)
-                return;
-
-            Update_Product(this, new RoutedEventArgs());
+            if (e.Key != Key.Enter) return;
             e.Handled = true;
+            if (e.IsRepeat || _activatingSearchResult) return;
+            _activatingSearchResult = true;
+            try
+            {
+                var pending = _appliedSearchVersion != _searchVersion;
+                if (!await WaitForCurrentSearchAsync(immediate: false)) return;
+                if (pending && !FocusFirstFilteredProduct()) return;
+                if (ProductsTable1.SelectedItem is ProductReadDto)
+                    Update_Product(this, new RoutedEventArgs());
+            }
+            catch (Exception ex)
+            {
+                if (IsVisible)
+                    MessageBox.Show(this, $"{UiText.T("تعذر البحث في الأصناف.", "Failed to search products.")} {ex.Message}",
+                        UiText.T("خطأ", "Error"), MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally { _activatingSearchResult = false; }
+        }
+
+        private async Task<bool> WaitForCurrentSearchAsync(bool immediate)
+        {
+            if (immediate)
+            {
+                // Invalidate the queued delay and any older in-flight result.
+                var version = Interlocked.Increment(ref _searchVersion);
+                _pendingSearchTask = LoadPageAsync(1, version);
+            }
+            var requestedVersion = _searchVersion;
+            await _pendingSearchTask;
+            return IsVisible && requestedVersion == _searchVersion
+                && _appliedSearchVersion == requestedVersion;
         }
 
         private bool FocusFirstFilteredProduct()
@@ -254,7 +291,7 @@ namespace RaccoonWarehouse.Products
         private void QueueSearch()
         {
             var searchVersion = Interlocked.Increment(ref _searchVersion);
-            _ = DebouncedLoadPageAsync(searchVersion);
+            _pendingSearchTask = DebouncedLoadPageAsync(searchVersion);
         }
 
         private async Task DebouncedLoadPageAsync(int searchVersion)
@@ -282,11 +319,12 @@ namespace RaccoonWarehouse.Products
 
         private async Task LoadPageAsync(int pageNumber, int? searchVersion = null)
         {
+            var loadVersion = searchVersion ?? _searchVersion;
             await _loadSemaphore.WaitAsync();
             var loadingShown = false;
             try
             {
-                if (searchVersion.HasValue && searchVersion.Value != _searchVersion)
+                if (loadVersion != _searchVersion)
                     return;
 
                 _loadingService.Show();
@@ -319,7 +357,7 @@ namespace RaccoonWarehouse.Products
                                    product.ITEMCODE.ToString().Contains(databaseSearchTerm) ||
                                    product.ProductUnits!.Any(unit => unit.AlternateBarcode == databaseSearchTerm)));
 
-                    if (searchVersion.HasValue && searchVersion.Value != _searchVersion)
+                    if (loadVersion != _searchVersion)
                         return;
 
                     var filteredItems = (searchResult.Data ?? new List<ProductReadDto>())
@@ -335,6 +373,7 @@ namespace RaccoonWarehouse.Products
                         .Take(PageSize)
                         .ToList();
 
+                    _appliedSearchVersion = loadVersion;
                     _currentPage = pageNumber;
                     _totalPages = Math.Max(1, (int)Math.Ceiling((double)totalCount / PageSize));
                     PageInfoTextBlock.Text = UiText.IsEnglish
@@ -402,10 +441,11 @@ namespace RaccoonWarehouse.Products
                         product => product.Supplier
                     });
 
-                if (searchVersion.HasValue && searchVersion.Value != _searchVersion)
+                if (loadVersion != _searchVersion)
                     return;
 
                 ProductsTable1.ItemsSource = result.Items;
+                _appliedSearchVersion = loadVersion;
 
                 _currentPage = pageNumber;
                 _totalPages = Math.Max(1, (int)Math.Ceiling((double)result.TotalCount / PageSize));

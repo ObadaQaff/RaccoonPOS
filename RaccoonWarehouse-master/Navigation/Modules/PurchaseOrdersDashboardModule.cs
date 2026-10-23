@@ -18,12 +18,17 @@ namespace RaccoonWarehouse.Navigation.Modules
                         UiText.T("المشتريات", "Purchasing"),
                         new[]
                         {
-                            new ModuleActionDefinition("PurchaseRequests.List", UiText.T("طلبات الشراء", "Purchase Requests"), "PurchaseRequest.View"),
-                            new ModuleActionDefinition("GoodsReceipts.List", UiText.T("استلامات المشتريات", "Goods Receipts"), "GoodsReceipt.View"),
-                            new ModuleActionDefinition("PurchaseOrders.Create", UiText.T("إنشاء أمر شراء", "Create Purchase Order"), "PurchaseOrder.Create"),
-                            new ModuleActionDefinition("PurchaseOrders.List", UiText.T("أوامر الشراء والاعتماد", "Purchase Orders and Approval"), "PurchaseOrder.View"),
-                            new ModuleActionDefinition("PurchaseControl.Dashboard", UiText.T("لوحة متابعة المشتريات", "Purchase Control Dashboard"), "PurchaseOrder.View"),
-                            new ModuleActionDefinition("PurchaseControl.List", UiText.T("متابعة المشتريات", "Purchase Control Register"), "PurchaseOrder.View")
+                            new ModuleActionDefinition("PurchaseRequests.List", UiText.T("طلبات الشراء — PR List", "PR List"), "PurchaseRequest.View"),
+                            new ModuleActionDefinition("PurchaseOrders.Create", UiText.T("إنشاء أمر شراء — Create PO", "Create PO"), "PurchaseOrder.Create"),
+                            new ModuleActionDefinition("PurchaseOrders.List", UiText.T("أوامر الشراء والاعتماد — PO List", "PO List"), "PurchaseOrder.View"),
+                            new ModuleActionDefinition("Invoices.Purchase", UiText.T("إنشاء فاتورة مشتريات — Create PI", "Create PI"), "Invoices.Purchase")
+                        }),
+                    new ModuleGroupDefinition(
+                        UiText.T("التقارير", "Reports"),
+                        new[]
+                        {
+                            new ModuleActionDefinition("product-sales-average", UiText.T("متوسط مبيعات الأصناف", "Product Sales Average"), "product-sales-average"),
+                            new ModuleActionDefinition("below-min-stock", UiText.T("بضائع تحت الحد الأدنى", "Below minimum stock"), "below-min-stock")
                         })
                 }));
         }

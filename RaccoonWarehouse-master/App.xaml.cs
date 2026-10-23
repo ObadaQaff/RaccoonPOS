@@ -869,6 +869,7 @@ END;";
                 ["current-stock"] = typeof(CurrentStock),
                 ["stock-movements"] = typeof(RaccoonWarehouse.Stocks.Reports.StockMovementsReport),
                 ["sales-report"] = typeof(SalesReport),
+                ["product-sales-average"] = typeof(ProductSalesAverageReport),
                 ["purchase-report"] = typeof(PurchaseReportWindow),
                 ["cashier-board"] = typeof(DailySalesReport),
                 ["credit-sales"] = typeof(CreditSalesReport),
@@ -940,6 +941,8 @@ END;";
             services.AddScoped<RaccoonWarehouse.Application.Service.PurchaseReturns.IPurchaseReturnService, RaccoonWarehouse.Application.Service.PurchaseReturns.PurchaseReturnService>();
             services.AddScoped<RaccoonWarehouse.Application.Service.PurchaseControl.IPurchaseControlService, RaccoonWarehouse.Application.Service.PurchaseControl.PurchaseControlService>();
             services.AddScoped<RaccoonWarehouse.Application.Service.Insurance.IInsuranceManagementService, RaccoonWarehouse.Application.Service.Insurance.InsuranceManagementService>();
+            services.AddScoped<RaccoonWarehouse.Application.Service.Insurance.PosInsuranceBillingService>();
+            services.AddScoped<RaccoonWarehouse.Application.Service.Purchases.PurchaseBonusReturnService>();
             services.AddScoped<RaccoonWarehouse.Application.Service.Insurance.IInsuranceCoverageService, RaccoonWarehouse.Application.Service.Insurance.InsuranceCoverageService>();
             services.AddSingleton<RaccoonWarehouse.Application.Service.Insurance.IInsuranceProvider, RaccoonWarehouse.Application.Service.Insurance.ManualInsuranceProvider>();
             services.AddScoped<ISaleCheckoutService, SaleCheckoutService>();
@@ -1110,10 +1113,14 @@ END;";
             services.AddTransient<PayInvoice>();
             services.AddTransient<PurchaseOrdersWindow>();
             services.AddTransient<RaccoonWarehouse.PurchaseRequests.PurchaseRequestsWindow>();
+            services.AddTransient<RaccoonWarehouse.PurchaseRequests.PurchaseRequestEditorWindow>();
+            services.AddTransient<RaccoonWarehouse.PurchaseRequests.PurchaseRequestApprovalWindow>();
+            services.AddTransient<RaccoonWarehouse.PurchaseRequests.PurchaseRequestDetailsWindow>();
             services.AddTransient<RaccoonWarehouse.PurchaseControl.PurchaseControlWindow>();
             services.AddTransient<RaccoonWarehouse.PurchaseControl.PurchaseControlDashboardWindow>();
             services.AddTransient<RaccoonWarehouse.GoodsReceipts.GoodsReceiptsWindow>();
             services.AddTransient<InsuranceCompaniesWindow>();
+            services.AddTransient<CreateInsuranceCompany>();
             services.AddTransient<InsuranceClaimsWindow>();
             services.AddTransient<InsuranceSettlementWindow>();
             services.AddTransient<InsuranceSetupWindow>();
@@ -1136,6 +1143,8 @@ END;";
             services.AddTransient<MaterialMovementsReport>();
             services.AddTransient<RaccoonWarehouse.Stocks.Reports.StockMovementsReport>();
             services.AddTransient<SalesReport>();
+            services.AddTransient<ProductSalesAverageReport>();
+            services.AddScoped<RaccoonWarehouse.Application.Service.Sales.ProductSalesAverageService>();
             services.AddTransient<PurchaseReportWindow>();
             services.AddTransient<CreditSalesReport>();
             services.AddTransient<InactiveItemsReport>();

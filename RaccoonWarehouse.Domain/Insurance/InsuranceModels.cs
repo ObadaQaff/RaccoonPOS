@@ -89,6 +89,7 @@ public enum InsuranceAttachmentOwnerType
 
 public class InsuranceCompany : BaseEntity
 {
+    public decimal ContractualDiscountPercent { get; set; }
     public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string? NameEnglish { get; set; }
@@ -229,9 +230,9 @@ public class InsuranceInvoiceCoverage : BaseEntity
 {
     public int InvoiceId { get; set; }
     public int InsuranceCompanyId { get; set; }
-    public int InsuranceContractId { get; set; }
-    public int InsuranceContractVersionId { get; set; }
-    public int InsuranceMemberPolicyId { get; set; }
+    public int? InsuranceContractId { get; set; }
+    public int? InsuranceContractVersionId { get; set; }
+    public int? InsuranceMemberPolicyId { get; set; }
     public decimal GrossAmount { get; set; }
     public decimal DiscountAmount { get; set; }
     public decimal DeductibleAmount { get; set; }
@@ -284,7 +285,7 @@ public class InsuranceClaim : BaseEntity
     public int InvoiceId { get; set; }
     public int InsuranceInvoiceCoverageId { get; set; }
     public int InsuranceCompanyId { get; set; }
-    public int InsuranceMemberPolicyId { get; set; }
+    public int? InsuranceMemberPolicyId { get; set; }
     public int? InsuranceClaimBatchId { get; set; }
     public InsuranceClaimStatus Status { get; set; } = InsuranceClaimStatus.Draft;
     public DateTime? SubmissionDate { get; set; }

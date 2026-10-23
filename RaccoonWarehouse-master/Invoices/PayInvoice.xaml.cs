@@ -1,3 +1,6 @@
+using RaccoonWarehouse.Data;
+using RaccoonWarehouse.Application.Service.Purchases;
+using RaccoonWarehouse.Core.Interface;
 #region Usings
 using RaccoonWarehouse.Application.Service.FinancialTransactions;
 using RaccoonWarehouse.Application.Service.Invoices;
@@ -72,6 +75,9 @@ namespace RaccoonWarehouse.Invoices
         private readonly System.Threading.SemaphoreSlim _productLoadSemaphore = new(1, 1);
         private int? _currentInvoiceId = null;   // لتحديث الفاتورة بعد الحفظ الأول
         private bool _originalCostPriceIncludesTax;
+        private readonly IUOW _purchaseUow;
+        private readonly ApplicationDbContext _purchaseDb;
+        private bool _isSavingPurchase;
 
         public PayInvoice(
             IStockService stockService,
@@ -83,8 +89,11 @@ namespace RaccoonWarehouse.Invoices
             IStockTransactionService stockTransactionService,
             IFinancialTransactionService financialService,
             ILoadingService loadingService,
-            IPurchaseOrderService purchaseOrderService)
+            IPurchaseOrderService purchaseOrderService,
+            IUOW purchaseUow, ApplicationDbContext purchaseDb)
         {
+            _purchaseDb = purchaseDb;
+            _purchaseUow = purchaseUow;
             _stockService = stockService;
             _productService = productService;
             _productUnitService = productUnitService;
@@ -115,6 +124,9 @@ namespace RaccoonWarehouse.Invoices
         public void ConfigureAsPurchaseOrder()
         {
             _isPurchaseOrderMode = true;
+            BonusRatioColumn.Visibility = Visibility.Collapsed;
+            ReceivedQuantityColumn.Visibility = Visibility.Collapsed;
+            EffectiveCostColumn.Visibility = Visibility.Collapsed;
             var purchaseOrderTitle = UiText.T("أمر شراء", "Purchase Order");
             Title = purchaseOrderTitle;
             if (HeaderBorder.Child is TextBlock headerText)
@@ -339,6 +351,25 @@ namespace RaccoonWarehouse.Invoices
                     var paidBaseQuantity = line.BaseQuantity != 0 ? line.BaseQuantity : line.Quantity * quantityPerUnit;
                     var profileSalePrice = GetProductUnitSalePrice(line.ProductId, line.ProductUnitId);
                     var movements = new List<StockMovementPostDto>();
+                    if (line.PurchaseAcquisitionCost.HasValue)
+                    {
+                        var received = line.Quantity + line.FreeQuantity;
+                        movements.Add(new StockMovementPostDto
+                        {
+                            ProductId = line.ProductId, ProductUnitId = line.ProductUnitId,
+                            Quantity = received * multiplier, QuantityPerUnitSnapshot = quantityPerUnit,
+                            BaseQuantity = received * quantityPerUnit * multiplier,
+                            UnitPrice = line.UnitPrice, PurchaseAcquisitionCost = line.PurchaseAcquisitionCost,
+                            PurchasePrice = PurchaseBonusCosting.EffectiveUnitCost(line.PurchaseAcquisitionCost.Value, received),
+                            SourcePurchaseLineId = line.Id, SalePrice = profileSalePrice,
+                            ExpiryDate = line.ExpiryDate, TransactionType = transactionType,
+                            UpdateCatalogAverageCost = false, InvoiceId = invoiceId,
+                            CasherId = cashierId, CashierSessionId = cashierSessionId,
+                            TransactionDate = DateTime.Now, Notes = notes
+                        });
+                        return movements;
+                    }
+
 
                     if (line.Quantity != 0)
                     {
@@ -699,10 +730,11 @@ namespace RaccoonWarehouse.Invoices
             if (e.EditAction != DataGridEditAction.Commit || e.Row.Item is not InvoiceLineWriteDto line)
                 return;
 
-            var header = e.Column.Header?.ToString() ?? string.Empty;
+            var property = (e.Column as DataGridBoundColumn)?.Binding is System.Windows.Data.Binding binding
+                ? binding.Path?.Path : null;
             if (e.EditingElement is TextBox textBox)
             {
-                if (header.Contains("الكمية", StringComparison.OrdinalIgnoreCase) || header.Contains("Quantity", StringComparison.OrdinalIgnoreCase))
+                if (property == nameof(InvoiceLineWriteDto.Quantity))
                 {
                     if (!TryParseDecimalInput(textBox.Text, out var quantity) || quantity <= 0)
                     {
@@ -715,7 +747,7 @@ namespace RaccoonWarehouse.Invoices
                         line.BaseQuantity = quantity * (line.QuantityPerUnitSnapshot > 0 ? line.QuantityPerUnitSnapshot : 1m);
                     }
                 }
-                else if (header.Contains("سعر", StringComparison.OrdinalIgnoreCase) || header.Contains("Price", StringComparison.OrdinalIgnoreCase))
+                else if (property == nameof(InvoiceLineWriteDto.UnitPrice))
                 {
                     if (!TryParseDecimalInput(textBox.Text, out var price) || price < 0)
                     {
@@ -728,19 +760,30 @@ namespace RaccoonWarehouse.Invoices
                         line.UnitCost = price;
                     }
                 }
-                else if (header.Contains("Discount", StringComparison.OrdinalIgnoreCase))
+                else if (property == nameof(InvoiceLineWriteDto.LineDiscountInput))
                 {
-                    if (!TryParseDecimalInput(textBox.Text, out var discount) || discount < 0)
+                    var grossLineTotal = Math.Max(0m, line.Quantity * line.UnitPrice);
+                    var rawDiscount = textBox.Text.Trim();
+                    if (!TryParseDiscountInput(rawDiscount, grossLineTotal, out var discount, out var isPercentage, out var percentage))
                     {
                         MessageBox.Show(UiText.T("خصم السطر يجب أن يكون رقماً غير سالب.", "Line discount must be a non-negative number."), UiText.T("تنبيه", "Notice"));
+                        line.LineDiscountIsPercentage = false;
                         line.LineDiscountAmount = 0m;
+                        line.LineDiscountInput = "0";
                     }
                     else
                     {
-                        line.LineDiscountAmount = discount;
+                        line.LineDiscountIsPercentage = isPercentage;
+                        if (isPercentage)
+                            line.LineDiscountPercent = percentage;
+                        else
+                            line.LineDiscountAmount = discount;
+                        line.LineDiscountInput = isPercentage
+                            ? $"{percentage:0.###}%"
+                            : $"{discount:0.000}";
                     }
                 }
-                else if (header.Contains("Free", StringComparison.OrdinalIgnoreCase))
+                else if (property == nameof(InvoiceLineWriteDto.FreeQuantity))
                 {
                     if (!TryParseDecimalInput(textBox.Text, out var freeQuantity) || freeQuantity < 0)
                     {
@@ -749,6 +792,8 @@ namespace RaccoonWarehouse.Invoices
                     }
                     else
                     {
+                        // An explicit manual edit replaces the active ratio, rather than adding to it.
+                        line.BonusRatio = null;
                         line.FreeQuantity = freeQuantity;
                     }
                 }
@@ -756,6 +801,20 @@ namespace RaccoonWarehouse.Invoices
 
             UpdateTotal();
         }
+        private void ApplyBonus_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button { DataContext: InvoiceLineWriteDto line }) return;
+            ProductsGrid.CommitEdit(DataGridEditingUnit.Cell, true);
+            ProductsGrid.CommitEdit(DataGridEditingUnit.Row, true);
+            if (!line.ApplyBonus())
+            {
+                MessageBox.Show(UiText.T("عرض البونص غير صالح؛ مثال: 3+1. استخدم أعداداً صحيحة موجبة.",
+                    "Invalid bonus ratio; use positive whole numbers, e.g. 3+1."), UiText.T("تنبيه", "Notice"));
+                return;
+            }
+            UpdateTotal();
+        }
+
         private void DeleteProduct_Click(object sender, RoutedEventArgs e)
         {
             if (sender is Button btn && btn.DataContext is InvoiceLineWriteDto line)
@@ -771,7 +830,17 @@ namespace RaccoonWarehouse.Invoices
             foreach (var line in InvoiceLines)
             {
                 var grossLineTotal = Math.Max(0m, line.Quantity * line.UnitPrice);
-                line.LineDiscountAmount = Math.Clamp(line.LineDiscountAmount, 0m, grossLineTotal);
+                if (line.LineDiscountIsPercentage)
+                {
+                    line.LineDiscountAmount = Math.Round(
+                        grossLineTotal * Math.Clamp(line.LineDiscountPercent, 0m, 100m) / 100m,
+                        3,
+                        MidpointRounding.AwayFromZero);
+                }
+                else
+                {
+                    line.LineDiscountAmount = Math.Clamp(line.LineDiscountAmount, 0m, grossLineTotal);
+                }
                 line.FreeQuantity = Math.Max(0m, line.FreeQuantity);
                 var lineTotal = Math.Round(grossLineTotal - line.LineDiscountAmount, 3);
                 var divisor = CostPriceIncludesTax && !line.TaxExempt && line.TaxRate > 0m
@@ -782,8 +851,16 @@ namespace RaccoonWarehouse.Invoices
             }
 
             subtotal = Math.Round(subtotal, 3);
-            decimal.TryParse(DiscountTextBox.Text, out var discount);
-            discount = Math.Clamp(discount, 0m, subtotal);
+            if (!TryParseDiscountInput(
+                    DiscountTextBox.Text,
+                    subtotal,
+                    out var discount,
+                    out _,
+                    out _))
+            {
+                discount = 0m;
+            }
+
             var taxableRatio = subtotal > 0m ? (subtotal - discount) / subtotal : 0m;
             decimal tax = 0m;
             foreach (var line in InvoiceLines)
@@ -798,6 +875,8 @@ namespace RaccoonWarehouse.Invoices
                 tax += line.TaxAmount;
             }
 
+            if (InvoiceLines.All(line => !line.BonusNeedsApply))
+                PurchaseBonusCosting.Allocate(InvoiceLines, discount, CostPriceIncludesTax);
             tax = Math.Round(tax, 3);
             return (subtotal, tax, discount, Math.Round(subtotal - discount + tax, 3));
         }
@@ -823,6 +902,112 @@ namespace RaccoonWarehouse.Invoices
         {
             if (IsLoaded)
                 UpdateTotal();
+        }
+
+        private void DiscountTextBox_LostFocus(object sender, RoutedEventArgs e)
+        {
+            if (!IsLoaded)
+                return;
+
+            if (TryParseDiscountInput(
+                    DiscountTextBox.Text,
+                    CalculatePurchaseSubtotalBeforeInvoiceDiscount(),
+                    out _,
+                    out _,
+                    out _))
+            {
+                return;
+            }
+
+            MessageBox.Show(
+                UiText.T("الخصم يجب أن يكون مبلغاً غير سالب أو نسبة مئوية من 0% إلى 100%.",
+                    "Discount must be a non-negative amount or a percentage from 0% to 100%.") ,
+                UiText.T("تنبيه", "Notice"));
+            DiscountTextBox.Text = "0";
+            UpdateTotal();
+        }
+
+        private decimal CalculatePurchaseSubtotalBeforeInvoiceDiscount()
+        {
+            decimal subtotal = 0m;
+            foreach (var line in InvoiceLines)
+            {
+                var grossLineTotal = Math.Max(0m, line.Quantity * line.UnitPrice);
+                var lineDiscount = line.LineDiscountIsPercentage
+                    ? Math.Round(
+                        grossLineTotal * Math.Clamp(line.LineDiscountPercent, 0m, 100m) / 100m,
+                        3,
+                        MidpointRounding.AwayFromZero)
+                    : Math.Clamp(line.LineDiscountAmount, 0m, grossLineTotal);
+                var lineTotal = Math.Round(grossLineTotal - lineDiscount, 3);
+                var divisor = CostPriceIncludesTax && !line.TaxExempt && line.TaxRate > 0m
+                    ? 1m + line.TaxRate / 100m
+                    : 1m;
+                subtotal += Math.Round(lineTotal / divisor, 3);
+            }
+
+            return Math.Round(subtotal, 3);
+        }
+
+        private bool ValidateInvoiceDiscountInput()
+        {
+            if (TryParseDiscountInput(
+                    DiscountTextBox.Text,
+                    CalculatePurchaseSubtotalBeforeInvoiceDiscount(),
+                    out _,
+                    out _,
+                    out _))
+            {
+                return true;
+            }
+
+            MessageBox.Show(
+                UiText.T("الخصم يجب أن يكون مبلغاً غير سالب أو نسبة مئوية من 0% إلى 100%.",
+                    "Discount must be a non-negative amount or a percentage from 0% to 100%.") ,
+                UiText.T("تنبيه", "Notice"));
+            DiscountTextBox.Focus();
+            DiscountTextBox.SelectAll();
+            return false;
+        }
+
+        private static bool TryParseDiscountInput(
+            string? rawInput,
+            decimal baseAmount,
+            out decimal amount,
+            out bool isPercentage,
+            out decimal percentage)
+        {
+            amount = 0m;
+            isPercentage = false;
+            percentage = 0m;
+
+            var raw = rawInput?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(raw))
+                return true;
+
+            isPercentage = raw.EndsWith("%", StringComparison.Ordinal);
+            var numericInput = isPercentage ? raw[..^1].Trim() : raw;
+            if (!TryParseDecimalInput(numericInput, out var value) || value < 0m)
+                return false;
+
+            if (isPercentage)
+            {
+                if (value > 100m)
+                    return false;
+
+                percentage = value;
+                amount = Math.Round(
+                    Math.Max(0m, baseAmount) * value / 100m,
+                    3,
+                    MidpointRounding.AwayFromZero);
+            }
+            else
+            {
+                amount = value;
+            }
+
+            amount = Math.Clamp(amount, 0m, Math.Max(0m, baseAmount));
+            return true;
         }
 
         private static List<CheckWriteDto> CloneChecks(IEnumerable<CheckWriteDto>? checks)
@@ -1006,6 +1191,12 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
         }*/
         private async void SaveReceiptBtn_Click(object sender, RoutedEventArgs e)
         {
+            if (_isSavingPurchase) return;
+            _isSavingPurchase = true;
+            var savedBeforeAttempt = _currentInvoiceId;
+            var originalLineIds = InvoiceLines.Select(line => (Line: line, line.Id)).ToList();
+            var transactionStarted = false;
+            var committed = false;
             var loadingShown = false;
 
             void HideLoadingIfShown()
@@ -1019,11 +1210,17 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
 
             try
             {
+                ProductsGrid.CommitEdit(DataGridEditingUnit.Cell, true);
+                ProductsGrid.CommitEdit(DataGridEditingUnit.Row, true);
+                PurchaseBonusCosting.Validate(InvoiceLines);
                 if (!InvoiceLines.Any())
                 {
                     MessageBox.Show("يرجى إضافة منتج واحد على الأقل.", "تنبيه");
                     return;
                 }
+
+                if (!ValidateInvoiceDiscountInput())
+                    return;
 
                 var selectedPaymentType = GetSelectedPaymentType();
 
@@ -1126,6 +1323,8 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
                     CasherId = session.CashierId
                 };
 
+                await using var purchaseTransaction = await _purchaseUow.BeginTransactionAsync();
+                transactionStarted = true;
                 int savedInvoiceId;
 
                 if (!isUpdate)
@@ -1188,17 +1387,22 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
                         }
                     }
 
-                    HideLoadingIfShown();
-                    MessageBox.Show(
-                        selectedPaymentType == PaymentType.Credit
-                            ? "تم إنشاء فاتورة مشتريات آجلة بنجاح ✅"
-                            : "تم إنشاء فاتورة المشتريات وتسجيل الحركة المالية ✅");
-                    UiText.ApplyTranslations(this);
+
                 }
                 else
                 {
                     savedInvoiceId = _currentInvoiceId.Value;
 
+                    // Save new line identities before creating their independent lots.
+                    var result = await _invoicesService.UpdateAsync(invoiceDto);
+                    if (!result.Success)
+                    {
+                        HideLoadingIfShown();
+                        MessageBox.Show(result.Message ?? "فشل تحديث فاتورة المشتريات", "خطأ");
+                        return;
+                    }
+
+                    // Validate original allocated lots before any reversal; stock service also enforces exact source quantities.
                     // 0) Void old financial transactions
                     var voidResult = await _financialService.VoidBySourceAsync(
                         FinancialSourceType.PurchaseInvoice,
@@ -1218,9 +1422,12 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
                         BuildInvoiceStockMovements(
                             _originalLines.Select(line => new InvoiceLineWriteDto
                             {
+                                Id = line.Id,
                                 ProductId = line.ProductId,
                                 ProductUnitId = line.ProductUnitId,
                                 Quantity = line.Quantity,
+                                FreeQuantity = line.FreeQuantity,
+                                PurchaseAcquisitionCost = line.PurchaseAcquisitionCost,
                                 QuantityPerUnitSnapshot = line.QuantityPerUnitSnapshot,
                                 BaseQuantity = line.BaseQuantity,
                                 UnitPrice = line.UnitPrice,
@@ -1261,15 +1468,6 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
                         return;
                     }
 
-                    // 3) Update invoice
-                    var result = await _invoicesService.UpdateAsync(invoiceDto);
-                    if (!result.Success)
-                    {
-                        HideLoadingIfShown();
-                        MessageBox.Show(result.Message ?? "فشل تحديث فاتورة المشتريات", "خطأ");
-                        return;
-                    }
-
                     // 4) Post new OUT transaction
                     if (selectedPaymentType != PaymentType.Credit)
                     {
@@ -1298,13 +1496,13 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
                         }
                     }
 
-                    HideLoadingIfShown();
-                    MessageBox.Show(
-                        selectedPaymentType == PaymentType.Credit
-                            ? "تم تحديث فاتورة المشتريات الآجلة بنجاح ✅"
-                            : "تم تحديث فاتورة المشتريات وتسجيل الحركة المالية ✅");
-                    UiText.ApplyTranslations(this);
+
                 }
+                await purchaseTransaction.CommitAsync();
+                committed = true;
+                HideLoadingIfShown();
+                MessageBox.Show(UiText.T("تم حفظ فاتورة المشتريات بنجاح.", "Purchase invoice saved successfully."), UiText.T("تنبيه", "Notice"));
+                CatalogRefreshNotifier.NotifyCatalogChanged();
                 NewInvoiceBtn_Click(this, new RoutedEventArgs());
             }
             catch (Exception ex)
@@ -1322,6 +1520,13 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
             }
             finally
             {
+                if (transactionStarted && !committed)
+                {
+                    _purchaseDb.ChangeTracker.Clear();
+                    _currentInvoiceId = savedBeforeAttempt;
+                    foreach (var entry in originalLineIds) entry.Line.Id = entry.Id;
+                }
+                _isSavingPurchase = false;
                 HideLoadingIfShown();
             }
         }
@@ -1545,6 +1750,8 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
                     UnitCost = line.UnitCost,
                     LineDiscountAmount = line.LineDiscountAmount,
                     FreeQuantity = line.FreeQuantity,
+                    BonusRatio = line.BonusRatio,
+                    PurchaseAcquisitionCost = line.PurchaseAcquisitionCost,
                     TaxExempt = line.TaxExempt,
                     TaxRate = line.TaxRate,
                     ExpiryDate = line.ExpiryDate,

@@ -62,6 +62,7 @@ namespace RaccoonWarehouse.Invoices
         private readonly IProductService _productService;
         private readonly Func<PurchaseProductSearchRow, Task<bool>>? _onSelectProduct;
         private readonly Func<string, Task>? _onCreateProduct;
+        private readonly int? _supplierId;
         private readonly DispatcherTimer _searchDebounceTimer = new() { Interval = TimeSpan.FromMilliseconds(300) };
         private readonly SemaphoreSlim _searchLock = new(1, 1);
         private int _searchVersion;
@@ -71,9 +72,10 @@ namespace RaccoonWarehouse.Invoices
         public PurchaseProductSearchWindow(
             IProductService productService,
             Func<PurchaseProductSearchRow, Task<bool>>? onSelectProduct = null,
-            Func<string, Task>? onCreateProduct = null)
+            Func<string, Task>? onCreateProduct = null,
+            int? supplierId = null)
         {
-            _productService = productService; _onSelectProduct = onSelectProduct; _onCreateProduct = onCreateProduct;
+            _productService = productService; _onSelectProduct = onSelectProduct; _onCreateProduct = onCreateProduct; _supplierId = supplierId;
             InitializeComponent(); UiText.ApplyWindow(this); ProductsGrid.ItemsSource = Products;
             _searchDebounceTimer.Tick += SearchDebounceTimer_Tick; Loaded += (_, _) => FocusSearchBox();
         }
@@ -102,9 +104,10 @@ namespace RaccoonWarehouse.Invoices
                     query => query
                         .Include(p => p.ProductUnits!)
                         .ThenInclude(productUnit => productUnit.Unit),
-                    p => (p.Name ?? string.Empty).Contains(databaseSearchTerm) ||
-                         p.ITEMCODE.ToString().Contains(databaseSearchTerm) ||
-                         p.ProductUnits!.Any(unit => unit.AlternateBarcode == databaseSearchTerm));
+                    p => ((p.Name ?? string.Empty).Contains(databaseSearchTerm) ||
+                          p.ITEMCODE.ToString().Contains(databaseSearchTerm) ||
+                          p.ProductUnits!.Any(unit => unit.AlternateBarcode == databaseSearchTerm)) &&
+                         (!_supplierId.HasValue || p.SupplierId == _supplierId.Value));
                 if (version != _searchVersion) return;
                 Products.Clear();
                 foreach (var product in (result?.Data ?? new System.Collections.Generic.List<ProductReadDto>())

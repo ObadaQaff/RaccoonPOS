@@ -178,7 +178,11 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                         : x.Quantity * (x.QuantityPerUnitSnapshot > 0
                             ? x.QuantityPerUnitSnapshot
                             : (x.ProductUnit.QuantityPerUnit > 0 ? x.ProductUnit.QuantityPerUnit : 1m)),
-                    PurchasePrice = x.StockLot != null ? x.StockLot.PurchasePrice : x.ProductUnit.PurchasePrice,
+                    PurchasePrice = x.StockLot != null
+                        ? (x.StockLot.PurchaseAcquisitionCost.HasValue && x.StockLot.BaseQuantity > 0m
+                            ? x.StockLot.PurchaseAcquisitionCost.Value / x.StockLot.BaseQuantity
+                            : x.StockLot.PurchasePrice)
+                        : x.ProductUnit.PurchasePrice,
                     SalePrice = x.UnitPrice,
                     ExpiryDate = x.ExpiryDate,
                     BatchStatus = x.StockLot != null ? (BatchStatus?)x.StockLot.Status : null,
@@ -675,8 +679,11 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                     SupplierName = x.Product.Supplier != null ? x.Product.Supplier.Name : null,
                     UnitName = x.ProductUnit != null && x.ProductUnit.Unit != null ? x.ProductUnit.Unit.Name : null,
                     RemainingQuantity = x.RemainingBaseQuantity,
-                    PurchasePrice = x.PurchasePrice,
-                    TotalCost = x.RemainingBaseQuantity * x.PurchasePrice,
+                    PurchasePrice = x.PurchaseAcquisitionCost.HasValue && x.BaseQuantity > 0m
+                        ? x.PurchaseAcquisitionCost.Value / x.BaseQuantity : x.PurchasePrice,
+                    TotalCost = x.PurchaseAcquisitionCost.HasValue && x.BaseQuantity > 0m
+                        ? x.RemainingBaseQuantity * x.PurchaseAcquisitionCost.Value / x.BaseQuantity
+                        : x.RemainingBaseQuantity * x.PurchasePrice,
                     ExpiryDate = x.ExpiryDate!.Value,
                     DaysRemaining = EF.Functions.DateDiffDay(today, x.ExpiryDate.Value)
                 })

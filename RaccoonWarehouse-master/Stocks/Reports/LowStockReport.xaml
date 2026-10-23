@@ -156,11 +156,42 @@
                                    FontSize="14"
                                    Foreground="#687C8F"
                                     Margin="0,4,0,0"/>
-                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
-                            <TextBlock Text="المورد / Supplier" VerticalAlignment="Center" FontWeight="SemiBold" Foreground="#27445D" Margin="0,0,10,0"/>
-                            <ComboBox x:Name="SupplierComboBox" Width="280" Height="38" DisplayMemberPath="Name" SelectedValuePath="Id"
-                                      IsEditable="True" IsTextSearchEnabled="False" StaysOpenOnEdit="True"/>
-                        </StackPanel>
+                        <WrapPanel Margin="0,12,0,0">
+                            <StackPanel Margin="0,0,16,8">
+                                <TextBlock Text="المورد" FontWeight="SemiBold" Foreground="#27445D" Margin="0,0,0,5"/>
+                                <ComboBox x:Name="SupplierComboBox" Width="250" Height="38" DisplayMemberPath="Name" SelectedValuePath="Id"
+                                          IsEditable="True" IsTextSearchEnabled="False" StaysOpenOnEdit="True"
+                                          SelectionChanged="SupplierComboBox_SelectionChanged"/>
+                            </StackPanel>
+                            <StackPanel Margin="0,0,16,8">
+                                <TextBlock Text="اسم الصنف" FontWeight="SemiBold" Foreground="#27445D" Margin="0,0,0,5"/>
+                                <Grid>
+                                    <TextBox x:Name="ProductNameTextBox" Width="280" Height="38" Padding="8,4" VerticalContentAlignment="Center"
+                                             TextChanged="ProductNameTextBox_TextChanged" PreviewKeyDown="ProductNameTextBox_PreviewKeyDown"/>
+                                    <Popup x:Name="ProductSuggestionsPopup" PlacementTarget="{Binding ElementName=ProductNameTextBox}"
+                                           Placement="Bottom" StaysOpen="False" AllowsTransparency="True" Focusable="False">
+                                        <Border Width="280" MaxHeight="230" Background="White" BorderBrush="#B7CAD8"
+                                                BorderThickness="1" CornerRadius="4" Padding="2">
+                                            <ListBox x:Name="ProductSuggestionsListBox" DisplayMemberPath="." FontSize="15"
+                                                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                                     PreviewKeyDown="ProductSuggestionsListBox_PreviewKeyDown"
+                                                     PreviewMouseLeftButtonUp="ProductSuggestionsListBox_PreviewMouseLeftButtonUp"/>
+                                        </Border>
+                                    </Popup>
+                                </Grid>
+                            </StackPanel>
+                            <StackPanel Margin="0,0,16,8">
+                                <TextBlock Text="رمز الصنف" FontWeight="SemiBold" Foreground="#27445D" Margin="0,0,0,5"/>
+                                <TextBox x:Name="BarcodeTextBox" Width="180" Height="38" Padding="8,4" VerticalContentAlignment="Center"
+                                         TextChanged="BarcodeTextBox_TextChanged"/>
+                            </StackPanel>
+                            <Button x:Name="GenerateReportButton" Content="عرض التقرير" Width="150" Height="38"
+                                    VerticalAlignment="Bottom" Margin="0,0,0,8" Style="{StaticResource PrimaryButtonStyle}"
+                                    Click="GenerateReport_Click"/>
+                            <Button x:Name="ExportExcelButton" Content="تصدير Excel / Export Excel" Width="175" Height="38"
+                                    IsEnabled="False" VerticalAlignment="Bottom" Margin="12,0,0,8"
+                                    Style="{StaticResource PrimaryButtonStyle}" Click="ExportExcel_Click"/>
+                        </WrapPanel>
                     </StackPanel>
                 </Grid>
             </Border>
@@ -172,10 +203,33 @@
                     CornerRadius="24"
                     Padding="14">
                 <DataGrid x:Name="LowStockGrid"
+                          MouseDoubleClick="LowStockGrid_MouseDoubleClick"
+                          PreviewKeyDown="LowStockGrid_PreviewKeyDown"
+                          SelectionUnit="Cell"
+                          ClipboardCopyMode="ExcludeHeader"
                           AutoGenerateColumns="False"
                           Style="{StaticResource ReportDataGridStyle}">
                     <DataGrid.Columns>
-                        <DataGridTextColumn Header="كود الصنف" Binding="{Binding ITEMCODE}" ElementStyle="{StaticResource ProductValueTextStyle}" Width="150"/>
+                        <DataGridTemplateColumn Header="كود الصنف" Width="210" SortMemberPath="ITEMCODE" ClipboardContentBinding="{Binding ITEMCODE}">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="{Binding ITEMCODE}" FlowDirection="LeftToRight"
+                                                   VerticalAlignment="Center" TextAlignment="Center"/>
+                                        <Button Grid.Column="1" Margin="8,0,0,0" Padding="6"
+                                                ToolTip="{DynamicResource BarcodeCopyToolTip}"
+                                                Background="Transparent" BorderBrush="Transparent" Cursor="Hand"
+                                                Click="CopyBarcode_Click">
+                                            <fa:ImageAwesome Icon="Copy" Width="14" Height="14" Foreground="#27445D"/>
+                                        </Button>
+                                    </Grid>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
                         <DataGridTextColumn Header="اسم الصنف" Binding="{Binding ProductName}" ElementStyle="{StaticResource ProductValueTextStyle}" Width="300"/>
                         <DataGridTextColumn Header="المورد / Supplier" Binding="{Binding SupplierName}" Width="220"/>
                         <DataGridTextColumn Header="الوحدة" Binding="{Binding UnitName}" Width="130"/>

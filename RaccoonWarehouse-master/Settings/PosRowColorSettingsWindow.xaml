@@ -7,16 +7,43 @@
             <DataGrid x:Name="RulesGrid" Grid.Column="0" Margin="0,0,18,0" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single" SelectionChanged="RulesGrid_SelectionChanged" Style="{StaticResource MinimalDataGrid}">
                 <DataGrid.Columns><DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="1.5*"/><DataGridTextColumn Header="Condition" Binding="{Binding ConditionType}" Width="1.3*"/><DataGridTextColumn Header="Value" Binding="{Binding NumericValue}" Width="80"/><DataGridTextColumn Header="Priority" Binding="{Binding Priority}" Width="75"/><DataGridCheckBoxColumn Header="Active" Binding="{Binding IsActive}" Width="65"/><DataGridTemplateColumn Header="Preview" Width="90"><DataGridTemplateColumn.CellTemplate><DataTemplate><Border Background="{Binding BackgroundColor}" BorderBrush="{Binding AccentColor}" BorderThickness="2" CornerRadius="5" Margin="5"/></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn></DataGrid.Columns>
             </DataGrid>
-            <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto"><StackPanel>
+            <ScrollViewer x:Name="EditorScrollViewer" Grid.Column="1" VerticalScrollBarVisibility="Auto"><StackPanel>
                 <TextBlock x:Name="EditorTitleTextBlock" FontSize="19" FontWeight="Bold" Foreground="{StaticResource AppTextBrush}" Text="Rule editor"/>
                 <TextBlock x:Name="NameLabel" Style="{StaticResource AppFieldLabelStyle}" Text="Rule name"/><TextBox x:Name="NameTextBox" Style="{StaticResource AppTextBoxStyle}"/>
                 <TextBlock x:Name="ConditionLabel" Style="{StaticResource AppFieldLabelStyle}" Text="Condition"/><ComboBox x:Name="ConditionComboBox" Style="{StaticResource AppComboBoxStyle}" DisplayMemberPath="Display" SelectedValuePath="Value" SelectionChanged="ConditionComboBox_SelectionChanged"/>
+                <TextBlock x:Name="ConditionHintTextBlock" Margin="0,4,0,0" Text="Choose Specific products to select products." Foreground="{StaticResource AppMutedTextBrush}" TextWrapping="Wrap"/>
                 <TextBlock x:Name="ValueLabel" Style="{StaticResource AppFieldLabelStyle}" Text="Value"/><TextBox x:Name="ValueTextBox" Style="{StaticResource AppTextBoxStyle}"/>
                 <TextBlock x:Name="CategoryLabel" Style="{StaticResource AppFieldLabelStyle}" Text="Category ID or name (optional)"/><TextBox x:Name="CategoryTextBox" Style="{StaticResource AppTextBoxStyle}"/>
+                <StackPanel x:Name="ProductSelectorPanel" Visibility="Collapsed">
+                    <TextBlock x:Name="ProductLabel" Style="{StaticResource AppFieldLabelStyle}" Text="Products in this color"/>
+                    <TextBlock x:Name="ProductSearchHintTextBlock" Margin="0,0,0,5" Text="Search by product name or barcode" Foreground="{StaticResource AppMutedTextBrush}" TextWrapping="Wrap"/>
+                    <DockPanel Margin="0,0,0,6">
+                        <Button x:Name="ProductSearchButton" DockPanel.Dock="Right" Width="78" Margin="8,0,0,0" Style="{StaticResource AppSecondaryButtonStyle}" Content="Search" Click="ProductSearchButton_Click"/>
+                        <TextBox x:Name="ProductSearchTextBox" Style="{StaticResource AppTextBoxStyle}" KeyDown="ProductSearchTextBox_KeyDown"/>
+                    </DockPanel>
+                    <DataGrid x:Name="ProductSearchResultsGrid" Height="120" RowHeight="25" FontSize="12" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single" Margin="0,0,0,4" Style="{StaticResource MinimalDataGrid}">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Product" Binding="{Binding Name}" Width="*"/>
+                            <DataGridTextColumn Header="Barcode" Binding="{Binding Barcode}" Width="100"/>
+                            <DataGridTemplateColumn Header="" Width="64"><DataGridTemplateColumn.CellTemplate><DataTemplate><Button Style="{StaticResource AppSecondaryButtonStyle}" Content="Add" Click="AddProductButton_Click" Padding="3,0" FontSize="11"/></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <TextBlock Text="Selected products" Style="{StaticResource AppFieldLabelStyle}"/>
+                    <DataGrid x:Name="SelectedProductsGrid" Height="115" RowHeight="25" FontSize="12" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" SelectionMode="Single" Style="{StaticResource MinimalDataGrid}">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Product" Binding="{Binding Name}" Width="*"/>
+                            <DataGridTextColumn Header="Barcode" Binding="{Binding Barcode}" Width="100"/>
+                            <DataGridTemplateColumn Header="" Width="64"><DataGridTemplateColumn.CellTemplate><DataTemplate><Button Style="{StaticResource AppSecondaryButtonStyle}" Content="Remove" Click="RemoveProductButton_Click" Padding="2,0" FontSize="11"/></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </StackPanel>
+                <TextBlock Style="{StaticResource AppFieldLabelStyle}" Text="Applies to"/><ComboBox x:Name="ScopeComboBox" Style="{StaticResource AppComboBoxStyle}" DisplayMemberPath="Display" SelectedValuePath="Value"/>
+                <TextBlock Style="{StaticResource AppFieldLabelStyle}" Text="Sales action"/><ComboBox x:Name="SaleActionComboBox" Style="{StaticResource AppComboBoxStyle}" DisplayMemberPath="Display" SelectedValuePath="Value"/>
                 <TextBlock x:Name="PriorityLabel" Style="{StaticResource AppFieldLabelStyle}" Text="Priority"/><TextBox x:Name="PriorityTextBox" Style="{StaticResource AppTextBoxStyle}"/><CheckBox x:Name="ActiveCheckBox" Margin="0,10,0,8" Content="Active"/>
-                <TextBlock x:Name="BackgroundLabel" Style="{StaticResource AppFieldLabelStyle}" Text="Background color"/><DockPanel><Border x:Name="BackgroundPreview" Width="34" Height="32" DockPanel.Dock="Right" Margin="8,0,0,0" BorderBrush="#90A4AE" BorderThickness="1"/><TextBox x:Name="BackgroundTextBox" Style="{StaticResource AppTextBoxStyle}" TextChanged="ColorTextChanged"/></DockPanel>
-                <TextBlock x:Name="ForegroundLabel" Style="{StaticResource AppFieldLabelStyle}" Text="Text color"/><DockPanel><Border x:Name="ForegroundPreview" Width="34" Height="32" DockPanel.Dock="Right" Margin="8,0,0,0" BorderBrush="#90A4AE" BorderThickness="1"/><TextBox x:Name="ForegroundTextBox" Style="{StaticResource AppTextBoxStyle}" TextChanged="ColorTextChanged"/></DockPanel>
-                <TextBlock x:Name="AccentLabel" Style="{StaticResource AppFieldLabelStyle}" Text="Accent color"/><DockPanel><Border x:Name="AccentPreview" Width="34" Height="32" DockPanel.Dock="Right" Margin="8,0,0,0" BorderBrush="#90A4AE" BorderThickness="1"/><TextBox x:Name="AccentTextBox" Style="{StaticResource AppTextBoxStyle}" TextChanged="ColorTextChanged"/></DockPanel>
+                <TextBlock x:Name="BackgroundLabel" Style="{StaticResource AppFieldLabelStyle}" Text="Background color"/><Border BorderBrush="#D4DEE8" BorderThickness="1" CornerRadius="6" Padding="6"><WrapPanel x:Name="BackgroundColorPanel"/></Border>
+                <TextBlock x:Name="ForegroundLabel" Style="{StaticResource AppFieldLabelStyle}" Text="Text color"/><Border BorderBrush="#D4DEE8" BorderThickness="1" CornerRadius="6" Padding="6"><WrapPanel x:Name="ForegroundColorPanel"/></Border>
+                <TextBlock x:Name="AccentLabel" Style="{StaticResource AppFieldLabelStyle}" Text="Accent color"/><Border BorderBrush="#D4DEE8" BorderThickness="1" CornerRadius="6" Padding="6"><WrapPanel x:Name="AccentColorPanel"/></Border>
+                <StackPanel Orientation="Horizontal" Margin="0,8,0,0"><Border x:Name="BackgroundPreview" Width="34" Height="26" Margin="0,0,6,0" BorderBrush="#90A4AE" BorderThickness="1" CornerRadius="4"/><Border x:Name="ForegroundPreview" Width="34" Height="26" Margin="0,0,6,0" BorderBrush="#90A4AE" BorderThickness="1" CornerRadius="4"/><Border x:Name="AccentPreview" Width="34" Height="26" BorderBrush="#90A4AE" BorderThickness="1" CornerRadius="4"/><TextBlock Margin="8,4,0,0" Foreground="{StaticResource AppMutedTextBrush}" Text="Selected colors"/></StackPanel>
                 <TextBlock x:Name="RowPreviewLabel" Margin="0,14,0,4" Style="{StaticResource AppFieldLabelStyle}" Text="Live preview"/><Border x:Name="RowPreview" Height="42" Padding="10" CornerRadius="6" BorderThickness="2"><TextBlock x:Name="RowPreviewText" Text="Example product row" VerticalAlignment="Center" FontWeight="SemiBold"/></Border>
             </StackPanel></ScrollViewer>
         </Grid>

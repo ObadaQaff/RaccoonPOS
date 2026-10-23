@@ -1,3 +1,4 @@
+using RaccoonWarehouse.Application.Service.Purchases;
 using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using RaccoonWarehouse.Application.Service.Accounting;
@@ -60,6 +61,19 @@ namespace RaccoonWarehouse.Application.Service.Stocks
         {
             return Task.FromResult(Result<StockWriteDto>.Fail(
                 "Direct stock editing is blocked. Use the stock adjustment and batch replacement flow so invoice, costing, and reporting history remains unchanged."));
+        }
+
+        public async Task<bool> HasExpiredStockAsync(DateTime? asOfDate = null)
+        {
+            var today = (asOfDate ?? DateTime.Today).Date;
+
+            return await _uow.GetRepository<StockLot>()
+                .GetAllAsQueryable()
+                .AsNoTracking()
+                .AnyAsync(lot =>
+                    lot.RemainingQuantity > 0 &&
+                    lot.ExpiryDate.HasValue &&
+                    lot.ExpiryDate.Value.Date <= today);
         }
 
         public async Task<Result<List<StockBatchLookupDto>>> GetBatchLookupAsync(int? productId = null)
@@ -574,10 +588,10 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                         continue;
 
                     var allocatedQuantity = allocatedBaseQuantity / requestedFactor;
-                    var purchasePrice = costingMethod == InventoryCostingMethod.WeightedAverage
+                    var purchasePrice = !lot.PurchaseAcquisitionCost.HasValue && costingMethod == InventoryCostingMethod.WeightedAverage
                         ? averagePurchasePrice
                         : ConvertLotCostToRequestedUnit(lot, requestedFactor);
-                    if (purchasePrice <= 0m)
+                    if (purchasePrice <= 0m && !lot.PurchaseAcquisitionCost.HasValue)
                         purchasePrice = selectedUnit.PurchasePrice;
                     var salePrice = lot.SalePrice > 0m
                         ? lot.SalePrice
@@ -594,6 +608,7 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                         BaseQuantity = allocatedBaseQuantity,
                         AvailableQuantityAfterAllocation = availableQuantityAfterAllocation,
                         PurchasePrice = purchasePrice,
+                        HasAllocatedPurchaseCost = lot.PurchaseAcquisitionCost.HasValue,
                         SalePrice = salePrice,
                         ExpiryDate = lot.ExpiryDate
                     });
@@ -659,7 +674,7 @@ namespace RaccoonWarehouse.Application.Service.Stocks
             var totalBaseValue = availableLots.Sum(lot =>
             {
                 var lotFactor = lot.QuantityPerUnitSnapshot > 0 ? lot.QuantityPerUnitSnapshot : 1m;
-                return GetEffectiveRemainingBaseQuantity(lot) * (lot.PurchasePrice / lotFactor);
+                return GetEffectiveRemainingBaseQuantity(lot) * ((lot.PurchaseAcquisitionCost.HasValue && lot.Quantity > 0m ? lot.PurchaseAcquisitionCost.Value / lot.Quantity : lot.PurchasePrice) / lotFactor);
             });
             var factor = requestedUnitFactor > 0 ? requestedUnitFactor : 1m;
             return Math.Round((totalBaseValue / totalBaseQuantity) * factor, 3);
@@ -832,39 +847,42 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                 return Result<List<PosProductSearchResultDto>>.Fail("POS product catalog service is not configured.");
 
             var catalog = (await _posProductCatalogService.GetCatalogAsync(cancellationToken))
-                .Select(entry => new PosProductSearchResultDto
-                {
-                    ProductId = entry.ProductId,
-                    SubCategoryId = entry.SubCategoryId,
-                    ProductName = entry.ProductName,
-                    ItemCode = entry.ItemCode,
-                    TaxExempt = entry.TaxExempt,
-                    TaxRate = entry.TaxRate,
-                    ProductUnitId = entry.ProductUnitId,
-                    AlternateBarcode = entry.AlternateBarcode,
-                    UnitName = entry.UnitName,
-                    UnitSalePrice = entry.UnitSalePrice,
-                    UnitPurchasePrice = entry.UnitPurchasePrice,
-                    QuantityPerUnit = entry.QuantityPerUnit,
-                    AllowFractionalSale = entry.AllowFractionalSale,
-                    FractionalPartsPerUnit = entry.FractionalPartsPerUnit,
-                    FractionalPartName = entry.FractionalPartName,
-                    IsBaseUnit = entry.IsBaseUnit,
-                    IsDefaultSaleUnit = entry.IsDefaultSaleUnit,
-                    IsDefaultPurchaseUnit = entry.IsDefaultPurchaseUnit,
-                    SupplierId = entry.SupplierId,
-                    SupplierName = entry.SupplierName,
-                    StockQuantity = entry.StockQuantity,
-                    StockPurchasePrice = entry.StockPurchasePrice,
-                    StockSalePrice = entry.StockSalePrice,
-                    ExpiryDate = entry.ExpiryDate,
-                    AvailableToSale = entry.AvailableToSale,
-                    StockStatus = entry.StockStatus
-                })
+                .Select(MapCatalogEntry)
                 .ToList();
 
             return Result<List<PosProductSearchResultDto>>.Ok(catalog);
         }
+
+        private static PosProductSearchResultDto MapCatalogEntry(PosProductCatalogEntry entry)
+            => new()
+            {
+                ProductId = entry.ProductId,
+                SubCategoryId = entry.SubCategoryId,
+                ProductName = entry.ProductName,
+                ItemCode = entry.ItemCode,
+                TaxExempt = entry.TaxExempt,
+                TaxRate = entry.TaxRate,
+                ProductUnitId = entry.ProductUnitId,
+                AlternateBarcode = entry.AlternateBarcode,
+                UnitName = entry.UnitName,
+                UnitSalePrice = entry.UnitSalePrice,
+                UnitPurchasePrice = entry.UnitPurchasePrice,
+                QuantityPerUnit = entry.QuantityPerUnit,
+                AllowFractionalSale = entry.AllowFractionalSale,
+                FractionalPartsPerUnit = entry.FractionalPartsPerUnit,
+                FractionalPartName = entry.FractionalPartName,
+                IsBaseUnit = entry.IsBaseUnit,
+                IsDefaultSaleUnit = entry.IsDefaultSaleUnit,
+                IsDefaultPurchaseUnit = entry.IsDefaultPurchaseUnit,
+                SupplierId = entry.SupplierId,
+                SupplierName = entry.SupplierName,
+                StockQuantity = entry.StockQuantity,
+                StockPurchasePrice = entry.StockPurchasePrice,
+                StockSalePrice = entry.StockSalePrice,
+                ExpiryDate = entry.ExpiryDate,
+                AvailableToSale = entry.AvailableToSale,
+                StockStatus = entry.StockStatus
+            };
 
         public async Task<Result<List<PosProductSearchResultDto>>> GetPosProductStockAsync(
             IEnumerable<int> productIds,
@@ -929,6 +947,18 @@ namespace RaccoonWarehouse.Application.Service.Stocks
 
             if (maxResults <= 0 || (terms.Length == 0 && string.IsNullOrWhiteSpace(normalizedBarcode) && (!supplierId.HasValue || supplierId.Value <= 0)))
                 return Result<List<PosProductSearchResultDto>>.Ok(new List<PosProductSearchResultDto>());
+
+            if (!string.IsNullOrWhiteSpace(normalizedBarcode) &&
+                !supplierId.HasValue &&
+                _posProductCatalogService != null)
+            {
+                var catalogRows = await _posProductCatalogService.SearchByBarcodeAsync(
+                    normalizedBarcode,
+                    cancellationToken);
+                if (catalogRows.Count > 0)
+                    return Result<List<PosProductSearchResultDto>>.Ok(
+                        catalogRows.Select(MapCatalogEntry).ToList());
+            }
 
             // Search the product catalog first, not the stock table. A product with
             // zero stock (or no stock record yet) must still be visible in POS so
@@ -1127,6 +1157,8 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                     errors.Add("ProductId is required.");
                 if (dto.ProductUnitId <= 0)
                     errors.Add("ProductUnitId is required.");
+                if (dto.PurchaseAcquisitionCost < 0m)
+                    errors.Add("Acquisition cost cannot be negative.");
                 if (dto.Quantity == 0)
                     errors.Add("Quantity cannot be zero.");
                 if (dto.QuantityPerUnitSnapshot <= 0)
@@ -1159,13 +1191,15 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                 .Select(item => item.ProductId)
                 .Distinct()
                 .ToList();
+            var returnSources = items.Where(x => x.Quantity < 0 && x.SourcePurchaseLineId.HasValue)
+                .Select(x => x.SourcePurchaseLineId!.Value).Distinct().ToList();
             var outgoingLotQueryTiming = Stopwatch.StartNew();
             var outgoingLots = outgoingProductIds.Count == 0
                 ? new List<StockLot>()
                 : await lotRepo.GetAllAsQueryable()
                     .Where(lot => outgoingProductIds.Contains(lot.ProductId) &&
                                   lot.Status == BatchStatus.Active &&
-                                  (!lot.ExpiryDate.HasValue || lot.ExpiryDate.Value >= now.Date) &&
+                                  (!lot.ExpiryDate.HasValue || lot.ExpiryDate.Value >= now.Date || (lot.SourcePurchaseLineId.HasValue && returnSources.Contains(lot.SourcePurchaseLineId.Value))) &&
                                   (lot.RemainingBaseQuantity > 0 || lot.RemainingQuantity > 0)
                                   )
                     .ToListAsync();
@@ -1195,7 +1229,11 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                         QuantityPerUnitSnapshot = quantityPerUnit,
                         BaseQuantity = baseQuantity,
                         RemainingBaseQuantity = baseQuantity,
-                        PurchasePrice = dto.PurchasePrice ?? 0m,
+                        PurchasePrice = dto.PurchaseAcquisitionCost.HasValue
+                            ? PurchaseBonusCosting.EffectiveUnitCost(dto.PurchaseAcquisitionCost.Value, dto.Quantity)
+                            : dto.PurchasePrice ?? 0m,
+                        PurchaseAcquisitionCost = dto.PurchaseAcquisitionCost,
+                        SourcePurchaseLineId = dto.SourcePurchaseLineId,
                         SalePrice = dto.SalePrice ?? dto.UnitPrice,
                         ExpiryDate = expiryDate,
                         Notes = dto.Notes,
@@ -1231,14 +1269,23 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                 }
                 else
                 {
-                    var remainingToConsume = Math.Abs(dto.Quantity);
                     var requestedFactor = dto.QuantityPerUnitSnapshot > 0 ? dto.QuantityPerUnitSnapshot : 1m;
+                    // BaseQuantity is authoritative for lines that are entered as fractional
+                    // parts (for example, 0.1 with 3 parts per unit means 1/3 of a base unit).
+                    // For ordinary sales it is still Quantity * requestedFactor, so this does
+                    // not change the existing base-unit behavior.
+                    var remainingToConsumeBase = dto.BaseQuantity != 0
+                        ? Math.Abs(dto.BaseQuantity)
+                        : Math.Abs(dto.Quantity) * requestedFactor;
                     outgoingLotsByProduct.TryGetValue(dto.ProductId, out var availableLots);
                     var candidates = OrderAvailableLots(
                         GetAvailableLots(availableLots ?? Enumerable.Empty<StockLot>(), dto),
                         costingMethod,
                         dto).ToList();
                     var totalAvailableBeforeConsumption = candidates.Sum(GetEffectiveRemainingBaseQuantity) / requestedFactor;
+
+                    if (dto.SourcePurchaseLineId.HasValue && totalAvailableBeforeConsumption < Math.Abs(dto.Quantity))
+                        return Result.Fail("Original purchase lot has insufficient remaining quantity / الكمية المتبقية في لوط الشراء الأصلي غير كافية.");
 
                     if (!candidates.Any())
                     {
@@ -1253,14 +1300,14 @@ namespace RaccoonWarehouse.Application.Service.Stocks
 
                     foreach (var lot in candidates)
                     {
-                        if (remainingToConsume <= 0)
+                        if (remainingToConsumeBase <= 0)
                             break;
 
                         var availableBase = GetEffectiveRemainingBaseQuantity(lot);
                         if (availableBase <= 0)
                             continue;
 
-                        var consumedBaseQuantity = Math.Min(availableBase, remainingToConsume * requestedFactor);
+                        var consumedBaseQuantity = Math.Min(availableBase, remainingToConsumeBase);
                         if (consumedBaseQuantity <= 0)
                             continue;
 
@@ -1290,7 +1337,7 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                             Quantity = -consumedQuantity,
                             QuantityPerUnitSnapshot = requestedFactor,
                             BaseQuantity = -consumedBaseQuantity,
-                            UnitPrice = dto.UnitPrice != 0 ? dto.UnitPrice : lot.SalePrice,
+                            UnitPrice = dto.SourcePurchaseLineId.HasValue ? dto.UnitPrice : dto.UnitPrice != 0 ? dto.UnitPrice : lot.SalePrice,
                             ExpiryDate = lot.ExpiryDate,
                             TransactionType = dto.TransactionType,
                             InvoiceId = dto.InvoiceId,
@@ -1305,10 +1352,10 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                             UpdatedDate = now
                         });
 
-                        remainingToConsume -= consumedQuantity;
+                        remainingToConsumeBase -= consumedBaseQuantity;
                     }
 
-                    if (remainingToConsume > 0)
+                    if (remainingToConsumeBase > 0)
                     {
                         return Result.Fail(await BuildInsufficientStockMessageAsync(
                             productRepo,
@@ -1343,7 +1390,7 @@ namespace RaccoonWarehouse.Application.Service.Stocks
             var averageCostKeys = items
                 .Where(item => item.Quantity > 0 &&
                                item.TransactionType == TransactionType.Purchase &&
-                               item.UpdateCatalogAverageCost)
+                               item.UpdateCatalogAverageCost && !item.PurchaseAcquisitionCost.HasValue)
                 .Select(item => (item.ProductId, item.ProductUnitId))
                 .Distinct()
                 .ToList();
@@ -1456,9 +1503,13 @@ namespace RaccoonWarehouse.Application.Service.Stocks
         {
             var availableLots = lots.Where(lot =>
                 lot.Status == BatchStatus.Active &&
-                (!lot.ExpiryDate.HasValue || lot.ExpiryDate.Value.Date >= DateTime.Today) &&
+                (!lot.ExpiryDate.HasValue || lot.ExpiryDate.Value.Date >= DateTime.Today || hint?.SourcePurchaseLineId.HasValue == true) &&
                 GetEffectiveRemainingBaseQuantity(lot) > 0
                 );
+
+            if (hint?.SourcePurchaseLineId is > 0)
+                availableLots = availableLots.Where(lot => lot.SourcePurchaseLineId == hint.SourcePurchaseLineId
+                    && lot.ProductUnitId == hint.ProductUnitId);
 
             if (hint?.StockLotId is > 0)
             {
@@ -1498,7 +1549,7 @@ namespace RaccoonWarehouse.Application.Service.Stocks
         {
             var ordered = lots.Where(lot =>
                 lot.Status == BatchStatus.Active &&
-                (!lot.ExpiryDate.HasValue || lot.ExpiryDate.Value.Date >= DateTime.Today) &&
+                (!lot.ExpiryDate.HasValue || lot.ExpiryDate.Value.Date >= DateTime.Today || hint?.SourcePurchaseLineId.HasValue == true) &&
                 GetEffectiveRemainingBaseQuantity(lot) > 0
                 );
 
@@ -1555,7 +1606,9 @@ namespace RaccoonWarehouse.Application.Service.Stocks
         {
             var lotFactor = lot.QuantityPerUnitSnapshot > 0 ? lot.QuantityPerUnitSnapshot : 1m;
             var targetFactor = requestedFactor > 0 ? requestedFactor : 1m;
-            return Math.Round((lot.PurchasePrice / lotFactor) * targetFactor, 3);
+            var unitCost = lot.PurchaseAcquisitionCost.HasValue && lot.Quantity > 0m
+                ? lot.PurchaseAcquisitionCost.Value / lot.Quantity : lot.PurchasePrice;
+            return Math.Round((unitCost / lotFactor) * targetFactor, lot.PurchaseAcquisitionCost.HasValue ? 6 : 3);
         }
 
         private async Task SyncStockSummariesAsync(
@@ -1832,6 +1885,7 @@ namespace RaccoonWarehouse.Application.Service.Stocks
         Task<Result<List<PosProductSearchResultDto>>> GetPosProductStockAsync(IEnumerable<int> productIds, CancellationToken cancellationToken = default);
         Task<Result<List<SubCategoryReadDto>>> GetPosBrowseSubCategoriesAsync();
         Task<Result<List<StockBatchLookupDto>>> GetBatchLookupAsync(int? productId = null);
+        Task<bool> HasExpiredStockAsync(DateTime? asOfDate = null);
         Task<Result<StockLotUpdateDto>> UpdateBatchMetadataAsync(StockLotUpdateDto dto);
         Task<Result<StockAdjustmentWriteDto>> CreateAdjustmentAsync(StockAdjustmentWriteDto dto);
     }
@@ -1857,6 +1911,8 @@ namespace RaccoonWarehouse.Application.Service.Stocks
         public DateTime TransactionDate { get; set; }
         public string? Notes { get; set; }
         public string? ReferenceNumber { get; set; }
+        public decimal? PurchaseAcquisitionCost { get; set; }
+        public int? SourcePurchaseLineId { get; set; }
         public bool UpdateCatalogAverageCost { get; set; }
     }
 
@@ -1886,6 +1942,7 @@ namespace RaccoonWarehouse.Application.Service.Stocks
         public decimal BaseQuantity { get; set; }
         public decimal AvailableQuantityAfterAllocation { get; set; }
         public decimal PurchasePrice { get; set; }
+        public bool HasAllocatedPurchaseCost { get; set; }
         public decimal SalePrice { get; set; }
         public DateTime? ExpiryDate { get; set; }
     }

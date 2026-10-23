@@ -37,7 +37,25 @@ public partial class POS
         line.TaxAmount = Math.Round(lineTotal - lineSubTotal, 3);
         line.ProfitBeforeTax = lineSubTotal - costTotal;
         line.Profit = line.ProfitBeforeTax;
-        line.BaseQuantity = line.Quantity * (line.QuantityPerUnitSnapshot > 0 ? line.QuantityPerUnitSnapshot : 1m);
+        var quantityPerUnit = line.QuantityPerUnitSnapshot > 0 ? line.QuantityPerUnitSnapshot : 1m;
+        var fractionalUnit = product?.ProductUnits?.FirstOrDefault(unit => unit.Id == line.ProductUnitId);
+        if (line.PartialSaleResolved && fractionalUnit?.AllowFractionalSale == true &&
+            fractionalUnit.FractionalPartsPerUnit >= 2m &&
+            fractionalUnit.FractionalPartsPerUnit == decimal.Truncate(fractionalUnit.FractionalPartsPerUnit) &&
+            line.Quantity != decimal.Truncate(line.Quantity))
+        {
+            var wholeUnits = decimal.Truncate(line.Quantity);
+            var partsSold = wholeUnits * fractionalUnit.FractionalPartsPerUnit +
+                            (line.Quantity - wholeUnits) * 10m;
+            line.BaseQuantity = Math.Round(
+                partsSold / fractionalUnit.FractionalPartsPerUnit * quantityPerUnit,
+                6, MidpointRounding.AwayFromZero);
+        }
+        else
+        {
+            // Normal base-unit and whole-quantity sales keep the existing behavior.
+            line.BaseQuantity = line.Quantity * quantityPerUnit;
+        }
     }
 
     private ProductReadDto? FindProductForLine(InvoiceLineWriteDto line)
@@ -61,6 +79,8 @@ public partial class POS
             BaseQuantity = (source.BaseQuantity / divisor) * quantity,
             UnitPrice = source.UnitPrice,
             UnitCost = source.UnitCost,
+            PurchaseAcquisitionCost = source.PurchaseAcquisitionCost.HasValue
+                ? Math.Abs(quantity) * source.UnitCost : null,
             AvailableQuantitySnapshot = source.AvailableQuantitySnapshot,
             UnitNameSnapshot = source.UnitNameSnapshot,
             TaxExempt = source.TaxExempt,

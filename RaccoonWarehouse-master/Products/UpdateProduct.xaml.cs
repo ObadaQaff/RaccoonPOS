@@ -48,6 +48,8 @@ namespace RaccoonWarehouse.Products
         private bool _isNavigatingSuppliers;
         private string _supplierSearchText = string.Empty;
         private int? _selectedSupplierId;
+        private readonly Dictionary<ProductUnitWriteDto, FractionalSuggestionState> _fractionalSuggestionStates = new();
+        private bool _isUpdatingFractionalSuggestions;
         public ObservableCollection<ProductMovementRow> ProductMovements { get; } = new();
         public ObservableCollection<ProductStockUnitRow> ProductStockByUnit { get; } = new();
         public decimal CurrentStockTotalBaseQuantity { get; set; }
@@ -474,24 +476,26 @@ namespace RaccoonWarehouse.Products
             };
 
             row.Children.Add(CreateReadOnlyUnitPanel(UiText.T("الوحدة", "Unit"), GetLocalizedUnitName(unit), 140));
-            row.Children.Add(CreateEditableDecimalPanel(UiText.T("سعر البيع", "Sale Price"), unit.SalePrice.ToString(), 100));
-            row.Children.Add(CreateEditableDecimalPanel(UiText.T("سعر الشراء", "Purchase Price"), unit.PurchasePrice.ToString(), 100));
+            var salePanel = CreateEditableDecimalPanel(UiText.T("سعر البيع", "Sale Price"), unit.SalePrice.ToString(), 100);
+            var purchasePanel = CreateEditableDecimalPanel(UiText.T("سعر الشراء", "Purchase Price"), unit.PurchasePrice.ToString(), 100);
+            var fractionalCheckPanel = CreateCheckPanel(UiText.T("بيع جزئي", "Fractional sale"), unit.AllowFractionalSale);
+            var partsPanel = CreateEditableDecimalPanel(UiText.T("الأجزاء لكل عبوة", "Parts per package"), unit.FractionalPartsPerUnit > 0 ? unit.FractionalPartsPerUnit.ToString("0") : string.Empty, 110);
+            var fractionalPricePanel = CreateEditableDecimalPanel(UiText.T("سعر البيع الجزئي", "Partial Sale Price"), unit.FractionalSalePrice?.ToString() ?? string.Empty, 125);
+            var fractionalCostPanel = CreateEditableDecimalPanel(UiText.T("تكلفة البيع الجزئي", "Partial Sale Cost"), unit.FractionalSaleCost?.ToString() ?? string.Empty, 125);
+            row.Children.Add(salePanel);
+            row.Children.Add(purchasePanel);
             row.Children.Add(CreateEditableDecimalPanel(UiText.T("الكمية لكل وحدة", "Quantity per Unit"), unit.QuantityPerUnit.ToString(), 110));
-            row.Children.Add(CreateCheckPanel(UiText.T("بيع جزئي", "Fractional sale"), unit.AllowFractionalSale));
-            row.Children.Add(CreateEditableDecimalPanel(UiText.T("الأجزاء لكل عبوة", "Parts per package"), unit.FractionalPartsPerUnit > 0 ? unit.FractionalPartsPerUnit.ToString("0") : string.Empty, 110));
+            row.Children.Add(fractionalCheckPanel);
+            row.Children.Add(partsPanel);
+            row.Children.Add(fractionalPricePanel);
+            row.Children.Add(fractionalCostPanel);
             row.Children.Add(CreateEditableTextPanel(UiText.T("اسم الجزء", "Fraction name"), unit.FractionalPartName ?? string.Empty, 130));
             row.Children.Add(CreateEditableTextPanel(UiText.T("الرمز المماثل", "Alternate barcode"), unit.AlternateBarcode ?? string.Empty, 150));
             row.Children.Add(CreateCheckPanel(UiText.T("أساسية", "Primary"), unit.IsBaseUnit));
             row.Children.Add(CreateCheckPanel(UiText.T("بيع", "Sale"), unit.IsDefaultSaleUnit));
             row.Children.Add(CreateCheckPanel(UiText.T("شراء", "Purchase"), unit.IsDefaultPurchaseUnit));
 
-            // Fractional sales now use a dedicated Tape product unit. Remove the
-            // legacy per-unit parts/name editors from the generated row.
-            if (row.Children.Count > 6)
-            {
-                row.Children.RemoveAt(6);
-                row.Children.RemoveAt(5);
-            }
+            AttachFractionalSuggestionEvents(unit, salePanel, purchasePanel, fractionalCheckPanel, partsPanel, fractionalPricePanel, fractionalCostPanel);
 
             var deleteBtn = new Button
             {
@@ -519,6 +523,7 @@ namespace RaccoonWarehouse.Products
                     }
                 }
 
+                ProductUnitService.NotifyUnitsChanged(_productId);
                 _productUnits.Remove(unit);
                 NormalizeUnitFlags(_productUnits);
                 RebuildUnitsPanel();
@@ -526,6 +531,80 @@ namespace RaccoonWarehouse.Products
 
             row.Children.Add(deleteBtn);
             UnitsStackPanel.Children.Add(row);
+        }
+
+        private sealed class FractionalSuggestionState
+        {
+            public decimal? AutoPrice { get; set; }
+            public decimal? AutoCost { get; set; }
+        }
+
+        private void AttachFractionalSuggestionEvents(ProductUnitWriteDto unit, StackPanel salePanel, StackPanel purchasePanel, StackPanel checkPanel, StackPanel partsPanel, StackPanel pricePanel, StackPanel costPanel)
+        {
+            var saleBox = (TextBox)salePanel.Children[1];
+            var purchaseBox = (TextBox)purchasePanel.Children[1];
+            var fractionalCheck = (CheckBox)checkPanel.Children[1];
+            var partsBox = (TextBox)partsPanel.Children[1];
+            var priceBox = (TextBox)pricePanel.Children[1];
+            var costBox = (TextBox)costPanel.Children[1];
+
+            saleBox.TextChanged += (_, _) => SuggestFractionalPrices(unit, saleBox, purchaseBox, fractionalCheck, partsBox, priceBox, costBox);
+            purchaseBox.TextChanged += (_, _) => SuggestFractionalPrices(unit, saleBox, purchaseBox, fractionalCheck, partsBox, priceBox, costBox);
+            partsBox.TextChanged += (_, _) => SuggestFractionalPrices(unit, saleBox, purchaseBox, fractionalCheck, partsBox, priceBox, costBox);
+            fractionalCheck.Checked += (_, _) => SuggestFractionalPrices(unit, saleBox, purchaseBox, fractionalCheck, partsBox, priceBox, costBox);
+            fractionalCheck.Unchecked += (_, _) => SuggestFractionalPrices(unit, saleBox, purchaseBox, fractionalCheck, partsBox, priceBox, costBox);
+            priceBox.TextChanged += (_, _) => MarkManualFractionalValue(unit, priceBox, true);
+            costBox.TextChanged += (_, _) => MarkManualFractionalValue(unit, costBox, false);
+        }
+
+        private void MarkManualFractionalValue(ProductUnitWriteDto unit, TextBox box, bool price)
+        {
+            if (_isUpdatingFractionalSuggestions || !_fractionalSuggestionStates.TryGetValue(unit, out var state))
+                return;
+
+            var isAutoValue = decimal.TryParse(box.Text, out var value) && (price ? state.AutoPrice == value : state.AutoCost == value);
+            if (!isAutoValue)
+            {
+                if (price) state.AutoPrice = null;
+                else state.AutoCost = null;
+            }
+        }
+
+        private void SuggestFractionalPrices(ProductUnitWriteDto unit, TextBox saleBox, TextBox purchaseBox, CheckBox fractionalCheck, TextBox partsBox, TextBox priceBox, TextBox costBox)
+        {
+            if (_isUpdatingFractionalSuggestions || fractionalCheck.IsChecked != true ||
+                !decimal.TryParse(saleBox.Text, out var salePrice) || salePrice <= 0m ||
+                !decimal.TryParse(purchaseBox.Text, out var purchasePrice) || purchasePrice < 0m ||
+                !decimal.TryParse(partsBox.Text, out var parts) || parts < 2m || parts != decimal.Truncate(parts))
+                return;
+
+            if (!_fractionalSuggestionStates.TryGetValue(unit, out var state))
+            {
+                state = new FractionalSuggestionState();
+                _fractionalSuggestionStates[unit] = state;
+            }
+
+            var suggestedPrice = Math.Round(salePrice / parts, 3, MidpointRounding.AwayFromZero);
+            var suggestedCost = Math.Round(purchasePrice / parts, 3, MidpointRounding.AwayFromZero);
+            _isUpdatingFractionalSuggestions = true;
+            try
+            {
+                if (string.IsNullOrWhiteSpace(priceBox.Text) || (state.AutoPrice.HasValue && decimal.TryParse(priceBox.Text, out var currentPrice) && currentPrice == state.AutoPrice.Value))
+                {
+                    priceBox.Text = suggestedPrice.ToString("0.###");
+                    state.AutoPrice = suggestedPrice;
+                }
+
+                if (string.IsNullOrWhiteSpace(costBox.Text) || (state.AutoCost.HasValue && decimal.TryParse(costBox.Text, out var currentCost) && currentCost == state.AutoCost.Value))
+                {
+                    costBox.Text = suggestedCost.ToString("0.###");
+                    state.AutoCost = suggestedCost;
+                }
+            }
+            finally
+            {
+                _isUpdatingFractionalSuggestions = false;
+            }
         }
 
         private static StackPanel CreateReadOnlyUnitPanel(string label, string value, double width)
@@ -707,6 +786,11 @@ namespace RaccoonWarehouse.Products
                 if (result.Success)
                 {
                     _productUnits = unitsDto;
+                    // Invalidate POS metadata instead of publishing the read-back
+                    // object from this window's tracked DbContext. POS refreshes
+                    // the units through an independent scope and receives the
+                    // committed AllowFractionalSale/parts/price values.
+                    ProductUnitService.NotifyUnitsChanged(_productId);
                     RebuildUnitsPanel();
                     await LoadCurrentStockSummaryAsync();
                     CatalogRefreshNotifier.NotifyCatalogChanged();
@@ -746,15 +830,18 @@ namespace RaccoonWarehouse.Products
                 var purchaseBox = ((row.Children[2] as StackPanel)?.Children[1] as TextBox);
                 var qtyBox = ((row.Children[3] as StackPanel)?.Children[1] as TextBox);
                 var fractionalCheck = ((row.Children[4] as StackPanel)?.Children[1] as CheckBox);
-                var fractionalPartsBox = (TextBox?)null;
-                var fractionalNameBox = (TextBox?)null;
-                var alternateBarcodeBox = ((row.Children[5] as StackPanel)?.Children[1] as TextBox);
-                var baseCheck = ((row.Children[6] as StackPanel)?.Children[1] as CheckBox);
-                var saleCheck = ((row.Children[7] as StackPanel)?.Children[1] as CheckBox);
-                var purchaseCheck = ((row.Children[8] as StackPanel)?.Children[1] as CheckBox);
+                var fractionalPartsBox = ((row.Children[5] as StackPanel)?.Children[1] as TextBox);
+                var fractionalPriceBox = ((row.Children[6] as StackPanel)?.Children[1] as TextBox);
+                var fractionalCostBox = ((row.Children[7] as StackPanel)?.Children[1] as TextBox);
+                var fractionalNameBox = ((row.Children[8] as StackPanel)?.Children[1] as TextBox);
+                var alternateBarcodeBox = ((row.Children[9] as StackPanel)?.Children[1] as TextBox);
+                var baseCheck = ((row.Children[10] as StackPanel)?.Children[1] as CheckBox);
+                var saleCheck = ((row.Children[11] as StackPanel)?.Children[1] as CheckBox);
+                var purchaseCheck = ((row.Children[12] as StackPanel)?.Children[1] as CheckBox);
 
                 if (saleBox == null || purchaseBox == null || qtyBox == null ||
-                    fractionalCheck == null || alternateBarcodeBox == null || baseCheck == null ||
+                    fractionalCheck == null || fractionalPartsBox == null || fractionalNameBox == null ||
+                    fractionalPriceBox == null || fractionalCostBox == null || alternateBarcodeBox == null || baseCheck == null ||
                     saleCheck == null || purchaseCheck == null)
                 {
                     continue;
@@ -773,6 +860,29 @@ namespace RaccoonWarehouse.Products
                 unit.CostWithoutTax = Math.Round(Math.Max(purchase, 0m), 3);
                 unit.QuantityPerUnit = qty;
                 unit.AllowFractionalSale = fractionalCheck.IsChecked == true;
+                var parsedParts = 0m;
+                if (unit.AllowFractionalSale &&
+                    (!decimal.TryParse(fractionalPartsBox.Text, out parsedParts) ||
+                     parsedParts < 2m || parsedParts != decimal.Truncate(parsedParts)))
+                {
+                    fractionalPartsBox.Focus();
+                    fractionalPartsBox.SelectAll();
+                    throw new Exception(UiText.T(
+                        $"عدد الأجزاء يجب أن يكون رقماً صحيحاً أكبر من 1. القيمة الحالية: {fractionalPartsBox.Text.Trim()}. مثال: 2 أو 10.",
+                        $"Parts per package must be a whole number greater than 1. Current value: {fractionalPartsBox.Text.Trim()}. Example: 2 or 10."));
+
+                }
+                unit.FractionalPartsPerUnit = unit.AllowFractionalSale ? parsedParts : 0m;
+                unit.FractionalSalePrice = ParseOptionalFractionalValue(fractionalPriceBox.Text, "Partial Sale Price", greaterThanZero: true);
+                unit.FractionalSaleCost = ParseOptionalFractionalValue(fractionalCostBox.Text, "Partial Sale Cost", greaterThanZero: false);
+                if (!unit.AllowFractionalSale)
+                {
+                    unit.FractionalSalePrice = null;
+                    unit.FractionalSaleCost = null;
+                }
+                unit.FractionalPartName = unit.AllowFractionalSale && !string.IsNullOrWhiteSpace(fractionalNameBox.Text)
+                    ? fractionalNameBox.Text.Trim()
+                    : null;
                 unit.AlternateBarcode = string.IsNullOrWhiteSpace(alternateBarcodeBox.Text) ? null : alternateBarcodeBox.Text.Trim();
                 unit.IsBaseUnit = baseCheck.IsChecked == true;
                 unit.IsDefaultSaleUnit = saleCheck.IsChecked == true;
@@ -784,6 +894,24 @@ namespace RaccoonWarehouse.Products
             }
 
             return list;
+        }
+
+        private static decimal? ParseOptionalFractionalValue(string text, string fieldName, bool greaterThanZero)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return null;
+
+            if (!decimal.TryParse(text, out var value) ||
+                (greaterThanZero ? value <= 0m : value < 0m))
+            {
+                var arabicRequirement = greaterThanZero ? "أكبر من صفر" : "أكبر من أو يساوي صفر";
+                var englishRequirement = greaterThanZero ? "greater than zero" : "zero or greater";
+                throw new Exception(UiText.T(
+                    $"{fieldName} يجب أن يكون رقماً و{arabicRequirement}.",
+                    $"{fieldName} must be numeric and {englishRequirement}."));
+            }
+
+            return Math.Round(value, 3);
         }
 
         private static void NormalizeUnitFlags(List<ProductUnitWriteDto> units)

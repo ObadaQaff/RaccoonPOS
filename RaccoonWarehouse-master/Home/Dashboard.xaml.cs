@@ -71,6 +71,7 @@ namespace RaccoonWarehouse
         private bool _expiredLotsAlertShown;
         private bool _isLoadingReports;
         private bool _isOpeningReport;
+        private bool _isSidebarNavigationActive;
         private bool _isPollingPendingOrders;
         private bool _pendingSnapshotInitialized;
         private readonly HashSet<int> _knownPendingCartIds = new();
@@ -154,7 +155,8 @@ namespace RaccoonWarehouse
                 _unreadPendingCartIds.Clear();
                 _pendingSnapshotInitialized = false;
                 UpdateOrdersBadge();
-                Receipt_Click(null, null);
+                await RunSidebarNavigationAsync(() =>
+                    ShowDashboardModuleAsync(SalesDashboardModule.Key, DashboardActionButton_Click));
             }
             finally
             {
@@ -183,17 +185,7 @@ namespace RaccoonWarehouse
                 if (!role.HasValue || !await _permissionService.HasPermissionAsync(role.Value, "StockLots.View"))
                     return;
 
-                var result = await _stockService.GetBatchLookupAsync();
-                if (!result.Success || result.Data == null)
-                    return;
-
-                var today = DateTime.Today;
-                var hasExpiredStock = result.Data.Any(lot =>
-                    lot.RemainingQuantity > 0
-                    && lot.ExpiryDate.HasValue
-                    && lot.ExpiryDate.Value.Date <= today);
-
-                if (!hasExpiredStock)
+                if (!await _stockService.HasExpiredStockAsync())
                     return;
 
                 WindowManager.ShowDialog<StockLotsWindow>(WindowSizeType.LargeRectangle, window =>
@@ -540,7 +532,10 @@ namespace RaccoonWarehouse
                 var group = sourceGroup;
                 if (!string.Equals(moduleKey, ReportsDashboardModule.Key, StringComparison.Ordinal))
                 {
-                    var nonReportActions = group.Actions.Where(action => !IsReportAction(action.Key)).ToArray();
+                    var nonReportActions = group.Actions.Where(action =>
+                        !IsReportAction(action.Key) ||
+                        (string.Equals(moduleKey, "PurchaseOrders", StringComparison.Ordinal) &&
+                         action.Key is "product-sales-average" or "below-min-stock")).ToArray();
                     if (nonReportActions.Length == 0)
                         continue;
 
@@ -621,7 +616,9 @@ namespace RaccoonWarehouse
 
         private static bool IsReportAction(string actionKey)
         {
-            return actionKey.StartsWith("Reports.", StringComparison.Ordinal)
+            return ReportCatalog.All.Any(report =>
+                       string.Equals(report.Key, actionKey, StringComparison.Ordinal))
+                || actionKey.StartsWith("Reports.", StringComparison.Ordinal)
                 || actionKey is
                     "Products.PriceList"
                     or "Products.ItemCostDetails"
@@ -693,6 +690,10 @@ namespace RaccoonWarehouse
 
         private async Task RunSidebarNavigationAsync(Func<Task> navigation)
         {
+            if (_isSidebarNavigationActive)
+                return;
+
+            _isSidebarNavigationActive = true;
             try
             {
                 _loadingService.Show();
@@ -702,6 +703,7 @@ namespace RaccoonWarehouse
             finally
             {
                 _loadingService.Hide();
+                _isSidebarNavigationActive = false;
             }
         }
 
@@ -883,7 +885,8 @@ namespace RaccoonWarehouse
 
         private async void Receipt_Click(object sender, RoutedEventArgs e)
         {
-            await ShowDashboardModuleAsync(SalesDashboardModule.Key, DashboardActionButton_Click);
+            await RunSidebarNavigationAsync(() =>
+                ShowDashboardModuleAsync(SalesDashboardModule.Key, DashboardActionButton_Click));
         }
 
         private async void PurchaseOrders_Click(object sender, RoutedEventArgs e) =>

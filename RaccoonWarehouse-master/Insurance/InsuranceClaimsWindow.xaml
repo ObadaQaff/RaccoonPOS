@@ -15,7 +15,7 @@
                     <TextBlock Text="Insurance Claims" Foreground="White" Opacity="0.88" FontSize="14" Margin="0,4,0,0"/>
                     <TextBlock Text="مراجعة المطالبات وتسجيل قرارات شركات التأمين" Foreground="White" Opacity="0.78" FontSize="13" Margin="0,12,0,0"/>
                 </StackPanel>
-                <Button Content="تحديث / Refresh" HorizontalAlignment="Left" VerticalAlignment="Center" Padding="18,10" Style="{StaticResource AppSecondaryButtonStyle}" Click="Refresh_Click"/>
+                <Button x:Name="RefreshButton" Content="تحديث / Refresh" HorizontalAlignment="Left" VerticalAlignment="Center" Padding="18,10" Style="{StaticResource AppSecondaryButtonStyle}" Click="Refresh_Click"/>
             </Grid>
         </Border>
         <Border Grid.Row="1" Style="{StaticResource AppCardBorderStyle}" Padding="16">
@@ -23,18 +23,28 @@
                 <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
                 <StackPanel Margin="4,0,4,14">
                     <TextBlock Text="المطالبات / Claims" FontSize="17" FontWeight="Bold" Foreground="{StaticResource AppTextBrush}"/>
-                    <TextBlock Text="حدد مطالبة لعرض مبالغها وتسجيل قرار المراجعة." Foreground="{StaticResource AppMutedTextBrush}" FontSize="12" Margin="0,4,0,0"/>
+                    <WrapPanel Margin="0,12,0,8">
+                        <StackPanel Width="240" Margin="0,0,12,0"><TextBlock Text="شركة التأمين / Insurance company"/><ComboBox x:Name="CompanyFilter" IsEditable="True" IsTextSearchEnabled="False" StaysOpenOnEdit="True" DisplayMemberPath="Name" MinHeight="36"/></StackPanel>
+                        <StackPanel Width="150" Margin="0,0,12,0"><TextBlock Text="من / From"/><DatePicker x:Name="FromFilter" MinHeight="36"/></StackPanel>
+                        <StackPanel Width="150" Margin="0,0,12,0"><TextBlock Text="إلى / To"/><DatePicker x:Name="ToFilter" MinHeight="36"/></StackPanel>
+                        <StackPanel Width="200"><TextBlock Text="الحالة / Status"/><ComboBox x:Name="ClaimStatusFilter" DisplayMemberPath="Label" MinHeight="36"/></StackPanel>
+                    </WrapPanel>
+                    <TextBlock x:Name="ClaimsTotals" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap"/>
                 </StackPanel>
                 <Grid Grid.Row="1">
                     <DataGrid x:Name="ClaimsGrid" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" CanUserSortColumns="True" SelectionMode="Single" SelectionChanged="ClaimsGrid_SelectionChanged" EnableRowVirtualization="True" Style="{StaticResource AppModernDataGridStyle}">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="رقم المطالبة / Claim" Binding="{Binding ClaimNumber}" Width="160"/>
-                            <DataGridTextColumn Header="الفاتورة / Invoice" Binding="{Binding InvoiceId}" Width="100"/>
-                            <DataGridTextColumn Header="الحالة / Status" Binding="{Binding Status}" Width="150"/>
-                            <DataGridTextColumn Header="المقدم / Submitted" Binding="{Binding SubmittedAmount}" Width="130"/>
-                            <DataGridTextColumn Header="المعتمد / Approved" Binding="{Binding ApprovedAmount}" Width="130"/>
-                            <DataGridTextColumn Header="المدفوع / Paid" Binding="{Binding PaidAmount}" Width="120"/>
-                            <DataGridTextColumn Header="المتبقي / Outstanding" Binding="{Binding OutstandingAmount}" Width="140"/>
+                            <DataGridTextColumn Header="الفاتورة / Invoice" Binding="{Binding InvoiceNumber}" Width="130"/>
+                            <DataGridTextColumn Header="التاريخ / Date" Binding="{Binding CreatedDate, StringFormat=yyyy-MM-dd}" Width="115"/>
+                            <DataGridTextColumn Header="الشركة / Company" Binding="{Binding CompanyName}" Width="180"/>
+                            <DataGridTextColumn Header="المريض / Patient" Binding="{Binding CustomerName}" Width="180"/>
+                            <DataGridTextColumn Header="العضوية / Member" Binding="{Binding MemberNumber}" Width="140"/>
+                            <DataGridTextColumn Header="الحالة / Status" Binding="{Binding StatusLabel}" Width="150"/>
+                            <DataGridTextColumn Header="المقدم / Submitted" Binding="{Binding SubmittedAmount, StringFormat=N3}" Width="130"/>
+                            <DataGridTextColumn Header="المعتمد / Approved" Binding="{Binding ApprovedAmount, StringFormat=N3}" Width="130"/>
+                            <DataGridTextColumn Header="المدفوع / Paid" Binding="{Binding PaidAmount, StringFormat=N3}" Width="120"/>
+                            <DataGridTextColumn Header="المتبقي / Outstanding" Binding="{Binding OutstandingAmount, StringFormat=N3}" Width="140"/>
                         </DataGrid.Columns>
                     </DataGrid>
                     <StackPanel x:Name="ClaimsEmptyStatePanel" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" Visibility="Collapsed">
@@ -45,7 +55,7 @@
             </Grid>
         </Border>
         <Border Grid.Row="2" Style="{StaticResource AppCardBorderStyle}" Padding="18" Margin="0,18,0,0">
-            <Grid>
+            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"><Grid MinWidth="1140">
                 <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                 <StackPanel>
                     <TextBlock Text="قرار المطالبة / Claim decision" FontSize="17" FontWeight="Bold" Foreground="{StaticResource AppTextBrush}"/>
@@ -55,7 +65,7 @@
                     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="180"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="150"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="150"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="150"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                     <TextBlock Text="الحالة / Decision" VerticalAlignment="Center" Foreground="{StaticResource AppTextBrush}"/>
-                    <ComboBox x:Name="StatusComboBox" Grid.Column="1" Margin="8,0,20,0" Padding="8,6"/>
+                    <ComboBox x:Name="StatusComboBox" DisplayMemberPath="Label" Grid.Column="1" Margin="8,0,20,0" Padding="8,6"/>
                     <TextBlock Text="المعتمد / Approved" Grid.Column="2" VerticalAlignment="Center" Foreground="{StaticResource AppTextBrush}"/>
                     <TextBox x:Name="ApprovedTextBox" Grid.Column="3" Margin="8,0,20,0" Padding="10,7"/>
                     <TextBlock Text="المرفوض / Rejected" Grid.Column="4" VerticalAlignment="Center" Foreground="{StaticResource AppTextBrush}"/>
@@ -66,7 +76,7 @@
                     <TextBox x:Name="ReasonTextBox" Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="7" Margin="8,14,20,0" Padding="10,7"/>
                     <Button x:Name="SaveDecisionButton" Content="حفظ القرار / Save decision" Grid.Row="1" Grid.Column="8" Margin="0,14,0,0" Padding="20,10" Style="{StaticResource AppFormButtonStyle}" Click="SaveDecision_Click"/>
                 </Grid>
-            </Grid>
+            </Grid></ScrollViewer>
         </Border>
     </Grid>
 </Window>

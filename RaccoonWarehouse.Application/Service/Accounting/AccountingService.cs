@@ -1,3 +1,4 @@
+using RaccoonWarehouse.Application.Service.Insurance;
 using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using RaccoonWarehouse.Application.Service.Sales;
@@ -432,6 +433,11 @@ namespace RaccoonWarehouse.Application.Service.Accounting
             var entryDate = invoice.CreatedDate == default ? GetJordanNow() : invoice.CreatedDate;
             var accountIds = await ResolveInvoiceAccountIdsAsync(invoice);
             var paymentAllocations = GetPaymentAllocations(invoice);
+            int? insurerAccountId = null;
+            if (invoice.IsInsuranceSale && invoice.InsuranceCompanyId.HasValue
+                && paymentAllocations.Any(x => x.PaymentType == PaymentType.InsuranceReceivable))
+                insurerAccountId = await new PosInsuranceBillingService(_context)
+                    .EnsureReceivableAccountAsync(invoice.InsuranceCompanyId.Value);
             var isPurchaseSide = invoice.InvoiceType is InvoiceType.Purchase or InvoiceType.PurchaseReturn;
             void AddSettlementDebit(decimal amount, string description)
             {
@@ -439,7 +445,9 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                 for (var index = 0; index < paymentAllocations.Count; index++)
                 {
                     var payment = paymentAllocations[index];
-                    var accountId = accountIds[GetSettlementAccountCodeKey(payment.PaymentType, isPurchaseSide)];
+                    var accountId = payment.PaymentType == PaymentType.InsuranceReceivable
+                        ? insurerAccountId ?? throw new InvalidOperationException("Insurance receivable needs a company.")
+                        : accountIds[GetSettlementAccountCodeKey(payment.PaymentType, isPurchaseSide)];
                     AddDebit(lines, accountId, allocatedAmounts[index], description,
                         customerId: payment.PaymentType == PaymentType.Credit && !isPurchaseSide ? invoice.CustomerId : null,
                         supplierId: payment.PaymentType == PaymentType.Credit && isPurchaseSide ? invoice.SupplierId : null);
@@ -451,7 +459,9 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                 for (var index = 0; index < paymentAllocations.Count; index++)
                 {
                     var payment = paymentAllocations[index];
-                    var accountId = accountIds[GetSettlementAccountCodeKey(payment.PaymentType, isPurchaseSide)];
+                    var accountId = payment.PaymentType == PaymentType.InsuranceReceivable
+                        ? insurerAccountId ?? throw new InvalidOperationException("Insurance receivable needs a company.")
+                        : accountIds[GetSettlementAccountCodeKey(payment.PaymentType, isPurchaseSide)];
                     AddCredit(lines, accountId, allocatedAmounts[index], description,
                         customerId: payment.PaymentType == PaymentType.Credit && !isPurchaseSide ? invoice.CustomerId : null,
                         supplierId: payment.PaymentType == PaymentType.Credit && isPurchaseSide ? invoice.SupplierId : null);
@@ -590,7 +600,17 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                     AddSettlementDebit(purchaseReturnTotal, $"Purchase return #{invoice.InvoiceNumber} refund");
                     if (purchaseReturnTax > 0)
                         AddCredit(lines, inputTaxId, purchaseReturnTax, $"Purchase return #{invoice.InvoiceNumber} input tax reversal");
-                    AddCredit(lines, inventoryId, purchaseReturnNetSales, $"Purchase return #{invoice.InvoiceNumber} inventory reversal");
+                    var allocatedReturn = invoice.InvoiceLines?.Any(x => x.SourcePurchaseLineId.HasValue) == true;
+                    var inventoryReversal = allocatedReturn
+                        ? invoice.InvoiceLines!.Sum(x => x.PurchaseAcquisitionCost ?? 0m) : purchaseReturnNetSales;
+                    AddCredit(lines, inventoryId, inventoryReversal, $"Purchase return #{invoice.InvoiceNumber} inventory reversal");
+                    // Paid units refund original net purchase price; free units refund nothing.
+                    // The difference reverses bonus cost allocation, never supplier liability.
+                    var bonusReturnVariance = inventoryReversal - purchaseReturnNetSales;
+                    if (bonusReturnVariance > 0m)
+                        AddDebit(lines, cogsId, bonusReturnVariance, "Purchase bonus return cost allocation");
+                    else if (bonusReturnVariance < 0m)
+                        AddCredit(lines, cogsId, -bonusReturnVariance, "Purchase bonus return cost allocation");
                     break;
 
                 default:

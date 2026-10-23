@@ -9,6 +9,8 @@ using RaccoonWarehouse.Domain.Stock.DTOs;
 using RaccoonWarehouse.Domain.Units;
 using RaccoonWarehouse.Domain.Units.DTOs;
 using RaccoonWarehouse.Domain.Enums;
+using RaccoonWarehouse.Navigation;
+using RaccoonWarehouse.Products;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Globalization;
@@ -78,6 +80,13 @@ namespace RaccoonWarehouse.Invoices
     /// </summary>
     public partial class ProductSearchWindow : Window
     {
+        static ProductSearchWindow()
+        {
+            PosProductCatalogRefreshQueue.CatalogRefreshed += InvalidateCatalogCache;
+            RaccoonWarehouse.Common.CatalogRefreshNotifier.CatalogChanged
+                += (_, _) => InvalidateCatalogCache();
+        }
+
         private const decimal MinimumSellableQuantity = 0m;
         private const int MaxSearchResults = 100;
         private static readonly object CatalogCacheSync = new();
@@ -90,16 +99,22 @@ namespace RaccoonWarehouse.Invoices
         private readonly IPosRowColorRuleService? _rowColorRuleService;
         private readonly Func<ProductSearchRow, Task<bool>>? _onAddProduct;
         private readonly HashSet<string> _disabledProductKeys;
+        private readonly string _ruleScope;
         private readonly DispatcherTimer _searchDebounceTimer = new() { Interval = TimeSpan.FromMilliseconds(150) };
         private readonly SemaphoreSlim _serviceCallLock = new(1, 1);
         private CancellationTokenSource? _searchCancellation;
         private int _searchVersion;
         private bool _isAddingProduct;
+        private bool _isInitializing;
+        private bool _isRefreshingColorRules;
         private int? _selectedSupplierId;
         private List<RaccoonWarehouse.Domain.Users.DTOs.UserReadDto> _supplierLookupItems = new();
         private bool _isFilteringSuppliers;
         private bool _isNavigatingSuppliers;
         private string _supplierSearchText = string.Empty;
+        private IReadOnlyList<PosRowColorRule> _loadedColorRules = Array.Empty<PosRowColorRule>();
+        private string? _selectedColorRuleId;
+        private readonly ObservableCollection<ColorGroupOption> _colorGroups = new();
 
         public ProductReadDto SelectedProduct { get; private set; }
 
@@ -112,7 +127,8 @@ namespace RaccoonWarehouse.Invoices
             IUserService userService,
             Func<ProductSearchRow, Task<bool>>? onAddProduct = null,
             IEnumerable<string>? disabledProductKeys = null,
-            IPosRowColorRuleService? rowColorRuleService = null)
+            IPosRowColorRuleService? rowColorRuleService = null,
+            string ruleScope = "ProductSearch")
         {
             InitializeComponent();
             UiText.ApplyWindow(this);
@@ -120,17 +136,27 @@ namespace RaccoonWarehouse.Invoices
             _stockService = stockService;
             _userService = userService;
             _rowColorRuleService = rowColorRuleService;
+            _ruleScope = string.IsNullOrWhiteSpace(ruleScope) ? "ProductSearch" : ruleScope;
             _onAddProduct = onAddProduct;
             _disabledProductKeys = disabledProductKeys != null
                 ? new HashSet<string>(disabledProductKeys)
                 : new HashSet<string>();
             ProductsGrid.ItemsSource = _products;
+            ColorFilterItemsControl.ItemsSource = _colorGroups;
+            SetLoadingState(true);
             _searchDebounceTimer.Tick += SearchDebounceTimer_Tick;
             Loaded += ProductSearchWindow_Loaded;
+            Closed += ProductSearchWindow_Closed;
+            RaccoonWarehouse.Common.CatalogRefreshNotifier.CatalogChanged
+                += ProductCatalogChanged;
+            PosProductCatalogRefreshQueue.CatalogRefreshed += RefreshStockResults;
+            PosRowColorRuleService.RulesChanged += PosRowColorRuleService_RulesChanged;
         }
 
         private async void ProductSearchWindow_Loaded(object sender, RoutedEventArgs e)
         {
+            _isInitializing = true;
+            SetLoadingState(true);
             var initializationLockAcquired = false;
             try
             {
@@ -153,7 +179,10 @@ namespace RaccoonWarehouse.Invoices
                 }
 
                 if (_rowColorRuleService != null)
-                    await _rowColorRuleService.GetRulesAsync();
+                {
+                    _loadedColorRules = await _rowColorRuleService.GetRulesAsync();
+                    RefreshColorFilterOptions();
+                }
                 await LoadSupplierFilterAsync();
                 await Dispatcher.BeginInvoke(() =>
                 {
@@ -166,8 +195,100 @@ namespace RaccoonWarehouse.Invoices
             {
                 if (initializationLockAcquired)
                     _serviceCallLock.Release();
+
+                _isInitializing = false;
+                SetLoadingState(false);
             }
         }
+
+        private void SetLoadingState(bool isLoading)
+        {
+            _isInitializing = isLoading;
+            SearchTextBox.IsEnabled = !isLoading;
+            BarcodeSearchTextBox.IsEnabled = !isLoading;
+            SupplierFilterComboBox.IsEnabled = !isLoading;
+            ProductsGrid.IsEnabled = !isLoading;
+            ColorFilterItemsControl.IsEnabled = !isLoading;
+        }
+
+        private void ProductSearchWindow_Closed(object? sender, EventArgs e)
+        {
+            PosRowColorRuleService.RulesChanged -= PosRowColorRuleService_RulesChanged;
+            PosProductCatalogRefreshQueue.CatalogRefreshed -= RefreshStockResults;
+            RaccoonWarehouse.Common.CatalogRefreshNotifier.CatalogChanged
+                -= ProductCatalogChanged;
+            _searchDebounceTimer.Stop();
+            _searchCancellation?.Cancel();
+        }
+
+        private void ProductCatalogChanged(object? sender, EventArgs e)
+            => RefreshStockResults();
+
+        private void RefreshStockResults()
+        {
+            if (Dispatcher.HasShutdownStarted || Dispatcher.HasShutdownFinished)
+                return;
+
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (!IsLoaded)
+                    return;
+
+                _searchCancellation?.Cancel();
+                _searchDebounceTimer.Stop();
+                _searchDebounceTimer.Start();
+            }));
+        }
+
+        private void PosRowColorRuleService_RulesChanged()
+        {
+            if (!IsLoaded || _rowColorRuleService == null)
+                return;
+
+            Dispatcher.BeginInvoke(new Action(() => _ = RefreshColorRulesAsync()), DispatcherPriority.Background);
+        }
+
+        private async Task RefreshColorRulesAsync()
+        {
+            if (_rowColorRuleService == null || _isInitializing || _isRefreshingColorRules)
+                return;
+
+            _isRefreshingColorRules = true;
+            var lockAcquired = false;
+            try
+            {
+                await _serviceCallLock.WaitAsync();
+                lockAcquired = true;
+                _rowColorRuleService.InvalidateCache();
+                _loadedColorRules = await _rowColorRuleService.GetRulesAsync();
+
+                if (!string.IsNullOrWhiteSpace(_selectedColorRuleId) &&
+                    !_loadedColorRules.Any(rule => rule.IsActive &&
+                        string.Equals(rule.Id, _selectedColorRuleId, StringComparison.OrdinalIgnoreCase)))
+                    _selectedColorRuleId = null;
+
+                RefreshColorFilterOptions();
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            finally
+            {
+                if (lockAcquired)
+                    _serviceCallLock.Release();
+                _isRefreshingColorRules = false;
+            }
+
+            if (HasSearchCriteria())
+                await RunSearchSafelyAsync();
+        }
+
+        private bool HasSearchCriteria()
+            => SearchTextBox.Text.Trim().Length >= 2
+                || BarcodeSearchTextBox.Text.Trim().Length > 0
+                || _selectedSupplierId.HasValue
+                || !string.IsNullOrWhiteSpace(_selectedColorRuleId);
 
         private async Task WarmCatalogCacheAsync()
             => await WarmCatalogCacheAsync(_stockService);
@@ -205,25 +326,152 @@ namespace RaccoonWarehouse.Invoices
             }
         }
 
+        // Unit metadata is loaded with the catalog and indexed once, so partial
+        // quantity entry never scans the catalog or queries the database.
+        private static Dictionary<int, IReadOnlyList<ProductUnitReadDto>> _partialSaleUnitIndex = new();
+        private static readonly Dictionary<int, (long Version, IReadOnlyList<ProductUnitReadDto>? Units)> PartialSaleUnitOverrides = new();
+        private static long _partialSaleUnitVersion;
+        private static long _partialSaleCatalogLoadGeneration;
+
+        public static bool TryGetCachedProductUnits(int productId, out IReadOnlyList<ProductUnitReadDto> units)
+        {
+            lock (CatalogCacheSync)
+            {
+                if (_partialSaleUnitIndex.TryGetValue(productId, out var cached))
+                {
+                    units = cached;
+                    return true;
+                }
+            }
+            units = Array.Empty<ProductUnitReadDto>();
+            return false;
+        }
+
+        public static void InvalidateCachedProductUnits(int productId)
+        {
+            lock (CatalogCacheSync)
+            {
+                _partialSaleUnitIndex.Remove(productId);
+                PartialSaleUnitOverrides[productId] = (++_partialSaleUnitVersion, null);
+            }
+        }
+
+        public static void UpdateCachedProductUnits(int productId, IReadOnlyList<ProductUnitReadDto> units)
+        {
+            lock (CatalogCacheSync)
+            {
+                var snapshot = units.ToArray();
+                _partialSaleUnitIndex[productId] = snapshot;
+                PartialSaleUnitOverrides[productId] = (++_partialSaleUnitVersion, snapshot);
+                if (_catalogLoadTask?.IsCompletedSuccessfully == true)
+                    _catalogLoadTask = Task.FromResult(PatchCatalogUnits(_catalogLoadTask.Result, productId, snapshot));
+            }
+        }
+
+        private static Dictionary<int, IReadOnlyList<ProductUnitReadDto>> IndexCatalogUnits(
+            IReadOnlyList<PosProductSearchResultDto> catalog)
+            => catalog.GroupBy(row => row.ProductId).ToDictionary(group => group.Key,
+                group => (IReadOnlyList<ProductUnitReadDto>)group.GroupBy(row => row.ProductUnitId)
+                    .Select(rows => rows.First()).Select(row => new ProductUnitReadDto
+                    {
+                        Id = row.ProductUnitId,
+                        ProductId = row.ProductId,
+                        AlternateBarcode = row.AlternateBarcode,
+                        SalePrice = row.UnitSalePrice,
+                        PurchasePrice = row.UnitPurchasePrice,
+                        QuantityPerUnit = row.QuantityPerUnit,
+                        AllowFractionalSale = row.AllowFractionalSale,
+                        FractionalPartsPerUnit = row.FractionalPartsPerUnit,
+                        FractionalPartName = row.FractionalPartName,
+                        FractionalSalePrice = row.FractionalSalePrice,
+                        FractionalSaleCost = row.FractionalSaleCost,
+                        IsBaseUnit = row.IsBaseUnit,
+                        IsDefaultSaleUnit = row.IsDefaultSaleUnit,
+                        IsDefaultPurchaseUnit = row.IsDefaultPurchaseUnit,
+                        Unit = new UnitReadDto { Name = row.UnitName ?? "" }
+                    }).ToArray());
+
+        private static List<PosProductSearchResultDto> PatchCatalogUnits(
+            IReadOnlyList<PosProductSearchResultDto> catalog, int productId, IReadOnlyList<ProductUnitReadDto> units)
+        {
+            var productRows = catalog.Where(row => row.ProductId == productId).ToList();
+            var first = productRows.FirstOrDefault();
+            if (first == null)
+                return catalog.ToList();
+            var baseStock = first.StockQuantity * first.QuantityPerUnit;
+            var updated = catalog.Where(row => row.ProductId != productId).ToList();
+            foreach (var unit in units)
+            {
+                var old = productRows.FirstOrDefault(row => row.ProductUnitId == unit.Id);
+                updated.Add(new PosProductSearchResultDto
+                {
+                    ProductId = productId, ProductUnitId = unit.Id,
+                    SubCategoryId = first.SubCategoryId, ProductName = first.ProductName,
+                    ItemCode = first.ItemCode, TaxExempt = first.TaxExempt, TaxRate = first.TaxRate,
+                    SupplierId = first.SupplierId, SupplierName = first.SupplierName,
+                    AlternateBarcode = unit.AlternateBarcode, UnitName = unit.Unit?.Name ?? old?.UnitName,
+                    UnitSalePrice = unit.SalePrice, UnitPurchasePrice = unit.PurchasePrice,
+                    QuantityPerUnit = unit.QuantityPerUnit,
+                    AllowFractionalSale = unit.AllowFractionalSale,
+                    FractionalPartsPerUnit = unit.FractionalPartsPerUnit,
+                    FractionalPartName = unit.FractionalPartName,
+                    FractionalSalePrice = unit.FractionalSalePrice,
+                    FractionalSaleCost = unit.FractionalSaleCost,
+                    IsBaseUnit = unit.IsBaseUnit, IsDefaultSaleUnit = unit.IsDefaultSaleUnit,
+                    IsDefaultPurchaseUnit = unit.IsDefaultPurchaseUnit,
+                    StockQuantity = unit.QuantityPerUnit > 0m ? baseStock / unit.QuantityPerUnit : 0m,
+                    StockPurchasePrice = old?.StockPurchasePrice ?? unit.PurchasePrice,
+                    StockSalePrice = old?.StockSalePrice ?? unit.SalePrice,
+                    ExpiryDate = old?.ExpiryDate ?? first.ExpiryDate,
+                    AvailableToSale = first.AvailableToSale, StockStatus = old?.StockStatus ?? first.StockStatus
+                });
+            }
+            return updated;
+        }
+
         public static void InvalidateCatalogCache()
         {
             lock (CatalogCacheSync)
             {
                 _catalogLoadedAt = DateTimeOffset.MinValue;
                 _catalogLoadTask = null;
+                _partialSaleCatalogLoadGeneration++;
             }
         }
 
         private static async Task<List<PosProductSearchResultDto>> LoadCatalogCacheAsync(IStockService stockService)
         {
+            long startedUnitVersion;
+            long generation;
+            lock (CatalogCacheSync)
+            {
+                startedUnitVersion = _partialSaleUnitVersion;
+                generation = ++_partialSaleCatalogLoadGeneration;
+            }
             var result = await stockService.GetPosProductCatalogAsync();
             if (!result.Success)
                 throw new InvalidOperationException(result.Message ?? "Unable to load POS product catalog.");
 
+            var rows = result.Data ?? new List<PosProductSearchResultDto>();
             lock (CatalogCacheSync)
-                _catalogLoadedAt = DateTimeOffset.UtcNow;
+            {
+                if (generation != _partialSaleCatalogLoadGeneration)
+                    return rows;
 
-            return result.Data ?? new List<PosProductSearchResultDto>();
+                // A setup/edit that completed during a catalog load wins over
+                // the older snapshot returned by that in-flight query.
+                var pending = PartialSaleUnitOverrides.Where(entry => entry.Value.Version > startedUnitVersion).ToList();
+                foreach (var entry in pending.Where(entry => entry.Value.Units != null))
+                    rows = PatchCatalogUnits(rows, entry.Key, entry.Value.Units!);
+                _partialSaleUnitIndex = IndexCatalogUnits(rows);
+                foreach (var entry in pending.Where(entry => entry.Value.Units == null))
+                    _partialSaleUnitIndex.Remove(entry.Key);
+                foreach (var id in PartialSaleUnitOverrides.Where(entry => entry.Value.Version <= startedUnitVersion)
+                             .Select(entry => entry.Key).ToList())
+                    PartialSaleUnitOverrides.Remove(id);
+                _catalogLoadedAt = DateTimeOffset.UtcNow;
+            }
+            return rows;
         }
 
         private static bool TryGetLoadedCatalog(out List<PosProductSearchResultDto> catalog)
@@ -399,6 +647,22 @@ namespace RaccoonWarehouse.Invoices
             if (ProductsGrid.CurrentItem is not ProductSearchRow row)
                 return;
 
+            if (e.Key == Key.O && Keyboard.Modifiers == ModifierKeys.Control)
+            {
+                if (row.Product != null)
+                {
+                    WindowManager.ShowDialog<UpdateProduct>(WindowSizeType.MediumRectangle, window =>
+                    {
+                        window.Initialize(row.Product.Id);
+                    });
+
+                    await RunSearchSafelyAsync();
+                }
+
+                e.Handled = true;
+                return;
+            }
+
             if (e.Key == Key.Enter)
             {
                 ProductsGrid.CommitEdit(DataGridEditingUnit.Cell, true);
@@ -498,7 +762,7 @@ namespace RaccoonWarehouse.Invoices
 
         private async Task PerformSearchAsync()
         {
-            if (_isAddingProduct)
+            if (_isAddingProduct || _isInitializing)
                 return;
 
             var text = SearchTextBox.Text.Trim();
@@ -509,7 +773,8 @@ namespace RaccoonWarehouse.Invoices
             _searchCancellation = new CancellationTokenSource();
             var cancellationToken = _searchCancellation.Token;
 
-            if (text.Length < 2 && barcode.Length == 0 && !_selectedSupplierId.HasValue)
+            if (text.Length < 2 && barcode.Length == 0 && !_selectedSupplierId.HasValue &&
+                string.IsNullOrWhiteSpace(_selectedColorRuleId))
             {
                 _products.Clear();
                 ProductsGrid.Items.Refresh();
@@ -536,9 +801,11 @@ namespace RaccoonWarehouse.Invoices
                         return;
                 }
 
-                var candidates = catalog
-                    .Where(row => MatchesCatalogFilter(row, text, barcode, _selectedSupplierId))
+                var matchedCatalogRows = catalog
+                    .Where(row => MatchesCatalogFilter(row, text, barcode, _selectedSupplierId));
+                var candidates = matchedCatalogRows
                     .GroupBy(row => row.ProductId)
+                    .Where(group => string.IsNullOrWhiteSpace(_selectedColorRuleId) || MatchesSelectedColorRule(group))
                     .SelectMany(group => group)
                     .Take(MaxSearchResults * 20)
                     .ToList();
@@ -575,6 +842,8 @@ namespace RaccoonWarehouse.Invoices
                             AllowFractionalSale = row.AllowFractionalSale,
                             FractionalPartsPerUnit = row.FractionalPartsPerUnit,
                             FractionalPartName = row.FractionalPartName,
+                            FractionalSalePrice = row.FractionalSalePrice,
+                            FractionalSaleCost = row.FractionalSaleCost,
                             IsBaseUnit = row.IsBaseUnit,
                             IsDefaultSaleUnit = row.IsDefaultSaleUnit,
                             IsDefaultPurchaseUnit = row.IsDefaultPurchaseUnit,
@@ -609,6 +878,8 @@ namespace RaccoonWarehouse.Invoices
                                 AllowFractionalSale = row.AllowFractionalSale,
                                 FractionalPartsPerUnit = row.FractionalPartsPerUnit,
                                 FractionalPartName = row.FractionalPartName,
+                                FractionalSalePrice = row.FractionalSalePrice,
+                                FractionalSaleCost = row.FractionalSaleCost,
                                 IsBaseUnit = row.IsBaseUnit,
                                 IsDefaultSaleUnit = row.IsDefaultSaleUnit,
                                 IsDefaultPurchaseUnit = row.IsDefaultPurchaseUnit,
@@ -632,10 +903,19 @@ namespace RaccoonWarehouse.Invoices
                     product.Supplier = string.IsNullOrWhiteSpace(firstRow.SupplierName)
                         ? null
                         : new RaccoonWarehouse.Domain.Users.DTOs.UserReadDto { Name = firstRow.SupplierName };
+                    var rowColor = _rowColorRuleService?.Classify(
+                        product.CurrentExpiryDate,
+                        product.CurrentStockQuantity,
+                        0m,
+                        product.SubCategoryId,
+                        scope: _ruleScope,
+                        productId: product.Id);
                     var searchRow = new ProductSearchRow
                     {
                         Product = product,
-                        RowColor = _rowColorRuleService?.Classify(product.CurrentExpiryDate, product.CurrentStockQuantity, 0m, product.SubCategoryId),
+                        RowColor = rowColor,
+                        ColorRuleId = rowColor?.RuleId ?? string.Empty,
+                        ColorGroupName = rowColor?.Label ?? rowColor?.RuleName ?? string.Empty,
                         Units = new ObservableCollection<ProductUnitReadDto>(productUnits),
                         SalePricesByUnitId = stocksByProductId
                             .GroupBy(stock => stock.ProductUnitId)
@@ -664,7 +944,9 @@ namespace RaccoonWarehouse.Invoices
                         ?? productUnits.FirstOrDefault();
                     if (searchRow.SelectedUnit == null)
                         searchRow.SalePrice = product.CurrentSalePrice;
-                    _products.Add(searchRow);
+                    if (string.IsNullOrWhiteSpace(_selectedColorRuleId) ||
+                        string.Equals(searchRow.ColorRuleId, _selectedColorRuleId, StringComparison.OrdinalIgnoreCase))
+                        _products.Add(searchRow);
                 }
 
                 if (_products.Count > 0)
@@ -789,6 +1071,8 @@ private void ClearBtn_Click(object sender, RoutedEventArgs e)
             _selectedSupplierId = null;
             SupplierFilterComboBox.SelectedValue = 0;
             _products.Clear();
+            _selectedColorRuleId = null;
+            RefreshColorFilterOptions();
             SearchTextBox.Focus();
             Keyboard.Focus(SearchTextBox);
             SearchTextBox.SelectAll();
@@ -797,6 +1081,72 @@ private void ClearBtn_Click(object sender, RoutedEventArgs e)
         private void CloseBtn_Click(object sender, RoutedEventArgs e)
         {
             Close();
+        }
+
+        private void ColorFilterButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button button)
+                return;
+
+            _selectedColorRuleId = button.Tag as string;
+            _ = RunSearchSafelyAsync();
+        }
+
+        private void RefreshColorFilterOptions()
+        {
+            _colorGroups.Clear();
+            _colorGroups.Add(new ColorGroupOption
+            {
+                RuleId = string.Empty,
+                Name = "All colors",
+                BackgroundColor = "#E7EEF5",
+                ForegroundColor = "#1F4568",
+                AccentColor = "#7B9AB4"
+            });
+
+            foreach (var rule in _loadedColorRules
+                .Where(rule => rule.IsActive &&
+                    (string.IsNullOrWhiteSpace(rule.Scope) ||
+                     string.Equals(rule.Scope, "Both", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(rule.Scope, _ruleScope, StringComparison.OrdinalIgnoreCase)))
+                .OrderByDescending(rule => rule.Priority))
+            {
+                _colorGroups.Add(new ColorGroupOption
+                {
+                    RuleId = rule.Id,
+                    Name = rule.Name,
+                    BackgroundColor = rule.BackgroundColor,
+                    ForegroundColor = rule.ForegroundColor,
+                    AccentColor = rule.AccentColor
+                });
+            }
+        }
+
+        private bool MatchesSelectedColorRule(IEnumerable<PosProductSearchResultDto> productRows)
+        {
+            if (string.IsNullOrWhiteSpace(_selectedColorRuleId) || _rowColorRuleService == null)
+                return true;
+
+            var rows = productRows.ToList();
+            var stockRows = rows.Where(row => row.StockQuantity > MinimumSellableQuantity).ToList();
+            var expiryDate = stockRows
+                .Where(row => row.ExpiryDate.HasValue)
+                .OrderBy(row => row.ExpiryDate)
+                .Select(row => row.ExpiryDate)
+                .FirstOrDefault();
+            var defaultSaleUnit = rows.FirstOrDefault(row => row.IsDefaultSaleUnit)
+                ?? rows.FirstOrDefault();
+            var stockQuantity = defaultSaleUnit?.StockQuantity
+                ?? rows.Sum(row => Math.Max(0m, row.StockQuantity));
+            var first = rows.FirstOrDefault();
+            var decision = _rowColorRuleService.Classify(
+                expiryDate,
+                stockQuantity,
+                0m,
+                first?.SubCategoryId,
+                scope: _ruleScope,
+                productId: first?.ProductId);
+            return string.Equals(decision.RuleId, _selectedColorRuleId, StringComparison.OrdinalIgnoreCase);
         }
 
         private static string BuildProductKey(ProductReadDto product, int? unitId = null)
@@ -849,8 +1199,55 @@ private void ClearBtn_Click(object sender, RoutedEventArgs e)
             private decimal _quantity = 1m;
             private decimal _salePrice;
             private ProductUnitReadDto? _selectedUnit;
+            private PosRowColorDecision? _rowColor;
+            private string _colorRuleId = string.Empty;
+            private string _colorGroupName = string.Empty;
             public ProductReadDto Product { get; set; } = new();
-            public PosRowColorDecision? RowColor { get; set; }
+
+            public PosRowColorDecision? RowColor
+            {
+                get => _rowColor;
+                set
+                {
+                    if (ReferenceEquals(_rowColor, value))
+                        return;
+
+                    _rowColor = value;
+                    Notify(nameof(RowColor));
+                    Notify(nameof(RowBackground));
+                    Notify(nameof(RowForeground));
+                    Notify(nameof(BlocksSale));
+                    Notify(nameof(RequiresSaleConfirmation));
+                    Notify(nameof(SaleAction));
+                }
+            }
+
+            public string ColorRuleId
+            {
+                get => _colorRuleId;
+                set
+                {
+                    if (string.Equals(_colorRuleId, value, StringComparison.Ordinal))
+                        return;
+
+                    _colorRuleId = value;
+                    Notify(nameof(ColorRuleId));
+                }
+            }
+
+            public string ColorGroupName
+            {
+                get => _colorGroupName;
+                set
+                {
+                    if (string.Equals(_colorGroupName, value, StringComparison.Ordinal))
+                        return;
+
+                    _colorGroupName = value;
+                    Notify(nameof(ColorGroupName));
+                }
+            }
+
             public string RowBackground => RowColor?.BackgroundColor ?? "#FFFFFF";
             public string RowForeground => RowColor?.ForegroundColor ?? "#263238";
             public ObservableCollection<ProductUnitReadDto> Units { get; set; } = new();
@@ -878,7 +1275,21 @@ private void ClearBtn_Click(object sender, RoutedEventArgs e)
             public bool HasStock { get; set; }
             public string StockStatus => HasStock ? UiText.T("متوفر", "In stock") : UiText.T("غير متوفر", "Out of stock");
             public bool CanAdd { get => _canAdd; set { if (_canAdd == value) return; _canAdd = value; PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanAdd))); } }
+            public bool BlocksSale => RowColor?.BlocksSale == true;
+            public bool RequiresSaleConfirmation => RowColor?.RequiresConfirmation == true;
+            public string SaleAction => RowColor?.SaleAction ?? PosRowColorActions.None;
+            private void Notify(string propertyName)
+                => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
             public event PropertyChangedEventHandler? PropertyChanged;
+        }
+
+        public sealed class ColorGroupOption
+        {
+            public string RuleId { get; init; } = string.Empty;
+            public string Name { get; init; } = string.Empty;
+            public string BackgroundColor { get; init; } = "#E7EEF5";
+            public string ForegroundColor { get; init; } = "#1F4568";
+            public string AccentColor { get; init; } = "#7B9AB4";
         }
 
         private void ProductsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)

@@ -117,6 +117,58 @@ namespace RaccoonWarehouse.Application.Service.Products
             return Result<List<string>>.Ok(names);
         }
 
+        public async Task<Result<List<ProductColorSelectorItem>>> SearchProductColorSelectorAsync(
+            string searchText,
+            int maxResults = 50)
+        {
+            var text = searchText?.Trim() ?? string.Empty;
+            if (text.Length < 2)
+                return Result<List<ProductColorSelectorItem>>.Ok(new List<ProductColorSelectorItem>());
+
+            var hasNumericBarcode = long.TryParse(text, out var barcode);
+            var products = await _uow.GetRepository<Product>()
+                .GetAllAsQueryable()
+                .AsNoTracking()
+                .Where(product => !product.IsDeleted &&
+                    ((product.Name != null && product.Name.Contains(text)) ||
+                     (hasNumericBarcode && product.ITEMCODE == barcode) ||
+                     product.ProductUnits!.Any(unit => unit.AlternateBarcode != null && unit.AlternateBarcode.Contains(text))))
+                .OrderBy(product => product.Name)
+                .Take(Math.Clamp(maxResults, 1, 100))
+                .Select(product => new ProductColorSelectorItem
+                {
+                    ProductId = product.Id,
+                    Name = product.Name ?? string.Empty,
+                    Barcode = product.ITEMCODE
+                })
+                .ToListAsync();
+
+            return Result<List<ProductColorSelectorItem>>.Ok(products);
+        }
+
+        public async Task<Result<List<ProductColorSelectorItem>>> GetProductColorSelectorItemsAsync(
+            IEnumerable<int> productIds)
+        {
+            var ids = productIds.Where(id => id > 0).Distinct().ToList();
+            if (ids.Count == 0)
+                return Result<List<ProductColorSelectorItem>>.Ok(new List<ProductColorSelectorItem>());
+
+            var products = await _uow.GetRepository<Product>()
+                .GetAllAsQueryable()
+                .AsNoTracking()
+                .Where(product => !product.IsDeleted && ids.Contains(product.Id))
+                .OrderBy(product => product.Name)
+                .Select(product => new ProductColorSelectorItem
+                {
+                    ProductId = product.Id,
+                    Name = product.Name ?? string.Empty,
+                    Barcode = product.ITEMCODE
+                })
+                .ToListAsync();
+
+            return Result<List<ProductColorSelectorItem>>.Ok(products);
+        }
+
         public async Task<Result> ApplyTaxToProductUnitsAsync(Product product)
         {
             var taxRate = product.TaxRate ?? 0m;
@@ -225,6 +277,11 @@ namespace RaccoonWarehouse.Application.Service.Products
                     unit.SalePrice = unitDto.SalePrice;
                     unit.PurchasePrice = unitDto.PurchasePrice;
                     unit.QuantityPerUnit = unitDto.QuantityPerUnit;
+                    unit.AllowFractionalSale = unitDto.AllowFractionalSale;
+                    unit.FractionalPartsPerUnit = unitDto.FractionalPartsPerUnit;
+                    unit.FractionalPartName = unitDto.FractionalPartName;
+                    unit.FractionalSalePrice = unitDto.FractionalSalePrice;
+                    unit.FractionalSaleCost = unitDto.FractionalSaleCost;
                     unit.UnTaxedPrice = unitDto.UnTaxedPrice;
                     unit.IsBaseUnit = unitDto.IsBaseUnit;
                     unit.IsDefaultSaleUnit = unitDto.IsDefaultSaleUnit;
@@ -244,6 +301,11 @@ namespace RaccoonWarehouse.Application.Service.Products
                         SalePrice = unitDto.SalePrice,
                         PurchasePrice = unitDto.PurchasePrice,
                         QuantityPerUnit = unitDto.QuantityPerUnit,
+                        AllowFractionalSale = unitDto.AllowFractionalSale,
+                        FractionalPartsPerUnit = unitDto.FractionalPartsPerUnit,
+                        FractionalPartName = unitDto.FractionalPartName,
+                        FractionalSalePrice = unitDto.FractionalSalePrice,
+                        FractionalSaleCost = unitDto.FractionalSaleCost,
                         UnTaxedPrice = unitDto.UnTaxedPrice,
                         IsBaseUnit = unitDto.IsBaseUnit,
                         IsDefaultSaleUnit = unitDto.IsDefaultSaleUnit,
@@ -277,6 +339,11 @@ namespace RaccoonWarehouse.Application.Service.Products
 
             if (unitsDto.Any(u => u.QuantityPerUnit <= 0))
                 return "الكمية لكل وحدة يجب أن تكون أكبر من صفر.";
+
+            if (unitsDto.Any(u => u.AllowFractionalSale &&
+                (u.FractionalPartsPerUnit < 2m ||
+                 u.FractionalPartsPerUnit != decimal.Truncate(u.FractionalPartsPerUnit))))
+                return "عدد الأجزاء للبيع الجزئي يجب أن يكون رقماً صحيحاً أكبر من 1. / Parts per package must be a whole number greater than 1.";
 
             if (unitsDto.GroupBy(u => u.UnitId).Any(g => g.Count() > 1))
                 return "لا يمكن تكرار نفس الوحدة أكثر من مرة لنفس الصنف.";
@@ -377,6 +444,8 @@ namespace RaccoonWarehouse.Application.Service.Products
         Task<Result<ProductReadDto>> GetByIdWithUnitsAsync(int productId);
         Task<Result<ProductReadDto>> FindByBarcodeAsync(string barcode);
         Task<Result<List<string>>> GetProductNameCatalogAsync();
+        Task<Result<List<ProductColorSelectorItem>>> SearchProductColorSelectorAsync(string searchText, int maxResults = 50);
+        Task<Result<List<ProductColorSelectorItem>>> GetProductColorSelectorItemsAsync(IEnumerable<int> productIds);
         Task<Result> ApplyTaxToProductUnitsAsync(int productId);
         Task<Result> ApplyTaxToProductUnitsAsync(Product product);
         Task<Result> UpdateProductWithUnitsAsync(

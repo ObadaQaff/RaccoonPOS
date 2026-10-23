@@ -2542,3 +2542,463 @@ The solution still reports existing warnings, including package compatibility/se
 - No database schema change was required; the existing invoice `Notes` field is used.
 - Application build passed with 0 errors.
 - Manual verification remains required for Cash-to-Visa, Visa-to-Cash, multi-method split refunds, same-method amount changes, and unchanged payment allocations.
+
+
+## 2026-10-22 POS Insurance Checkout and Company Accounts
+
+- Replaced the POS insurance button's separate basket with a customer/member details dialog using the current POS sale and searchable insurer suggestions.
+- Approved formula: base 100, customer discount 20%, contractual discount 10% => patient payment 80, contractual reduction 10, insurer receivable 10, final sale 90. Both percentages use the original net POS total after existing discounts.
+- Invoice, stock, coverage snapshot, coverage lines, claim and payment queues share the checkout transaction. Failed insurance checkout discards tracked state; the UI basket is copied before insurance reductions, so retry does not double-discount.
+- Contractual reductions are distributed across FEFO lines before normal tax calculation. Customer percentage determines the payment split and does not create a second sales discount.
+- Added company ledger statements, insurer-specific asset accounts, claim decision ledger adjustments and company receipt ledger postings. Corrected claim receipt allocation links and blocked duplicate claim allocations and overpayments.
+- Automated insurance regression: 27 passed, 0 failed, 0 skipped (19 new cases plus 8 existing insurance tests), using EF InMemory and mocked checkout transaction probes only.
+- Full Windows-targeted solution build: passed with 0 errors in an isolated current-source copy on macOS. Existing compiler warnings remain.
+- No production SQL, live record modification, or application launch was performed during verification.
+- Migration 20261022160000_AddPosInsuranceBilling makes contract/version/member references optional for POS coverage and member references optional for claims; existing records are preserved. Apply the supplied SQL manually before using the feature.
+- Remaining manual checks: customer/company suggestions and Arabic/English layout; normal POS discounts; cash/Visa split; zero-patient and zero-insurer amounts; cashier totals; printed receipt; claim filtering/review/receipt; company statement after accounting queue processes; relational rollback and concurrent checkout/receipt handling against a test SQL Server database.
+- Insurance details must be removed before holding a draft; completed insurance invoices retain their calculation snapshot. Historical insurance postings are not backfilled.
+
+
+## 2026-10-22 Insurance Claim Present but Company Statement Empty
+
+- New POS insurance checkouts post the invoice journal synchronously inside the existing checkout transaction, instead of deferring the invoice journal to the background queue. A failed accounting result or exception requests rollback; ordinary POS invoices retain deferred posting.
+- Patient financial queue rows are explicitly saved before the insurance transaction commits. Insurance receivables remain excluded from cash/card receipt queues.
+- Corrected self-comparisons introduced into checkout's existing-invoice/draft filters. Lookup now compares the stored row against the checkout invoice ID, number, cashier and session, and excludes completed invoices from draft reuse.
+- Company statements now identify finalized insurance invoices missing a receivable journal on the company's account, showing pending/processing/failed status, the saved posting error, or a missing/completed-operation mismatch. Statement viewing performs read-only queries and does not repair or retry postings automatically.
+- Insurance regression: 33 passed, 0 failed, 0 skipped. Six new tests cover immediate company-ledger posting, failed/throwing accounting results, missing invoice IDs, unrelated drafts and matching held drafts. EF InMemory verifies calculation/posting outcomes; mocked transaction probes verify rollback requests. Relational SQL Server rollback/concurrency remains a manual check.
+- Full isolated WPF solution build passed with 0 errors. No app launch, production SQL, automatic historical posting, or live record repair was performed.
+- Existing missing movements still require reviewing the statement's posting error / Accounting Operations and resolving/retrying that invoice. The update does not fabricate ledger movements from claims.
+
+## 2026-10-22 POS Barcode Lookup Performance
+
+### Scope
+- Added an indexed POS catalog lookup for exact item codes and alternate barcodes.
+- Preserved the existing product/stock query as a fallback when the catalog has no match.
+- Reused the catalog snapshot's cached price, expiry, and quantity data to avoid repeated stock aggregation queries during barcode entry.
+
+### Verification
+- Isolated WPF application build: passed with 0 errors; existing warnings remain (1018 warnings).
+- No database schema or production data changes.
+
+### Manual verification remains
+- Scan or enter a stocked item code and confirm faster product loading.
+- Repeat with an alternate barcode and an unknown barcode.
+- Confirm recently changed product/stock data is reflected after the catalog refresh queue completes.
+
+## 2026-10-22 POS Barcode Cell Lookup
+
+### Scope
+- Corrected POS barcode-cell lookup to pass the entered value to the barcode search parameter instead of the product-name parameter.
+- No database, migration, or UI layout changes.
+
+### Verification
+- Isolated WPF application build: passed with 0 errors; existing warnings remain (1065 warnings).
+- Normal solution build was blocked only when copying the executable because the running `RaccoonWarehouse` process locked `RaccoonWarehouse.exe`.
+
+### Manual verification remains
+- In POS, enter a stocked item code in the Barcode cell and press Enter; confirm the product and quantity are loaded.
+- Repeat with a stocked alternate barcode.
+- Enter an unknown barcode; confirm it remains rejected without selecting another product.
+
+## 2026-10-22 POS Main-Unit Partial Sale Shortcut
+
+### Scope
+- Keeps the main product unit and the entered decimal shortcut visible in the POS row.
+- Uses cached product-unit metadata to validate fractional sales and calculate base quantity, effective sale price, and cost.
+- Queues the POS catalog refresh after creating a missing Tape unit so the current row is not blocked by catalog rebuilding.
+
+### Verification
+- Full isolated WPF solution build passed with 0 errors; existing warnings remain (1033 warnings).
+- No database schema or production data changes were performed.
+
+### Manual verification remains
+- With an allowed main unit, enter `0.1`, `0.2`, and `1.1`; confirm the main unit remains displayed and totals/cost are correct.
+- Enter `0.0`, a value with more than one fractional digit, and a fractional value on a unit that disallows partial sale; confirm rejection and quantity restoration.
+- Test both an existing Tape unit and a product without Tape; confirm the popup calculates price, permits editing, saves the unit, and the current row updates without waiting for catalog refresh.
+- Confirm later product searches see the new Tape unit after the background catalog refresh completes.
+
+## 2026-10-22 Product Fractional-Sale Metadata Fix
+
+### Scope
+- Product Create and Update now expose and persist `FractionalPartsPerUnit` and `FractionalPartName` for each product unit.
+- Product Update sends the freshly saved unit metadata directly to the POS cache, avoiding a stale `AllowFractionalSale` decision immediately after editing.
+- Application validation now requires whole parts greater than one when fractional sale is enabled.
+
+### Verification
+- Full isolated WPF solution build passed with 0 errors; existing warnings remain (526 warnings on the incremental build).
+- Focused stock and costing tests: 23 passed, 0 failed.
+- No database schema or production data changes were performed.
+
+### Manual verification remains
+- Update barcode `12659858`, enable fractional sale, set parts per package, add it to POS, and enter `0.1`.
+- Confirm the configuration popup opens when Tape is missing and that the main unit metadata is available immediately after Product Update.
+
+## 2026-10-22 POS Partial-Sale Save Validation Fix
+
+### Scope
+- Added a UI-only resolved marker to invoice lines after successful decimal partial-sale conversion.
+- POS save validation now accepts a decimal main-unit quantity only when it has passed the partial-sale popup/conversion flow.
+- Editing the quantity clears the marker and requires validation again; zero and cancelled/invalid partial quantities remain rejected.
+
+### Verification
+- Full isolated WPF solution build passed with 0 errors; existing warnings remain (1130 warnings).
+- Focused stock and costing tests: 23 passed, 0 failed.
+- No database schema or production data changes were performed.
+
+### Manual verification remains
+- Enter `0.1` without Tape, complete the popup, and save; confirm the previous re-entry warning does not appear.
+- Cancel the popup and confirm saving remains blocked.
+- Enter `0.0` and confirm it is rejected.
+
+## 2026-10-22 POS Quantity Enter Partial-Sale Trigger Fix
+
+### Scope
+- Quantity Enter now runs partial-sale validation before the DataGrid commits the cell or moves focus.
+- Enter-triggered quantity processing is guarded so `CellEditEnding` does not show a duplicate popup.
+- Whole quantities, invalid quantities, cancellation, stock checks, and FEFO processing remain on their existing paths.
+
+### Verification
+- Full isolated WPF solution build passed with 0 errors; existing warnings remain (1130 warnings).
+- Focused stock and costing tests: 23 passed, 0 failed.
+
+### Manual verification remains
+- Add barcode `12659858`, edit quantity to `0.1`, and press Enter; confirm the fractional-sale configuration popup opens before focus moves.
+- Confirm an existing Tape unit does not show the popup and recalculates price correctly.
+- Cancel the popup and confirm the previous quantity remains and invoice save is still blocked.
+
+## 2026-10-22 POS Quantity Header and Unit Metadata Correction
+
+### Scope
+- Corrected quantity-column detection so pressing Enter reaches partial-sale processing.
+- Partial sale now requires the selected unit to allow fractional sale, have a valid base quantity, and have an integer `FractionalPartsPerUnit` value of at least two.
+- Missing or invalid fractional metadata is rejected safely; products without a Tape unit continue through the configuration popup.
+
+### Verification
+- Full isolated WPF solution build passed with 0 errors; existing warnings remain (530 warnings on the incremental build).
+- Focused stock and costing tests: 23 passed, 0 failed.
+
+### Manual verification remains
+- Rebuild/restart the running POS application, add barcode `12659858`, enter `0.1`, and press Enter.
+- Confirm the popup opens when fractional sale is enabled and Tape is not configured.
+- Confirm disabled fractional sale or invalid package-parts metadata does not silently accept the decimal quantity.
+
+## 2026-10-22 Dashboard Startup DbContext Concurrency Fix
+
+### Scope
+- Dashboard startup now awaits Sales module loading before checking expired stock.
+- Sidebar navigation is serialized to prevent concurrent permission queries on the same scoped `DbContext`.
+- Receipt navigation uses the same guarded path as other dashboard navigation.
+
+### Verification
+- Full isolated WPF solution build passed with 0 errors; existing warnings remain (1127 warnings).
+- Focused stock and costing tests: 23 passed, 0 failed.
+- No database changes are required for this fix.
+
+### Manual verification remains
+- Restart the application and confirm the expired-stock window/alert loads when expired stock exists.
+- Rapidly click dashboard navigation buttons and confirm no second-operation error appears.
+
+## 2026-10-22 POS Startup Expiry Query Optimization
+
+### Scope
+- Replaced the dashboard startup batch lookup with a lightweight `AnyAsync` expiry check.
+- Added an EF index definition for `StockLot(ExpiryDate, RemainingQuantity)`.
+- The full batch lookup remains available for stock-management screens.
+
+### Verification
+- Full isolated WPF solution build passed with 0 errors; existing warnings remain (1058 warnings).
+- Focused stock and costing tests: 23 passed, 0 failed.
+
+### Manual verification remains
+- Run the SSMS index script if the index does not already exist.
+- Restart the application and open POS; confirm startup does not time out.
+- Confirm the expired-stock alert still appears when expired stock exists.
+
+## 2026-10-22 POS Immediate Barcode Row Startup
+
+### Scope
+- POS now binds the initial invoice row and prepares the barcode cell before optional customer and row-color data loads.
+- Customer and row-color loading now runs asynchronously after the POS shell is usable.
+- Product catalog warming remains isolated and asynchronous.
+
+### Verification
+- Full isolated WPF solution build passed with 0 errors; existing warnings remain (1127 warnings).
+- Focused stock and costing tests: 23 passed, 0 failed.
+
+### Manual verification remains
+- Open POS and confirm the first empty row and barcode cell appear immediately.
+- Confirm customers become available after background loading completes.
+- Scan a barcode immediately after POS opens and confirm normal processing.
+
+## 2026-10-22 Purchase Order Payment Refresh Concurrency Fix
+
+### Scope
+- Added a Purchase Orders operation guard for approve, reject, and mark-paid actions.
+- Window activation and manual refresh are prevented from starting a second list load while an operation is active.
+- Loading is hidden before the result message is displayed, so the success message is no longer shown under the loading overlay.
+
+### Verification
+- Full isolated WPF solution build passed with 0 errors; existing warnings remain (528 warnings).
+- Focused stock and costing tests: 23 passed, 0 failed.
+
+### Manual verification remains
+- Open Purchase Orders, mark an unpaid order as paid, and confirm one success message appears.
+- Confirm the list refreshes once and no second-operation DbContext error appears.
+- Repeat approve/reject and rapid window activation checks.
+
+## 2026-10-22 POS Optional Startup DbContext Serialization
+
+### Scope
+- Changed optional customer and row-color startup loading from concurrent to sequential execution.
+- Preserved immediate invoice-row and barcode focus behavior while preventing shared scoped `DbContext` overlap.
+
+### Verification
+- Full isolated WPF solution build passed with 0 errors; existing warnings remain (528 warnings).
+- Focused stock and costing tests: 23 passed, 0 failed.
+
+### Manual verification remains
+- Open POS and confirm no second-operation error appears from `PosRowColorRuleService`.
+- Confirm the barcode row is available immediately and customer data loads afterward.
+
+## 2026-10-22 POS Saved Tape Price Calculation
+
+### Scope
+- Partial-sale pricing now uses the saved Tape sale and purchase prices together with the converted Tape quantity.
+- The grid continues displaying the equivalent main-unit price while the line total reflects the saved Tape price.
+
+### Verification
+- Full isolated WPF solution build passed with 0 errors; existing warnings remain (1130 warnings).
+- Focused stock and costing tests: 23 passed, 0 failed.
+
+### Manual verification remains
+- With Tape already configured, enter `0.1` and confirm the saved Tape price is used without reopening configuration.
+- Confirm the displayed line total equals one saved Tape price and `0.2` equals two saved Tape prices.
+
+## 2026-10-22 POS Partial-Sale Save Validation and Purchase Summary Card Width
+
+### Scope
+- POS save validation now retries the configured in-memory partial-sale resolution when the quantity-cell commit is still completing.
+- Valid configured decimal quantities such as `0.1` are accepted without the re-entry warning.
+- Purchase Orders and Purchase Requests summary amount cards were widened from 190px to 230px so larger formatted amounts remain visible.
+
+### Verification
+- Full isolated WPF solution build passed with 0 errors; existing warnings remain (1127 warnings).
+- Focused stock and costing tests: 23 passed, 0 failed.
+- XAML inspection confirmed all Purchase Orders and Purchase Requests summary cards use the wider layout.
+
+### Manual verification remains
+- In POS, configure product `12659858`, enter `0.1`, and finish the sale; confirm the re-entry warning does not appear.
+- Enter an unconfigured fractional quantity and confirm validation still prevents saving.
+- Open Purchase Orders and Purchase Requests with large totals and confirm the complete amount text is visible.
+
+## 2026-10-22 POS Product Card Shortcut
+
+### Scope
+- Added `Ctrl+O` in the Product Search grid to open the selected product's Update Product card.
+- Kept the existing Add button and Enter-to-add behavior unchanged; no additional card button was added.
+- Re-runs the current product search after the card closes so saved product/unit metadata is refreshed in the search results.
+
+### Verification
+- Full isolated WPF solution build passed with 0 errors; existing warnings remain (532 warnings).
+- Focused stock and costing tests: 23 passed, 0 failed.
+
+### Manual verification remains
+- Open POS product search, select a row, press `Ctrl+O`, and confirm the product card opens.
+- Save a product/unit change, close the card, and confirm the search row reflects the updated data.
+- Confirm Enter still adds the selected product and the existing Add button is unchanged.
+
+## 2026-10-22 Main-Unit Partial-Sale Pricing Metadata
+
+### Scope
+- Added nullable fractional-sale price and cost fields to `ProductUnit` and the POS catalog.
+- Configuration now saves partial-sale settings on the existing main unit instead of creating a Tape unit.
+- POS uses the saved partial-sale price and cost immediately; existing Tape-unit data remains supported as a legacy fallback.
+
+### Verification
+- Full isolated WPF solution build passed with 0 errors; existing warnings remain (1131 warnings).
+- Focused stock and costing tests: 23 passed, 0 failed.
+- No database schema or production data changes were performed by the agent.
+
+### Manual verification remains
+- Run the supplied SSMS script, restart POS, and open barcode `12659858`.
+- Configure parts per unit, partial-sale price, and partial-sale cost; confirm no new Tape unit is created.
+- Enter `0.1` and `0.2`; confirm the saved partial price is used and totals are correct.
+
+## 2026-10-22 Product Unit Partial-Sale Price Editor
+
+### Scope
+- Added editable Partial Sale Price and Partial Sale Cost fields to each Product Update unit row.
+- Existing values load from the product unit and are saved back with the unit.
+- Values are cleared when fractional sale is disabled.
+- Added bilingual validation for invalid optional price and cost values.
+
+### Verification
+- Main application build passed with 0 errors; existing warnings remain (533 warnings).
+- Focused stock and costing tests: 23 passed, 0 failed.
+- UI inspection confirmed the new fields use the existing unit-row layout and localization pattern.
+
+### Manual verification remains
+- Open product `12659858` in Product Update and confirm both saved values are displayed.
+- Edit the values, save, reopen the product, and confirm they persist.
+- Enter invalid price/cost values and confirm bilingual validation appears.
+- Disable fractional sale and confirm the values are cleared after saving.
+
+## 2026-10-23 Fractional Parts Validation Message
+
+### Scope
+- Replaced the corrupted Arabic validation text for invalid Parts per package values.
+- The message now displays the current entered value in Arabic and English.
+- Invalid values remain blocked and the field remains focused and selected.
+
+### Verification
+- Application project build: passed with 0 errors; existing warnings remain (1067 warnings).
+
+### Manual verification remains
+- Test blank, `1`, `1.5`, and non-numeric values; confirm the localized message identifies the current value.
+- Test `2` and `10`; confirm the unit saves successfully.
+
+## 2026-10-23 Product Unit Parts Validation Focus
+
+### Scope
+- Improved the Product Update unit validation feedback when fractional sale is enabled but Parts per package is missing or invalid.
+- The invalid field is now focused and selected before the localized validation message is shown.
+
+### Verification
+- Application project build: passed with 0 errors; existing warnings remain (1067 warnings).
+- Static validation review covered blank, non-numeric, decimal, 1, and valid whole-number values.
+
+### Manual verification remains
+- Enable fractional sale, leave Parts per package blank, and save; confirm the field is focused and saving is blocked.
+- Enter `1` or `1.5`; confirm saving remains blocked.
+- Enter `2` or `10`; confirm the unit saves successfully.
+
+## 2026-10-23 Purchase Invoice Percentage/Fixed Discount Input
+
+### Scope
+- Purchase invoice item discounts now accept fixed amounts such as `5` and percentages such as `10%`.
+- Purchase invoice total discounts now accept fixed amounts or percentages from `0%` to `100%`.
+- Percentage discounts recalculate when quantity or price changes, and invalid discount input is blocked on focus loss and before saving.
+- Persisted values remain calculated discount amounts, so no database migration is required.
+
+### Verification
+- Application project build passed with 0 errors; existing warnings remain (1062 warnings).
+- Static review covered fixed, percentage, empty, negative, malformed, and over-100% inputs.
+
+### Manual verification remains
+- In Purchase Invoice, enter `5` in an item discount and confirm the fixed discount is applied.
+- Enter `10%` in an item discount, change quantity or price, and confirm the discount recalculates.
+- Enter `10%` in the total discount and confirm subtotal, tax, and total update correctly.
+- Enter a negative value, malformed text, or a percentage over `100%`; confirm saving is blocked and a bilingual validation message appears.
+
+## 2026-10-23 POS Fractional-Sale Unit Cache Refresh
+
+### Scope
+- Product updates now notify POS to invalidate and reload unit metadata through an independent service scope.
+- POS no longer receives potentially stale read-back unit data from the product editor's tracked context.
+- This specifically protects `AllowFractionalSale`, parts-per-package, fractional price, and fractional cost after editing a product unit.
+
+### Verification
+- Application project build passed with 0 errors; existing warnings remain (1062 warnings).
+
+### Manual verification remains
+- Edit the unit for barcode `3729`, enable fractional sale, set valid parts per package and partial price/cost, then save.
+- With POS open, enter `0.1` for barcode `3729`; confirm the stale “partial sale is not allowed” message no longer appears.
+- Confirm a unit with fractional sale disabled still remains blocked.
+
+## 2026-10-23 Fractional-Sale Price/Cost Suggestions in Product Create and Update
+
+### Scope
+- Product Create now shows editable Partial Sale Price and Partial Sale Cost fields.
+- Product Update now calculates suggestions in each unit row when fractional sale is enabled and Parts per package is a valid whole number greater than 1.
+- Suggestions use base Sale Price and Purchase Price divided by Parts per package, rounded to three decimals.
+- User-edited partial prices and costs are preserved when base prices or parts change.
+- Partial values are included in the Create Product unit DTO and remain compatible with the existing persistence fields.
+
+### Verification
+- Application project build passed with 0 errors; existing warnings remain (1112 warnings).
+- Static review covered valid parts, blank/invalid parts, fractional-sale disabled, automatic recalculation, and manual override behavior.
+
+### Manual verification remains
+- In Create Product, enter Sale Price `20`, Purchase Price `12`, enable fractional sale, and enter `4`; confirm suggestions `5` and `3` appear.
+- Change the base prices or parts; confirm automatic values recalculate.
+- Edit either partial value manually, then change the base values; confirm the manual value is preserved.
+- Save, reopen/update the product, and confirm partial price and cost persist.
+
+## 2026-10-23 POS Repeated Fractional-Sale Popup Fix
+
+### Scope
+- POS now uses the saved partial price and cost when available.
+- If Parts per unit is valid but legacy partial price/cost fields are empty, POS calculates them from the main unit sale and purchase prices instead of reopening the configuration popup.
+- The configuration popup remains available when parts or required prices are missing/invalid.
+
+### Verification
+- Application project build passed with 0 errors; existing warnings remain (1112 warnings).
+- Static review confirmed both quantity-entry resolution and final-save resolution use the same fallback calculation.
+
+### Manual verification remains
+- Restart POS, enter `0.1` and then `0.2` for barcode `3729`; confirm the configuration popup does not appear when valid parts are already saved.
+- Confirm the calculated partial values are used for line price and cost.
+- Test a product with missing/invalid parts or prices; confirm the popup or validation still appears as appropriate.
+
+## 2026-10-23 Fractional Parts Stock Conversion
+
+### Scope
+- Fractional stock consumption now converts decimal shorthand into parts of the main unit.
+- With 3 parts per unit, `0.1` consumes `1/3`, `0.2` consumes `2/3`, and `0.3` consumes 1 main unit.
+- The conversion is guarded by `PartialSaleResolved` and fractional-sale metadata, so normal base-unit and whole-quantity sales retain the existing calculation.
+
+### Verification
+- Static review covered fractional quantities, whole quantities, disabled fractional sale, and normal base-unit sales.
+
+### Manual verification remains
+- Sell `0.1` three times and confirm stock decreases by one main unit in total.
+- Sell `0.3` once and confirm stock decreases by one main unit.
+- Sell base-unit quantities `1`, `2`, and `3`; confirm they remain unchanged.
+
+## 2026-10-23 Fractional Stock Movement Posting
+
+### Scope
+- Stock posting now consumes the movement DTO's calculated `BaseQuantity` for outgoing sales.
+- This prevents the stock service from treating fractional shorthand such as `0.1` as `0.1` of a base unit.
+- Normal sales remain unchanged because their base quantity is still derived from quantity multiplied by the unit factor.
+
+### Verification
+- Code review confirmed the outgoing FEFO loop now tracks and subtracts base quantity directly.
+- Project build verification is required after this change.
+
+### Manual verification remains
+- With 3 parts per unit, sell `0.1` and confirm the movement decreases approximately `0.333333` base unit.
+- Sell `0.1` three times, or `0.3` once, and confirm the total decrease is 1 base unit.
+- Sell regular base-unit quantities and confirm they are not converted by the fractional path.
+
+## 2026-10-23 Preserve Fractional Metadata During FEFO Expansion
+
+### Scope
+- POS FEFO split lines now preserve the selected product, product unit, and fractional-sale resolution state.
+- This prevents checkout recalculation from converting a fractional quantity back to ordinary base-unit arithmetic.
+
+### Manual verification remains
+- With 3 parts per unit, complete sales for `0.1`, `0.2`, and `0.3`; confirm movement base quantities are approximately `0.333333`, `0.666667`, and `1.000000`.
+- Confirm ordinary base-unit sales are unchanged.
+
+## 2026-10-23 Final POS Fractional Movement Conversion
+
+### Scope
+- The final POS stock-movement builder now recalculates fractional base quantity from the saved product-unit configuration immediately before posting.
+- This does not rely on the temporary UI resolution marker and protects the final stock transaction from later line reconstruction.
+
+
+## 2026-10-23 - Pharmacy purchase bonus ratios and lot cost allocation
+
+- Added validated paid+free offers using the existing FreeQuantity field; repeated Apply replaces, never adds. Quantity changes recalculate an active offer; pending/malformed ratios block save. Manual free edits clear the offer explicitly.
+- New bonus/manual-free invoices snapshot net acquisition cost, after line/header discounts and excluding the existing recoverable input VAT. All lines in a mixed bonus invoice receive consistent header-discount allocation.
+- Each purchase line receipt creates its own lot, containing paid+free quantity and effective unit cost; no lot merging, product master averaging, sale-price changes, or historical revaluation was introduced.
+- New allocated lots use their own cost for sales allocation even if the existing legacy weighted-average setting is selected; legacy lots/settings retain their prior behavior.
+- Added explicit paid/free purchase returns targeting the source lot; only paid quantities create supplier refunds/credits. Return journals reverse actual inventory cost with a bonus-allocation difference in the existing COGS account. Supplier credit is allowed only for originally credit purchases. Zero-value financial queue entries are skipped.
+- Purchase save/update composes invoice, stock, accounting, and financial operations in a transaction; consumed/returned bonus purchases are blocked from edit. Return limit checks and lot deduction use a serializable SQL transaction.
+- Original unit factors and cumulative rounding are preserved for returns; free-only remainder stays selectable in return lookup. Sales return receipt costs retain the original effective cost marker.
+- Automated feature tests: 46 passed, 0 failed. Full regression: 215 passed, 8 failed / 223; unchanged baseline: 169 passed, the same 8 failed / 177. No new failing test names.
+- Source-only WPF semantic validation: 347 syntax trees, 0 errors; XAML and translation JSON parse; exactly one FreeQuantity column. No ERP executable was rebuilt or launched.
+- Prepared additive EF migration, target model/snapshot, and idempotent manual SQL; production SQL was not executed. Historical nullable fields remain null.
+- Existing unrelated EF snapshot/model drift remains; the supplied migration/SQL adds only the five bonus columns and two indexes.
+- Remaining checks: manually apply SQL to a test copy, build/start on Windows, verify RTL layout and keyboard editing, cash/card/credit returns, SQL concurrency/rollback, and existing report screens. The invoice schema has no non-recoverable-tax or landed-charge inputs; the feature follows its existing recoverable-input-VAT treatment.

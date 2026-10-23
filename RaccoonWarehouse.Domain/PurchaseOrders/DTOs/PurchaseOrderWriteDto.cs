@@ -8,6 +8,7 @@ namespace RaccoonWarehouse.Domain.PurchaseOrders.DTOs
         public string OrderNumber { get; set; } = string.Empty;
         public string? SupplierName { get; set; }
         public PurchaseOrderStatus Status { get; set; } = PurchaseOrderStatus.Submitted;
+        public PurchaseOrderPaymentStatus PaymentStatus { get; set; } = PurchaseOrderPaymentStatus.Unpaid;
         public int? SupplierId { get; set; }
         public int? WarehouseId { get; set; }
         public int? CurrencyId { get; set; }
@@ -24,6 +25,12 @@ namespace RaccoonWarehouse.Domain.PurchaseOrders.DTOs
         public int? SubmittedBy { get; set; }
         public int? ApprovedBy { get; set; }
         public DateTime? ApprovedDate { get; set; }
+        public int? PaidBy { get; set; }
+        public DateTime? PaidDate { get; set; }
+        public string? PaymentNote { get; set; }
+        public int? RejectedBy { get; set; }
+        public DateTime? RejectedDate { get; set; }
+        public string? RejectionReason { get; set; }
         public int? ConvertedInvoiceId { get; set; }
         public DateTime CreatedDate { get; set; }
         public DateTime UpdatedDate { get; set; }

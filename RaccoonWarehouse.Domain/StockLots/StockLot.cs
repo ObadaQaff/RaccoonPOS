@@ -19,6 +19,9 @@ namespace RaccoonWarehouse.Domain.StockLots
         public decimal BaseQuantity { get; set; }
         public decimal RemainingBaseQuantity { get; set; }
         public decimal PurchasePrice { get; set; }
+        // Exact original line acquisition amount; PurchasePrice remains the unit cost.
+        public decimal? PurchaseAcquisitionCost { get; set; }
+        public int? SourcePurchaseLineId { get; set; }
         public decimal SalePrice { get; set; }
         public DateTime? ExpiryDate { get; set; }
         public string? Notes { get; set; }

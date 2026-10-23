@@ -169,6 +169,7 @@ namespace RaccoonWarehouse.Application.Service.Permissions
 
             await EnsureSeedDataAsync();
             var userPermission = await _dbContext.Set<UserPermission>()
+
                 .AsNoTracking()
                 .FirstOrDefaultAsync(x => x.UserId == user.Id && x.PermissionKey == permissionKey);
             if (userPermission == null &&

@@ -39,6 +39,7 @@ namespace RaccoonWarehouse.Domain.Permissions
             AddResource(items, ref sort, "Insurance", "InsuranceReports", "Insurance reports", "View", "Export");
 
             AddResource(items, ref sort, "Purchases", "PurchaseOrder", "Purchase Orders", "View", "Create", "Edit", "Submit", "Approve", "Reject", "Cancel", "Print");
+            AddResource(items, ref sort, "Purchases", "PurchaseRequest", "Purchase Requests", "View", "Create", "Edit", "Submit", "Approve", "Reject", "Cancel", "Print");
 
             AddResource(items, ref sort, "Dashboard", "Dashboard", "لوحة التحكم", "View");
             AddResource(items, ref sort, "Sales", "SalesInvoice", "فاتورة المبيعات", "View", "Create", "Edit", "Delete", "Print", "Cancel", "Return", "Post", "ApplyDiscount", "ChangePrice", "Reopen");

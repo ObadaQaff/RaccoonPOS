@@ -959,12 +959,30 @@
                               PreparingCellForEdit="InvoiceGrid_PreparingCellForEdit"
                               CellEditEnding="InvoiceGrid_CellEditEnding"
                               CurrentCellChanged="InvoiceGrid_CurrentCellChanged">
+                        <DataGrid.CellStyle>
+                            <Style TargetType="DataGridCell">
+                                <Setter Property="Background" Value="{Binding RowBackground}"/>
+                                <Setter Property="Foreground" Value="{Binding RowForeground}"/>
+                                <Style.Triggers>
+                                    <Trigger Property="IsSelected" Value="True">
+                                        <Setter Property="Background" Value="{Binding RowBackground}"/>
+                                        <Setter Property="Foreground" Value="{Binding RowForeground}"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </DataGrid.CellStyle>
                         <DataGrid.RowStyle>
                             <Style TargetType="DataGridRow">
                                 <Setter Property="Background" Value="{Binding RowBackground}"/>
                                 <Setter Property="Foreground" Value="{Binding RowForeground}"/>
                                 <Setter Property="BorderBrush" Value="{Binding RowAccent}"/>
                                 <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                                <Style.Triggers>
+                                    <Trigger Property="IsSelected" Value="True">
+                                        <Setter Property="Background" Value="{Binding RowBackground}"/>
+                                        <Setter Property="Foreground" Value="{Binding RowForeground}"/>
+                                    </Trigger>
+                                </Style.Triggers>
                             </Style>
                         </DataGrid.RowStyle>
                         <DataGrid.Columns>
@@ -1146,7 +1164,7 @@
                                  Tag="Discount"
                                  PreviewKeyDown="NumericEditor_PreviewKeyDown"
                                  PreviewTextInput="NumericEditor_PreviewTextInput"
-                                 TextChanged="DiscountTextBox_TextChanged"/>
+                                 LostFocus="InvoiceDiscount_LostFocus"/>
                         <Border Background="#FDE8EA" CornerRadius="8" Padding="10,6" Margin="0,0,0,4">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="خصم: " Style="{StaticResource SummaryLabel}" FontSize="11"/>

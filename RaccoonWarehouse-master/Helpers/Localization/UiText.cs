@@ -12,6 +12,23 @@ namespace RaccoonWarehouse.Helpers.Localization
 {
     public static class UiText
     {
+        private static readonly Dictionary<string, string> InsuranceTranslations = new(StringComparer.Ordinal)
+        {
+            ["بيانات التأمين"] = "Insurance details",
+            ["نسبة خصم العميل (%)"] = "Customer discount (%)",
+            ["ذمة شركة التأمين"] = "Insurance receivable",
+            ["كشف حساب شركة التأمين"] = "Insurance company statement",
+            ["كشف الحساب"] = "Account statement",
+            ["كل الشركات"] = "All companies",
+            ["العضوية / Member"] = "Member",
+            ["الشركة / Company"] = "Company",
+            ["المريض / Patient"] = "Patient",
+            ["شركة التأمين / Insurance company"] = "Insurance company",
+            ["من / From"] = "From",
+            ["إلى / To"] = "To",
+            ["الحالة / Status"] = "Status",
+            ["التاريخ / Date"] = "Date",
+        };
         private static readonly Dictionary<string, string> TranslationCache = new(StringComparer.Ordinal);
         private static Dictionary<string, string>? _literalTranslations;
 
@@ -35,7 +52,7 @@ namespace RaccoonWarehouse.Helpers.Localization
             if (TranslationCache.TryGetValue(text, out var cached))
                 return cached;
 
-            var translated = TryTranslateExact(text)
+            var translated = InsuranceTranslations.GetValueOrDefault(text) ?? TryTranslateExact(text)
                 ?? TryTranslateTrimmed(text)
                 ?? text;
 

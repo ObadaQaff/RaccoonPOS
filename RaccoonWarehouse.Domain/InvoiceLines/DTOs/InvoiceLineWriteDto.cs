@@ -31,6 +31,11 @@ namespace RaccoonWarehouse.Domain.InvoiceLines.DTOs
                 if (_quantity != value)
                 {
                     _quantity = value;
+                    if (PurchaseBonusRatio.TryCalculate(BonusRatio, value, out var bonus))
+                        FreeQuantity = bonus;
+                    OnPropertyChanged(nameof(TotalReceivedQuantity));
+                    OnPropertyChanged(nameof(EffectiveLotUnitCost));
+                    OnPropertyChanged(nameof(BonusNeedsApply));
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(LineTotal)); // Also notify that LineTotal changed
                     OnPropertyChanged(nameof(LineDiscountPercent));
@@ -124,6 +129,10 @@ namespace RaccoonWarehouse.Domain.InvoiceLines.DTOs
             ? $"{LineDiscountPercent:0.000}%"
             : $"{LineDiscountAmount:0.000}");
 
+        // UI-only marker. The POS sets this after the decimal shortcut has
+        // passed partial-sale validation and conversion.
+        public bool PartialSaleResolved { get; set; }
+
         // The stored value remains LineDiscountAmount. This calculated property
         // provides percentage editing in POS without changing the database.
         public decimal LineDiscountPercent
@@ -147,6 +156,30 @@ namespace RaccoonWarehouse.Domain.InvoiceLines.DTOs
                 OnPropertyChanged(nameof(LineDiscountInput));
             }
         }
+        private string? _bonusRatio;
+        public string? BonusRatio
+        {
+            get => _bonusRatio;
+            set { _bonusRatio = value; OnPropertyChanged(); OnPropertyChanged(nameof(BonusNeedsApply)); }
+        }
+        private decimal? _purchaseAcquisitionCost;
+        public decimal? PurchaseAcquisitionCost
+        {
+            get => _purchaseAcquisitionCost;
+            set { _purchaseAcquisitionCost = value; OnPropertyChanged(); OnPropertyChanged(nameof(EffectiveLotUnitCost)); }
+        }
+        public int? SourcePurchaseLineId { get; set; }
+        public decimal TotalReceivedQuantity => Quantity + FreeQuantity;
+        public decimal? EffectiveLotUnitCost => TotalReceivedQuantity > 0m && PurchaseAcquisitionCost.HasValue
+            ? Math.Round(PurchaseAcquisitionCost.Value / TotalReceivedQuantity, 6) : null;
+        public bool BonusNeedsApply => !string.IsNullOrWhiteSpace(BonusRatio)
+            && (!PurchaseBonusRatio.TryCalculate(BonusRatio, Quantity, out var expected) || expected != FreeQuantity);
+        public bool ApplyBonus()
+        {
+            if (!PurchaseBonusRatio.TryCalculate(BonusRatio, Quantity, out var free)) return false;
+            FreeQuantity = free;
+            return true;
+        }
         private decimal _freeQuantity;
         public decimal FreeQuantity
         {
@@ -156,6 +189,9 @@ namespace RaccoonWarehouse.Domain.InvoiceLines.DTOs
                 if (_freeQuantity != value)
                 {
                     _freeQuantity = value;
+                    OnPropertyChanged(nameof(TotalReceivedQuantity));
+                    OnPropertyChanged(nameof(EffectiveLotUnitCost));
+                    OnPropertyChanged(nameof(BonusNeedsApply));
                     OnPropertyChanged();
                 }
             }

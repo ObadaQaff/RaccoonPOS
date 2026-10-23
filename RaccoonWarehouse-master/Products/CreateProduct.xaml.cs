@@ -45,6 +45,9 @@ namespace RaccoonWarehouse.Products
         private bool _isFilteringSuppliers;
         private bool _isNavigatingSuppliers;
         private string _supplierSearchText = string.Empty;
+        private decimal? _lastSuggestedFractionalSalePrice;
+        private decimal? _lastSuggestedFractionalSaleCost;
+        private bool _isUpdatingFractionalSuggestions;
         public string? InitialItemCode { get; set; }
         public int? CreatedProductId { get; private set; }
 
@@ -65,6 +68,13 @@ namespace RaccoonWarehouse.Products
 
             InitializeComponent();
             UnitComboBox.Loaded += UnitComboBox_Loaded;
+            SalePriceTextBox.TextChanged += FractionalSuggestionSourceChanged;
+            PurchasePriceTextBox.TextChanged += FractionalSuggestionSourceChanged;
+            FractionalPartsPerUnitTextBox.TextChanged += FractionalSuggestionSourceChanged;
+            AllowFractionalSaleCheckBox.Checked += FractionalSuggestionSourceChanged;
+            AllowFractionalSaleCheckBox.Unchecked += FractionalSuggestionSourceChanged;
+            FractionalSalePriceTextBox.TextChanged += FractionalSuggestionValueChanged;
+            FractionalSaleCostTextBox.TextChanged += FractionalSuggestionValueChanged;
             Loaded += async (_, _) =>
             {
                 if (_isLoaded)
@@ -312,6 +322,24 @@ namespace RaccoonWarehouse.Products
                 return;
             }
 
+            var allowFractionalSale = AllowFractionalSaleCheckBox.IsChecked == true;
+            var fractionalParts = 0m;
+            if (!string.IsNullOrWhiteSpace(FractionalPartsPerUnitTextBox.Text) &&
+                !decimal.TryParse(FractionalPartsPerUnitTextBox.Text, out fractionalParts))
+            {
+                MessageBox.Show(UiText.T("ÙŠØ±Ø¬Ù‰ Ø¥Ø¯Ø®Ø§Ù„ Ø¹Ø¯Ø¯ Ø£Ø¬Ø²Ø§Ø¡ ØµØ­ÙŠØ­.", "Please enter a valid number of parts per package."));
+                return;
+            }
+            if (allowFractionalSale &&
+                (fractionalParts < 2m || fractionalParts != decimal.Truncate(fractionalParts)))
+            {
+                MessageBox.Show(UiText.T("Ø¹Ø¯Ø¯ Ø§Ù„Ø£Ø¬Ø²Ø§Ø¡ ÙŠØ¬Ø¨ Ø£Ù† ÙŠÙƒÙˆÙ† Ø±Ù‚Ù…Ø§Ù‹ ØµØ­ÙŠØ­Ø§Ù‹ Ø£ÙƒØ¨Ø± Ù…Ù† 1.", "Parts per package must be a whole number greater than 1."));
+                return;
+            }
+
+            var fractionalSalePrice = ParseOptionalFractionalValue(FractionalSalePriceTextBox.Text, "Partial Sale Price", true);
+            var fractionalSaleCost = ParseOptionalFractionalValue(FractionalSaleCostTextBox.Text, "Partial Sale Cost", false);
+
             var selectedUnitId = (int)UnitComboBox.SelectedValue;
             if (_productUnits.Any(u => u.UnitId == selectedUnitId))
             {
@@ -326,9 +354,13 @@ namespace RaccoonWarehouse.Products
                 SalePrice = salePrice,
                 PurchasePrice = purchasePrice,
                 QuantityPerUnit = qty,
-                AllowFractionalSale = AllowFractionalSaleCheckBox.IsChecked == true,
-                FractionalPartsPerUnit = 0m,
-                FractionalPartName = null,
+                AllowFractionalSale = allowFractionalSale,
+                FractionalPartsPerUnit = allowFractionalSale ? fractionalParts : 0m,
+                FractionalSalePrice = allowFractionalSale ? fractionalSalePrice : null,
+                FractionalSaleCost = allowFractionalSale ? fractionalSaleCost : null,
+                FractionalPartName = allowFractionalSale && !string.IsNullOrWhiteSpace(FractionalPartNameTextBox.Text)
+                    ? FractionalPartNameTextBox.Text.Trim()
+                    : null,
                 IsBaseUnit = IsBaseUnitCheckBox.IsChecked == true,
                 IsDefaultSaleUnit = IsDefaultSaleUnitCheckBox.IsChecked == true,
                 IsDefaultPurchaseUnit = IsDefaultPurchaseUnitCheckBox.IsChecked == true,
@@ -376,14 +408,6 @@ namespace RaccoonWarehouse.Products
             row.Children.Add(CreateUnitInfoBlock(UiText.T("أساسية", "Primary"), unit.IsBaseUnit ? UiText.T("نعم", "Yes") : UiText.T("لا", "No")));
             row.Children.Add(CreateUnitInfoBlock(UiText.T("بيع", "Sale"), unit.IsDefaultSaleUnit ? UiText.T("افتراضي", "Default") : "-"));
             row.Children.Add(CreateUnitInfoBlock(UiText.T("شراء", "Purchase"), unit.IsDefaultPurchaseUnit ? UiText.T("افتراضي", "Default") : "-"));
-
-            // Fractional sales use a dedicated Tape unit; do not show the
-            // legacy parts/name columns in the unit summary.
-            if (row.Children.Count > 6)
-            {
-                row.Children.RemoveAt(6);
-                row.Children.RemoveAt(5);
-            }
 
             var removeButton = new Button
             {
@@ -485,6 +509,75 @@ namespace RaccoonWarehouse.Products
             return null;
         }
 
+        private void FractionalSuggestionSourceChanged(object? sender, RoutedEventArgs e)
+        {
+            SuggestFractionalPrices();
+        }
+
+        private void FractionalSuggestionSourceChanged(object? sender, TextChangedEventArgs e)
+        {
+            SuggestFractionalPrices();
+        }
+
+        private void FractionalSuggestionValueChanged(object? sender, TextChangedEventArgs e)
+        {
+            if (_isUpdatingFractionalSuggestions)
+                return;
+
+            if (sender == FractionalSalePriceTextBox && _lastSuggestedFractionalSalePrice.HasValue &&
+                (!decimal.TryParse(FractionalSalePriceTextBox.Text, out var price) || price != _lastSuggestedFractionalSalePrice.Value))
+                _lastSuggestedFractionalSalePrice = null;
+
+            if (sender == FractionalSaleCostTextBox && _lastSuggestedFractionalSaleCost.HasValue &&
+                (!decimal.TryParse(FractionalSaleCostTextBox.Text, out var cost) || cost != _lastSuggestedFractionalSaleCost.Value))
+                _lastSuggestedFractionalSaleCost = null;
+        }
+
+        private void SuggestFractionalPrices()
+        {
+            if (_isUpdatingFractionalSuggestions || AllowFractionalSaleCheckBox.IsChecked != true ||
+                !decimal.TryParse(SalePriceTextBox.Text, out var salePrice) || salePrice <= 0m ||
+                !decimal.TryParse(PurchasePriceTextBox.Text, out var purchasePrice) || purchasePrice < 0m ||
+                !decimal.TryParse(FractionalPartsPerUnitTextBox.Text, out var parts) ||
+                parts < 2m || parts != decimal.Truncate(parts))
+                return;
+
+            var suggestedPrice = Math.Round(salePrice / parts, 3, MidpointRounding.AwayFromZero);
+            var suggestedCost = Math.Round(purchasePrice / parts, 3, MidpointRounding.AwayFromZero);
+            _isUpdatingFractionalSuggestions = true;
+            try
+            {
+                if (string.IsNullOrWhiteSpace(FractionalSalePriceTextBox.Text) ||
+                    (_lastSuggestedFractionalSalePrice.HasValue && decimal.TryParse(FractionalSalePriceTextBox.Text, out var currentPrice) && currentPrice == _lastSuggestedFractionalSalePrice.Value))
+                {
+                    FractionalSalePriceTextBox.Text = suggestedPrice.ToString("0.###");
+                    _lastSuggestedFractionalSalePrice = suggestedPrice;
+                }
+
+                if (string.IsNullOrWhiteSpace(FractionalSaleCostTextBox.Text) ||
+                    (_lastSuggestedFractionalSaleCost.HasValue && decimal.TryParse(FractionalSaleCostTextBox.Text, out var currentCost) && currentCost == _lastSuggestedFractionalSaleCost.Value))
+                {
+                    FractionalSaleCostTextBox.Text = suggestedCost.ToString("0.###");
+                    _lastSuggestedFractionalSaleCost = suggestedCost;
+                }
+            }
+            finally
+            {
+                _isUpdatingFractionalSuggestions = false;
+            }
+        }
+
+        private static decimal? ParseOptionalFractionalValue(string text, string fieldName, bool greaterThanZero)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return null;
+
+            if (!decimal.TryParse(text, out var value) || (greaterThanZero ? value <= 0m : value < 0m))
+                throw new Exception($"{fieldName} must be numeric and {(greaterThanZero ? "greater than zero" : "zero or greater")}.");
+
+            return Math.Round(value, 3);
+        }
+
         private void ResetUnitEntryFields()
         {
             UnitComboBox.SelectedIndex = -1;
@@ -492,6 +585,12 @@ namespace RaccoonWarehouse.Products
             PurchasePriceTextBox.Clear();
             QuantityPerUnitTextBox.Clear();
             AllowFractionalSaleCheckBox.IsChecked = false;
+            FractionalPartsPerUnitTextBox.Clear();
+            FractionalSalePriceTextBox.Clear();
+            FractionalSaleCostTextBox.Clear();
+            _lastSuggestedFractionalSalePrice = null;
+            _lastSuggestedFractionalSaleCost = null;
+            FractionalPartNameTextBox.Clear();
             AlternateBarcodeTextBox.Clear();
             IsBaseUnitCheckBox.IsChecked = false;
             IsDefaultSaleUnitCheckBox.IsChecked = false;

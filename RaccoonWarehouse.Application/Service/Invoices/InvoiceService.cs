@@ -1,3 +1,4 @@
+using RaccoonWarehouse.Application.Service.Purchases;
 using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using RaccoonWarehouse.Application.Service.Accounting;
@@ -86,7 +87,7 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 if (dto.InvoiceLines == null || !dto.InvoiceLines.Any())
                     return Result<InvoiceWriteDto>.Fail("Invoice must contain at least one line.");
                 if (dto.InvoiceType == InvoiceType.PurchaseReturn
-                    && !dto.InvoiceLines.Any(line => line.ProductId > 0 && line.ProductUnitId > 0 && line.Quantity < 0))
+                    && !dto.InvoiceLines.Any(line => line.ProductId > 0 && line.ProductUnitId > 0 && (line.Quantity < 0 || line.FreeQuantity > 0)))
                     return Result<InvoiceWriteDto>.Fail("Purchase return must contain at least one returned quantity.");
                 if (dto.InvoiceType == InvoiceType.Purchase && dto.InvoiceLines.Any(line => line.ExpiryDate == default))
                     return Result<InvoiceWriteDto>.Fail("Expiry date is required for every purchase invoice line.");
@@ -94,6 +95,9 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 if (partyValidation != null)
                     return Result<InvoiceWriteDto>.Fail(partyValidation);
 
+                if (dto.InvoiceType == InvoiceType.Purchase)
+                    PurchaseBonusCosting.Validate(dto.InvoiceLines);
+                await PurchaseBonusReturns.PrepareAsync(_context, dto);
                 var returnPaymentValidation = await ValidateReturnPaymentTermsAsync(dto, invoiceRepo);
                 if (returnPaymentValidation != null)
                     return Result<InvoiceWriteDto>.Fail(returnPaymentValidation);
@@ -103,6 +107,8 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 // 1) احسب قيم السطور (Tax/Cost/Profit) قبل الحفظ
                 foreach (var l in dto.InvoiceLines)
                 {
+                    var returnSubtotal = l.LineSubTotal;
+                    var returnTax = l.TaxAmount;
                     var grossLineTotal = GetGrossLineTotal(dto.InvoiceType, l.Quantity, l.UnitPrice);
                     l.LineDiscountAmount = Math.Clamp(l.LineDiscountAmount, 0m, grossLineTotal);
                     l.FreeQuantity = Math.Max(0m, l.FreeQuantity);
@@ -118,7 +124,13 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                         : Math.Round(lineTotal / divisor, 3);
                     l.TaxAmount = includesTax ? Math.Round(lineTotal - l.LineSubTotal, 3) : 0m;
 
-                    var costTotal = l.Quantity * CalculateEffectivePurchaseCost(l.UnitCost, l.TaxRate, l.TaxExempt, includesTax);
+                    if (dto.InvoiceType == InvoiceType.PurchaseReturn && l.SourcePurchaseLineId.HasValue)
+                    {
+                        l.LineSubTotal = returnSubtotal;
+                        l.TaxAmount = returnTax;
+                    }
+                    var costTotal = l.Quantity * (l.PurchaseAcquisitionCost.HasValue && !isPurchaseInvoice
+                        ? l.UnitCost : CalculateEffectivePurchaseCost(l.UnitCost, l.TaxRate, l.TaxExempt, includesTax));
                     var profitBeforeTax = l.LineSubTotal - costTotal;
 
                     l.ProfitBeforeTax = profitBeforeTax;
@@ -127,6 +139,8 @@ namespace RaccoonWarehouse.Application.Service.Invoices
 
                 if (dto.InvoiceType is InvoiceType.Purchase or InvoiceType.PurchaseReturn)
                     ApplyPurchaseDiscountAndTax(dto.InvoiceLines, dto.DiscountAmount, dto.CostPriceIncludesTax);
+                if (dto.InvoiceType == InvoiceType.Purchase)
+                    PurchaseBonusCosting.Allocate(dto.InvoiceLines, dto.DiscountAmount, dto.CostPriceIncludesTax);
 
                 // 2) احسب قيم الفاتورة
                 // Sales totals must include both invoice-level and line-level discounts.
@@ -147,6 +161,8 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                     x.TaxRate,
                     x.TaxExempt,
                     (dto.InvoiceType is InvoiceType.Purchase or InvoiceType.PurchaseReturn) && dto.CostPriceIncludesTax));
+                if (dto.InvoiceType == InvoiceType.PurchaseReturn && dto.InvoiceLines.Any(x => x.SourcePurchaseLineId.HasValue))
+                    dto.TotalCOGS = dto.InvoiceLines.Sum(x => x.PurchaseAcquisitionCost ?? 0m);
                 dto.NetSales = dto.SubTotal - (dto.DiscountAmount ?? 0m); // قبل الضريبة
                 dto.GrossProfit = dto.NetSales - dto.TotalCOGS;
                 LogInvoiceTiming("invoice line normalization and totals", totalTiming, stepTiming);
@@ -216,6 +232,11 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 LogInvoiceTiming("invoice lines and checks database save", totalTiming, stepTiming);
 
                 dto.Id = invoice.Id;
+                foreach (var pair in dto.InvoiceLines.Zip(invoice.InvoiceLines))
+                {
+                    pair.First.Id = pair.Second.Id;
+                    pair.First.InvoiceId = invoice.Id;
+                }
                 var shouldPostAccounting = _accountingService != null
                     && !dto.DeferAccountingPosting
                     && dto.Status is not InvoiceStatus.Draft
@@ -264,7 +285,7 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 if (dto.InvoiceLines == null || !dto.InvoiceLines.Any())
                     return Result<InvoiceWriteDto>.Fail("Invoice must contain at least one line.");
                 if (dto.InvoiceType == InvoiceType.PurchaseReturn
-                    && !dto.InvoiceLines.Any(line => line.ProductId > 0 && line.ProductUnitId > 0 && line.Quantity < 0))
+                    && !dto.InvoiceLines.Any(line => line.ProductId > 0 && line.ProductUnitId > 0 && (line.Quantity < 0 || line.FreeQuantity > 0)))
                     return Result<InvoiceWriteDto>.Fail("Purchase return must contain at least one returned quantity.");
                 if (dto.InvoiceType == InvoiceType.Purchase && dto.InvoiceLines.Any(line => line.ExpiryDate == default))
                     return Result<InvoiceWriteDto>.Fail("Expiry date is required for every purchase invoice line.");
@@ -298,6 +319,9 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 if (invoiceNumberUsedByAnotherInvoice)
                     return Result<InvoiceWriteDto>.Fail("Invoice number already exists / رقم الفاتورة موجود مسبقاً.");
 
+                if (dto.InvoiceType == InvoiceType.Purchase)
+                    PurchaseBonusCosting.Validate(dto.InvoiceLines);
+                await PurchaseBonusReturns.PrepareAsync(_context, dto);
                 var returnPaymentValidation = await ValidateReturnPaymentTermsAsync(dto, invoiceRepo);
                 if (returnPaymentValidation != null)
                     return Result<InvoiceWriteDto>.Fail(returnPaymentValidation);
@@ -315,6 +339,14 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 var checkValidation = ValidateChecks(dto);
                 if (checkValidation != null)
                     return Result<InvoiceWriteDto>.Fail(checkValidation);
+
+                if (existingInvoice.InvoiceLines.Any(x => x.SourcePurchaseLineId.HasValue))
+                    return Result<InvoiceWriteDto>.Fail("Posted bonus purchase returns cannot be edited / لا يمكن تعديل مرتجع بونص مرحّل.");
+                var allocatedSourceIds = existingInvoice.InvoiceLines.Where(x => x.PurchaseAcquisitionCost.HasValue).Select(x => x.Id).ToList();
+                if (allocatedSourceIds.Count > 0 && (await _context.Set<InvoiceLine>().AnyAsync(x => x.SourcePurchaseLineId.HasValue && allocatedSourceIds.Contains(x.SourcePurchaseLineId.Value))
+                    || await _context.Set<RaccoonWarehouse.Domain.StockLots.StockLot>().AnyAsync(x => x.SourcePurchaseLineId.HasValue && allocatedSourceIds.Contains(x.SourcePurchaseLineId.Value)
+                        && x.RemainingBaseQuantity != x.BaseQuantity)))
+                    return Result<InvoiceWriteDto>.Fail("This purchase has consumed/returned stock; use a return instead / لهذه الفاتورة مخزون مصروف أو مرتجع؛ استخدم المرتجع.");
 
                 var oldStatus = existingInvoice.Status;
                 var hadPostedAccounting = oldStatus is not InvoiceStatus.OnHold
@@ -345,6 +377,7 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 await using var updateTransaction = await _uow.BeginTransactionAsync();
                 await _uow.CommitAsync();
 
+                var savedLinePairs = new List<(InvoiceLineWriteDto Dto, InvoiceLine Entity)>();
                 foreach (var lineDto in dto.InvoiceLines)
                 {
                     var line = _mapper.Map<InvoiceLine>(lineDto);
@@ -356,6 +389,7 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                     line.CreatedDate = lineDto.CreatedDate == default ? dto.CreatedDate : lineDto.CreatedDate;
                     line.UpdatedDate = dto.UpdatedDate;
                     await lineRepo.AddAsync(line);
+                    savedLinePairs.Add((lineDto, line));
                 }
 
                 foreach (var paymentDto in dto.Payments ?? Enumerable.Empty<InvoicePaymentWriteDto>())
@@ -378,6 +412,11 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 }
 
                 await _uow.CommitAsync();
+                foreach (var pair in savedLinePairs)
+                {
+                    pair.Dto.Id = pair.Entity.Id;
+                    pair.Dto.InvoiceId = existingInvoice.Id;
+                }
                 await updateTransaction.CommitAsync();
 
                 var shouldPostAccounting = _accountingService != null
@@ -433,10 +472,13 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 return null;
             if (dto.InvoiceType is not InvoiceType.Sale)
                 return "Insurance billing is supported only for sales invoices.";
-            if (!dto.CustomerId.HasValue || !dto.InsuranceMemberPolicyId.HasValue
-                || !dto.InsuranceCompanyId.HasValue || !dto.InsuranceContractId.HasValue
-                || !dto.InsuranceContractVersionId.HasValue)
-                return "Insurance sales require customer, membership, company, contract, and contract version.";
+            if (dto.InsuranceCompanyId is not > 0)
+                return "Insurance sales require an insurance company.";
+            var hasLegacyMetadata = dto.InsuranceMemberPolicyId.HasValue || dto.InsuranceContractId.HasValue
+                || dto.InsuranceContractVersionId.HasValue;
+            if (hasLegacyMetadata && (!dto.CustomerId.HasValue || !dto.InsuranceMemberPolicyId.HasValue
+                || !dto.InsuranceContractId.HasValue || !dto.InsuranceContractVersionId.HasValue))
+                return "Insurance sales require complete membership and contract details.";
             if (dto.PatientResponsibility < 0m || dto.InsuranceResponsibility < 0m)
                 return "Insurance responsibility amounts cannot be negative.";
             if (Math.Abs(dto.PatientResponsibility + dto.InsuranceResponsibility - dto.TotalAmount) > 0.01m)
@@ -553,7 +595,10 @@ namespace RaccoonWarehouse.Application.Service.Invoices
 
             if (dto.InvoiceType is InvoiceType.Return or InvoiceType.PurchaseReturn)
             {
-                if (requestedPayments.Any(payment => payment.PaymentType == PaymentType.Credit))
+                if (requestedPayments.Any(payment => payment.PaymentType == PaymentType.Credit)
+                    && !(dto.InvoiceType == InvoiceType.PurchaseReturn
+                        && dto.InvoiceLines?.All(x => x.SourcePurchaseLineId.HasValue) == true
+                        && original.PaymentType == PaymentType.Credit))
                     return "Credit payment is not allowed for returns.";
 
                 var originalTotal = Math.Abs(original.TotalAmount);
@@ -632,9 +677,9 @@ namespace RaccoonWarehouse.Application.Service.Invoices
 
             foreach (var line in lineList)
             {
-                var factor = factors.TryGetValue(line.ProductUnitId, out var quantityPerUnit)
-                    ? quantityPerUnit
-                    : 1m;
+                var factor = line.SourcePurchaseLineId.HasValue && line.QuantityPerUnitSnapshot > 0m
+                    ? line.QuantityPerUnitSnapshot
+                    : factors.TryGetValue(line.ProductUnitId, out var quantityPerUnit) ? quantityPerUnit : 1m;
 
                 line.QuantityPerUnitSnapshot = factor;
                 line.BaseQuantity = line.Quantity * factor;
@@ -647,6 +692,8 @@ namespace RaccoonWarehouse.Application.Service.Invoices
         {
             foreach (var l in dto.InvoiceLines!)
             {
+                var returnSubtotal = l.LineSubTotal;
+                var returnTax = l.TaxAmount;
                 var grossLineTotal = GetGrossLineTotal(dto.InvoiceType, l.Quantity, l.UnitPrice);
                 l.LineDiscountAmount = Math.Clamp(l.LineDiscountAmount, 0m, grossLineTotal);
                 l.FreeQuantity = Math.Max(0m, l.FreeQuantity);
@@ -662,13 +709,21 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                     : Math.Round(lineTotal / divisor, 3);
                 l.TaxAmount = includesTax ? Math.Round(lineTotal - l.LineSubTotal, 3) : 0m;
 
-                var costTotal = l.Quantity * CalculateEffectivePurchaseCost(l.UnitCost, l.TaxRate, l.TaxExempt, includesTax);
+                if (dto.InvoiceType == InvoiceType.PurchaseReturn && l.SourcePurchaseLineId.HasValue)
+                {
+                    l.LineSubTotal = returnSubtotal;
+                    l.TaxAmount = returnTax;
+                }
+                var costTotal = l.Quantity * (l.PurchaseAcquisitionCost.HasValue && !isPurchaseInvoice
+                        ? l.UnitCost : CalculateEffectivePurchaseCost(l.UnitCost, l.TaxRate, l.TaxExempt, includesTax));
                 l.ProfitBeforeTax = l.LineSubTotal - costTotal;
                 l.Profit = l.ProfitBeforeTax;
             }
 
             if (dto.InvoiceType is InvoiceType.Purchase or InvoiceType.PurchaseReturn)
                 ApplyPurchaseDiscountAndTax(dto.InvoiceLines!, dto.DiscountAmount, dto.CostPriceIncludesTax);
+            if (dto.InvoiceType == InvoiceType.Purchase)
+                PurchaseBonusCosting.Allocate(dto.InvoiceLines!, dto.DiscountAmount, dto.CostPriceIncludesTax);
 
             var grossSales = dto.InvoiceLines.Sum(x =>
                 GetGrossLineTotal(dto.InvoiceType, x.Quantity, x.UnitPrice) - x.LineDiscountAmount);
@@ -685,6 +740,8 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 x.TaxRate,
                 x.TaxExempt,
                 (dto.InvoiceType is InvoiceType.Purchase or InvoiceType.PurchaseReturn) && dto.CostPriceIncludesTax));
+            if (dto.InvoiceType == InvoiceType.PurchaseReturn && dto.InvoiceLines.Any(x => x.SourcePurchaseLineId.HasValue))
+                dto.TotalCOGS = dto.InvoiceLines.Sum(x => x.PurchaseAcquisitionCost ?? 0m);
             dto.NetSales = dto.SubTotal - (dto.DiscountAmount ?? 0m);
             dto.GrossProfit = dto.NetSales - dto.TotalCOGS;
             dto.CreatedDate = originalCreatedDate == default ? DateTime.Now : originalCreatedDate;
@@ -716,7 +773,8 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                     : Math.Round(lineTotal / divisor, 3);
                 line.TaxAmount = includesTax ? Math.Round(lineTotal - line.LineSubTotal, 3) : 0m;
 
-                var costTotal = line.Quantity * CalculateEffectivePurchaseCost(line.UnitCost, line.TaxRate, line.TaxExempt, includesTax);
+                var costTotal = line.Quantity * (line.PurchaseAcquisitionCost.HasValue && !isPurchaseInvoice
+                    ? line.UnitCost : CalculateEffectivePurchaseCost(line.UnitCost, line.TaxRate, line.TaxExempt, includesTax));
                 line.ProfitBeforeTax = line.LineSubTotal - costTotal;
                 line.Profit = line.ProfitBeforeTax;
             }
@@ -940,7 +998,9 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 var query = _uow.Invoices
                     .GetAllAsQueryable()
                     .AsNoTracking()
-                    .Where(invoice => invoice.InvoiceType == InvoiceType.Sale && invoice.TotalAmount > 0m);
+                    .Where(invoice => (invoice.InvoiceType == InvoiceType.Sale && invoice.TotalAmount > 0m)
+                        || (invoice.InvoiceType == InvoiceType.Purchase
+                            && invoice.InvoiceLines.Any(line => line.PurchaseAcquisitionCost.HasValue)));
 
                 if (dateFrom.HasValue)
                     query = query.Where(invoice => invoice.CreatedDate >= dateFrom.Value.Date);
@@ -1018,13 +1078,13 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                     .Where(line => invoiceIds.Contains(line.InvoiceId)
                         && line.ProductId > 0
                         && line.ProductUnitId > 0
-                        && line.Quantity > 0m)
+                        && (line.Quantity > 0m || (line.PurchaseAcquisitionCost.HasValue && line.Invoice!.InvoiceType == InvoiceType.Purchase && line.FreeQuantity > 0m)))
                     .Select(line => new
                     {
                         line.InvoiceId,
                         line.ProductId,
                         line.ProductUnitId,
-                        line.Quantity
+                        Quantity = line.Quantity + (line.PurchaseAcquisitionCost.HasValue && line.Invoice!.InvoiceType == InvoiceType.Purchase ? line.FreeQuantity : 0m)
                     })
                     .ToListAsync();
 
@@ -1037,13 +1097,15 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                         && invoiceNumbers.Contains(line.Invoice.OriginalInvoiceId)
                         && line.ProductId > 0
                         && line.ProductUnitId > 0
-                        && line.Quantity < 0m)
+                        && (line.Quantity < 0m || (line.SourcePurchaseLineId.HasValue && line.FreeQuantity > 0m))
+                        && (!line.SourcePurchaseLineId.HasValue || (line.Invoice.Status != InvoiceStatus.Cancelled
+                            && line.Invoice.Status != InvoiceStatus.Draft && line.Invoice.Status != InvoiceStatus.OnHold)))
                     .Select(line => new
                     {
                         OriginalInvoiceId = line.Invoice!.OriginalInvoiceId!,
                         line.ProductId,
                         line.ProductUnitId,
-                        Quantity = Math.Abs(line.Quantity)
+                        Quantity = Math.Abs(line.Quantity) + (line.SourcePurchaseLineId.HasValue ? line.FreeQuantity : 0m)
                     })
                     .ToListAsync();
 

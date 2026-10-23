@@ -193,6 +193,22 @@ namespace RaccoonWarehouse.Data
                 .Property(x => x.ItemName)
                 .HasMaxLength(500);
 
+            modelBuilder.Entity<PurchaseRequest>()
+                .Property(x => x.RequesterName)
+                .HasMaxLength(200);
+
+            modelBuilder.Entity<PurchaseRequestLine>()
+                .Property(x => x.Barcode)
+                .HasMaxLength(100);
+
+            modelBuilder.Entity<PurchaseRequestLine>()
+                .Property(x => x.UnitName)
+                .HasMaxLength(100);
+
+            modelBuilder.Entity<PurchaseRequestLine>()
+                .Property(x => x.SupplierName)
+                .HasMaxLength(200);
+
             modelBuilder.Entity<GoodsReceipt>()
                 .HasIndex(x => x.ReceiptNumber)
                 .IsUnique();
@@ -261,6 +277,10 @@ namespace RaccoonWarehouse.Data
                 .HasIndex(x => x.Key)
                 .IsUnique();
 
+            modelBuilder.Entity<InsuranceCompany>()
+                .Property(x => x.ContractualDiscountPercent)
+                .HasPrecision(18, 6)
+                .HasDefaultValue(0m);
             modelBuilder.Entity<InsuranceCompany>()
                 .HasIndex(x => x.Code)
                 .IsUnique();
@@ -546,6 +566,10 @@ namespace RaccoonWarehouse.Data
                 .HasForeignKey(i => i.DelegateId)
                 .OnDelete(DeleteBehavior.NoAction);
 
+            modelBuilder.Entity<InvoiceLine>().Property(x => x.BonusRatio).HasMaxLength(40);
+            modelBuilder.Entity<InvoiceLine>().HasIndex(x => x.SourcePurchaseLineId);
+            modelBuilder.Entity<StockLot>().HasIndex(x => x.SourcePurchaseLineId);
+
             modelBuilder.Entity<InvoiceLine>()
                 .HasOne(il => il.Invoice)
                 .WithMany(i => i.InvoiceLines)
@@ -626,6 +650,11 @@ namespace RaccoonWarehouse.Data
             {
                 stockLot.ProductId,
                 stockLot.Status,
+                stockLot.RemainingQuantity
+            });
+            modelBuilder.Entity<StockLot>().HasIndex(stockLot => new
+            {
+                stockLot.ExpiryDate,
                 stockLot.RemainingQuantity
             });
 
