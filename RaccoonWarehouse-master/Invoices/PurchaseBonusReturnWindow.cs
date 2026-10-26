@@ -21,6 +21,7 @@ public sealed class PurchaseBonusReturnWindow : Window
     private bool _busy;
     public PurchaseBonusReturnWindow(PurchaseBonusReturnService service, int invoiceId, CashierSessionReadDto session, bool allowSupplierCredit = false)
     {
+        RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
         (_service, _invoiceId, _session) = (service, invoiceId, session);
         Title = UiText.T("مرتجع مشتريات البونص", "Bonus purchase return");
         Width = 1000; Height = 620; MinWidth = 760; MinHeight = 450;

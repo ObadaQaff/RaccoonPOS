@@ -15,6 +15,7 @@ namespace RaccoonWarehouse.Warehouses
         public WarehousesTable(IWarehouseService warehouseService)
         {
             _warehouseService = warehouseService;
+            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
             UiText.ApplyWindow(this);
             LoadData();

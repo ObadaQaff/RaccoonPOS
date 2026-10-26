@@ -1,7 +1,10 @@
 using RaccoonWarehouse.Application.Service.Invoices;
+using RaccoonWarehouse.Application.Service.Products;
+using RaccoonWarehouse.Application.Service.Stocks;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Domain.Invoices.DTOs;
+using RaccoonWarehouse.Domain.Products.DTOs;
 using RaccoonWarehouse.Domain.Users.DTOs;
 using RaccoonWarehouse.Helpers.Localization;
 using System.Windows;
@@ -14,6 +17,9 @@ namespace RaccoonWarehouse.Invoices
     public partial class SearchSalesInvoiceWindow : Window
     {
         private readonly IInvoiceService _invoiceService;
+        private readonly IProductService _productService;
+        private readonly IStockService _stockService;
+        private readonly IUserService _userService;
         private List<UserReadDto> _allUsers = new();
         private bool _isFilteringUsers;
         private bool _isNavigatingUserChoices;
@@ -23,11 +29,22 @@ namespace RaccoonWarehouse.Invoices
         private bool _isBusy;
         public InvoiceReadDto? Result { get; private set; }
 
-        public SearchSalesInvoiceWindow(IInvoiceService invoiceService, IEnumerable<UserReadDto> users, bool? isSal, bool? isPOS = null)
+        public SearchSalesInvoiceWindow(
+            IInvoiceService invoiceService,
+            IEnumerable<UserReadDto> users,
+            bool? isSal,
+            bool? isPOS,
+            IProductService productService,
+            IStockService stockService,
+            IUserService userService)
         {
+            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
             UiText.ApplyWindow(this);
             _invoiceService = invoiceService;
+            _productService = productService;
+            _stockService = stockService;
+            _userService = userService;
             _allUsers = users?.GroupBy(x => x.Id).Select(x => x.First()).ToList() ?? new();
             CustomerTxt.ItemsSource = _allUsers;
             _isSal = isSal;
@@ -153,6 +170,11 @@ namespace RaccoonWarehouse.Invoices
         }
         private async void SearchBtn_Click(object sender, RoutedEventArgs e)
         {
+            await SearchInvoicesAsync();
+        }
+
+        private async Task SearchInvoicesAsync()
+        {
             DateTime? fromDate = DateFrom.SelectedDate;
             DateTime? toDate = DateTo.SelectedDate;
 
@@ -182,7 +204,8 @@ namespace RaccoonWarehouse.Invoices
                 fromDate,
                 toDate,
                 _isSal,
-                _isPOS
+                _isPOS,
+                productBarcode: ItemBarcodeTxt.Text?.Trim()
             );
 
             if (result.Success)
@@ -192,6 +215,42 @@ namespace RaccoonWarehouse.Invoices
             }
             else
                 MessageBox.Show(result.Message ?? UiText.T("تعذر تحميل نتائج البحث.", "Failed to load search results."), UiText.T("خطأ", "Error"));
+        }
+
+        private async void SearchSalesInvoiceWindow_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key != Key.F1)
+                return;
+
+            e.Handled = true;
+            ProductReadDto? selectedProduct = null;
+            ProductSearchWindow? searchWindow = null;
+            searchWindow = new ProductSearchWindow(
+                _productService,
+                _stockService,
+                _userService,
+                onAddProduct: row =>
+                {
+                    selectedProduct = row.Product;
+                    searchWindow!.DialogResult = true;
+                    return Task.FromResult(true);
+                },
+                preloadedSupplierLookupItems: _allUsers
+                    .Where(user => user.Role == RaccoonWarehouse.Domain.Enums.UserRole.Supplier)
+                    .ToList())
+            {
+                Owner = this
+            };
+
+            if (searchWindow.ShowDialog() != true)
+                return;
+
+            selectedProduct ??= searchWindow.SelectedProduct;
+            if (selectedProduct?.ITEMCODE is not long itemCode)
+                return;
+
+            ItemBarcodeTxt.Text = itemCode.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            await SearchInvoicesAsync();
         }
 
         private async void SelectBtn_Click(object sender, RoutedEventArgs e)

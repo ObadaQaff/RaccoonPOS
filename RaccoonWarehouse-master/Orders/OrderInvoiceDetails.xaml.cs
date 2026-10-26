@@ -100,6 +100,7 @@ namespace RaccoonWarehouse.Orders
             ILoadingService loadingService,
             IServiceProvider serviceProvider)
         {
+            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
             _context = context;
             _invoiceService = invoiceService;

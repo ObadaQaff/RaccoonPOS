@@ -1,4 +1,4 @@
-<Window x:Class="RaccoonWarehouse.Invoices.ProductUnitSaleConfigurationWindow"
+<Window xmlns:security="clr-namespace:RaccoonWarehouse.Security" x:Class="RaccoonWarehouse.Invoices.ProductUnitSaleConfigurationWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Configure sale unit | إعداد وحدة البيع"
@@ -50,7 +50,7 @@
 
             <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0">
                 <Button Content="Cancel | إلغاء" Width="120" Height="40" Margin="0,0,10,0" Click="Cancel_Click" />
-                <Button Content="Save | حفظ" Width="120" Height="40" Background="#0C6B63" Foreground="White" Click="Save_Click" />
+                <Button Content="Save | حفظ" Width="120" Height="40" Background="#0C6B63" Foreground="White" Click="Save_Click" security:PermissionWindowGuard.Keys="Products.Create|Products.Edit"/>
             </StackPanel>
         </Grid>
     </Border>

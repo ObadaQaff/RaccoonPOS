@@ -1,4 +1,4 @@
-<Window x:Class="RaccoonWarehouse.POS.DailySalesReport"
+<Window xmlns:security="clr-namespace:RaccoonWarehouse.Security" x:Class="RaccoonWarehouse.POS.DailySalesReport"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="لوحة الكاشيرات"
@@ -335,7 +335,7 @@
                                         Padding="8,2"
                                         Tag="{Binding}"
                                         Click="PrintInvoice_Click"
-                                        IsEnabled="{Binding IsInvoice}"/>
+                                        IsEnabled="{Binding IsInvoice}" security:PermissionWindowGuard.Keys="CashierReport.Print"/>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>

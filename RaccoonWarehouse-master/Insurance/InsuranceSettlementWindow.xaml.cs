@@ -21,6 +21,7 @@ public partial class InsuranceSettlementWindow : Window
         _service = service;
         _permissions = permissions;
         _loading = loading;
+        RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
         InitializeComponent();
         ClaimsGrid.ItemsSource = _claims;
         BatchFromDatePicker.SelectedDate = DateTime.Today.AddMonths(-1);
@@ -66,6 +67,13 @@ public partial class InsuranceSettlementWindow : Window
 
     private async void RecordPayment_Click(object sender, RoutedEventArgs e)
     {
+        RaccoonWarehouse.Navigation.WindowManager.ShowDialog<RaccoonWarehouse.Vouchers.CreateVoucher>(
+            RaccoonWarehouse.Navigation.WindowSizeType.LargeRectangle,
+            window => window.InitializeInsuranceReceipt());
+        await LoadAsync();
+        return;
+
+#pragma warning disable CS0162
         if (!await _permissions.HasCurrentUserPermissionAsync("InsurancePayments.Create"))
         {
             MessageBox.Show(UiText.T("لا تملك صلاحية تسجيل الدفعات.", "You do not have permission to record payments."));
@@ -96,6 +104,7 @@ public partial class InsuranceSettlementWindow : Window
         MessageBox.Show(result.Message, result.Success ? UiText.T("تم", "Success") : UiText.T("خطأ", "Error"));
         if (result.Success)
             await LoadAsync();
+#pragma warning restore CS0162
     }
 
     private async void CreateBatch_Click(object sender, RoutedEventArgs e)

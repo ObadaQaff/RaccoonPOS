@@ -1,53 +1,11 @@
-using QuestPDF.Fluent;
 using QuestPDF.Infrastructure;
 using RaccoonWarehouse.Domain.Invoices.DTOs;
-using System.Collections.Generic;
-using System.Linq;
-
-namespace RaccoonWarehouse.Helpers.Pdf
+namespace RaccoonWarehouse.Helpers.Pdf;
+public sealed class PayInvoiceReport : IReportDocument
 {
-    public class PayInvoiceReport : BaseReportDocument
-    {
-        private readonly InvoiceReadDto _invoice;
-
-        public PayInvoiceReport(InvoiceReadDto invoice)
-        {
-            _invoice = invoice;
-        }
-
-        public override string ArabicTitle => "فاتورة مشتريات";
-        public override string EnglishTitle => "purchases Invoice";
-
-        public override Dictionary<string, string> InfoFields =>
-            new Dictionary<string, string>
-            {
-                { "رقم الفاتورة", _invoice.InvoiceNumber },
-                { "التاريخ", _invoice.CreatedDate.ToString("yyyy/MM/dd") },
-                { "اسم المورد", _invoice.User?.Name ?? "-" },
-                { "طريقة الدفع", _invoice.PaymentType.ToString() ?? "-" },
-                { "المبلغ الإجمالي", _invoice.TotalAmount.ToString("N5") }
-            };
-
-        public override List<string> TableHeaders =>
-            new List<string>
-            {
-                "المنتج",
-                "الوحدة",
-                "الكمية",
-                "سعر البيع",
-                "الإجمالي",
-                "تاريخ الانتهاء"
-            };
-
-        public override List<List<string>> TableRows =>
-            _invoice.InvoiceLines.Select(line => new List<string>
-            {
-                line.Product?.Name ?? "",
-                line.ProductUnit?.Unit?.Name ?? "",
-                line.Quantity.ToString(),
-                line.UnitPrice.ToString("N5"),
-                line.LineTotal.ToString("N5"),
-                line.ExpiryDate.ToString("yyyy/MM/dd") ?? "-"
-            }).ToList();
-    }
+    private readonly PurchasingDocument _document;
+    public PayInvoiceReport(InvoiceReadDto invoice)=>_document=PurchasingDocument.Invoice(invoice,DocumentPrintRuntime.Branding(invoiceId:invoice.Id));
+    public string FileName=>_document.FileName;
+    public DocumentMetadata GetMetadata()=>_document.GetMetadata();
+    public void Compose(IDocumentContainer container)=>_document.Compose(container);
 }

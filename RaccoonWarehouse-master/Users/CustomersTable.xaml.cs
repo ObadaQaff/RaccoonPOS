@@ -42,6 +42,7 @@ namespace RaccoonWarehouse
             _permissionService = permissionService;
             _loadingService = loadingService;
 
+            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
             UiText.ApplyWindow(this);
             InitializeFilters();

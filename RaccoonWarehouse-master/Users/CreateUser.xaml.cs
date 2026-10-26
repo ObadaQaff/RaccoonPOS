@@ -38,6 +38,7 @@ namespace RaccoonWarehouse
             _userSession = userSession;
             _permissionService = permissionService;
             _loadingService = loadingService;
+            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
             UiText.ApplyWindow(this);
             CreateBtn.Content = UiText.T("إنشاء الحساب", "Create Account");

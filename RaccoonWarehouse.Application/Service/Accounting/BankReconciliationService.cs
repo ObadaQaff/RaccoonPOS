@@ -5,8 +5,7 @@ using RaccoonWarehouse.Domain.Accounting.Banks.DTOs;
 
 namespace RaccoonWarehouse.Application.Service.Accounting
 {
-    public class BankReconciliationService
-    {
+    public class BankReconciliationService : IBankReconciliationService{
         private readonly ApplicationDbContext _context;
 
         public BankReconciliationService(ApplicationDbContext context)

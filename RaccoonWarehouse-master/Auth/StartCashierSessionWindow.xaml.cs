@@ -37,6 +37,7 @@ namespace RaccoonWarehouse.Auth
             IUserSession userSession,
             RaccoonWarehouse.Core.Audit.IAuditLogService auditLogService)
         {
+            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
             UiText.ApplyWindow(this);
             UiText.ApplyTranslations(this);

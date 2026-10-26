@@ -16,6 +16,7 @@ public partial class PurchaseControlWindow : Window
     {
         _service = service;
         _loading = loading;
+        RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
         InitializeComponent();
         EntriesGrid.ItemsSource = _entries;
     }

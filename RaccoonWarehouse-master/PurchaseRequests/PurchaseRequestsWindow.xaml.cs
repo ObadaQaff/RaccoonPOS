@@ -5,6 +5,7 @@ using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Core.Common;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.PurchaseRequests.DTOs;
+using RaccoonWarehouse.Domain.Products;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Helpers.Localization;
 using RaccoonWarehouse.Navigation;
@@ -51,6 +52,7 @@ public partial class PurchaseRequestsWindow : Window
         _purchaseOrderService = purchaseOrderService;
         _permissionService = permissionService;
         _userSession = userSession;
+        RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
         InitializeComponent();
         RequestsGrid.ItemsSource = _requests;
         _requestsView = CollectionViewSource.GetDefaultView(_requests);
@@ -276,11 +278,13 @@ public partial class PurchaseRequestsWindow : Window
             return false;
         var supplier = SupplierFilter?.Text.Trim() ?? string.Empty;
         var productName = ProductNameFilter?.Text.Trim() ?? string.Empty;
-        var barcode = BarcodeFilter?.Text.Trim() ?? string.Empty;
+        var barcode = BarcodeLookup.Normalize(BarcodeFilter?.Text);
         if (supplier.Length == 0 && productName.Length == 0 && barcode.Length == 0) return true;
         return request.Lines.Any(line => MatchesSupplier(line.SupplierName)
             && MatchesProductName(line.ItemName, productName)
-            && (barcode.Length == 0 || (line.Barcode?.Contains(barcode, StringComparison.OrdinalIgnoreCase) ?? false)));
+            && (barcode.Length == 0 ||
+                BarcodeLookup.AreEquivalent(line.Barcode, barcode) ||
+                (line.Barcode?.Contains(barcode, StringComparison.OrdinalIgnoreCase) ?? false)));
     }
 
     private async void RequestsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -464,7 +468,7 @@ public partial class PurchaseRequestsWindow : Window
 
         dialog.Content = grid;
         dialog.Loaded += (_, _) => reasonTextBox.Focus();
-        return dialog.ShowDialog() == true ? reasonTextBox.Text.Trim() : null;
+        return RaccoonWarehouse.Security.PermissionWindowGuard.ShowDialog(dialog, "PurchaseRequest.View") == true ? reasonTextBox.Text.Trim() : null;
     }
 
     private async void CreatePo_Click(object sender, RoutedEventArgs e)

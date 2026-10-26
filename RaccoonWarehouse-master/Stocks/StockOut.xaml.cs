@@ -85,6 +85,7 @@ namespace RaccoonWarehouse.Stocks
             _warehouseService = warehouseService;
             _loadingService = loadingService;
 
+            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
             UiText.ApplyWindow(this);
             DataContext = this;

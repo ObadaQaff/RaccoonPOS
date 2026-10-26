@@ -117,7 +117,6 @@ namespace RaccoonWarehouse
             ServiceProvider = services.BuildServiceProvider();
             var notificationService = ServiceProvider.GetRequiredService<INotificationService>();
             notificationService.NotificationRaised += NotificationService_NotificationRaised;
-            await InitializeLocalizationAsync();
             WriteRuntimeInfo();
 
             var loading = ServiceProvider.GetRequiredService<LoadingWindow>();
@@ -127,19 +126,20 @@ namespace RaccoonWarehouse
             loading.Show();
 
             await Task.Delay(100); // allow render
+            await InitializeLocalizationAsync();
 
             try
             {
-                await InitializeApplicationAsync();
+                await InitializeLoginPrerequisitesAsync();
             }
             catch (Exception ex)
             {
-                MessageBox.Show(ex.Message, "Startup Error");
+                MessageBox.Show(
+                    $"The application could not connect to the database or prepare login.\n{ex.Message}",
+                    "Startup Error");
                 Shutdown();
                 return;
             }
-
-            ServiceProvider.GetRequiredService<AccountingOperationProcessor>().Start();
 
             // 🔐 Login
             var login = ServiceProvider.GetRequiredService<LoginWindow>();
@@ -150,7 +150,7 @@ namespace RaccoonWarehouse
             {
                 try
                 {
-                    await ServiceProvider.GetRequiredService<IPandaOrderSyncService>().StartAsync();
+                    _ = StartPandaOrderSyncAsync();
                 }
                 catch (Exception ex)
                 {
@@ -171,10 +171,37 @@ namespace RaccoonWarehouse
 
                 loading.Close();   // الآن آمن
                 dashboard.Show();
+                _ = InitializeAfterLoginAsync();
             }
             else
             {
                 Shutdown();
+            }
+        }
+
+        private async Task StartPandaOrderSyncAsync()
+        {
+            try
+            {
+                await ServiceProvider.GetRequiredService<IPandaOrderSyncService>().StartAsync();
+            }
+            catch (Exception ex)
+            {
+                try
+                {
+                    var logDirectory = Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                        "RaccoonWarehouse");
+                    Directory.CreateDirectory(logDirectory);
+                    File.AppendAllText(
+                        Path.Combine(logDirectory, "startup.log"),
+                        $"{DateTime.Now:O} Panda synchronization failed: {ex}\n",
+                        Encoding.UTF8);
+                }
+                catch
+                {
+                    // Startup diagnostics must not interrupt the dashboard.
+                }
             }
         }
 
@@ -226,6 +253,12 @@ namespace RaccoonWarehouse
 
         private void App_DispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
         {
+            if (e.Exception is UnauthorizedAccessException || e.Exception.InnerException is UnauthorizedAccessException)
+            {
+                MessageBox.Show(UiText.T("ليس لديك الصلاحية المطلوبة.", "You do not have the required permission."), UiText.T("الصلاحيات", "Permissions"));
+                e.Handled = true;
+                return;
+            }
             LogUnhandledException("DispatcherUnhandledException", e.Exception);
             MessageBox.Show("حدث خطأ غير متوقع وتم تسجيله. الرجاء إعادة المحاولة أو التواصل مع الدعم إذا تكرر الخطأ.", "خطأ", MessageBoxButton.OK, MessageBoxImage.Error);
             e.Handled = true;
@@ -341,6 +374,45 @@ namespace RaccoonWarehouse
         // ----------------------------------
         // 🔹 BACKGROUND WARMUP (DB, EF, DI)
         // ----------------------------------
+        private async Task InitializeLoginPrerequisitesAsync()
+        {
+            using var scope = ServiceProvider.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            db.Database.SetCommandTimeout(20);
+
+            await db.Database.CanConnectAsync();
+            await EnsureAppSettingsTableAsync(db);
+        }
+
+        private async Task InitializeAfterLoginAsync()
+        {
+            try
+            {
+                await InitializeApplicationAsync();
+                ServiceProvider.GetRequiredService<AccountingOperationProcessor>().Start();
+
+                await ServiceProvider.GetRequiredService<IPandaOrderSyncService>().StartAsync();
+            }
+            catch (Exception ex)
+            {
+                try
+                {
+                    var logDirectory = Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                        "RaccoonWarehouse");
+                    Directory.CreateDirectory(logDirectory);
+                    File.AppendAllText(
+                        Path.Combine(logDirectory, "startup.log"),
+                        $"{DateTime.Now:O} Post-login initialization failed: {ex}\n",
+                        Encoding.UTF8);
+                }
+                catch
+                {
+                    // Startup diagnostics must not interrupt the dashboard.
+                }
+            }
+        }
+
         private async Task InitializeApplicationAsync()
         {
             await Task.Run(async () =>
@@ -349,8 +421,6 @@ namespace RaccoonWarehouse
 
                 var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
                 await db.Database.CanConnectAsync();
-                await EnsureReportPermissionsTableAsync(db);
-                await EnsureUnifiedPermissionsSchemaAsync(db);
                 await EnsureAppSettingsTableAsync(db);
                 await EnsureDelegateSchemaAsync(db);
                 await EnsureEmployeeSchemaAsync(db);
@@ -358,7 +428,6 @@ namespace RaccoonWarehouse
                 await EnsureAccountingOperationsSchemaAsync(db);
                 await CurrencySeeder.SeedBaseCurrencyAsync(db);
                 await scope.ServiceProvider.GetRequiredService<IWarehouseService>().EnsureDefaultWarehousesAsync();
-                await scope.ServiceProvider.GetRequiredService<IPermissionService>().EnsureSeedDataAsync();
                 await scope.ServiceProvider.GetRequiredService<ILanguageSettingsService>().EnsureDefaultsAsync();
                 await scope.ServiceProvider.GetRequiredService<IDelegateFeatureService>().EnsureDefaultsAsync();
                 await scope.ServiceProvider.GetRequiredService<IEmployeeFeatureService>().EnsureDefaultsAsync();
@@ -366,7 +435,7 @@ namespace RaccoonWarehouse
                 await scope.ServiceProvider.GetRequiredService<IAccountingService>().EnsureDefaultAccountsAsync();
                 await FiscalYearSeeder.SeedLegacyAsync(db);
                 await AccountTreeSeeder.SeedAsync(db);
-                await scope.ServiceProvider.GetRequiredService<RecurringJournalService>().ExecuteDueAsync(DateTime.Today);
+                await scope.ServiceProvider.GetRequiredService<IRecurringJournalService>().ExecuteDueAsync(DateTime.Today);
 
                 // Force EF model & query compilation
                 await db.Database.ExecuteSqlRawAsync("SELECT 1");
@@ -808,6 +877,7 @@ END;";
             {
                 using var scope = ServiceProvider.CreateScope();
                 var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                db.Database.SetCommandTimeout(10);
                 await EnsureAppSettingsTableAsync(db);
 
                 var languageService = scope.ServiceProvider.GetRequiredService<ILanguageSettingsService>();
@@ -981,33 +1051,41 @@ END;";
             services.AddSingleton<AccountingOperationProcessor>();
             services.AddScoped<IAccountingFeatureService, AccountingFeatureService>();
             services.AddScoped<IAccountTreeService, AccountTreeService>();
-            services.AddScoped<CurrencyService>();
-            services.AddScoped<TaxService>();
-            services.AddScoped<AgingReportService>();
+            services.AddScoped<ICurrencyService, CurrencyService>();
+            services.AddScoped<ITaxService, TaxService>();
+            services.AddScoped<IAgingReportService, AgingReportService>();
             services.AddScoped<UserStatementService>();
-            services.AddScoped<BankReconciliationService>();
-            services.AddScoped<RecurringJournalService>();
-            services.AddScoped<ProfitAndLossService>();
-            services.AddScoped<CashFlowService>();
-            services.AddScoped<TrialBalanceService>();
-            services.AddScoped<GeneralLedgerService>();
+            services.AddScoped<IUserStatementService>(provider => provider.GetRequiredService<UserStatementService>());
+            services.AddScoped<IBankReconciliationService, BankReconciliationService>();
+            services.AddScoped<IRecurringJournalService, RecurringJournalService>();
+            services.AddScoped<IProfitAndLossService, ProfitAndLossService>();
+            services.AddScoped<ICashFlowService, CashFlowService>();
+            services.AddScoped<ITrialBalanceService, TrialBalanceService>();
+            services.AddScoped<IGeneralLedgerService, GeneralLedgerService>();
             services.AddScoped<RaccoonWarehouse.Application.Service.Dashboard.DashboardService>();
             services.AddScoped<SourceDocumentNavigationService>();
             services.AddTransient<AccountTreeViewModel>();
             services.AddTransient<AddAccountViewModel>();
             services.AddSingleton<IDialogService, DialogService>();
-            services.AddScoped<FiscalYearService>();
-            services.AddScoped<OpeningBalanceService>();
-            services.AddScoped<CostCenterService>();
-            services.AddSingleton<AccountService>();
+            services.AddScoped<IFiscalYearService, FiscalYearService>();
+            services.AddScoped<IOpeningBalanceService, OpeningBalanceService>();
+            services.AddScoped<ICostCenterService, CostCenterService>();
+            services.AddSingleton<IAccountService, AccountService>();
             services.AddScoped<ILanguageSettingsService, LanguageSettingsService>();
             services.AddScoped<IInventoryCostingSettingsService, InventoryCostingSettingsService>();
+            services.AddScoped<IRefundAuthorizationCodeService, RefundAuthorizationCodeService>();
             services.AddScoped<IPosRowColorRuleService, PosRowColorRuleService>();
             services.AddScoped<IPermissionService, PermissionService>();
             services.AddScoped<IReportPermissionService, ReportPermissionService>();
             services.AddScoped<IDelegateService, DelegateService>();
             services.AddScoped<IDelegateFeatureService, DelegateFeatureService>();
             services.AddScoped<IEmployeeService, EmployeeService>();
+            services.AddScoped<RaccoonWarehouse.Application.Service.Payroll.IPayrollSensitiveDataProtector, RaccoonWarehouse.Application.Service.Payroll.PayrollSensitiveDataProtector>();
+            services.AddSingleton<RaccoonWarehouse.Application.Service.Payroll.PayrollCalculator>();
+            services.AddScoped<RaccoonWarehouse.Application.Service.Payroll.EmployeePayrollService>();
+            services.AddTransient<RaccoonWarehouse.Employees.Payroll.EmployeePayrollWorkspaceWindow>();
+            services.AddTransient<RaccoonWarehouse.Employees.Payroll.PayrollMonthWindow>();
+            services.AddTransient<RaccoonWarehouse.Employees.Payroll.PayrollPolicyWindow>();
             services.AddScoped<IEmployeeFeatureService, EmployeeFeatureService>();
             services.AddSingleton<ILoadingService, LoadingService>();
             services.AddScoped<ICashierSessionService, CashierSessionService>();
@@ -1059,7 +1137,7 @@ END;";
             services.AddTransient<GeneralLedgerReport>();
             services.AddTransient<BalanceSheetReport>();
             services.AddTransient<UserStatementWindow>();
-            services.AddTransient<PartyBalanceReportService>();
+            services.AddTransient<IPartyBalanceReportService, PartyBalanceReportService>();
             services.AddTransient<PartyBalanceReport>();
             services.AddTransient<ChecksDashboard>();
             services.AddTransient<AccountingFeatureSettingsWindow>();
@@ -1121,6 +1199,10 @@ END;";
             services.AddTransient<RaccoonWarehouse.GoodsReceipts.GoodsReceiptsWindow>();
             services.AddTransient<InsuranceCompaniesWindow>();
             services.AddTransient<CreateInsuranceCompany>();
+            services.AddScoped<RaccoonWarehouse.Application.Service.Settings.DocumentBrandingService>();
+            services.AddScoped<RaccoonWarehouse.Application.Service.Vouchers.VoucherPrintDataService>();
+            services.AddTransient<RaccoonWarehouse.Settings.DocumentBrandingWindow>();
+            services.AddSingleton<RaccoonWarehouse.Helpers.Pdf.IReceiptQrProvider, RaccoonWarehouse.Helpers.Pdf.TestReceiptQrProvider>();
             services.AddTransient<InsuranceClaimsWindow>();
             services.AddTransient<InsuranceSettlementWindow>();
             services.AddTransient<InsuranceSetupWindow>();
@@ -1182,6 +1264,7 @@ END;";
             services.AddTransient<RaccoonWarehouse.Settings.AuditLogsWindow>();
             services.AddTransient<LanguageSettingsWindow>();
             services.AddTransient<InventoryCostingSettingsWindow>();
+            services.AddTransient<RefundCodeSettingsWindow>();
             services.AddTransient<PosRowColorSettingsWindow>();
             #endregion
 

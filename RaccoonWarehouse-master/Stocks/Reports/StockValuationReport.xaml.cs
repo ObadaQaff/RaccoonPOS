@@ -19,6 +19,7 @@ namespace RaccoonWarehouse.Stocks.Reports
 
         public StockValuationReport(IStockReportService stockReportService, IUserService userService)
         {
+            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
             SupplierComboBoxSearch.Attach(SupplierComboBox);
             _stockReportService = stockReportService;

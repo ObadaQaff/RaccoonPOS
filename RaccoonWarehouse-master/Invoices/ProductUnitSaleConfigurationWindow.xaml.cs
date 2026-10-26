@@ -15,6 +15,7 @@ namespace RaccoonWarehouse.Invoices
             decimal expectedSalePrice,
             decimal expectedQuantityPerUnit)
         {
+            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
 
             Title = UiText.T("إعداد وحدة البيع", "Configure sale unit");

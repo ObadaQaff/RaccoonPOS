@@ -13,6 +13,8 @@ public sealed class InsuranceCompanyDto
     public string? Address { get; set; }
     public InsuranceRecordStatus Status { get; set; }
     public InsuranceOrganizationType OrganizationType { get; set; }
+    public int? ReceivableAccountId { get; set; }
+    public int? PaymentAccountId { get; set; }
     public DateTime CreatedDate { get; set; }
     public DateTime UpdatedDate { get; set; }
 }

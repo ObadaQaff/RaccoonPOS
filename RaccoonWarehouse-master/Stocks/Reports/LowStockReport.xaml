@@ -1,4 +1,4 @@
-<Window x:Class="RaccoonWarehouse.Stocks.Reports.LowStockReport"
+<Window xmlns:security="clr-namespace:RaccoonWarehouse.Security" x:Class="RaccoonWarehouse.Stocks.Reports.LowStockReport"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:fa="http://schemas.fontawesome.io/icons/"
@@ -190,7 +190,7 @@
                                     Click="GenerateReport_Click"/>
                             <Button x:Name="ExportExcelButton" Content="تصدير Excel / Export Excel" Width="175" Height="38"
                                     IsEnabled="False" VerticalAlignment="Bottom" Margin="12,0,0,8"
-                                    Style="{StaticResource PrimaryButtonStyle}" Click="ExportExcel_Click"/>
+                                    Style="{StaticResource PrimaryButtonStyle}" Click="ExportExcel_Click" security:PermissionWindowGuard.Keys="BelowMinimumStockReport.Export"/>
                         </WrapPanel>
                     </StackPanel>
                 </Grid>

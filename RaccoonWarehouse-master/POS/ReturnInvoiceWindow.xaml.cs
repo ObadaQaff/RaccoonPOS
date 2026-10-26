@@ -5,6 +5,7 @@ using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Core.Common;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Invoices.DTOs;
+using RaccoonWarehouse.Domain.Products;
 using RaccoonWarehouse.Helpers.Localization;
 using System.Collections.ObjectModel;
 using System.Windows;
@@ -35,6 +36,7 @@ namespace RaccoonWarehouse.POS
             IAuthService authService,
             IProductService productService)
         {
+            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
             UiText.ApplyWindow(this);
             _invoiceService = invoiceService;
@@ -118,7 +120,7 @@ namespace RaccoonWarehouse.POS
             cancel.Click += (_, _) => prompt.DialogResult = false;
             prompt.Loaded += (_, _) => password.Focus();
 
-            var accepted = prompt.ShowDialog() == true;
+            var accepted = RaccoonWarehouse.Security.PermissionWindowGuard.ShowDialog(prompt, "SalesInvoice.View") == true;
             if (!accepted)
                 MessageBox.Show(
                     UiText.T("كلمة المرور غير صحيحة أو تم إلغاء العملية.", "The password is incorrect or the operation was cancelled."),
@@ -269,7 +271,7 @@ namespace RaccoonWarehouse.POS
                         InvoiceNumberTextBox.Text?.Trim(),
                         null,
                         ProductNameTextBox.Text?.Trim(),
-                        BarcodeTextBox.Text?.Trim());
+                        BarcodeLookup.Normalize(BarcodeTextBox.Text));
                 }
                 finally
                 {

@@ -32,6 +32,8 @@ namespace RaccoonWarehouse.Navigation.Modules
                                 new ModuleActionDefinition("Settings.Employees", "إعدادات نظام الموظفين"),
                                 new ModuleActionDefinition("Settings.Accounting", "إعدادات نظام المحاسبة"),
                                 new ModuleActionDefinition("Settings.InventoryCosting", UiText.T("طريقة تقييم المخزون", "Inventory Costing")),
+                                new ModuleActionDefinition("Settings.RefundCode", UiText.T("إعدادات رمز المرتجع", "Refund Code Settings"), "Settings.ManageSettings"),
+                                new ModuleActionDefinition("Settings.DocumentBranding", UiText.T("إعدادات الطباعة وهوية الصيدلية", "Printing and business identity"), "Settings.ManageSettings"),
                                 new ModuleActionDefinition("Settings.PosRowColors", UiText.T("ألوان صفوف نقطة البيع", "POS Row Colors")),
                                 new ModuleActionDefinition("Settings.Language", UiText.T("إعدادات اللغة", "Language Settings"))
                             }),

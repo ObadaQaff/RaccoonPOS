@@ -14,6 +14,7 @@ namespace RaccoonWarehouse.Accounting
         {
             _accountingService = accountingService;
             _featureService = featureService;
+            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
             UiText.ApplyWindow(this);
             Loaded += AccountingFeatureSettingsWindow_Loaded;

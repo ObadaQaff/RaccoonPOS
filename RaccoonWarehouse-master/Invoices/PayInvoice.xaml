@@ -1,4 +1,4 @@
-<Window x:Class="RaccoonWarehouse.Invoices.PayInvoice" PreviewKeyDown="PayInvoice_PreviewKeyDown"
+<Window xmlns:security="clr-namespace:RaccoonWarehouse.Security" x:Class="RaccoonWarehouse.Invoices.PayInvoice" PreviewKeyDown="PayInvoice_PreviewKeyDown"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:fa="http://schemas.fontawesome.io/icons/"
@@ -279,7 +279,7 @@
                         <Grid>
                             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="38"/></Grid.ColumnDefinitions>
                             <ComboBox x:Name="SupplierComboBox" Grid.Column="0" Style="{StaticResource ComboBoxStyleModern}" IsEditable="True" IsTextSearchEnabled="False" StaysOpenOnEdit="True" Loaded="SupplierComboBox_Loaded" PreviewTextInput="SupplierComboBox_PreviewTextInput" KeyUp="SupplierComboBox_KeyUp"/>
-                            <Button Grid.Column="1" Content="+" Margin="4,0,0,0" Click="AddSupplierBtn_Click" ToolTip="إضافة مورد"/>
+                            <Button Grid.Column="1" Content="+" Margin="4,0,0,0" Click="AddSupplierBtn_Click" ToolTip="إضافة مورد" security:PermissionWindowGuard.Keys="Users.Create"/>
                         </Grid>
                     </StackPanel>
                 </Grid>
@@ -354,7 +354,7 @@
                                 Width="110"
                                 Margin="10,0,0,0"
                                 Visibility="Collapsed"
-                                Click="SearchProductBtn_Click"/>
+                                Click="SearchProductBtn_Click" security:PermissionWindowGuard.Keys="POS.View|PurchaseInvoice.View|PurchaseOrder.View|Products.View"/>
                         <TextBlock Text="إضافة منتج" Style="{StaticResource HeaderText}"/>
                     </DockPanel>
 
@@ -402,7 +402,7 @@
                                         VerticalAlignment="Center"
                                         Background="White"
                                         Cursor="Hand"
-                                        Click="SearchProductBtn_Click">
+                                        Click="SearchProductBtn_Click" security:PermissionWindowGuard.Keys="POS.View|PurchaseInvoice.View|PurchaseOrder.View|Products.View">
                                     <fa:ImageAwesome Icon="Search"
                                                      Width="16" Height="14"
                                                      Foreground="Black"/>
@@ -451,11 +451,10 @@
                         </StackPanel>
 
                         <!-- سعر البيع -->
-                        <StackPanel Grid.Column="4" Margin="6">
+                        <StackPanel x:Name="SalePriceInputPanel" Grid.Column="4" Margin="6">
                             <TextBlock Text="سعر البيع"/>
                             <TextBox x:Name="SaleBox"
                                      Style="{StaticResource InputBoxStyle}"
-                                     IsReadOnly="True"
                                      HorizontalContentAlignment="Center"/>
                         </StackPanel>
 
@@ -465,7 +464,11 @@
                             <DatePicker x:Name="ExpiryBox"
                                         Height="32"
                                         FontSize="15"
-                                        Width="122"/>
+                                        Width="122"
+                                        Language="en-GB"
+                                        SelectedDateFormat="Short"
+                                        Loaded="ExpiryDatePicker_Loaded"
+                                        GotFocus="ExpiryDatePicker_GotFocus"/>
                         </StackPanel>
 
                         <!-- زر إضافة -->
@@ -473,7 +476,7 @@
                             <Button Content="إضافة"
                                     Style="{StaticResource PrimaryButtonStyle}"
                                     Width="70"
-                                    Click="AddProduct_Click"/>
+                                    Click="AddProduct_Click" security:PermissionWindowGuard.Keys="PurchaseInvoice.Create|PurchaseInvoice.Edit"/>
                         </StackPanel>
                     </Grid>
                 </StackPanel>
@@ -482,7 +485,7 @@
                         Style="{StaticResource PrimaryButtonStyle}"
                         Width="180"
                         HorizontalAlignment="Center"
-                        Click="SearchProductBtn_Click"/>
+                        Click="SearchProductBtn_Click" security:PermissionWindowGuard.Keys="POS.View|PurchaseInvoice.View|PurchaseOrder.View|Products.View"/>
 
                 <!-- GRID للمنتجات -->
                 <StackPanel Margin="10"
@@ -498,6 +501,7 @@
                     <DataGrid x:Name="ProductsGrid"
                               AutoGenerateColumns="False"
                               CanUserAddRows="False" IsReadOnly="False" CellEditEnding="ProductsGrid_CellEditEnding"
+                              PreviewKeyDown="ProductsGrid_PreviewKeyDown"
                               Style="{StaticResource MinimalDataGrid}"
                               HorizontalAlignment="Stretch"
                               HorizontalScrollBarVisibility="Auto"
@@ -562,24 +566,32 @@
                                                 Width="75"/>
 
                             <DataGridTextColumn Header="السعر"
-                                                Binding="{Binding UnitPrice, StringFormat=0.######, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                          Binding="{Binding UnitPrice, StringFormat=0.000, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                Width="80"/>
+
+                            <DataGridTextColumn x:Name="SalePriceColumn" Header="سعر البيع"
+                                          Binding="{Binding SalePrice, StringFormat=0.000, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                 Width="80"/>
 
                             <DataGridTemplateColumn Header="الانتهاء" Width="100">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <TextBlock Text="{Binding ExpiryDate, StringFormat=yyyy-MM-dd}" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding ExpiryDate, StringFormat=dd/MM/yyyy}" VerticalAlignment="Center"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                                 <DataGridTemplateColumn.CellEditingTemplate>
                                     <DataTemplate>
-                                        <DatePicker SelectedDate="{Binding ExpiryDate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <DatePicker SelectedDate="{Binding ExpiryDate, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                    Language="en-GB"
+                                                    SelectedDateFormat="Short"
+                                                    Loaded="ExpiryDatePicker_Loaded"
+                                                    GotFocus="ExpiryDatePicker_GotFocus"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellEditingTemplate>
                             </DataGridTemplateColumn>
 
                             <DataGridTextColumn Header="الإجمالي"
-                                                Binding="{Binding LineTotal, StringFormat=0.######}"
+                                          Binding="{Binding PurchaseLineTotal, StringFormat=0.000}"
                                                 Width="85"/>
 
                             <DataGridTemplateColumn Header="حذف" Width="36">
@@ -591,7 +603,33 @@
                                                 FontSize="12" Padding="0"
                                                 Cursor="Hand"
                                                 BorderThickness="0"
-                                                Click="DeleteProduct_Click"/>
+                                                Click="DeleteProduct_Click" security:PermissionWindowGuard.Keys="PurchaseInvoice.Create|PurchaseInvoice.Edit"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn x:Name="BonusPercentageColumn" Header="Bonus (%)" Width="120" DisplayIndex="4">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel>
+                                            <DockPanel>
+                                                <Button Content="Apply" DockPanel.Dock="Right" Padding="3,1" FontSize="11" MinWidth="0" MinHeight="0" Height="22" Click="ApplyBonusPercentage_Click" Visibility="Collapsed"/>
+                                                <TextBox Text="{Binding BonusPercentageInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                         FlowDirection="LeftToRight" FontSize="12" Padding="2,1" MinWidth="45" MinHeight="0" Height="22"
+                                                         ToolTip="Enter 10 or 10%" PreviewKeyDown="BonusPercentageInput_PreviewKeyDown" LostFocus="BonusPercentageInput_LostFocus"/>
+                                            </DockPanel>
+                                            <TextBlock Text="Apply bonus again" Foreground="DarkRed" FontSize="9" LineHeight="10" LineStackingStrategy="BlockLineHeight">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding BonusNeedsApply}" Value="True">
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </StackPanel>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
@@ -621,7 +659,7 @@
                             Style="{StaticResource PrimaryButtonStyle}"
                             Width="130"
                             Margin="10,0,0,0"
-                            Click="SaveReceiptBtn_Click">
+                            Click="SaveReceiptBtn_Click" security:PermissionWindowGuard.Keys="PurchaseInvoice.Create|PurchaseInvoice.Edit;PurchaseInvoice.Post">
                         <StackPanel Orientation="Horizontal">
                             <fa:ImageAwesome Icon="Save" Width="18" Height="18"/>
                             <TextBlock Text="حفظ" Margin="8,0,0,0"/>
@@ -641,7 +679,7 @@
                             Style="{StaticResource SecondaryButtonStyle}"
                             Width="150"
                             Margin="10,0,0,0"
-                            Click="SearchInvoiceBtn_Click">
+                            Click="SearchInvoiceBtn_Click" security:PermissionWindowGuard.Keys="SalesInvoice.View">
                         <StackPanel Orientation="Horizontal">
                             <fa:ImageAwesome Icon="Search" Width="18" Height="18"/>
                             <TextBlock Text="استعلام" Margin="8,0,0,0"/>
@@ -653,7 +691,7 @@
                             Width="150"
                             Margin="10,0,0,0"
                             Visibility="Collapsed"
-                            Click="PrintBtn_Click">
+                            Click="PrintBtn_Click" security:PermissionWindowGuard.Keys="PurchaseInvoice.Print">
                         <StackPanel Orientation="Horizontal">
                             <fa:ImageAwesome Icon="Print" Width="18" Height="18"/>
                             <TextBlock Text="طباعة" Margin="8,0,0,0"/>

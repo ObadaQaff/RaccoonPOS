@@ -15,6 +15,7 @@ using RaccoonWarehouse.Domain.Invoices;
 using RaccoonWarehouse.Domain.Invoices.DTOs;
 using RaccoonWarehouse.Domain.ProductUnits;
 using RaccoonWarehouse.Domain.ProductUnits.DTOs;
+using RaccoonWarehouse.Domain.Products;
 using RaccoonWarehouse.Domain.Reports.Financial.Dtos;
 using RaccoonWarehouse.Domain.Reports.Financial.Filters;
 using RaccoonWarehouse.Domain.Reports.Sales.Dtos;
@@ -73,9 +74,16 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                     ? null
                     : normalizedFalconInvoiceNumber;
 
+                dto.InvoiceNumber = dto.InvoiceNumber?.Trim() ?? string.Empty;
+
                 if (dto.Id <= 0)
                 {
-                    if (!int.TryParse(dto.InvoiceNumber, out var invoiceNumber) || invoiceNumber < 100 || invoiceNumber > 99999)
+                    if (string.IsNullOrWhiteSpace(dto.InvoiceNumber))
+                        return Result<InvoiceWriteDto>.Fail(dto.InvoiceType == InvoiceType.Purchase
+                            ? "Supplier invoice number is required / رقم فاتورة المورد مطلوب."
+                            : "Invoice number is required / رقم الفاتورة مطلوب.");
+                    if (dto.InvoiceType != InvoiceType.Purchase &&
+                        (!int.TryParse(dto.InvoiceNumber, out var invoiceNumber) || invoiceNumber < 100 || invoiceNumber > 99999))
                         return Result<InvoiceWriteDto>.Fail("Invoice number must contain 3 to 5 digits / رقم الفاتورة يجب أن يتكون من 3 إلى 5 أرقام.");
 
                     var invoiceNumberExists = await invoiceRepo.GetAllAsQueryable()
@@ -188,8 +196,11 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 invoice.Checks = new List<Check>();
                 invoice.Payments = new List<InvoicePayment>();
 
+                if (invoice.Id > 0)
+                {
                 await _uow.CommitAsync(); // ✅ هسا صار عندك invoice.Id
                 LogInvoiceTiming("invoice header database save", totalTiming, stepTiming);
+                }
 
                 // 4) أضف السطور وربط InvoiceId يدوي
                 foreach (var l in dto.InvoiceLines)
@@ -210,7 +221,7 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 {
                     var payment = _mapper.Map<InvoicePayment>(paymentDto);
                     payment.Id = 0;
-                    payment.InvoiceId = invoice.Id;
+                    payment.InvoiceId = 0;
                     payment.Invoice = null;
                     payment.Invoice = invoice;
                     invoice.Payments.Add(payment);
@@ -220,7 +231,7 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 {
                     var check = _mapper.Map<Check>(checkDto);
                     check.Id = 0;
-                    check.InvoiceId = invoice.Id;
+                    check.InvoiceId = 0;
                     check.Invoice = null;
                     check.Invoice = invoice;
                     invoice.Checks.Add(check);
@@ -229,7 +240,7 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 await invoiceRepo.AddAsync(invoice);
                 await _uow.CommitAsync();
                 await createTransaction.CommitAsync();
-                LogInvoiceTiming("invoice lines and checks database save", totalTiming, stepTiming);
+                LogInvoiceTiming("invoice graph database save", totalTiming, stepTiming);
 
                 dto.Id = invoice.Id;
                 foreach (var pair in dto.InvoiceLines.Zip(invoice.InvoiceLines))
@@ -299,6 +310,7 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 dto.FalconInvoiceNumber = string.IsNullOrWhiteSpace(normalizedFalconInvoiceNumber)
                     ? null
                     : normalizedFalconInvoiceNumber;
+                dto.InvoiceNumber = dto.InvoiceNumber?.Trim() ?? string.Empty;
 
                 var existingInvoice = await invoiceRepo.GetAllAsQueryable()
                     .Include(x => x.InvoiceLines)
@@ -309,7 +321,13 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 if (existingInvoice == null)
                     return Result<InvoiceWriteDto>.Fail("Invoice not found.");
 
-                if (!int.TryParse(dto.InvoiceNumber, out var invoiceNumber) || invoiceNumber < 100 || invoiceNumber > 99999)
+                if (string.IsNullOrWhiteSpace(dto.InvoiceNumber))
+                    return Result<InvoiceWriteDto>.Fail(dto.InvoiceType == InvoiceType.Purchase
+                        ? "Supplier invoice number is required / رقم فاتورة المورد مطلوب."
+                        : "Invoice number is required / رقم الفاتورة مطلوب.");
+
+                if (dto.InvoiceType != InvoiceType.Purchase &&
+                    (!int.TryParse(dto.InvoiceNumber, out var invoiceNumber) || invoiceNumber < 100 || invoiceNumber > 99999))
                     return Result<InvoiceWriteDto>.Fail("Invoice number must contain 3 to 5 digits / رقم الفاتورة يجب أن يتكون من 3 إلى 5 أرقام.");
 
                 // Invoice numbers are global because all invoice types share the Invoice table.
@@ -909,7 +927,7 @@ namespace RaccoonWarehouse.Application.Service.Invoices
         public async Task<Result<List<InvoiceReadDto>>> SearchSalesInvoicesAsync(
                     string? invoiceNumber,string? customerName,
                     DateTime? dateFrom,DateTime? dateTo,bool? isSal=null, bool? isPOS = null,
-                          InvoiceStatus? status = null)
+                          InvoiceStatus? status = null, string? productBarcode = null)
         {
             try
             {
@@ -961,6 +979,16 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                         (i.User != null && i.User.Name.Contains(accountSearch)) ||
                         (i.SupplierId.HasValue && _context.Set<User>().Any(u => u.Id == i.SupplierId.Value && u.Name.Contains(accountSearch))) ||
                         (i.CreatedBy.HasValue && _context.Set<User>().Any(u => u.Id == i.CreatedBy.Value && u.Name.Contains(accountSearch))));
+                }
+
+                if (!string.IsNullOrWhiteSpace(productBarcode))
+                {
+                    var barcode = BarcodeLookup.Normalize(productBarcode);
+                    var hasNumericItemCode = long.TryParse(barcode, out var numericItemCode);
+                    query = query.Where(i => i.InvoiceLines.Any(line =>
+                        line.Product != null &&
+                        ((hasNumericItemCode && line.Product.ITEMCODE == numericItemCode) ||
+                         line.Product.ProductUnits!.Any(unit => unit.AlternateBarcode == barcode))));
                 }
 
                 if (dateFrom.HasValue)
@@ -1030,7 +1058,7 @@ namespace RaccoonWarehouse.Application.Service.Invoices
 
                 if (!string.IsNullOrWhiteSpace(barcode))
                 {
-                    var barcodeText = barcode.Trim();
+                    var barcodeText = BarcodeLookup.Normalize(barcode);
                     var hasItemCode = long.TryParse(barcodeText, out var itemCode);
                     query = query.Where(invoice => _context.Set<InvoiceLine>().Any(line =>
                         line.InvoiceId == invoice.Id &&
@@ -1475,7 +1503,8 @@ namespace RaccoonWarehouse.Application.Service.Invoices
           DateTime? dateTo,
           bool? isSal,
           bool? isPOS = null,
-          InvoiceStatus? status = null);
+          InvoiceStatus? status = null,
+          string? productBarcode = null);
 
         Task<Result<List<ReturnInvoiceLookupDto>>> SearchReturnInvoiceHeadersAsync(
             DateTime? dateFrom,

@@ -80,7 +80,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("FiscalYearId", "AccountId", "BranchId", "CostCenterId", "WarehouseId", "PartyUserId");
 
-                    b.ToTable("AccountOpeningBalances");
+                    b.ToTable("AccountOpeningBalances", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Accounting.Accounts.Account", b =>
@@ -176,7 +176,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("ParentAccountId");
 
-                    b.ToTable("Accounts");
+                    b.ToTable("Accounts", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Accounting.Banks.BankAccount", b =>
@@ -223,7 +223,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("GlAccountId");
 
-                    b.ToTable("BankAccounts");
+                    b.ToTable("BankAccounts", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Accounting.Banks.BankStatement", b =>
@@ -261,7 +261,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("BankAccountId", "StatementDate");
 
-                    b.ToTable("BankStatements");
+                    b.ToTable("BankStatements", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Accounting.Banks.BankStatementLine", b =>
@@ -307,7 +307,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("BankStatementId", "TransactionDate");
 
-                    b.ToTable("BankStatementLines");
+                    b.ToTable("BankStatementLines", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Accounting.JournalEntries.JournalEntry", b =>
@@ -398,7 +398,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("FiscalYearId");
 
-                    b.ToTable("JournalEntries");
+                    b.ToTable("JournalEntries", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Accounting.JournalEntries.JournalEntryLine", b =>
@@ -501,7 +501,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("JournalEntryId", "LineNumber")
                         .IsUnique();
 
-                    b.ToTable("JournalEntryLines");
+                    b.ToTable("JournalEntryLines", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Accounting.Operations.AccountingOperation", b =>
@@ -616,7 +616,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("FiscalYearId", "PeriodNumber")
                         .IsUnique();
 
-                    b.ToTable("AccountingPeriods");
+                    b.ToTable("AccountingPeriods", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Accounting.Periods.FiscalYear", b =>
@@ -667,7 +667,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("Code")
                         .IsUnique();
 
-                    b.ToTable("FiscalYears");
+                    b.ToTable("FiscalYears", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Accounting.RecurringJournals.RecurringJournal", b =>
@@ -710,7 +710,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("NextRunDate");
 
-                    b.ToTable("RecurringJournals");
+                    b.ToTable("RecurringJournals", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Accounting.RecurringJournals.RecurringJournalLine", b =>
@@ -755,7 +755,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("RecurringJournalId");
 
-                    b.ToTable("RecurringJournalLines");
+                    b.ToTable("RecurringJournalLines", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Accounting.TaxRates.TaxRate", b =>
@@ -795,7 +795,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("Name", "TaxType");
 
-                    b.ToTable("TaxRates");
+                    b.ToTable("TaxRates", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Audit.AuditLog", b =>
@@ -847,7 +847,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("CreatedDate", "UserId");
 
-                    b.ToTable("AuditLogs");
+                    b.ToTable("AuditLogs", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Branches.Branch", b =>
@@ -898,7 +898,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("Code")
                         .IsUnique();
 
-                    b.ToTable("Branches");
+                    b.ToTable("Branches", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Brands.Brand", b =>
@@ -924,7 +924,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Brand");
+                    b.ToTable("Brand", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Cashiers.CashierSession", b =>
@@ -1033,7 +1033,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("CashierId");
 
-                    b.ToTable("CashierSession");
+                    b.ToTable("CashierSession", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Categories.Category", b =>
@@ -1062,7 +1062,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Category");
+                    b.ToTable("Category", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Checks.Check", b =>
@@ -1117,7 +1117,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("VoucherId");
 
-                    b.ToTable("Check");
+                    b.ToTable("Check", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.CostCenters.CostCenter", b =>
@@ -1170,7 +1170,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("ParentCostCenterId");
 
-                    b.ToTable("CostCenters");
+                    b.ToTable("CostCenters", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Currencies.Currency", b =>
@@ -1225,7 +1225,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("Code")
                         .IsUnique();
 
-                    b.ToTable("Currencies");
+                    b.ToTable("Currencies", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Currencies.ExchangeRate", b =>
@@ -1261,7 +1261,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("FromCurrencyId", "ToCurrencyId", "EffectiveDate");
 
-                    b.ToTable("ExchangeRates");
+                    b.ToTable("ExchangeRates", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Delegates.Delegate", b =>
@@ -1331,7 +1331,7 @@ namespace RaccoonWarehouse.Data.Migrations
                         .IsUnique()
                         .HasFilter("[UserId] IS NOT NULL");
 
-                    b.ToTable("Delegate");
+                    b.ToTable("Delegate", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Employees.Employee", b =>
@@ -1374,6 +1374,9 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Property<string>("Email")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int?>("EmploymentType")
+                        .HasColumnType("int");
+
                     b.Property<string>("FullName")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -1397,13 +1400,18 @@ namespace RaccoonWarehouse.Data.Migrations
                         .HasColumnType("int");
 
                     b.Property<string>("NationalId")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("Notes")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("PhoneNumber")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("SocialSecurityNumberEncrypted")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
 
                     b.Property<int>("Status")
                         .HasColumnType("int");
@@ -1428,13 +1436,17 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("ManagerId");
 
+                    b.HasIndex("NationalId")
+                        .IsUnique()
+                        .HasFilter("[NationalId] IS NOT NULL AND [NationalId] <> N''");
+
                     b.HasIndex("Status");
 
                     b.HasIndex("UserId")
                         .IsUnique()
                         .HasFilter("[UserId] IS NOT NULL");
 
-                    b.ToTable("Employee");
+                    b.ToTable("Employee", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.FinancialTransactions.FinancialTransaction", b =>
@@ -1531,7 +1543,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("SourceType", "SourceId");
 
-                    b.ToTable("FinancialTransaction");
+                    b.ToTable("FinancialTransaction", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.GoodsReceipts.GoodsReceipt", b =>
@@ -1584,7 +1596,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("ReceiptNumber")
                         .IsUnique();
 
-                    b.ToTable("GoodsReceipts");
+                    b.ToTable("GoodsReceipts", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.GoodsReceipts.GoodsReceiptLine", b =>
@@ -1653,7 +1665,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("GoodsReceiptId", "PurchaseOrderLineId");
 
-                    b.ToTable("GoodsReceiptLines");
+                    b.ToTable("GoodsReceiptLines", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Insurance.InsuranceAttachment", b =>
@@ -1697,7 +1709,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("OwnerType", "OwnerId");
 
-                    b.ToTable("InsuranceAttachments");
+                    b.ToTable("InsuranceAttachments", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Insurance.InsuranceBeneficiaryCategory", b =>
@@ -1733,7 +1745,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("Code")
                         .IsUnique();
 
-                    b.ToTable("InsuranceBeneficiaryCategories");
+                    b.ToTable("InsuranceBeneficiaryCategories", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Insurance.InsuranceClaim", b =>
@@ -1815,7 +1827,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("InsuranceCompanyId", "Status", "SubmissionDate");
 
-                    b.ToTable("InsuranceClaims");
+                    b.ToTable("InsuranceClaims", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Insurance.InsuranceClaimAdjustment", b =>
@@ -1851,7 +1863,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("InsuranceClaimAdjustments");
+                    b.ToTable("InsuranceClaimAdjustments", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Insurance.InsuranceClaimBatch", b =>
@@ -1907,7 +1919,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("InsuranceClaimBatches");
+                    b.ToTable("InsuranceClaimBatches", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Insurance.InsuranceClaimLine", b =>
@@ -1957,7 +1969,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("InsuranceClaimId", "InvoiceLineId")
                         .IsUnique();
 
-                    b.ToTable("InsuranceClaimLines");
+                    b.ToTable("InsuranceClaimLines", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Insurance.InsuranceClaimPayment", b =>
@@ -1999,7 +2011,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("InsuranceClaimPayments");
+                    b.ToTable("InsuranceClaimPayments", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Insurance.InsuranceClaimPaymentAllocation", b =>
@@ -2031,7 +2043,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("InsuranceClaimPaymentId", "InsuranceClaimId")
                         .IsUnique();
 
-                    b.ToTable("InsuranceClaimPaymentAllocations");
+                    b.ToTable("InsuranceClaimPaymentAllocations", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Insurance.InsuranceCompany", b =>
@@ -2100,7 +2112,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("Code")
                         .IsUnique();
 
-                    b.ToTable("InsuranceCompanies");
+                    b.ToTable("InsuranceCompanies", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Insurance.InsuranceContract", b =>
@@ -2160,7 +2172,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("ContractNumber")
                         .IsUnique();
 
-                    b.ToTable("InsuranceContracts");
+                    b.ToTable("InsuranceContracts", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Insurance.InsuranceContractVersion", b =>
@@ -2200,7 +2212,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("InsuranceContractId", "VersionNumber")
                         .IsUnique();
 
-                    b.ToTable("InsuranceContractVersions");
+                    b.ToTable("InsuranceContractVersions", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Insurance.InsuranceCoverageRule", b =>
@@ -2277,7 +2289,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("InsuranceCoverageRules");
+                    b.ToTable("InsuranceCoverageRules", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Insurance.InsuranceEligibilityCheck", b =>
@@ -2325,7 +2337,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("InsuranceMemberPolicyId", "CheckedAt");
 
-                    b.ToTable("InsuranceEligibilityChecks");
+                    b.ToTable("InsuranceEligibilityChecks", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Insurance.InsuranceExclusion", b =>
@@ -2363,7 +2375,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("InsuranceExclusions");
+                    b.ToTable("InsuranceExclusions", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Insurance.InsuranceInvoiceCoverage", b =>
@@ -2427,7 +2439,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("InvoiceId")
                         .IsUnique();
 
-                    b.ToTable("InsuranceInvoiceCoverages");
+                    b.ToTable("InsuranceInvoiceCoverages", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Insurance.InsuranceInvoiceCoverageLine", b =>
@@ -2437,6 +2449,9 @@ namespace RaccoonWarehouse.Data.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ApprovalNotes")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<decimal>("ApprovedQuantity")
                         .HasPrecision(18, 6)
@@ -2460,9 +2475,6 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
-
-                    b.Property<string>("ApprovalNotes")
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("Decision")
                         .HasColumnType("int");
@@ -2524,7 +2536,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("InsuranceInvoiceCoverageId", "InvoiceLineId")
                         .IsUnique();
 
-                    b.ToTable("InsuranceInvoiceCoverageLines");
+                    b.ToTable("InsuranceInvoiceCoverageLines", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Insurance.InsuranceMemberPolicy", b =>
@@ -2597,7 +2609,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("InsuranceCompanyId", "MemberNumber");
 
-                    b.ToTable("InsuranceMemberPolicies");
+                    b.ToTable("InsuranceMemberPolicies", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Insurance.InsuranceNetwork", b =>
@@ -2636,7 +2648,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("Code")
                         .IsUnique();
 
-                    b.ToTable("InsuranceNetworks");
+                    b.ToTable("InsuranceNetworks", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Insurance.InsurancePlan", b =>
@@ -2687,7 +2699,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("InsuranceContractId", "Code")
                         .IsUnique();
 
-                    b.ToTable("InsurancePlans");
+                    b.ToTable("InsurancePlans", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Insurance.InsurancePreAuthorization", b =>
@@ -2745,7 +2757,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("AuthorizationNumber")
                         .IsUnique();
 
-                    b.ToTable("InsurancePreAuthorizations");
+                    b.ToTable("InsurancePreAuthorizations", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Insurance.InsurancePreAuthorizationLine", b =>
@@ -2795,7 +2807,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("InsurancePreAuthorizationId", "ProductId")
                         .IsUnique();
 
-                    b.ToTable("InsurancePreAuthorizationLines");
+                    b.ToTable("InsurancePreAuthorizationLines", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Integration.IntegrationInbox", b =>
@@ -2887,6 +2899,14 @@ namespace RaccoonWarehouse.Data.Migrations
                         .HasPrecision(18, 6)
                         .HasColumnType("decimal(18,6)");
 
+                    b.Property<string>("BonusRatio")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<decimal?>("BonusPercentage")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
 
@@ -2925,6 +2945,10 @@ namespace RaccoonWarehouse.Data.Migrations
                         .HasPrecision(18, 6)
                         .HasColumnType("decimal(18,6)");
 
+                    b.Property<decimal?>("PurchaseAcquisitionCost")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
                     b.Property<decimal>("Quantity")
                         .HasPrecision(18, 6)
                         .HasColumnType("decimal(18,6)");
@@ -2932,6 +2956,9 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Property<decimal>("QuantityPerUnitSnapshot")
                         .HasPrecision(18, 6)
                         .HasColumnType("decimal(18,6)");
+
+                    b.Property<int?>("SourcePurchaseLineId")
+                        .HasColumnType("int");
 
                     b.Property<decimal>("TaxAmount")
                         .HasPrecision(18, 6)
@@ -2955,20 +2982,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Property<DateTime>("UpdatedDate")
                         .HasColumnType("datetime2");
 
-                    b.Property<decimal?>("PurchaseAcquisitionCost")
-                        .HasPrecision(18, 6)
-                        .HasColumnType("decimal(18,6)");
-
-                    b.Property<int?>("SourcePurchaseLineId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("BonusRatio")
-                        .HasMaxLength(40)
-                        .HasColumnType("nvarchar(40)");
-
                     b.HasKey("Id");
-
-                    b.HasIndex("SourcePurchaseLineId");
 
                     b.HasIndex("InvoiceId");
 
@@ -2976,7 +2990,9 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("ProductUnitId");
 
-                    b.ToTable("InvoiceLine");
+                    b.HasIndex("SourcePurchaseLineId");
+
+                    b.ToTable("InvoiceLine", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Invoices.Invoice", b =>
@@ -3144,7 +3160,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("VoucherId");
 
-                    b.ToTable("Invoice");
+                    b.ToTable("Invoice", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Invoices.InvoicePayment", b =>
@@ -3175,7 +3191,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("InvoiceId");
 
-                    b.ToTable("InvoicePayments");
+                    b.ToTable("InvoicePayments", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.POS.PosProductCatalogEntry", b =>
@@ -3293,7 +3309,405 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("ProductId", "ProductUnitId")
                         .IsUnique();
 
-                    b.ToTable("PosProductCatalogEntry");
+                    b.ToTable("PosProductCatalogEntry", (string)null);
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Payroll.EmployeeEmploymentHistory", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AfterJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("BeforeJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("ChangedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("EmployeeId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmployeeId");
+
+                    b.ToTable("EmployeeEmploymentHistory", (string)null);
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Payroll.EmployeePayroll", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("ApprovedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("ApprovedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("EmployeeId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("InputsJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("ModifiedBy")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Month")
+                        .HasColumnType("int");
+
+                    b.Property<int>("PolicyId")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("SalaryVersionId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SnapshotJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("State")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PolicyId");
+
+                    b.HasIndex("SalaryVersionId");
+
+                    b.HasIndex("EmployeeId", "Year", "Month")
+                        .IsUnique();
+
+                    b.ToTable("EmployeePayroll", (string)null);
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Payroll.EmployeeSalaryVersion", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("BasicMonthlySalary")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<string>("ChangeReason")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int?>("ChangedBy")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ContributionCategory")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("EffectiveFrom")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("EmployeeId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("FixedAllowances")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<decimal>("HolidayOvertimeMultiplier")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<int>("HourlyRateMethod")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("NormalOvertimeMultiplier")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<int>("OvertimeMode")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("SocialSecurityCovered")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal?>("SocialSecurityEligibleWage")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<decimal>("StandardDailyHours")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<decimal>("StandardMonthlyHours")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<DateTime>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("WorkingDaysPerWeek")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmployeeId", "EffectiveFrom")
+                        .IsUnique();
+
+                    b.ToTable("EmployeeSalaryVersion", (string)null);
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Payroll.PayrollAdjustment", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<int?>("AuthorizedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("DeductionBasis")
+                        .HasColumnType("int");
+
+                    b.Property<int>("EmployeePayrollId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("int");
+
+                    b.Property<string>("LegalReference")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmployeePayrollId");
+
+                    b.ToTable("PayrollAdjustment", (string)null);
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Payroll.PayrollCorrection", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("CorrectedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("EmployeePayrollId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("OriginalAdjustmentsJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("OriginalApprovedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("OriginalApprovedBy")
+                        .HasColumnType("int");
+
+                    b.Property<string>("OriginalInputsJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("OriginalRevision")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("OriginalSnapshotJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmployeePayrollId");
+
+                    b.ToTable("PayrollCorrection", (string)null);
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Payroll.PayrollPolicy", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("AdvanceDeductionMaximumPercent")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("DefaultDailyHours")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<decimal>("DefaultMonthlyHours")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<int>("DefaultWorkingDaysPerWeek")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("EffectiveFrom")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("EffectiveTo")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("EmployeeSscPercent")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<decimal>("EmployerSscPercent")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<bool>("IncludeFixedAllowancesInWageBasis")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal>("InsurableWageCeiling")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<bool>("IsLegallyReviewed")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal>("LegalDailyHours")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<decimal>("LegalWeeklyHours")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<decimal>("MinimumHolidayMultiplier")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<decimal>("MinimumNormalMultiplier")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<int>("ProrationMethod")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ReviewReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int?>("ReviewedBy")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("SalaryDayDivisor")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<string>("SourceReference")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<DateTime>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("WeekStartsOn")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Category", "EffectiveFrom")
+                        .IsUnique();
+
+                    b.ToTable("PayrollPolicy", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Permissions.PermissionDefinition", b =>
@@ -3347,7 +3761,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("Key")
                         .IsUnique();
 
-                    b.ToTable("PermissionDefinitions");
+                    b.ToTable("PermissionDefinitions", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Permissions.ReportPermission", b =>
@@ -3379,7 +3793,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("ReportKey", "Role")
                         .IsUnique();
 
-                    b.ToTable("ReportPermissions");
+                    b.ToTable("ReportPermissions", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Permissions.RolePermission", b =>
@@ -3411,7 +3825,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("Role", "PermissionKey")
                         .IsUnique();
 
-                    b.ToTable("RolePermissions");
+                    b.ToTable("RolePermissions", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Permissions.UserPermission", b =>
@@ -3443,7 +3857,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("UserId", "PermissionKey")
                         .IsUnique();
 
-                    b.ToTable("UserPermissions");
+                    b.ToTable("UserPermissions", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.ProductUnits.ProductUnit", b =>
@@ -3517,7 +3931,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("ProductId", "AlternateBarcode");
 
-                    b.ToTable("ProductUnit");
+                    b.ToTable("ProductUnit", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Products.Product", b =>
@@ -3593,7 +4007,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("SupplierId");
 
-                    b.ToTable("Product");
+                    b.ToTable("Product", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.PurchaseControl.PurchaseControlEntry", b =>
@@ -3677,7 +4091,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("PurchaseControlEntries");
+                    b.ToTable("PurchaseControlEntries", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.PurchaseInvoiceMatches.PurchaseInvoiceMatch", b =>
@@ -3731,7 +4145,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("InvoiceId")
                         .IsUnique();
 
-                    b.ToTable("PurchaseInvoiceMatches");
+                    b.ToTable("PurchaseInvoiceMatches", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.PurchaseInvoiceMatches.PurchaseInvoiceMatchLine", b =>
@@ -3786,7 +4200,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("PurchaseInvoiceMatchId", "InvoiceLineId")
                         .IsUnique();
 
-                    b.ToTable("PurchaseInvoiceMatchLines");
+                    b.ToTable("PurchaseInvoiceMatchLines", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.PurchaseOrders.PurchaseOrder", b =>
@@ -3831,6 +4245,10 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Property<string>("Notes")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("OrderNumber")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
                     b.Property<int?>("PaidBy")
                         .HasColumnType("int");
 
@@ -3842,10 +4260,6 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.Property<int>("PaymentStatus")
                         .HasColumnType("int");
-
-                    b.Property<string>("OrderNumber")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(450)");
 
                     b.Property<int?>("PaymentType")
                         .HasColumnType("int");
@@ -3893,7 +4307,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("SupplierId");
 
-                    b.ToTable("PurchaseOrders");
+                    b.ToTable("PurchaseOrders", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.PurchaseOrders.PurchaseOrderLine", b =>
@@ -3974,7 +4388,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("PurchaseRequestLineId");
 
-                    b.ToTable("PurchaseOrderLines");
+                    b.ToTable("PurchaseOrderLines", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.PurchaseRequests.PurchaseRequest", b =>
@@ -4052,7 +4466,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("RequestNumber")
                         .IsUnique();
 
-                    b.ToTable("PurchaseRequests");
+                    b.ToTable("PurchaseRequests", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.PurchaseRequests.PurchaseRequestLine", b =>
@@ -4148,7 +4562,7 @@ namespace RaccoonWarehouse.Data.Migrations
                         .IsUnique()
                         .HasFilter("[ProductId] IS NOT NULL AND [ProductUnitId] IS NOT NULL");
 
-                    b.ToTable("PurchaseRequestLines");
+                    b.ToTable("PurchaseRequestLines", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.PurchaseReturns.PurchaseReturn", b =>
@@ -4204,7 +4618,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("ReturnNumber")
                         .IsUnique();
 
-                    b.ToTable("PurchaseReturns");
+                    b.ToTable("PurchaseReturns", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.PurchaseReturns.PurchaseReturnLine", b =>
@@ -4247,7 +4661,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("PurchaseReturnId");
 
-                    b.ToTable("PurchaseReturnLines");
+                    b.ToTable("PurchaseReturnLines", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Relations.SubCategoryBrand", b =>
@@ -4276,7 +4690,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("SubCategoryId");
 
-                    b.ToTable("SubCategoryBrand");
+                    b.ToTable("SubCategoryBrand", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Settings.AppSetting", b =>
@@ -4308,7 +4722,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("Key")
                         .IsUnique();
 
-                    b.ToTable("AppSettings");
+                    b.ToTable("AppSettings", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Stock.Stock", b =>
@@ -4357,7 +4771,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("WarehouseId", "ProductId", "ProductUnitId");
 
-                    b.ToTable("Stock");
+                    b.ToTable("Stock", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.StockAdjustments.StockAdjustment", b =>
@@ -4437,7 +4851,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("StockAdjustment");
+                    b.ToTable("StockAdjustment", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.StockDocuments.StockDocument", b =>
@@ -4516,7 +4930,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("SupplierId");
 
-                    b.ToTable("StockDocument");
+                    b.ToTable("StockDocument", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.StockItems.StockItem", b =>
@@ -4588,7 +5002,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("StockDocumentId", "LineNumber");
 
-                    b.ToTable("StockItem");
+                    b.ToTable("StockItem", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.StockLots.StockLot", b =>
@@ -4627,6 +5041,10 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Property<int>("ProductUnitId")
                         .HasColumnType("int");
 
+                    b.Property<decimal?>("PurchaseAcquisitionCost")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
                     b.Property<decimal>("PurchasePrice")
                         .HasPrecision(18, 6)
                         .HasColumnType("decimal(18,6)");
@@ -4657,22 +5075,16 @@ namespace RaccoonWarehouse.Data.Migrations
                         .HasPrecision(18, 6)
                         .HasColumnType("decimal(18,6)");
 
+                    b.Property<int?>("SourcePurchaseLineId")
+                        .HasColumnType("int");
+
                     b.Property<int>("Status")
                         .HasColumnType("int");
 
                     b.Property<DateTime>("UpdatedDate")
                         .HasColumnType("datetime2");
 
-                    b.Property<decimal?>("PurchaseAcquisitionCost")
-                        .HasPrecision(18, 6)
-                        .HasColumnType("decimal(18,6)");
-
-                    b.Property<int?>("SourcePurchaseLineId")
-                        .HasColumnType("int");
-
                     b.HasKey("Id");
-
-                    b.HasIndex("SourcePurchaseLineId");
 
                     b.HasIndex("ProductUnitId");
 
@@ -4680,9 +5092,11 @@ namespace RaccoonWarehouse.Data.Migrations
                         .IsUnique()
                         .HasFilter("[ReplacesStockLotId] IS NOT NULL");
 
+                    b.HasIndex("SourcePurchaseLineId");
+
                     b.HasIndex("ProductId", "Status", "RemainingQuantity");
 
-                    b.ToTable("StockLot");
+                    b.ToTable("StockLot", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.StockTransactions.StockTransaction", b =>
@@ -4804,7 +5218,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("SourceType", "SourceId");
 
-                    b.ToTable("StockTransaction");
+                    b.ToTable("StockTransaction", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.SubCategories.SubCategory", b =>
@@ -4838,7 +5252,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("ParentCategoryId");
 
-                    b.ToTable("SubCategory");
+                    b.ToTable("SubCategory", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.SupplierPayments.SupplierAdvance", b =>
@@ -4883,7 +5297,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("VoucherId")
                         .IsUnique();
 
-                    b.ToTable("SupplierAdvances");
+                    b.ToTable("SupplierAdvances", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.SupplierPayments.SupplierPaymentAllocation", b =>
@@ -4926,7 +5340,7 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("VoucherId", "InvoiceId")
                         .IsUnique();
 
-                    b.ToTable("SupplierPaymentAllocations");
+                    b.ToTable("SupplierPaymentAllocations", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Taxs.Tax", b =>
@@ -4956,7 +5370,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Tax");
+                    b.ToTable("Tax", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Units.Unit", b =>
@@ -4979,7 +5393,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Unit");
+                    b.ToTable("Unit", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Users.User", b =>
@@ -5045,7 +5459,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("User");
+                    b.ToTable("User", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Vouchers.Voucher", b =>
@@ -5124,7 +5538,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("ReferenceNumber");
 
-                    b.ToTable("Voucher");
+                    b.ToTable("Voucher", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Warehouses.Warehouse", b =>
@@ -5171,7 +5585,7 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Warehouse");
+                    b.ToTable("Warehouse", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Accounting.AccountOpeningBalances.AccountOpeningBalance", b =>
@@ -5511,6 +5925,77 @@ namespace RaccoonWarehouse.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Invoice");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Payroll.EmployeeEmploymentHistory", b =>
+                {
+                    b.HasOne("RaccoonWarehouse.Domain.Employees.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Employee");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Payroll.EmployeePayroll", b =>
+                {
+                    b.HasOne("RaccoonWarehouse.Domain.Employees.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("RaccoonWarehouse.Domain.Payroll.PayrollPolicy", "Policy")
+                        .WithMany()
+                        .HasForeignKey("PolicyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("RaccoonWarehouse.Domain.Payroll.EmployeeSalaryVersion", "SalaryVersion")
+                        .WithMany()
+                        .HasForeignKey("SalaryVersionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Employee");
+
+                    b.Navigation("Policy");
+
+                    b.Navigation("SalaryVersion");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Payroll.EmployeeSalaryVersion", b =>
+                {
+                    b.HasOne("RaccoonWarehouse.Domain.Employees.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Employee");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Payroll.PayrollAdjustment", b =>
+                {
+                    b.HasOne("RaccoonWarehouse.Domain.Payroll.EmployeePayroll", "EmployeePayroll")
+                        .WithMany("Adjustments")
+                        .HasForeignKey("EmployeePayrollId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("EmployeePayroll");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Payroll.PayrollCorrection", b =>
+                {
+                    b.HasOne("RaccoonWarehouse.Domain.Payroll.EmployeePayroll", "EmployeePayroll")
+                        .WithMany()
+                        .HasForeignKey("EmployeePayrollId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("EmployeePayroll");
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Permissions.UserPermission", b =>
@@ -5931,6 +6416,11 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Navigation("InvoiceLines");
 
                     b.Navigation("Payments");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Payroll.EmployeePayroll", b =>
+                {
+                    b.Navigation("Adjustments");
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Products.Product", b =>

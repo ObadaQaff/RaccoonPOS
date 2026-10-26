@@ -7,8 +7,7 @@ using RaccoonWarehouse.Domain.Accounting.Enums;
 
 namespace RaccoonWarehouse.Application.Service.Accounting
 {
-    public class AccountService
-    {
+    public class AccountService : IAccountService{
         private readonly IServiceScopeFactory _scopeFactory;
 
         public AccountService(IServiceScopeFactory scopeFactory)

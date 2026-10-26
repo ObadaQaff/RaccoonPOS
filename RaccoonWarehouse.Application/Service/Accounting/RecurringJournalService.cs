@@ -7,8 +7,7 @@ using RaccoonWarehouse.Domain.Accounting.RecurringJournals.Enums;
 
 namespace RaccoonWarehouse.Application.Service.Accounting
 {
-    public class RecurringJournalService
-    {
+    public class RecurringJournalService : IRecurringJournalService{
         private readonly ApplicationDbContext _context;
         private readonly IAccountingService _accountingService;
 

@@ -60,9 +60,9 @@ namespace RaccoonWarehouse.Application.Service.Accounting
         private readonly ApplicationDbContext _context;
         private readonly IUOW _uow;
         private readonly IMapper _mapper;
-        private readonly CurrencyService _currencyService;
+        private readonly ICurrencyService _currencyService;
 
-        public AccountingService(ApplicationDbContext context, IUOW uow, IMapper mapper, CurrencyService currencyService)
+        public AccountingService(ApplicationDbContext context, IUOW uow, IMapper mapper, ICurrencyService currencyService)
         {
             _context = context;
             _uow = uow;
@@ -1771,6 +1771,9 @@ namespace RaccoonWarehouse.Application.Service.Accounting
 
         private async Task<int> ResolveFinancialCounterpartAccountIdAsync(FinancialPostDto transaction)
         {
+            if (transaction.CounterpartAccountId.HasValue)
+                return transaction.CounterpartAccountId.Value;
+
             return transaction.SourceType switch
             {
                 FinancialSourceType.ReceiptVoucher => await ResolveSystemAccountIdAsync(AccountsReceivableAccountCodeKey, "1140000000"),

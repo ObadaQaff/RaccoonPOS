@@ -17,6 +17,7 @@ namespace RaccoonWarehouse.Units
         {
             _mapper = mapper;
             _unitService = unitService;
+            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
             UiText.ApplyWindow(this);
             Load_Units();

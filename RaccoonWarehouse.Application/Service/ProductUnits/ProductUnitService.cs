@@ -47,9 +47,13 @@ namespace RaccoonWarehouse.Application.Service.ProductUnits
             var result = await base.CreateAsync(dto);
             if (result.Success)
             {
-                if (_partialSaleCatalog != null)
+                if (_partialSaleCatalogRefreshQueue != null)
+                    _partialSaleCatalogRefreshQueue.Enqueue(new[] { dto.ProductId });
+                else if (_partialSaleCatalog != null)
+                {
                     await _partialSaleCatalog.RefreshProductsAsync(new[] { dto.ProductId });
-                await _partialSaleContext.SaveChangesAsync();
+                    await _partialSaleContext.SaveChangesAsync();
+                }
                 NotifyUnitsChanged(dto.ProductId);
             }
             return result;
@@ -65,9 +69,13 @@ namespace RaccoonWarehouse.Application.Service.ProductUnits
             var result = await base.UpdateAsync(dto);
             if (result.Success)
             {
-                if (_partialSaleCatalog != null)
+                if (_partialSaleCatalogRefreshQueue != null)
+                    _partialSaleCatalogRefreshQueue.Enqueue(new[] { dto.ProductId });
+                else if (_partialSaleCatalog != null)
+                {
                     await _partialSaleCatalog.RefreshProductsAsync(new[] { dto.ProductId });
-                await _partialSaleContext.SaveChangesAsync();
+                    await _partialSaleContext.SaveChangesAsync();
+                }
                 NotifyUnitsChanged(dto.ProductId);
             }
             return result;

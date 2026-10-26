@@ -6,6 +6,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Threading;
 
 namespace RaccoonWarehouse.Invoices
 {
@@ -80,6 +82,7 @@ namespace RaccoonWarehouse.Invoices
             IEnumerable<InvoicePaymentReadDto>? payments = null,
             IReadOnlyDictionary<PaymentType, decimal>? allowedPaymentAmounts = null)
         {
+            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
             UiText.ApplyWindow(this);
             TitleText.Text = UiText.T("تغيير طريقة الدفع", "Change payment method");
@@ -118,6 +121,7 @@ namespace RaccoonWarehouse.Invoices
             UpdateRemainingAmountText();
             PaymentMethodComboBox.SelectionChanged += PaymentMethodComboBox_SelectionChanged;
             UpdateCustomerVisibility();
+            Loaded += (_, _) => FocusPaymentMethod();
         }
 
         private void RefreshPaymentChoices(PaymentType? preferredPaymentType = null)
@@ -152,6 +156,44 @@ namespace RaccoonWarehouse.Invoices
         }
 
         private void PaymentMethodComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e) => UpdateCustomerVisibility();
+
+        private void PaymentMethodComboBox_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key != Key.Enter)
+                return;
+
+            e.Handled = true;
+            FocusPaymentAmount();
+        }
+
+        private void FocusPaymentAmount()
+        {
+            Dispatcher.BeginInvoke(() =>
+            {
+                PaymentAmountTextBox.Focus();
+                PaymentAmountTextBox.SelectAll();
+            }, DispatcherPriority.Input);
+        }
+
+        private void FocusPaymentMethod()
+        {
+            Dispatcher.BeginInvoke(() =>
+            {
+                PaymentMethodComboBox.Focus();
+                Keyboard.Focus(PaymentMethodComboBox);
+                PaymentMethodComboBox.IsDropDownOpen = true;
+            }, DispatcherPriority.Input);
+        }
+
+        private void FocusSaveButton()
+        {
+            Dispatcher.BeginInvoke(() =>
+            {
+                SaveButton.IsEnabled = true;
+                SaveButton.Focus();
+                Keyboard.Focus(SaveButton);
+            }, DispatcherPriority.Input);
+        }
 
         private void CustomerComboBox_Loaded(object sender, RoutedEventArgs e)
         {
@@ -344,6 +386,16 @@ namespace RaccoonWarehouse.Invoices
             PaymentsGrid.Items.Refresh();
             RefreshPaymentChoices();
             UpdateRemainingAmountText();
+
+            var remainingAfterPayment = Math.Round(_invoiceTotal - _payments.Sum(payment => payment.Amount), 3);
+            if (remainingAfterPayment <= 0.0005m)
+            {
+                FocusSaveButton();
+            }
+            else
+            {
+                FocusPaymentAmount();
+            }
         }
 
         private void PaymentAmountTextBox_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)

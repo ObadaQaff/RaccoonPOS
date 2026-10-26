@@ -178,6 +178,7 @@ namespace RaccoonWarehouse.Invoices
         private readonly IUserSession _userSession;
         private readonly IFinancialTransactionService _financialService;
         private readonly ISaleCheckoutService _saleCheckoutService;
+        private readonly IRefundAuthorizationCodeService _refundAuthorizationCodeService;
         private bool _isProcessingPayment;
         private bool _isHoldingInvoice;
 
@@ -325,6 +326,7 @@ namespace RaccoonWarehouse.Invoices
 
         private InvoiceWriteDto _currentInvoice;
         private ObservableCollection<UserReadDto> _allCustomers;
+        private List<UserReadDto> _allSuppliers = new();
         private bool _isFilteringCustomers;
         private bool _isNavigatingCustomerChoices;
         private readonly ILoadingService _loading;
@@ -386,7 +388,8 @@ namespace RaccoonWarehouse.Invoices
                    IUserSession userSession,
                    IFinancialTransactionService financialService,
                    ISaleCheckoutService saleCheckoutService,
-                   IPosRowColorRuleService rowColorRuleService
+                   IPosRowColorRuleService rowColorRuleService,
+                   IRefundAuthorizationCodeService refundAuthorizationCodeService
             )
         {
             #region Dependency initialization
@@ -404,7 +407,9 @@ namespace RaccoonWarehouse.Invoices
             _financialService = financialService;
             _saleCheckoutService = saleCheckoutService;
             _rowColorRuleService = rowColorRuleService;
+            _refundAuthorizationCodeService = refundAuthorizationCodeService;
 
+            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
             this.DataContext = this;
             UiText.ApplyWindow(this);
@@ -426,6 +431,10 @@ namespace RaccoonWarehouse.Invoices
             {
                 UiText.ApplyTranslations(this);
                 _loading.Show();
+                _loading.UpdateProgress(
+                    0,
+                    UiText.T("جاري تجهيز نقطة البيع...", "Preparing the point of sale..."),
+                    UiText.T("بدء تحميل البيانات", "Starting data loading"));
                 if (!TryGetActiveCashierSession(out var session))
                 {
                     Close();
@@ -439,17 +448,37 @@ namespace RaccoonWarehouse.Invoices
                 ProductSearchBox.Clear();
                 BarcodeTextBox.Clear();
 
-                // Make the invoice grid and barcode cell usable immediately.
-                // Customer and row-color data are non-blocking startup work.
-                _ = LoadPosStartupDataInBackgroundAsync();
+                // Start POS lookups and the large product catalog together.
+                // The loading window remains visible until both operations
+                // finish, while the async database calls keep the UI thread
+                // responsive.
+                _loading.UpdateProgress(
+                    15,
+                    UiText.T("جاري تحميل بيانات نقطة البيع...", "Loading point-of-sale data..."),
+                    UiText.T("تحميل العملاء والموردين", "Loading customers and suppliers"));
+                _loading.UpdateProgress(
+                    30,
+                    UiText.T("جاري تجهيز كتالوج المنتجات...", "Preparing the product catalog..."),
+                    UiText.T("بدء تحميل العملاء والكتالوج", "Starting customers and catalog loading"));
 
-                // Warm the large product catalog after the POS shell is ready.
+                var customerLoadTask = LoadPosStartupDataInBackgroundAsync();
+
+                // Warm the large product catalog during POS startup.
                 // A separate scope keeps its DbContext isolated from the POS
-                // scope, so startup remains responsive without concurrent
-                // operations on the same DbContext instance.
+                // scope, so both startup operations can run concurrently
+                // without sharing a DbContext instance.
                 ProductSearchWindow.InvalidateCatalogCache();
                 _rowColorRuleService.InvalidateCache();
-                _ = WarmProductCatalogInBackgroundAsync();
+                _loading.UpdateProgress(
+                    40,
+                    UiText.T("جاري تحميل قواعد عرض المنتجات...", "Loading product display rules..."),
+                    UiText.T("تجهيز ألوان المنتجات", "Preparing product colors"));
+                var catalogLoadTask = WarmProductCatalogInBackgroundAsync();
+                await Task.WhenAll(customerLoadTask, catalogLoadTask);
+                _loading.UpdateProgress(
+                    100,
+                    UiText.T("اكتمل تحميل كتالوج المنتجات", "Product catalog loaded"),
+                    UiText.T("نقطة البيع جاهزة", "Point of sale is ready"));
 
                 // The product-card/category browse area is hidden. Products for
                 // the invoice selector are loaded lazily when its dropdown opens.
@@ -469,41 +498,24 @@ namespace RaccoonWarehouse.Invoices
 
         private async Task LoadPosStartupDataInBackgroundAsync()
         {
-            try
-            {
-                // Customer lookup uses the POS context; color rules and the
-                // catalog warm in a separate scope below.
-                await LoadCustomersAsync();
-            }
-            catch (OperationCanceledException)
-            {
-                // POS may close while optional startup data is loading.
-            }
-            catch
-            {
-                // Optional startup data can be loaded again when needed.
-            }
+            // This loads both customer and supplier lookup data used by POS
+            // and its product search window. Let failures reach POS_Loaded so
+            // the loading window cannot close as if startup had completed.
+            await LoadCustomersAsync();
         }
 
         private async Task WarmProductCatalogInBackgroundAsync()
         {
-            try
-            {
-                using var scope = _serviceProvider.CreateScope();
-                var stockService = scope.ServiceProvider.GetRequiredService<IStockService>();
-                // Warm shared rules before the large catalog using this isolated context.
-                var colorRules = scope.ServiceProvider.GetRequiredService<IPosRowColorRuleService>();
-                await colorRules.GetRulesAsync();
-                await ProductSearchWindow.WarmCatalogCacheAsync(stockService);
-            }
-            catch (OperationCanceledException)
-            {
-                // A newer catalog load or window shutdown may cancel the work.
-            }
-            catch
-            {
-                // Product Search will retry the cache load when it is opened.
-            }
+            using var scope = _serviceProvider.CreateScope();
+            var stockService = scope.ServiceProvider.GetRequiredService<IStockService>();
+            // Warm shared rules before the large catalog using this isolated context.
+            var colorRules = scope.ServiceProvider.GetRequiredService<IPosRowColorRuleService>();
+            await colorRules.GetRulesAsync();
+            _loading.UpdateProgress(
+                60,
+                UiText.T("جاري تحميل كتالوج المنتجات...", "Loading the product catalog..."),
+                UiText.T("تم تحميل ألوان المنتجات", "Product colors loaded"));
+            await ProductSearchWindow.WarmCatalogCacheAsync(stockService);
         }
 
         private async void OpenInsuranceInvoiceBtn_Click(object sender, RoutedEventArgs e)
@@ -515,7 +527,12 @@ namespace RaccoonWarehouse.Invoices
         private async Task LoadCustomersAsync(int? selectCustomerId = null)
         {
             var result = await _userService.GetAllAsync();
-            _allCustomers = new ObservableCollection<UserReadDto>(result?.Data ?? new List<UserReadDto>());
+            var users = result?.Data ?? new List<UserReadDto>();
+            _allCustomers = new ObservableCollection<UserReadDto>(users);
+            _allSuppliers = users
+                .Where(user => user.Role == UserRole.Supplier)
+                .OrderBy(user => user.Name)
+                .ToList();
             CustomerComboBox.ItemsSource = _allCustomers;
             CustomerComboBox.SelectedIndex = -1;
 
@@ -556,7 +573,7 @@ namespace RaccoonWarehouse.Invoices
             if (customer.CreditLimit <= 0m)
                 return true;
 
-            var statementService = _serviceProvider.GetRequiredService<UserStatementService>();
+            var statementService = _serviceProvider.GetRequiredService<IUserStatementService>();
             var currentBalance = await statementService.GetCurrentBalanceAsync(customer.Id);
             var previousCreditAmount = _currentInvoice.Id > 0 && _lastSavedInvoice?.PaymentType == PaymentType.Credit
                 ? -(_lastSavedInvoice?.TotalAmount ?? 0m)
@@ -778,12 +795,12 @@ namespace RaccoonWarehouse.Invoices
             switch (e.Key)
             {
                 case Key.F1:
-                    FinishSaleBtn_Click(this, null);
+                    SearchProductBtn_Click(this, new RoutedEventArgs());
                     e.Handled = true;
                     break;
 
                 case Key.F2:
-                    SearchProductBtn_Click(this, new RoutedEventArgs());
+                    FinishSaleBtn_Click(this, null);
                     e.Handled = true;
                     break;
 
@@ -809,11 +826,6 @@ namespace RaccoonWarehouse.Invoices
 
                 case Key.F7:
                     OpenReceipt_Click(this, null);
-                    e.Handled = true;
-                    break;
-
-                case Key.F8:
-                    OpenPayment_Click(this, null);
                     e.Handled = true;
                     break;
 
@@ -1605,7 +1617,9 @@ namespace RaccoonWarehouse.Invoices
             }
 
             var quantityPerUnit = selectedUnit.QuantityPerUnit > 0 ? selectedUnit.QuantityPerUnit : 1m;
-            var unitPrice = selectedUnit.SalePrice;
+            var unitPrice = stock?.SalePrice > 0m
+                ? stock.SalePrice
+                : selectedUnit.SalePrice;
             var lineTotal = line.Quantity * unitPrice;
             var unitCost = knownUnitPurchasePrice ?? stock?.PurchasePrice ?? selectedUnit.PurchasePrice;
             var costTotal = line.Quantity * unitCost;
@@ -2073,25 +2087,22 @@ namespace RaccoonWarehouse.Invoices
 
         private async Task<ProductReadDto?> FindProductByBarcodeAsync(string barcode)
         {
-            var normalizedBarcode = NormalizeScannedBarcode(barcode);
+            var normalizedBarcode = BarcodeLookup.Normalize(barcode);
             if (string.IsNullOrWhiteSpace(normalizedBarcode))
                 return null;
 
-            var hasNumericBarcode = long.TryParse(
-                normalizedBarcode,
-                NumberStyles.Integer,
-                CultureInfo.InvariantCulture,
-                out var numericBarcode);
+            // GS1 QR codes start with AI 01 followed by the 14-digit GTIN.
+            // Use that GTIN for the same lookup used by a normal barcode scan.
+            var lookupBarcode = normalizedBarcode;
 
-            var searchResult = await _stockService.SearchPosProductsAsync(null, normalizedBarcode, 100);
+            var searchResult = await _stockService.SearchPosProductsAsync(null, lookupBarcode, 100);
             var rows = searchResult?.Data ?? new List<PosProductSearchResultDto>();
             var productGroups = rows.GroupBy(row => row.ProductId).ToList();
 
             var exactGroup = productGroups.FirstOrDefault(group => group.Any(row =>
-                (hasNumericBarcode && row.ItemCode == numericBarcode) ||
-                string.Equals(row.ItemCode?.ToString(), normalizedBarcode, StringComparison.OrdinalIgnoreCase) ||
+                BarcodeLookup.MatchesItemCode(row.ItemCode, lookupBarcode) ||
                 (!string.IsNullOrWhiteSpace(row.AlternateBarcode) &&
-                 string.Equals(row.AlternateBarcode.Trim(), normalizedBarcode, StringComparison.OrdinalIgnoreCase))));
+                 string.Equals(row.AlternateBarcode.Trim(), lookupBarcode, StringComparison.OrdinalIgnoreCase))));
 
             // Barcode input must never fall back to the first broad search result.
             // A scanner may send a prefix/control character or an unknown code; in
@@ -2146,7 +2157,7 @@ namespace RaccoonWarehouse.Invoices
             await _addProductGate.WaitAsync();
             try
             {
-                barcode = NormalizeScannedBarcode(barcode);
+                barcode = BarcodeLookup.Normalize(barcode);
                 if (string.IsNullOrWhiteSpace(barcode))
                     return false;
 
@@ -2220,6 +2231,12 @@ namespace RaccoonWarehouse.Invoices
                     var availableQuantity = await GetAvailableQuantityForProductUnitAsync(
                         targetLine.ProductId,
                         targetLine.ProductUnitId);
+                    if (availableQuantity <= 0m)
+                    {
+                        RemoveUnavailableBarcodeLine(targetLine);
+                        return false;
+                    }
+
                     targetLine.AvailableQuantitySnapshot = Math.Max(
                         availableQuantity - Math.Abs(targetLine.Quantity),
                         0m);
@@ -2240,25 +2257,6 @@ namespace RaccoonWarehouse.Invoices
             }
         }
 
-        private static string NormalizeScannedBarcode(string? barcode)
-        {
-            var normalized = new string((barcode ?? string.Empty)
-                .Where(character => !char.IsControl(character))
-                .ToArray())
-                .Trim();
-
-            // Some scanners prepend the AIM symbology identifier, for example
-            // ]C1 for Code 128 or ]d2 for GS1 DataMatrix.
-            if (normalized.Length >= 3 && normalized[0] == ']' &&
-                (normalized[1] is 'C' or 'd' or 'Q' or 'E' or 'A' or 'X' or 'B' or 'I' or 'P') &&
-                char.IsDigit(normalized[2]))
-            {
-                normalized = normalized[3..].Trim();
-            }
-
-            return normalized;
-        }
-
         private async void ProductBarcodeTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
         {
             if (e.Key != Key.Enter || sender is not TextBox textBox ||
@@ -2271,7 +2269,10 @@ namespace RaccoonWarehouse.Invoices
 
             e.Handled = true;
             if (!await ProcessBarcodeAsync(barcode, line))
+            {
+                FocusBarcodeGridCellDeferred();
                 return;
+            }
 
             InvoiceGrid.CommitEdit(DataGridEditingUnit.Cell, true);
             InvoiceGrid.CommitEdit(DataGridEditingUnit.Row, true);
@@ -2436,6 +2437,16 @@ namespace RaccoonWarehouse.Invoices
             if (!ValidateProductSalePolicy(product))
                 return false;
 
+            var availableBeforeInsert = await GetAvailableQuantityForProductUnitAsync(product.Id, selectedUnit.Id);
+            if (availableBeforeInsert <= 0m)
+            {
+                ShowPaymentValidationMessage(
+                    $"The item {product.Name} is currently unavailable in stock and was not added to the invoice.",
+                    UiText.T("تنبيه", "Notice"));
+                FocusBarcodeGridCellDeferred();
+                return false;
+            }
+
             if (quantity != decimal.Truncate(quantity))
             {
                 var partialLine = new InvoiceLineWriteDto
@@ -2556,16 +2567,9 @@ namespace RaccoonWarehouse.Invoices
             var templateLine = matchingLines.First();
             var insertIndex = _invoiceLines.IndexOf(templateLine);
             var totalQuantity = matchingLines.Sum(l => l.Quantity);
+            var selectedLots = await SelectLotsForQuantityAsync(productId, productUnitId, totalQuantity);
 
-            var allocationResult = await _stockService.AllocateOutgoingAsync(new[]
-            {
-                new StockAllocationRequestDto
-                {
-                    ProductId = productId,
-                    ProductUnitId = productUnitId,
-                    Quantity = totalQuantity
-                }
-            });
+            var allocationResult = await AllocateInvoiceLinesAsync(productId, productUnitId, totalQuantity, selectedLots);
 
             if (!allocationResult.Success || allocationResult.Data == null || allocationResult.Data.Count == 0)
                 return null;
@@ -2581,12 +2585,18 @@ namespace RaccoonWarehouse.Invoices
                     ProductId = templateLine.ProductId,
                     ProductName = templateLine.ProductName,
                     ProductUnitId = templateLine.ProductUnitId,
+                    PreferredStockLotId = allocation.StockLotId,
                     ProductUnit = templateLine.ProductUnit,
                     UnitNameSnapshot = templateLine.UnitNameSnapshot,
                     Quantity = allocation.Quantity,
                     QuantityPerUnitSnapshot = allocation.QuantityPerUnitSnapshot,
                     BaseQuantity = allocation.BaseQuantity,
-                    UnitPrice = templateLine.UnitPrice,
+                    PartialSaleResolved = templateLine.PartialSaleResolved,
+                    UnitPrice = templateLine.PartialSaleResolved
+                        ? templateLine.UnitPrice
+                        : allocation.SalePrice > 0m
+                            ? allocation.SalePrice
+                            : templateLine.UnitPrice,
                     UnitCost = allocation.PurchasePrice,
                         PurchaseAcquisitionCost = allocation.HasAllocatedPurchaseCost
                             ? Math.Round(allocation.Quantity * allocation.PurchasePrice, 6) : null,
@@ -2639,14 +2649,16 @@ namespace RaccoonWarehouse.Invoices
             var insertIndex = _invoiceLines.IndexOf(matchingLines.First());
             var totalQuantity = matchingLines.Sum(l => l.Quantity);
 
-            var allocationResult = await AllocateInvoiceLinesAsync(sourceLine.ProductId, sourceLine.ProductUnitId, totalQuantity);
+            var selectedLots = await SelectLotsForQuantityAsync(sourceLine.ProductId, sourceLine.ProductUnitId, totalQuantity);
+            var allocationResult = await AllocateInvoiceLinesAsync(sourceLine.ProductId, sourceLine.ProductUnitId, totalQuantity, selectedLots);
 
             if (!allocationResult.Success || allocationResult.Data == null || allocationResult.Data.Count == 0)
             {
                 var availableQuantity = await GetAvailableQuantityForProductUnitAsync(sourceLine.ProductId, sourceLine.ProductUnitId);
                 if (availableQuantity > 0)
                 {
-                    var adjustedResult = await AllocateInvoiceLinesAsync(sourceLine.ProductId, sourceLine.ProductUnitId, availableQuantity);
+                    var adjustedLots = await SelectLotsForQuantityAsync(sourceLine.ProductId, sourceLine.ProductUnitId, availableQuantity);
+                    var adjustedResult = await AllocateInvoiceLinesAsync(sourceLine.ProductId, sourceLine.ProductUnitId, availableQuantity, adjustedLots);
                     if (adjustedResult.Success && adjustedResult.Data != null && adjustedResult.Data.Count > 0)
                     {
                         MessageBox.Show(
@@ -2674,17 +2686,108 @@ namespace RaccoonWarehouse.Invoices
             return ReplaceInvoiceLinesFromAllocations(matchingLines, templateLine, insertIndex, allocationResult.Data);
         }
 
-        private async Task<Result<List<StockLotAllocationDto>>> AllocateInvoiceLinesAsync(int productId, int productUnitId, decimal quantity)
+        private async Task<Result<List<StockLotAllocationDto>>> AllocateInvoiceLinesAsync(
+            int productId,
+            int productUnitId,
+            decimal quantity,
+            IReadOnlyList<PosStockLotOptionDto>? selectedLots = null)
         {
-            return await _stockService.AllocateOutgoingAsync(new[]
+            if (selectedLots == null || selectedLots.Count == 0)
             {
-                new StockAllocationRequestDto
+                return await _stockService.AllocateOutgoingAsync(new[]
                 {
+                    new StockAllocationRequestDto
+                    {
+                        ProductId = productId,
+                        ProductUnitId = productUnitId,
+                        Quantity = quantity
+                    }
+                });
+            }
+
+            var requests = new List<StockAllocationRequestDto>();
+            var remainingQuantity = quantity;
+            foreach (var lot in selectedLots)
+            {
+                if (remainingQuantity <= 0)
+                    break;
+
+                var lotQuantity = Math.Min(remainingQuantity, lot.AvailableQuantity);
+                if (lotQuantity <= 0)
+                    continue;
+
+                requests.Add(new StockAllocationRequestDto
+                {
+                    RequestIndex = requests.Count,
                     ProductId = productId,
                     ProductUnitId = productUnitId,
-                    Quantity = quantity
-                }
-            });
+                    Quantity = lotQuantity,
+                    PreferredStockLotId = lot.StockLotId
+                });
+                remainingQuantity -= lotQuantity;
+            }
+
+            if (remainingQuantity > 0)
+            {
+                requests.Add(new StockAllocationRequestDto
+                {
+                    RequestIndex = requests.Count,
+                    ProductId = productId,
+                    ProductUnitId = productUnitId,
+                    Quantity = remainingQuantity
+                });
+            }
+
+            return await _stockService.AllocateOutgoingAsync(requests);
+        }
+
+        private async Task<IReadOnlyList<PosStockLotOptionDto>?> SelectLotsForQuantityAsync(
+            int productId,
+            int productUnitId,
+            decimal quantity)
+        {
+            var optionsResult = await _stockService.GetPosStockLotOptionsAsync(productId, productUnitId);
+            if (!optionsResult.Success || optionsResult.Data == null || optionsResult.Data.Count <= 1)
+                return null;
+
+            var remainingQuantity = quantity;
+            var selectedLots = new List<PosStockLotOptionDto>();
+            var selectedLotIds = new HashSet<int>();
+
+            while (remainingQuantity > 0)
+            {
+                var availableOptions = optionsResult.Data
+                    .Where(option => !selectedLotIds.Contains(option.StockLotId))
+                    .ToList();
+                if (availableOptions.Count == 0)
+                    break;
+
+                var productName = _invoiceLines.FirstOrDefault(line => line.ProductId == productId)?.ProductName
+                    ?? $"Product #{productId}";
+                var picker = new StockLotSelectionWindow(productName, availableOptions)
+                {
+                    Owner = this
+                };
+
+                if (picker.ShowDialog() != true || picker.SelectedLot == null)
+                    return null;
+
+                selectedLots.Add(picker.SelectedLot);
+                selectedLotIds.Add(picker.SelectedLot.StockLotId);
+                remainingQuantity -= Math.Min(remainingQuantity, picker.SelectedLot.AvailableQuantity);
+            }
+
+            return selectedLots;
+        }
+
+        private void RemoveUnavailableBarcodeLine(InvoiceLineWriteDto line)
+        {
+            _invoiceLines.Remove(line);
+            RecalculateTotals();
+            ShowPaymentValidationMessage(
+                $"The item {line.ProductName} is currently unavailable in stock and was removed from the invoice.",
+                UiText.T("تنبيه", "Notice"));
+            FocusBarcodeGridCellDeferred();
         }
 
         private async Task<decimal> GetAvailableQuantityForProductUnitAsync(int productId, int productUnitId)
@@ -2715,10 +2818,17 @@ namespace RaccoonWarehouse.Invoices
                     ProductId = templateLine.ProductId,
                     ProductName = templateLine.ProductName,
                     ProductUnitId = templateLine.ProductUnitId,
+                    PreferredStockLotId = allocation.StockLotId,
                     Quantity = allocation.Quantity,
                     QuantityPerUnitSnapshot = allocation.QuantityPerUnitSnapshot,
                     BaseQuantity = allocation.BaseQuantity,
-                    UnitPrice = templateLine.UnitPrice,
+                    PartialSaleResolved = templateLine.PartialSaleResolved,
+                    ProductUnit = templateLine.ProductUnit,
+                    UnitPrice = templateLine.PartialSaleResolved
+                        ? templateLine.UnitPrice
+                        : allocation.SalePrice > 0m
+                            ? allocation.SalePrice
+                            : templateLine.UnitPrice,
                     UnitCost = allocation.PurchasePrice,
                         PurchaseAcquisitionCost = allocation.HasAllocatedPurchaseCost
                             ? Math.Round(allocation.Quantity * allocation.PurchasePrice, 6) : null,
@@ -2817,6 +2927,7 @@ namespace RaccoonWarehouse.Invoices
                     return new StockMovementPostDto
                     {
                         ProductId = line.ProductId,
+                        StockLotId = line.PreferredStockLotId,
                         ProductUnitId = line.ProductUnitId,
                         Quantity = _currentInvoice.InvoiceType == InvoiceType.PurchaseReturn
                             ? line.Quantity
@@ -2850,7 +2961,8 @@ namespace RaccoonWarehouse.Invoices
                 {
                     ProductId = line.ProductId,
                     ProductUnitId = line.ProductUnitId,
-                    Quantity = line.Quantity
+                    Quantity = line.Quantity,
+                    PreferredStockLotId = line.PreferredStockLotId
                 }));
             var availabilityByKey = (availabilityResult.Data ?? new List<StockAvailabilityDto>())
                 .ToDictionary(x => (x.ProductId, x.ProductUnitId), x => x.AvailableQuantity);
@@ -2958,13 +3070,18 @@ namespace RaccoonWarehouse.Invoices
                         ProductId = sourceLine.ProductId,
                         ProductName = sourceLine.ProductName,
                         ProductUnitId = sourceLine.ProductUnitId,
+                         PreferredStockLotId = allocation.StockLotId,
                         ProductUnit = sourceLine.ProductUnit,
                         UnitNameSnapshot = sourceLine.UnitNameSnapshot ?? sourceLine.ProductUnit?.Unit?.Name,
                         Quantity = allocation.Quantity,
                         QuantityPerUnitSnapshot = allocation.QuantityPerUnitSnapshot,
                         BaseQuantity = allocation.BaseQuantity,
                         PartialSaleResolved = sourceLine.PartialSaleResolved,
-                        UnitPrice = sourceLine.UnitPrice,
+                        UnitPrice = sourceLine.PartialSaleResolved
+                            ? sourceLine.UnitPrice
+                            : allocation.SalePrice > 0m
+                                ? allocation.SalePrice
+                                : sourceLine.UnitPrice,
                         LineDiscountAmount = allocatedInvoiceDiscounts.TryGetValue(index, out var distributedAmounts)
                             ? distributedAmounts[allocationIndex]
                             : sourceLine.Quantity == 0m
@@ -3135,7 +3252,11 @@ namespace RaccoonWarehouse.Invoices
                 .Where(line => line.ProductId > 0 && line.Quantity > 0)
                 .ToList();
 
-            foreach (var line in saleLines)
+            var rowsToValidate = _hasDistributedInvoiceDiscount
+                ? _invoiceDiscountRows.Keys.Where(saleLines.Contains).ToList()
+                : saleLines;
+
+            foreach (var line in rowsToValidate)
             {
                 var lineDiscountPercent = _invoiceDiscountRows.ContainsKey(line)
                     ? _invoiceDiscountPercent
@@ -3777,7 +3898,8 @@ namespace RaccoonWarehouse.Invoices
                     },
                     disabledKeys,
                     _rowColorRuleService,
-                    ruleScope: "ProductSearch")
+                    ruleScope: "ProductSearch",
+                    preloadedSupplierLookupItems: _allSuppliers)
                 {
                     Owner = this
                 };
@@ -3964,7 +4086,10 @@ namespace RaccoonWarehouse.Invoices
                     _invoiceService,
                     _allCustomers ?? Enumerable.Empty<UserReadDto>(),
                     null,
-                    true)
+                    true,
+                    _productService,
+                    _stockService,
+                    _userService)
                 {
                     Owner = this
                 };
@@ -5033,7 +5158,7 @@ namespace RaccoonWarehouse.Invoices
 
 
         //print Invoice 
-        private async Task PrintSavedSmallInvoiceAsync(int invoiceId)
+        private async Task PrintSavedSmallInvoiceAsync(int invoiceId, bool preview = false)
         {
             if (invoiceId <= 0)
                 return;
@@ -5059,7 +5184,8 @@ namespace RaccoonWarehouse.Invoices
                 // Do not leave the application loading window visible behind it.
                 _loading.Hide();
                 loadingShown = false;
-                ReportPrintService.PrintSmallInvoice(invoice, this);
+                if(preview)ReportPrintService.PreviewSmallInvoice(invoice, this);
+                else ReportPrintService.PrintSmallInvoice(invoice, this);
             }
             catch (Exception ex)
             {
@@ -5076,7 +5202,7 @@ namespace RaccoonWarehouse.Invoices
             }
         }
 
-        private void PrintBtn_Click(object sender, RoutedEventArgs e)
+        private async void PrintBtn_Click(object sender, RoutedEventArgs e)
         {
             try
             {
@@ -5091,7 +5217,7 @@ namespace RaccoonWarehouse.Invoices
                     return;
                 }
 
-                SaveSalesInvoicePdf(_lastSavedInvoice);
+                await PrintSavedSmallInvoiceAsync(_lastSavedInvoice.Id, preview:true);
             }
             catch (Exception ex)
             {
@@ -6454,7 +6580,16 @@ namespace RaccoonWarehouse.Invoices
             if (currentUser == null)
                 return false;
 
-            var authService = _serviceProvider.GetRequiredService<RaccoonWarehouse.Application.Service.AuthService.IAuthService>();
+            if (!await _refundAuthorizationCodeService.IsConfiguredAsync())
+            {
+                MessageBox.Show(
+                    UiText.T("لم يتم إعداد رمز المرتجع. يرجى إعداده من الإعدادات أولاً.", "No refund code is configured. Set it from Settings first."),
+                    UiText.T("إعداد مطلوب", "Configuration required"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return false;
+            }
+
             var prompt = new Window
             {
                 Title = UiText.T("تأكيد كلمة مرور الإرجاع", "Return password confirmation"),
@@ -6467,13 +6602,7 @@ namespace RaccoonWarehouse.Invoices
                 FlowDirection = FlowDirection.RightToLeft
             };
 
-            var username = new TextBox
-            {
-                Text = currentUser.Name,
-                Margin = new Thickness(0, 8, 0, 8),
-                Height = 32
-            };
-            var password = new PasswordBox
+            var code = new PasswordBox
             {
                 Margin = new Thickness(0, 0, 0, 12),
                 Height = 32
@@ -6485,6 +6614,10 @@ namespace RaccoonWarehouse.Invoices
                     "Enter an Admin or Manager username and password to complete the return."),
                 TextWrapping = TextWrapping.Wrap
             };
+            prompt.Title = UiText.T("تأكيد رمز المرتجع", "Refund code confirmation");
+            message.Text = UiText.T(
+                "أدخل رمز المرتجع المستقل لإتمام عملية الإرجاع.",
+                "Enter the dedicated refund code to complete the return.");
             var confirm = new Button
             {
                 Content = UiText.T("تأكيد", "Confirm"),
@@ -6508,8 +6641,7 @@ namespace RaccoonWarehouse.Invoices
 
             var panel = new StackPanel { Margin = new Thickness(18) };
             panel.Children.Add(message);
-            panel.Children.Add(username);
-            panel.Children.Add(password);
+            panel.Children.Add(code);
             panel.Children.Add(buttons);
             prompt.Content = panel;
 
@@ -6518,9 +6650,7 @@ namespace RaccoonWarehouse.Invoices
                 confirm.IsEnabled = false;
                 try
                 {
-                    var auth = await authService.AuthenticateAsync(username.Text.Trim(), password.Password);
-                    prompt.DialogResult = auth.Success && auth.User != null &&
-                        auth.User.Role is RaccoonWarehouse.Domain.Enums.UserRole.Admin or RaccoonWarehouse.Domain.Enums.UserRole.Manager;
+                    prompt.DialogResult = await _refundAuthorizationCodeService.ValidateCodeAsync(code.Password);
                 }
                 finally
                 {
@@ -6529,9 +6659,9 @@ namespace RaccoonWarehouse.Invoices
                 }
             };
             cancel.Click += (_, _) => prompt.DialogResult = false;
-            prompt.Loaded += (_, _) => password.Focus();
+            prompt.Loaded += (_, _) => code.Focus();
 
-            var accepted = prompt.ShowDialog() == true;
+            var accepted = RaccoonWarehouse.Security.PermissionWindowGuard.ShowDialog(prompt, "POS.View") == true;
             if (!accepted)
             {
                 MessageBox.Show(
@@ -6670,6 +6800,13 @@ namespace RaccoonWarehouse.Invoices
                 LogPosTiming("payment validation", timing, stepTiming);
                 ShowLoadingForWork();
                 LogPosTiming("stock validation", timing, stepTiming);
+
+                if (!await ValidateStockAvailabilityAsync())
+                {
+                    StopForValidationMessage();
+                    FocusBarcodeGridCellDeferred();
+                    return;
+                }
 
                 // 2. Prepare lines, expand FEFO allocations, and calculate final amounts.
                 PrepareInvoiceForSave();

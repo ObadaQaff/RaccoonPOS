@@ -80,6 +80,8 @@ namespace RaccoonWarehouse.Navigation.Modules
                 "Settings.Accounting" or
                 "Settings.Language" or
                 "Settings.InventoryCosting" or
+                "Settings.RefundCode" or
+                "Settings.DocumentBranding" or
                 "Settings.PosRowColors" or
                 "Settings.SwitchDatabase";
         }
@@ -149,6 +151,18 @@ namespace RaccoonWarehouse.Navigation.Modules
 
                     WindowManager.ShowDialog<InventoryCostingSettingsWindow>(WindowSizeType.SmallSquare);
                     return;
+                case "Settings.RefundCode":
+                    if (!await HasPermissionAsync("Settings.ManageSettings"))
+                    {
+                        MessageBox.Show(UiText.T("ليس لديك صلاحية تعديل الإعدادات.", "You do not have permission to edit settings."));
+                        return;
+                    }
+                    WindowManager.ShowDialog<RefundCodeSettingsWindow>(WindowSizeType.SmallSquare);
+                    return;
+                case "Settings.DocumentBranding":
+                    if (!await HasPermissionAsync("Settings.ManageSettings")) return;
+                    WindowManager.ShowDialog<RaccoonWarehouse.Settings.DocumentBrandingWindow>(WindowSizeType.LargeRectangle);
+                    return;
                 case "Settings.PosRowColors":
                     if (!await HasPermissionAsync("Settings.ManageSettings"))
                     {
@@ -167,7 +181,7 @@ namespace RaccoonWarehouse.Navigation.Modules
                     WindowManager.ShowDialog<LanguageSettingsWindow>(WindowSizeType.SmallSquare);
                     return;
                 case "Settings.SwitchDatabase":
-                    if (!await HasPermissionAsync("Settings.ManageSettings"))
+                    if (!await HasPermissionAsync("Permissions.ManageSettings"))
                     {
                         MessageBox.Show(UiText.T("ليس لديك صلاحية تعديل الإعدادات.", "You do not have permission to edit settings."));
                         return;

@@ -5,8 +5,7 @@ using RaccoonWarehouse.Domain.Accounting.AccountOpeningBalances.DTOs;
 
 namespace RaccoonWarehouse.Application.Service.Accounting
 {
-    public class OpeningBalanceService
-    {
+    public class OpeningBalanceService : IOpeningBalanceService{
         private readonly ApplicationDbContext _dbContext;
 
         public OpeningBalanceService(ApplicationDbContext dbContext)

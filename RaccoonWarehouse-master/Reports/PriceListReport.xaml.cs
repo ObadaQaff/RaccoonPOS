@@ -17,6 +17,7 @@ namespace RaccoonWarehouse.Reports
 
         public PriceListReport(IStockReportService stockReportService)
         {
+            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
             _stockReportService = stockReportService;
             UiText.ApplyWindow(this);

@@ -17,6 +17,7 @@ namespace RaccoonWarehouse.Stocks
 
         public SearchStockInWindow(IStockDocumentService stockDocumentService, bool StockIn)
         {
+            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
             _stockDocumentService = stockDocumentService;
             _stockIn = StockIn;

@@ -11,6 +11,7 @@ using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Domain.Products;
 using RaccoonWarehouse.Domain.Products.DTOs;
 using RaccoonWarehouse.Domain.Enums;
+using RaccoonWarehouse.Helpers;
 using RaccoonWarehouse.Helpers.Localization;
 using RaccoonWarehouse.Navigation;
 using Microsoft.EntityFrameworkCore;
@@ -47,10 +48,6 @@ namespace RaccoonWarehouse.Products
         private Task _pendingSearchTask = Task.CompletedTask;
         private bool _activatingSearchResult;
         private readonly SemaphoreSlim _loadSemaphore = new(1, 1);
-        private List<RaccoonWarehouse.Domain.Users.DTOs.UserReadDto> _supplierLookupItems = new();
-        private bool _isFilteringSuppliers;
-        private bool _isNavigatingSuppliers;
-        private string _supplierSearchText = string.Empty;
 
         public ProductsTable(
             ISubCategoryService subCategoryService,
@@ -67,7 +64,9 @@ namespace RaccoonWarehouse.Products
             _loadingService = loadingService;
             _userService = userService;
 
+            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
+            SupplierComboBoxSearch.Attach(SupplierFilterComboBox);
             UiText.ApplyWindow(this);
             Loaded += async (_, _) =>
             {
@@ -80,7 +79,7 @@ namespace RaccoonWarehouse.Products
 
         private async void CatalogRefreshNotifier_CatalogChanged(object? sender, EventArgs e)
         {
-            if (!IsLoaded || _isFilteringSuppliers || _isNavigatingSuppliers)
+            if (!IsLoaded)
                 return;
 
             await LoadPageAsync(1);
@@ -110,11 +109,11 @@ namespace RaccoonWarehouse.Products
 
         private void SearchByBarcodeTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
-            _currentBarcodeSearch = SearchByBarcodeTextBox.Text.Trim();
+            _currentBarcodeSearch = BarcodeLookup.Normalize(SearchByBarcodeTextBox.Text);
             QueueSearch();
         }
 
-        private void SupplierFilterComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void SupplierFilterComboBox_DropDownClosed(object sender, EventArgs e)
         {
             if (!IsLoaded)
                 return;
@@ -128,91 +127,13 @@ namespace RaccoonWarehouse.Products
         private async Task LoadSupplierFilterAsync()
         {
             var users = await _userService.GetAllAsync();
-            _supplierLookupItems = users.Data?
+            var suppliers = users.Data?
                 .Where(user => user.Role == UserRole.Supplier)
                 .OrderBy(user => user.Name)
                 .ToList() ?? new();
-            var suppliers = _supplierLookupItems.ToList();
             suppliers.Insert(0, new RaccoonWarehouse.Domain.Users.DTOs.UserReadDto { Id = 0, Name = "All suppliers" });
-            SupplierFilterComboBox.ItemsSource = suppliers;
+            SupplierComboBoxSearch.SetItems(SupplierFilterComboBox, suppliers);
             SupplierFilterComboBox.SelectedIndex = 0;
-        }
-
-        private void SupplierFilterComboBox_Loaded(object sender, RoutedEventArgs e)
-        {
-            if (SupplierFilterComboBox.Template.FindName("PART_EditableTextBox", SupplierFilterComboBox) is TextBox textBox)
-                textBox.TextChanged += SupplierFilterComboBox_TextChanged;
-        }
-
-        private void SupplierFilterComboBox_PreviewKeyDown(object sender, KeyEventArgs e)
-        {
-            if (e.Key is not (Key.Down or Key.Up or Key.Enter) || SupplierFilterComboBox.Items.Count == 0)
-                return;
-
-            _isNavigatingSuppliers = true;
-            try
-            {
-                if (e.Key == Key.Down)
-                    SupplierFilterComboBox.SelectedIndex = Math.Min(SupplierFilterComboBox.SelectedIndex + 1, SupplierFilterComboBox.Items.Count - 1);
-                else if (e.Key == Key.Up)
-                    SupplierFilterComboBox.SelectedIndex = Math.Max(SupplierFilterComboBox.SelectedIndex - 1, 0);
-                else if (SupplierFilterComboBox.SelectedItem is RaccoonWarehouse.Domain.Users.DTOs.UserReadDto)
-                    SupplierFilterComboBox.IsDropDownOpen = false;
-                else
-                    return;
-
-                RestoreSupplierFilterSearchText();
-                e.Handled = true;
-            }
-            finally
-            {
-                _isNavigatingSuppliers = false;
-            }
-        }
-
-        private void RestoreSupplierFilterSearchText()
-        {
-            if (SupplierFilterComboBox.Template.FindName("PART_EditableTextBox", SupplierFilterComboBox) is not TextBox textBox)
-                return;
-
-            textBox.Text = _supplierSearchText;
-            textBox.CaretIndex = textBox.Text.Length;
-            SupplierFilterComboBox.IsDropDownOpen = true;
-        }
-
-        private void SupplierFilterComboBox_TextChanged(object sender, TextChangedEventArgs e)
-        {
-            if (_isFilteringSuppliers || _isNavigatingSuppliers || !SupplierFilterComboBox.IsKeyboardFocusWithin)
-                return;
-
-            if (SupplierFilterComboBox.Template.FindName("PART_EditableTextBox", SupplierFilterComboBox) is not TextBox textBox)
-                return;
-
-            _supplierSearchText = textBox.Text.Trim();
-            _isFilteringSuppliers = true;
-            try
-            {
-                SupplierFilterComboBox.SelectedValue = null;
-
-                var filteredSuppliers = string.IsNullOrWhiteSpace(_supplierSearchText)
-                    ? _supplierLookupItems.ToList()
-                    : _supplierLookupItems.Where(user =>
-                            (user.Name ?? string.Empty).Contains(_supplierSearchText, StringComparison.CurrentCultureIgnoreCase)
-                            || (user.PhoneNumber ?? string.Empty).Contains(_supplierSearchText, StringComparison.CurrentCultureIgnoreCase))
-                        .ToList();
-
-                if (string.IsNullOrWhiteSpace(_supplierSearchText))
-                    filteredSuppliers.Insert(0, new RaccoonWarehouse.Domain.Users.DTOs.UserReadDto { Id = 0, Name = "All suppliers" });
-
-                SupplierFilterComboBox.ItemsSource = filteredSuppliers;
-                textBox.Text = _supplierSearchText;
-                textBox.CaretIndex = textBox.Text.Length;
-                SupplierFilterComboBox.IsDropDownOpen = true;
-            }
-            finally
-            {
-                _isFilteringSuppliers = false;
-            }
         }
 
         private async void ProductSearchTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
@@ -345,6 +266,11 @@ namespace RaccoonWarehouse.Products
                 {
                     var databaseSearchTerm = nameSearchTerms.FirstOrDefault()
                         ?? barcodeSearchTerms.First();
+                    var databaseSearchTermIsNumeric = long.TryParse(
+                        databaseSearchTerm,
+                        System.Globalization.NumberStyles.Integer,
+                        System.Globalization.CultureInfo.InvariantCulture,
+                        out var databaseNumericBarcode);
 
                     var searchResult = await productService.GetAllWithAdvancedIncludeAsync(
                         query => query
@@ -354,6 +280,7 @@ namespace RaccoonWarehouse.Products
                             .ThenInclude(productUnit => productUnit.Unit),
                         product => (!_currentSupplierId.HasValue || product.SupplierId == _currentSupplierId.Value) &&
                                    ((product.Name ?? string.Empty).Contains(databaseSearchTerm) ||
+                                   (databaseSearchTermIsNumeric && product.ITEMCODE == databaseNumericBarcode) ||
                                    product.ITEMCODE.ToString().Contains(databaseSearchTerm) ||
                                    product.ProductUnits!.Any(unit => unit.AlternateBarcode == databaseSearchTerm)));
 
@@ -477,6 +404,7 @@ namespace RaccoonWarehouse.Products
 
             return searchTerms.All(term =>
                 name.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                BarcodeLookup.MatchesItemCode(product.ITEMCODE, term) ||
                 itemCode.Contains(term, StringComparison.OrdinalIgnoreCase) ||
                 alternateBarcodes.Any(barcode => barcode.Contains(term, StringComparison.OrdinalIgnoreCase)));
         }

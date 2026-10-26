@@ -8,6 +8,7 @@ using RaccoonWarehouse.Application.Service.Stocks;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Stock.DTOs;
+using RaccoonWarehouse.Domain.Products;
 using RaccoonWarehouse.Domain.Users.DTOs;
 using RaccoonWarehouse.Helpers;
 using RaccoonWarehouse.Helpers.Localization;
@@ -41,6 +42,7 @@ public partial class LowStockReport : Window
         _stockReportService = stockReportService;
         _userService = userService;
         _productService = productService;
+        RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
         InitializeComponent();
         Resources["BarcodeCopyToolTip"] = UiText.T("نسخ الباركود", "Copy barcode");
         SupplierComboBoxSearch.Attach(SupplierComboBox);
@@ -279,11 +281,13 @@ public partial class LowStockReport : Window
         if (!_ready) return;
         var supplierId = SelectedSupplierId();
         var name = ProductNameTextBox.Text.Trim();
-        var barcode = BarcodeTextBox.Text.Trim();
+        var barcode = BarcodeLookup.Normalize(BarcodeTextBox.Text);
         var filtered = _allItems.Where(item =>
             (!supplierId.HasValue || item.SupplierId == supplierId)
             && (name.Length == 0 || MatchesProductName(item.ProductName ?? string.Empty, name))
-            && (barcode.Length == 0 || (item.ITEMCODE?.Contains(barcode, StringComparison.OrdinalIgnoreCase) ?? false)));
+            && (barcode.Length == 0 ||
+                BarcodeLookup.AreEquivalent(item.ITEMCODE, barcode) ||
+                (item.ITEMCODE?.Contains(barcode, StringComparison.OrdinalIgnoreCase) ?? false)));
         _items.Clear();
         foreach (var item in filtered) _items.Add(item);
         CountText.Text = _items.Count.ToString();

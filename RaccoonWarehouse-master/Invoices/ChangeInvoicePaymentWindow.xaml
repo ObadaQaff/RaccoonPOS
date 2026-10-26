@@ -1,4 +1,4 @@
-<Window x:Class="RaccoonWarehouse.Invoices.ChangeInvoicePaymentWindow"
+<Window xmlns:security="clr-namespace:RaccoonWarehouse.Security" x:Class="RaccoonWarehouse.Invoices.ChangeInvoicePaymentWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Change payment method"
@@ -107,7 +107,8 @@
         <Border Grid.Row="2" Margin="0,14,0,0" Padding="16" Style="{StaticResource ReportCardBorderStyle}">
             <StackPanel>
                 <TextBlock Text="Payment method" Style="{StaticResource PaymentLabelStyle}"/>
-                <ComboBox x:Name="PaymentMethodComboBox" Style="{StaticResource PaymentComboStyle}">
+                <ComboBox x:Name="PaymentMethodComboBox" Style="{StaticResource PaymentComboStyle}"
+                          PreviewKeyDown="PaymentMethodComboBox_PreviewKeyDown">
                     <ComboBox.ItemContainerStyle>
                         <Style TargetType="ComboBoxItem">
                             <Setter Property="IsEnabled" Value="{Binding IsEnabled}"/>
@@ -144,7 +145,7 @@
                              PreviewKeyDown="PaymentAmountTextBox_PreviewKeyDown"/>
                 </StackPanel>
                 <Button x:Name="AddPaymentButton" Grid.Column="1" Width="118" Height="46" Margin="12,21,0,0"
-                        Style="{StaticResource ReportPrimaryButtonStyle}" Click="AddPaymentButton_Click"/>
+                        Style="{StaticResource ReportPrimaryButtonStyle}" Click="AddPaymentButton_Click" security:PermissionWindowGuard.Keys="SalesInvoice.Create;SalesInvoice.Post"/>
             </Grid>
         </Border>
 
@@ -175,7 +176,7 @@
                             <DataTemplate>
                                 <Button Content="{Binding RemoveText}" Padding="8,4"
                                         Style="{StaticResource ReportSecondaryButtonStyle}"
-                                        Click="RemovePaymentButton_Click"/>
+                                        Click="RemovePaymentButton_Click" security:PermissionWindowGuard.Keys="SalesInvoice.Create;SalesInvoice.Post"/>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
@@ -188,7 +189,7 @@
 
         <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,0">
             <Button x:Name="SaveButton" Width="150" Height="44" Margin="6"
-                    Style="{StaticResource ReportPrimaryButtonStyle}" Click="SaveButton_Click"/>
+                    Style="{StaticResource ReportPrimaryButtonStyle}" Click="SaveButton_Click" security:PermissionWindowGuard.Keys="SalesInvoice.Create|SalesInvoice.Edit"/>
             <Button x:Name="CancelButton" Width="150" Height="44" Margin="6"
                     Style="{StaticResource ReportSecondaryButtonStyle}" Click="CancelButton_Click"/>
         </StackPanel>

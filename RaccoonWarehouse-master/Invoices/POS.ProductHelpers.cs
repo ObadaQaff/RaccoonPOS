@@ -100,6 +100,12 @@ public partial class POS
 
     private decimal GetDefaultSalePrice(InvoiceLineWriteDto line)
     {
+        if (_stockLookup.TryGetValue((line.ProductId, line.ProductUnitId), out var stock) &&
+            stock.SalePrice > 0m)
+        {
+            return stock.SalePrice;
+        }
+
         var product = FindProductForLine(line);
         var unit = product?.ProductUnits?.FirstOrDefault(u => u.Id == line.ProductUnitId)
                    ?? ProductUnitSelector.GetDefaultSaleUnit(product?.ProductUnits);
@@ -107,9 +113,7 @@ public partial class POS
         if (unit != null)
             return unit.SalePrice;
 
-        return _stockLookup.TryGetValue((line.ProductId, line.ProductUnitId), out var stock)
-            ? stock.SalePrice
-            : line.UnitPrice;
+        return line.UnitPrice;
     }
 
     private void ResetPriceBelowCost(InvoiceLineWriteDto line, decimal enteredPrice, TextBox? editor = null)

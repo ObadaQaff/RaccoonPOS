@@ -32,6 +32,31 @@ namespace RaccoonWarehouse.Common.Loading
                 _window = null;
             });
         }
+
+        public void UpdateProgress(int progress, string? message = null, string? hint = null)
+        {
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                if (_window == null)
+                {
+                    return;
+                }
+
+                var value = Math.Clamp(progress, 0, 100);
+                _window.LoadingProgressBar.Value = value;
+
+                if (!string.IsNullOrWhiteSpace(message))
+                {
+                    _window.MessageText.Text = message;
+                }
+
+                if (!string.IsNullOrWhiteSpace(hint))
+                {
+                    _window.HintText.Text = hint;
+                    _window.HintText.Visibility = Visibility.Visible;
+                }
+            });
+        }
     }
 
 
@@ -39,6 +64,7 @@ namespace RaccoonWarehouse.Common.Loading
     {
         void Show();
         void Hide();
+        void UpdateProgress(int progress, string? message = null, string? hint = null);
     }
 
 

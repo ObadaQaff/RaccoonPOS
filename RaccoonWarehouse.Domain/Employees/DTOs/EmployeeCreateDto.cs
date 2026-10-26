@@ -13,6 +13,9 @@ namespace RaccoonWarehouse.Domain.Employees.DTOs
         public string? AlternatePhoneNumber { get; set; }
         public string? Email { get; set; }
         public string? NationalId { get; set; }
+        public string? SocialSecurityNumber { get; set; }
+        public bool ClearSocialSecurityNumber { get; set; }
+        public string? EmploymentChangeReason { get; set; }
         public DateTime? HireDate { get; set; }
         public DateTime? TerminationDate { get; set; }
         public EmployeeStatus Status { get; set; } = EmployeeStatus.Active;
@@ -21,6 +24,7 @@ namespace RaccoonWarehouse.Domain.Employees.DTOs
         public int? DepartmentId { get; set; }
         public int? BranchId { get; set; }
         public int? ManagerId { get; set; }
+        public RaccoonWarehouse.Domain.Payroll.EmploymentType? EmploymentType { get; set; }
         public decimal? BasicSalary { get; set; }
         public string? Notes { get; set; }
         public string? Address { get; set; }

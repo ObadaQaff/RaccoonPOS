@@ -25,6 +25,8 @@ namespace RaccoonWarehouse.Domain.Employees
         public int? ManagerId { get; set; }
         public Employee? Manager { get; set; }
         public ICollection<Employee> DirectReports { get; set; } = new List<Employee>();
+        public RaccoonWarehouse.Domain.Payroll.EmploymentType? EmploymentType { get; set; }
+        public string? SocialSecurityNumberEncrypted { get; set; }
         public decimal? BasicSalary { get; set; }
         public string? Notes { get; set; }
         public string? Address { get; set; }

@@ -18,6 +18,7 @@ public partial class FractionalSaleConfigurationWindow : Window
     {
         _packagePrice = packagePrice;
         _packageCost = packageCost;
+        RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
         InitializeComponent();
         UiText.ApplyWindow(this);
         PackageTextBlock.Text = string.Format(CultureInfo.CurrentCulture,

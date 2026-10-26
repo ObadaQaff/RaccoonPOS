@@ -1,6 +1,8 @@
+using System.Data;
 using Microsoft.EntityFrameworkCore;
 using RaccoonWarehouse.Data;
 using RaccoonWarehouse.Domain.POS;
+using RaccoonWarehouse.Domain.Products;
 using RaccoonWarehouse.Domain.StockLots;
 
 namespace RaccoonWarehouse.Application.Service.Stocks
@@ -16,6 +18,7 @@ namespace RaccoonWarehouse.Application.Service.Stocks
     public sealed class PosProductCatalogService : IPosProductCatalogService
     {
         private readonly ApplicationDbContext _context;
+        private static readonly SemaphoreSlim CatalogOperationGate = new(1, 1);
 
         private const string RebuildCatalogSql = """
             SET NOCOUNT ON;
@@ -262,6 +265,20 @@ namespace RaccoonWarehouse.Application.Service.Stocks
         public async Task<IReadOnlyList<PosProductCatalogEntry>> GetCatalogAsync(
             CancellationToken cancellationToken = default)
         {
+            await CatalogOperationGate.WaitAsync(cancellationToken);
+            try
+            {
+                return await GetCatalogCoreAsync(cancellationToken);
+            }
+            finally
+            {
+                CatalogOperationGate.Release();
+            }
+        }
+
+        private async Task<IReadOnlyList<PosProductCatalogEntry>> GetCatalogCoreAsync(
+            CancellationToken cancellationToken)
+        {
             var activeUnitCount = await _context.Set<RaccoonWarehouse.Domain.ProductUnits.ProductUnit>()
                 .AsNoTracking()
                 .CountAsync(unit => unit.Product != null && !unit.Product.IsDeleted, cancellationToken);
@@ -270,7 +287,7 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                 .CountAsync(cancellationToken);
 
             if (catalogCount == 0 || catalogCount != activeUnitCount)
-                await RefreshAllAsync(cancellationToken);
+                await RefreshAllCoreAsync(cancellationToken);
 
             return await _context.Set<PosProductCatalogEntry>()
                 .AsNoTracking()
@@ -284,35 +301,54 @@ namespace RaccoonWarehouse.Application.Service.Stocks
             string barcode,
             CancellationToken cancellationToken = default)
         {
-            var normalizedBarcode = barcode?.Trim();
+            var normalizedBarcode = BarcodeLookup.Normalize(barcode);
             if (string.IsNullOrWhiteSpace(normalizedBarcode))
                 return Array.Empty<PosProductCatalogEntry>();
 
-            var query = _context.Set<PosProductCatalogEntry>()
-                .AsNoTracking()
-                .Where(entry => entry.IsActive);
-
-            if (long.TryParse(normalizedBarcode, out var numericBarcode))
+            await CatalogOperationGate.WaitAsync(cancellationToken);
+            try
             {
-                query = query.Where(entry =>
-                    entry.ItemCode == numericBarcode ||
-                    entry.AlternateBarcode == normalizedBarcode);
-            }
-            else
-            {
-                query = query.Where(entry => entry.AlternateBarcode == normalizedBarcode);
-            }
+                var query = _context.Set<PosProductCatalogEntry>()
+                    .AsNoTracking()
+                    .Where(entry => entry.IsActive);
 
-            return await query
-                .OrderBy(entry => entry.ProductName)
-                .ThenBy(entry => entry.UnitName)
-                .ToListAsync(cancellationToken);
+                if (long.TryParse(normalizedBarcode, out var numericBarcode))
+                {
+                    query = query.Where(entry =>
+                        entry.ItemCode == numericBarcode ||
+                        entry.AlternateBarcode == normalizedBarcode);
+                }
+                else
+                {
+                    query = query.Where(entry => entry.AlternateBarcode == normalizedBarcode);
+                }
+
+                return await query
+                    .OrderBy(entry => entry.ProductName)
+                    .ThenBy(entry => entry.UnitName)
+                    .ToListAsync(cancellationToken);
+            }
+            finally
+            {
+                CatalogOperationGate.Release();
+            }
         }
 
         public async Task RefreshAllAsync(CancellationToken cancellationToken = default)
         {
-            await _context.Database.ExecuteSqlRawAsync(RebuildCatalogSql, cancellationToken);
+            await CatalogOperationGate.WaitAsync(cancellationToken);
+            try
+            {
+                await RefreshAllCoreAsync(cancellationToken);
+            }
+            finally
+            {
+                CatalogOperationGate.Release();
+            }
         }
+
+        private Task RefreshAllCoreAsync(CancellationToken cancellationToken)
+            => _context.Database.ExecuteSqlRawAsync(RebuildCatalogSql, cancellationToken);
 
         public async Task RefreshProductsAsync(
             IEnumerable<int> productIds,
@@ -324,6 +360,29 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                 .ToList();
             if (ids.Count == 0)
                 return;
+
+            await CatalogOperationGate.WaitAsync(cancellationToken);
+            try
+            {
+                await RefreshProductsCoreAsync(ids, cancellationToken);
+            }
+            finally
+            {
+                CatalogOperationGate.Release();
+            }
+        }
+
+        private async Task RefreshProductsCoreAsync(
+            IReadOnlyList<int> ids,
+            CancellationToken cancellationToken)
+        {
+
+            // The catalog is a derived cache. Read its source rows without taking
+            // shared locks so a purchase/stock transaction cannot deadlock with
+            // this refresh. Catalog writes below still use the normal isolation
+            // level and are committed by the caller.
+            await using var readTransaction = await _context.Database
+                .BeginTransactionAsync(IsolationLevel.ReadUncommitted, cancellationToken);
 
             var units = await _context.Set<RaccoonWarehouse.Domain.ProductUnits.ProductUnit>()
                 .AsNoTracking()
@@ -376,6 +435,12 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                 })
                 .ToListAsync(cancellationToken);
 
+            var existing = await _context.Set<PosProductCatalogEntry>()
+                .Where(entry => ids.Contains(entry.ProductId))
+                .ToListAsync(cancellationToken);
+
+            await readTransaction.CommitAsync(cancellationToken);
+
             var lotsByProduct = lots
                 .GroupBy(lot => lot.ProductId)
                 .ToDictionary(group => group.Key, group => group.ToList());
@@ -383,9 +448,6 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                 .GroupBy(lot => (lot.ProductId, lot.ProductUnitId))
                 .ToDictionary(group => group.Key, group => group.ToList());
 
-            var existing = await _context.Set<PosProductCatalogEntry>()
-                .Where(entry => ids.Contains(entry.ProductId))
-                .ToListAsync(cancellationToken);
             var existingByKey = existing.ToDictionary(entry => (entry.ProductId, entry.ProductUnitId));
             var validKeys = units
                 .Select(unit => (unit.ProductId, unit.ProductUnitId))

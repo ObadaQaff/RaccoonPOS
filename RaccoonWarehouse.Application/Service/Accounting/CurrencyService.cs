@@ -3,8 +3,7 @@ using RaccoonWarehouse.Data;
 
 namespace RaccoonWarehouse.Application.Service.Accounting
 {
-    public class CurrencyService
-    {
+    public class CurrencyService : ICurrencyService{
         private readonly ApplicationDbContext _dbContext;
 
         public CurrencyService(ApplicationDbContext dbContext)

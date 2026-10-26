@@ -37,7 +37,15 @@ public partial class POS
             _invoiceDiscountRows.Remove(row);
 
         return _invoiceLines.Where(row => row.ProductId > 0 && row.Quantity > 0m && row.UnitPrice > 0m &&
-            (row.LineDiscountAmount == 0m || _invoiceDiscountRows.ContainsKey(row))).ToList();
+            (row.LineDiscountAmount == 0m || _invoiceDiscountRows.ContainsKey(row)) &&
+            !IsExcludedFromInvoiceDiscount(row)).ToList();
+    }
+
+    private bool IsExcludedFromInvoiceDiscount(InvoiceLineWriteDto row)
+    {
+        var decision = GetLineSaleDecision(row, 0m);
+        return decision.BlocksDiscount &&
+            (!decision.DiscountLimitPercent.HasValue || decision.DiscountLimitPercent.Value <= 0m);
     }
 
     private decimal GetInvoiceDiscountPolicyMaximum(IReadOnlyList<InvoiceLineWriteDto> rows)

@@ -135,7 +135,28 @@ namespace RaccoonWarehouse.Helpers
                 {
                     if (e.Key == Key.Down) _combo.SelectedIndex = Math.Min(_combo.SelectedIndex + 1, _combo.Items.Count - 1);
                     else if (e.Key == Key.Up) _combo.SelectedIndex = Math.Max(_combo.SelectedIndex - 1, 0);
-                    else { _combo.IsDropDownOpen = false; e.Handled = true; return; }
+                    else
+                    {
+                        // When typing produces a filtered list, WPF may leave the
+                        // selected index unset. Enter should commit the first match
+                        // instead of only closing the dropdown.
+                        if (_combo.SelectedIndex < 0 && _combo.Items.Count > 0)
+                            _combo.SelectedIndex = 0;
+
+                        if (_combo.SelectedItem is UserReadDto selectedSupplier)
+                        {
+                            _combo.SelectedValue = selectedSupplier.Id;
+                            if (_combo.Template.FindName("PART_EditableTextBox", _combo) is TextBox committedTextBox)
+                            {
+                                committedTextBox.Text = selectedSupplier.Name ?? string.Empty;
+                                committedTextBox.CaretIndex = committedTextBox.Text.Length;
+                            }
+                        }
+
+                        _combo.IsDropDownOpen = false;
+                        e.Handled = true;
+                        return;
+                    }
                     if (_combo.Template.FindName("PART_EditableTextBox", _combo) is TextBox textBox)
                     {
                         textBox.Text = _search;

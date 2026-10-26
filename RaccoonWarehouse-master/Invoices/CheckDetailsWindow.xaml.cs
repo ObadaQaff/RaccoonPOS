@@ -19,6 +19,7 @@ namespace RaccoonWarehouse.Invoices
 
         public CheckDetailsWindow(decimal expectedAmount, IEnumerable<CheckWriteDto>? existingChecks = null)
         {
+            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
             _expectedAmount = expectedAmount;
 

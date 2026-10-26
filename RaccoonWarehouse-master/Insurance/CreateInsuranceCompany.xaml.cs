@@ -1,5 +1,8 @@
 using RaccoonWarehouse.Application.Service.Insurance;
+using RaccoonWarehouse.Application.Service.Accounting;
 using RaccoonWarehouse.Common.Loading;
+using RaccoonWarehouse.Domain.Accounting.Accounts.DTOs;
+using RaccoonWarehouse.Domain.Accounting.Enums;
 using RaccoonWarehouse.Domain.Insurance;
 using RaccoonWarehouse.Helpers.Localization;
 using System.Globalization;
@@ -11,16 +14,19 @@ namespace RaccoonWarehouse.Insurance;
 public partial class CreateInsuranceCompany : Window
 {
     private readonly IInsuranceManagementService _service;
+    private readonly IAccountingService _accounting;
     private readonly ILoadingService _loading;
     private bool _busy;
     private int _companyId;
     private InsuranceCompanyWriteDto? _original;
     public bool Saved { get; private set; }
 
-    public CreateInsuranceCompany(IInsuranceManagementService service, ILoadingService loading)
+    public CreateInsuranceCompany(IInsuranceManagementService service, IAccountingService accounting, ILoadingService loading)
     {
         _service = service;
+        _accounting = accounting;
         _loading = loading;
+        RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
         InitializeComponent();
         AddOption(OrganizationTypeComboBox, InsuranceOrganizationType.Insurer, "شركة تأمين", "Insurer");
         AddOption(OrganizationTypeComboBox, InsuranceOrganizationType.Administrator, "مدير تأمين", "Administrator");
@@ -50,13 +56,18 @@ public partial class CreateInsuranceCompany : Window
 
     private async Task LoadEditorAsync()
     {
-        if (_companyId == 0) { CodeTextBox.Focus(); return; }
         _busy = true;
         FormGrid.IsEnabled = SaveButton.IsEnabled = BackButton.IsEnabled = false;
         string? error = null;
         try
         {
             _loading.Show();
+            await LoadReceivableAccountsAsync();
+            if (_companyId == 0)
+            {
+                CodeTextBox.Focus();
+                return;
+            }
             var result = await _service.GetCompanyForEditAsync(_companyId);
             if (!result.Success || result.Data == null) error = result.Message;
             else
@@ -75,6 +86,8 @@ public partial class CreateInsuranceCompany : Window
                     .FirstOrDefault(item => Equals(item.Tag, _original.OrganizationType));
                 StatusComboBox.SelectedItem = StatusComboBox.Items.OfType<ComboBoxItem>()
                     .FirstOrDefault(item => Equals(item.Tag, _original.Status));
+                ReceivableAccountComboBox.SelectedItem = ReceivableAccountComboBox.Items.OfType<ComboBoxItem>()
+                    .FirstOrDefault(item => item.Tag is AccountReadDto account && account.Id == _original.ReceivableAccountId);
             }
         }
         catch (Exception ex) { error = ex.Message; }
@@ -90,6 +103,29 @@ public partial class CreateInsuranceCompany : Window
             Close();
         }
         else CodeTextBox.Focus();
+    }
+
+    private async Task LoadReceivableAccountsAsync()
+    {
+        var result = await _accounting.GetAccountsAsync(activeOnly: true);
+        if (!result.Success || result.Data == null)
+            throw new InvalidOperationException(result.Message ?? "Could not load accounting accounts.");
+
+        ReceivableAccountComboBox.Items.Clear();
+        ReceivableAccountComboBox.Items.Add(new ComboBoxItem
+        {
+            Tag = null,
+            Content = UiText.T("تلقائي: إنشاء حساب مخصص", "Automatic: create a dedicated account")
+        });
+        foreach (var account in result.Data.Where(x => x.IsActive && x.IsPosting && x.AccountType == AccountType.Asset))
+        {
+            ReceivableAccountComboBox.Items.Add(new ComboBoxItem
+            {
+                Tag = account,
+                Content = $"{account.Code} - {account.Name}"
+            });
+        }
+        ReceivableAccountComboBox.SelectedIndex = 0;
     }
 
     private static string CompanyError(string? error) => error switch
@@ -131,10 +167,11 @@ public partial class CreateInsuranceCompany : Window
         try
         {
             _loading.Show();
+            var selectedAccount = (ReceivableAccountComboBox.SelectedItem as ComboBoxItem)?.Tag as AccountReadDto;
             var result = await _service.SaveCompanyAsync(new InsuranceCompanyWriteDto
             {
                 Id = _companyId,
-                ReceivableAccountId = _original?.ReceivableAccountId,
+                ReceivableAccountId = selectedAccount?.Id,
                 DeductionAccountId = _original?.DeductionAccountId,
                 PaymentAccountId = _original?.PaymentAccountId,
                 Code = CodeTextBox.Text.Trim(), Name = NameTextBox.Text.Trim(),

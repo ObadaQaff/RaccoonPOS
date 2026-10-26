@@ -1,4 +1,4 @@
-<Window x:Class="RaccoonWarehouse.UpdateUser"
+<Window xmlns:security="clr-namespace:RaccoonWarehouse.Security" x:Class="RaccoonWarehouse.UpdateUser"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -234,7 +234,7 @@
                                 Content="حفظ التحديث"
                                 Style="{StaticResource AppFormButtonStyle}"
                                 Background="{StaticResource AppBlueBrush}"
-                                Click="Update_User"/>
+                                Click="Update_User" security:PermissionWindowGuard.Keys="Users.Edit"/>
                         <Button x:Name="BackBtn"
                                 Margin="0,14,0,0"
                                 Content="عودة"

@@ -30,6 +30,7 @@ namespace RaccoonWarehouse
             _userService = userService;
             _userSession = userSession;
             _permissionService = permissionService;
+            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
             UiText.ApplyWindow(this);
 

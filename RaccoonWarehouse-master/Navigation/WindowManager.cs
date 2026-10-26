@@ -22,11 +22,13 @@ namespace RaccoonWarehouse.Navigation
             Action<T>? init = null)
             where T : Window
         {
+            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(typeof(T));
             // 🔁 If already created
             if (_windows.TryGetValue(typeof(T), out var entry))
             {
                 var existing = entry.window;
                 init?.Invoke((T)existing);
+                RaccoonWarehouse.Security.PermissionWindowGuard.Demand(existing);
 
                 if (!existing.IsVisible)
                     existing.Show();

@@ -25,15 +25,18 @@ namespace RaccoonWarehouse.Application.Service.Products
         private readonly IUOW _uow;
         private readonly IMapper _mapper;
         private readonly IPosProductCatalogService? _posProductCatalogService;
+        private readonly IPosProductCatalogRefreshQueue? _posProductCatalogRefreshQueue;
         public ProductService(
             ApplicationDbContext context,
             IUOW uow,
             IMapper mapper,
-            IPosProductCatalogService? posProductCatalogService = null) : base(context, uow, mapper)
+            IPosProductCatalogService? posProductCatalogService = null,
+            IPosProductCatalogRefreshQueue? posProductCatalogRefreshQueue = null) : base(context, uow, mapper)
         {
             _uow = uow;
             _mapper = mapper;
             _posProductCatalogService = posProductCatalogService;
+            _posProductCatalogRefreshQueue = posProductCatalogRefreshQueue;
         }
 
         public override async Task<Result<ProductWriteDto>> CreateAsync(ProductWriteDto dto)
@@ -196,6 +199,56 @@ namespace RaccoonWarehouse.Application.Service.Products
             await _uow.CommitAsync();
             return Result.Ok("Product tax settings saved without changing unit sale prices.");
         }
+
+        public async Task<Result> AssignSupplierToProductsAsync(
+            IEnumerable<int> productIds,
+            int supplierId)
+        {
+            if (supplierId <= 0)
+                return Result.Fail("A valid supplier is required.");
+
+            var ids = productIds
+                .Where(id => id > 0)
+                .Distinct()
+                .ToList();
+
+            if (ids.Count == 0)
+                return Result.Ok("No products require a supplier update.");
+
+            var products = await _uow.GetRepository<Product>()
+                .GetAllAsQueryable()
+                .Where(product => ids.Contains(product.Id) && !product.IsDeleted)
+                .ToListAsync();
+
+            var changedProductIds = new List<int>();
+            foreach (var product in products)
+            {
+                if (product.SupplierId == supplierId)
+                    continue;
+
+                product.SupplierId = supplierId;
+                product.UpdatedDate = DateTime.Now;
+                changedProductIds.Add(product.Id);
+            }
+
+            if (changedProductIds.Count == 0)
+                return Result.Ok("Product suppliers are already up to date.");
+
+            await _uow.CommitAsync();
+
+            if (_posProductCatalogRefreshQueue != null)
+            {
+                _posProductCatalogRefreshQueue.Enqueue(changedProductIds);
+            }
+            else if (_posProductCatalogService != null)
+            {
+                await _posProductCatalogService.RefreshProductsAsync(changedProductIds);
+                await _uow.CommitAsync();
+            }
+
+            return Result.Ok("Invoice product suppliers updated successfully.");
+        }
+
         public async Task<Result> UpdateProductWithUnitsAsync(
             ProductWriteDto productDto,
             List<ProductUnitWriteDto> unitsDto)
@@ -320,7 +373,11 @@ namespace RaccoonWarehouse.Application.Service.Products
 
             await _uow.CommitAsync();
 
-            if (_posProductCatalogService != null)
+            if (_posProductCatalogRefreshQueue != null)
+            {
+                _posProductCatalogRefreshQueue.Enqueue(new[] { product.Id });
+            }
+            else if (_posProductCatalogService != null)
             {
                 await _posProductCatalogService.RefreshProductsAsync(new[] { product.Id });
                 await _uow.CommitAsync();
@@ -448,6 +505,7 @@ namespace RaccoonWarehouse.Application.Service.Products
         Task<Result<List<ProductColorSelectorItem>>> GetProductColorSelectorItemsAsync(IEnumerable<int> productIds);
         Task<Result> ApplyTaxToProductUnitsAsync(int productId);
         Task<Result> ApplyTaxToProductUnitsAsync(Product product);
+        Task<Result> AssignSupplierToProductsAsync(IEnumerable<int> productIds, int supplierId);
         Task<Result> UpdateProductWithUnitsAsync(
     ProductWriteDto productDto,
     List<ProductUnitWriteDto> unitsDto);

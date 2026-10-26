@@ -493,6 +493,9 @@ namespace RaccoonWarehouse.Data
                 .IsUnique()
                 .HasFilter("[UserId] IS NOT NULL");
 
+            modelBuilder.ApplyConfiguration(new RaccoonWarehouse.Data.Configurations.PayrollModelConfiguration());
+            RaccoonWarehouse.Data.Configurations.PayrollModelConfiguration.ConfigurePayroll(modelBuilder);
+
             modelBuilder.Entity<EmployeeEntity>()
                 .HasIndex(x => x.Code)
                 .IsUnique();

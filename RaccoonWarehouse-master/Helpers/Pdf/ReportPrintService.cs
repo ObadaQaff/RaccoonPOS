@@ -1,4 +1,7 @@
 using Microsoft.Win32;
+using Microsoft.Extensions.DependencyInjection;
+using System.Windows.Media.Imaging;
+using RaccoonWarehouse.Domain.Settings;
 using QuestPDF.Fluent;
 using RaccoonWarehouse.Helpers.Localization;
 using System;
@@ -54,10 +57,23 @@ namespace RaccoonWarehouse.Helpers.Pdf
                 PrintQueue = System.Printing.LocalPrintServer.GetDefaultPrintQueue()
             };
 
-            var document = BuildSmallInvoiceDocument(invoice);
+            var branding=DocumentPrintRuntime.Branding(invoiceId:invoice.Id);
+            var ticket=printDialog.PrintTicket;
+            ticket.PageMediaSize=new System.Printing.PageMediaSize(branding.ThermalPaperWidthMm*96d/25.4,14000);
+            printDialog.PrintTicket=ticket;
+            var capabilities=printDialog.PrintQueue.GetPrintCapabilities(ticket);
+            var paperWidth=branding.ThermalPaperWidthMm*96d/25.4;
+            var area=capabilities.PageImageableArea;
+            var printable=area?.ExtentWidth??paperWidth;
+            if(printable<100)throw new InvalidOperationException(UiText.T("عرض الطابعة غير صالح؛ راجع إعدادات الورق.","Invalid printer width; check paper settings."));
+            var document = BuildSmallInvoiceDocument(invoice,branding,Math.Min(paperWidth,printable));
+            document.PageHeight=MeasureReceiptHeight(document);
             var paginator = ((IDocumentPaginatorSource)document).DocumentPaginator;
+            ticket.PageMediaSize=new System.Printing.PageMediaSize(paperWidth,document.PageHeight);
+            printDialog.PrintTicket=ticket;
             printDialog.PrintDocument(paginator, $"POS Invoice {invoice.InvoiceNumber}");
-            SendXpS200mFeedAndCut(printDialog.PrintQueue.FullName, 6);
+            // RAW feed/cut is opt-in for ESC/POS printers only, never PDF printers.
+            if(branding.EscPosCutEnabled)SendXpS200mFeedAndCut(printDialog.PrintQueue.FullName, 3);
         }
 
         public static void PreviewSmallInvoice(InvoiceReadDto invoice, Window owner)
@@ -73,7 +89,8 @@ namespace RaccoonWarehouse.Helpers.Pdf
                 FlowDirection = FlowDirection.LeftToRight
             };
 
-            var document = BuildSmallInvoiceDocument(invoice);
+            var branding=DocumentPrintRuntime.Branding(invoiceId:invoice.Id);
+            var document = BuildSmallInvoiceDocument(invoice,branding);
             var viewer = new FlowDocumentScrollViewer
             {
                 Document = document,
@@ -129,97 +146,83 @@ namespace RaccoonWarehouse.Helpers.Pdf
             layout.Children.Add(viewer);
 
             preview.Content = layout;
-            preview.ShowDialog();
+            RaccoonWarehouse.Security.PermissionWindowGuard.ShowDialog(preview, "internal");
         }
 
-        private static FlowDocument BuildSmallInvoiceDocument(InvoiceReadDto invoice)
+        internal static FlowDocument BuildSmallInvoiceDocument(InvoiceReadDto invoice,DocumentBranding branding,double? printableWidth=null)
         {
-            var document = new FlowDocument
+            var width=printableWidth??branding.ThermalPaperWidthMm*96d/25.4;
+            var document=new FlowDocument { PageWidth=width,PagePadding=new Thickness(6),ColumnWidth=double.PositiveInfinity,
+                FontFamily=new FontFamily("Arial"),FontSize=11,FlowDirection=UiText.CurrentFlowDirection };
+            void Text(string value,bool bold=false,bool center=false)
             {
-                PageWidth = 302,
-                PagePadding = new Thickness(6),
-                FontFamily = new FontFamily("Arial"),
-                FontSize = 11,
-                FlowDirection = UiText.IsEnglish ? FlowDirection.LeftToRight : FlowDirection.RightToLeft
-            };
-
-            document.Blocks.Add(new Paragraph(new Run("Raccoon POS"))
-            {
-                TextAlignment = TextAlignment.Center,
-                FontSize = 16,
-                FontWeight = FontWeights.Bold,
-                Margin = new Thickness(0, 0, 0, 2)
-            });
-            document.Blocks.Add(new Paragraph(new Run(UiText.T("فاتورة مبيعات", "Sales Invoice")))
-            {
-                TextAlignment = TextAlignment.Center,
-                FontWeight = FontWeights.Bold,
-                Margin = new Thickness(0, 0, 0, 4)
-            });
-
-            var info = new Paragraph
-            {
-                Margin = new Thickness(0, 0, 0, 4)
-            };
-            info.Inlines.Add(new Run($"{UiText.T("رقم الفاتورة", "Invoice")}: {invoice.InvoiceNumber}\n"));
-            info.Inlines.Add(new Run($"{UiText.T("التاريخ", "Date")}: {invoice.CreatedDate:yyyy/MM/dd HH:mm}\n"));
-            info.Inlines.Add(new Run($"{UiText.T("العميل", "Customer")}: {invoice.Customer?.Name ?? "-"}\n"));
-            info.Inlines.Add(new Run($"{UiText.T("الدفع", "Payment")}: {invoice.PaymentType?.ToString() ?? "-"}"));
-            document.Blocks.Add(info);
-
-            var table = new Table { CellSpacing = 0 };
-            // Keep the complete table inside the 80mm receipt width. A star-sized
-            // column can otherwise overflow the preview and make the item column
-            // appear missing in RTL mode.
-            table.Columns.Add(new TableColumn { Width = new GridLength(96) });
-            table.Columns.Add(new TableColumn { Width = new GridLength(30) });
-            table.Columns.Add(new TableColumn { Width = new GridLength(46) });
-            table.Columns.Add(new TableColumn { Width = new GridLength(52) });
-            table.Columns.Add(new TableColumn { Width = new GridLength(66) });
-
-            var headerGroup = new TableRowGroup();
-            var header = new TableRow();
-            AddCell(header, UiText.T("الصنف", "Item"), true);
-            AddCell(header, UiText.T("الكمية", "Qty"), true);
-            AddCell(header, UiText.T("السعر", "Price"), true);
-            AddCell(header, UiText.T("الإجمالي", "Total"), true);
-            AddCell(header, UiText.T("الباركود", "Barcode"), true);
-            headerGroup.Rows.Add(header);
-            table.RowGroups.Add(headerGroup);
-
-            var rows = new TableRowGroup();
-            foreach (var line in invoice.InvoiceLines ?? Enumerable.Empty<InvoiceLineReadDto>())
-            {
-                var row = new TableRow();
-                var barcode = GetBarcode(line);
-                AddCell(row, string.IsNullOrWhiteSpace(line.ProductName) ? line.Product?.Name ?? "-" : line.ProductName, false, 8);
-                AddCell(row, line.Quantity.ToString("0.00000"));
-                AddCell(row, line.UnitPrice.ToString("N5"), false, 8);
-                AddCell(row, line.LineTotal.ToString("N5"));
-                AddBarcodeCell(row, barcode);
-                rows.Rows.Add(row);
+                document.Blocks.Add(new Paragraph(new Run(value)){Margin=new Thickness(0,2,0,2),TextAlignment=center?TextAlignment.Center:TextAlignment.Right,FontWeight=bold?FontWeights.Bold:FontWeights.Normal});
             }
-            table.RowGroups.Add(rows);
-            document.Blocks.Add(table);
-
-            document.Blocks.Add(new Paragraph(new Run(
-                $"{UiText.T("الإجمالي", "Total")}: {invoice.TotalAmount:N5}"))
+            if(!string.IsNullOrWhiteSpace(branding.LogoBase64))
             {
-                TextAlignment = TextAlignment.Right,
-                FontSize = 13,
-                FontWeight = FontWeights.Bold,
-                Margin = new Thickness(0, 4, 0, 0)
-            });
-
-            // Feed 130 mm of blank paper after the total so thermal printers
-            // fully advance the receipt before cutting it.
-            document.Blocks.Add(new Paragraph(new Run(" "))
+                var logo=ImageSource(Convert.FromBase64String(branding.LogoBase64));
+                document.Blocks.Add(new BlockUIContainer(new System.Windows.Controls.Image{Source=logo,Height=48,MaxWidth=width-12,Stretch=Stretch.Uniform}));
+            }
+            Text(branding.DisplayName,true,true);
+            foreach(var value in new[]{branding.Address,branding.Phone,branding.AdditionalInformation})if(!string.IsNullOrWhiteSpace(value))Text(value,false,true);
+            if(!string.IsNullOrWhiteSpace(branding.TaxNumber))Text(UiText.T("الرقم الضريبي: ","Tax number: ")+branding.TaxNumber,false,true);
+            Text(UiText.T("فاتورة مبيعات","Sales Invoice"),true,true);
+            Text(UiText.T("رقم الفاتورة: ","Invoice: ")+invoice.InvoiceNumber);
+            Text(invoice.CreatedDate.ToString("yyyy/MM/dd HH:mm"));
+            Text(UiText.T("العميل: ","Customer: ")+(invoice.Customer?.Name??"—"));
+            Text(UiText.T("الدفع: ","Payment: ")+UiText.Translate(invoice.PaymentType?.ToString()??"—"));
+            foreach(var line in invoice.InvoiceLines??Enumerable.Empty<InvoiceLineReadDto>())
             {
-                // WPF uses device-independent units: 130 mm ~= 491 px at 96 DPI.
-                Margin = new Thickness(0)
-            });
-
+                // Full-width item name followed by numeric details avoids tiny clipped columns on 58mm.
+                Text(string.IsNullOrWhiteSpace(line.ProductName)?line.Product?.Name??"—":line.ProductName,true);
+                Text(UiText.T("باركود: ","Barcode: ")+GetBarcode(line));
+                Text($"{UiText.T("الكمية","Qty")}: {line.Quantity:0.###} × {line.UnitPrice:0.000}");
+                if(line.FreeQuantity!=0)Text($"{UiText.T("مجاني","Free")}: {line.FreeQuantity:0.###}");
+                if(line.LineDiscountAmount!=0)Text($"{UiText.T("خصم السطر","Line discount")}: {line.LineDiscountAmount:0.000}");
+                Text($"{UiText.T("الضريبة","Tax")}: {line.TaxAmount:0.000}   {UiText.T("إجمالي السطر","Line total")}: {line.LineTotal:0.000}");
+                Text("────────────────────");
+            }
+            Text($"{UiText.T("قبل الضريبة","Subtotal")}: {invoice.SubTotal:0.000}");
+            Text($"{UiText.T("خصم الفاتورة","Invoice discount")}: {invoice.DiscountAmount??0:0.000}");
+            Text($"{UiText.T("الضريبة","Tax")}: {invoice.TotalTax:0.000}");
+            Text($"{UiText.T("الإجمالي المستحق (د.أ)","Amount due (JOD)")}: {invoice.TotalAmount:0.000}",true);
+            foreach(var payment in invoice.Payments??Enumerable.Empty<InvoicePaymentReadDto>())Text($"{UiText.T("دفعة","Payment")}: {UiText.Translate(payment.PaymentType.ToString())} {payment.Amount:0.000}");
+            if(!string.IsNullOrWhiteSpace(invoice.Notes))Text(invoice.Notes);
+            var provider=((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<IReceiptQrProvider>();
+            var qr=provider.Get(invoice);
+            Text(qr.IsOfficial?UiText.T("رمز الفاتورة الإلكترونية","Electronic invoice QR"):UiText.T("تجريبي — TEST — ليس رمزاً رسمياً","TEST — Not an official QR"),true,true);
+            var qrImage=new System.Windows.Controls.Image{Source=ImageSource(ReceiptQrService.Image(qr)),Width=Math.Min(132,width-16),Height=Math.Min(132,width-16),Stretch=Stretch.Uniform,SnapsToDevicePixels=true};
+            RenderOptions.SetBitmapScalingMode(qrImage,BitmapScalingMode.NearestNeighbor);
+            document.Blocks.Add(new BlockUIContainer(qrImage));
+            if(!string.IsNullOrWhiteSpace(branding.Footer))Text(branding.Footer,false,true);
             return document;
+        }
+        internal static double MeasureReceiptHeight(FlowDocument document)
+        {
+            var width=document.PageWidth-document.PagePadding.Left-document.PagePadding.Right;
+            double height=document.PagePadding.Top+document.PagePadding.Bottom+16;
+            foreach(var block in document.Blocks)
+            {
+                if(block is Paragraph p)
+                {
+                    var text=new TextBlock{Text=new TextRange(p.ContentStart,p.ContentEnd).Text.TrimEnd('\r','\n'),
+                        FontFamily=document.FontFamily,FontSize=p.FontSize,FontWeight=p.FontWeight,
+                        TextWrapping=TextWrapping.Wrap,FlowDirection=document.FlowDirection};
+                    text.Measure(new Size(width,double.PositiveInfinity));
+                    height+=text.DesiredSize.Height+p.Margin.Top+p.Margin.Bottom;
+                }
+                else if(block is BlockUIContainer ui && ui.Child!=null)
+                {
+                    ui.Child.Measure(new Size(width,double.PositiveInfinity));
+                    height+=ui.Child.DesiredSize.Height+ui.Margin.Top+ui.Margin.Bottom;
+                }
+            }
+            return Math.Max(200,Math.Ceiling(height));
+        }
+
+        private static BitmapSource ImageSource(byte[] data)
+        {
+            using var stream=new MemoryStream(data);var image=new BitmapImage();image.BeginInit();image.CacheOption=BitmapCacheOption.OnLoad;image.StreamSource=stream;image.EndInit();image.Freeze();return image;
         }
 
         private static string GetBarcode(InvoiceLineReadDto line) =>

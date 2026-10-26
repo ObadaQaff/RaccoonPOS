@@ -12,8 +12,7 @@ using RaccoonWarehouse.Domain.Users;
 
 namespace RaccoonWarehouse.Application.Service.Accounting
 {
-    public class UserStatementService
-    {
+    public class UserStatementService : IUserStatementService{
         private readonly ApplicationDbContext _context;
 
         public UserStatementService(ApplicationDbContext context)

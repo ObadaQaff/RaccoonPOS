@@ -3,8 +3,7 @@ using RaccoonWarehouse.Domain.Reports.Accounting.Filters;
 
 namespace RaccoonWarehouse.Application.Service.Accounting
 {
-    public class TrialBalanceService
-    {
+    public class TrialBalanceService : ITrialBalanceService{
         private readonly IAccountingService _accountingService;
 
         public TrialBalanceService(IAccountingService accountingService)

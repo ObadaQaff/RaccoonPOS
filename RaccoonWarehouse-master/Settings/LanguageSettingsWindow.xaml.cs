@@ -12,6 +12,7 @@ namespace RaccoonWarehouse.Settings
 
         public LanguageSettingsWindow(ILanguageSettingsService languageSettingsService)
         {
+            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
             _languageSettingsService = languageSettingsService;
             _app = (App)System.Windows.Application.Current;

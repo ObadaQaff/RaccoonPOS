@@ -53,6 +53,7 @@ namespace RaccoonWarehouse.POS
 
         private DailySalesReport(IServiceProvider serviceProvider, IUserSession? userSession, int? cashierSessionId, int? cashierId)
         {
+            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
             UiText.ApplyWindow(this);
             UiText.ApplyTranslations(this);

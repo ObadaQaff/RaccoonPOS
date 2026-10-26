@@ -6,8 +6,7 @@ using RaccoonWarehouse.Domain.Accounting.TaxRates.DTOs;
 
 namespace RaccoonWarehouse.Application.Service.Accounting
 {
-    public class TaxService
-    {
+    public class TaxService : ITaxService{
         private readonly ApplicationDbContext _dbContext;
 
         public TaxService(ApplicationDbContext dbContext)

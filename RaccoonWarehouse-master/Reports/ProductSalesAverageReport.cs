@@ -69,6 +69,7 @@ public sealed class ProductSalesAverageReport : Window
 
     public ProductSalesAverageReport(ProductSalesAverageService service, IProductService productService, IUserService userService)
     {
+        RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
         _service = service;
         _productService = productService;
         _userService = userService;

@@ -165,7 +165,8 @@ namespace RaccoonWarehouse.Application.Service.Sales
                     .ToList();
                 var movementResult = await _stockService.PostMovementsAsync(
                     stockMovements,
-                    refreshCatalog: false);
+                    refreshCatalog: false,
+                    refreshStockSummary: false);
                 LogTiming("stock posting", timing, stepTiming);
                 if (!movementResult.Success)
                 {
@@ -196,7 +197,9 @@ namespace RaccoonWarehouse.Application.Service.Sales
                 if (insuranceSnapshot != null)
                     await _uow.CommitAsync();
                 await transaction.CommitAsync();
-                _posProductCatalogRefreshQueue?.Enqueue(affectedProductIds);
+                _posProductCatalogRefreshQueue?.Enqueue(
+                    affectedProductIds,
+                    refreshStockSummary: true);
                 LogTiming("checkout transaction commit", timing, stepTiming);
                 PosPerformanceLogger.Write("checkout total", timing.ElapsedMilliseconds, timing.ElapsedMilliseconds);
                 await _auditLogService.WriteAsync(new AuditEvent(

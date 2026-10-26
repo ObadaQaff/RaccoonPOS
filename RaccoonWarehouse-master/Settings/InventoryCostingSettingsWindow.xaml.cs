@@ -13,6 +13,7 @@ public partial class InventoryCostingSettingsWindow : Window
 
     public InventoryCostingSettingsWindow(IInventoryCostingSettingsService settingsService)
     {
+        RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
         InitializeComponent();
         _settingsService = settingsService;
         _app = (App)System.Windows.Application.Current;

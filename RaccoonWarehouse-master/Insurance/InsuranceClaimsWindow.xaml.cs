@@ -38,7 +38,8 @@ public partial class InsuranceClaimsWindow : Window
     }
     public InsuranceClaimsWindow(IInsuranceManagementService service,ILoadingService loading,IPermissionService permissions,ApplicationDbContext db)
     {
-        _service=service;_loading=loading;_permissions=permissions;_db=db;InitializeComponent();
+        _service=service;_loading=loading;_permissions=permissions;_db=db;RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+            InitializeComponent();
         ClaimsGrid.ItemsSource=_claims;
         var choices=Enum.GetValues<InsuranceClaimStatus>().Select(x=>new StatusChoice(x,StatusText(x))).ToList();
         StatusComboBox.ItemsSource=choices.Where(x=>x.Value is InsuranceClaimStatus.Approved or InsuranceClaimStatus.PartiallyApproved or InsuranceClaimStatus.Rejected).ToList();

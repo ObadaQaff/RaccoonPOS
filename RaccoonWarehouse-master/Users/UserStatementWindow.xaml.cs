@@ -23,7 +23,7 @@ namespace RaccoonWarehouse
 {
     public partial class UserStatementWindow : Window
     {
-        private readonly UserStatementService _statementService;
+        private readonly IUserStatementService _statementService;
         private readonly ILoadingService _loadingService;
         private readonly SourceDocumentNavigationService _sourceDocumentNavigationService;
         private int _userId;
@@ -35,13 +35,14 @@ namespace RaccoonWarehouse
         private IReadOnlyList<UserStatementRowDto> _statementRows = Array.Empty<UserStatementRowDto>();
 
         public UserStatementWindow(
-            UserStatementService statementService,
+            IUserStatementService statementService,
             ILoadingService loadingService,
             SourceDocumentNavigationService sourceDocumentNavigationService)
         {
             _statementService = statementService;
             _loadingService = loadingService;
             _sourceDocumentNavigationService = sourceDocumentNavigationService;
+            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
             UiText.ApplyWindow(this);
             OpenReferenceColumn.Header = UiText.T("فتح", "Open");

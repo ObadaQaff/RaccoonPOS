@@ -6,8 +6,7 @@ using RaccoonWarehouse.Domain.Reports.Financial.Enums;
 
 namespace RaccoonWarehouse.Application.Service.Accounting
 {
-    public class AgingReportService
-    {
+    public class AgingReportService : IAgingReportService{
         private readonly ApplicationDbContext _context;
 
         public AgingReportService(ApplicationDbContext context)

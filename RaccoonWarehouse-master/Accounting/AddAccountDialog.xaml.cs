@@ -8,6 +8,7 @@ namespace RaccoonWarehouse.Accounting
     {
         public AddAccountDialog(AddAccountViewModel viewModel)
         {
+            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
             UiText.ApplyWindow(this);
             DataContext = viewModel;

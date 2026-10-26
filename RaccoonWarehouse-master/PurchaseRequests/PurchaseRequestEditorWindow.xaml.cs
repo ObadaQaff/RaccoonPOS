@@ -1,5 +1,6 @@
 using RaccoonWarehouse.Application.Service.Products;
 using RaccoonWarehouse.Application.Service.PurchaseRequests;
+using RaccoonWarehouse.Application.Service.Stocks;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Core.Common;
@@ -22,6 +23,7 @@ public partial class PurchaseRequestEditorWindow : Window
     private readonly IPurchaseRequestService _service;
     private readonly ILoadingService _loading;
     private readonly IProductService _productService;
+    private readonly IStockService _stockService;
     private readonly IUserService _userService;
     private readonly IUserSession _userSession;
     private readonly ObservableCollection<PendingLine> _lines = new();
@@ -33,14 +35,17 @@ public partial class PurchaseRequestEditorWindow : Window
         IPurchaseRequestService service,
         ILoadingService loading,
         IProductService productService,
+        IStockService stockService,
         IUserService userService,
         IUserSession userSession)
     {
         _service = service;
         _loading = loading;
         _productService = productService;
+        _stockService = stockService;
         _userService = userService;
         _userSession = userSession;
+        RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
         InitializeComponent();
         LinesGrid.ItemsSource = _lines;
         RequestDatePicker.SelectedDate = DateTime.Today;
@@ -170,6 +175,7 @@ public partial class PurchaseRequestEditorWindow : Window
         {
             var searchWindow = new PurchaseProductSearchWindow(
                 _productService,
+                _stockService,
                 AddProductLineAsync,
                 supplierId: SelectedSupplierId)
             {

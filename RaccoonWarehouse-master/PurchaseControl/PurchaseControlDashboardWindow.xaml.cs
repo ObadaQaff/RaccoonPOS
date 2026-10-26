@@ -20,6 +20,7 @@ public partial class PurchaseControlDashboardWindow : Window
     public PurchaseControlDashboardWindow(IPurchaseControlService controlService, IPurchaseOrderService poService, IPurchaseRequestService prService, ILoadingService loading)
     {
         _controlService = controlService; _poService = poService; _prService = prService; _loading = loading;
+        RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
         InitializeComponent(); SupplierGrid.ItemsSource = _suppliers;
     }
 

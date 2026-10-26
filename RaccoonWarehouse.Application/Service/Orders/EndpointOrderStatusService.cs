@@ -37,6 +37,7 @@ namespace RaccoonWarehouse.Application.Service.Orders
         private readonly IMapper _mapper;
         private readonly IBoxCartApiService _boxCartApiService;
         private readonly IPosProductCatalogService? _posProductCatalogService;
+        private readonly IPosProductCatalogRefreshQueue? _posProductCatalogRefreshQueue;
 
         public EndpointOrderStatusService(
             ApplicationDbContext context,
@@ -44,7 +45,8 @@ namespace RaccoonWarehouse.Application.Service.Orders
             IAccountingService accountingService,
             IMapper mapper,
             IBoxCartApiService? boxCartApiService = null,
-            IPosProductCatalogService? posProductCatalogService = null)
+            IPosProductCatalogService? posProductCatalogService = null,
+            IPosProductCatalogRefreshQueue? posProductCatalogRefreshQueue = null)
         {
             _context = context;
             _stockService = stockService;
@@ -52,6 +54,7 @@ namespace RaccoonWarehouse.Application.Service.Orders
             _mapper = mapper;
             _boxCartApiService = boxCartApiService ?? new BoxCartApiService();
             _posProductCatalogService = posProductCatalogService;
+            _posProductCatalogRefreshQueue = posProductCatalogRefreshQueue;
         }
 
         public async Task<Result> ApplyStatusAsync(
@@ -638,10 +641,12 @@ namespace RaccoonWarehouse.Application.Service.Orders
                 stock.UpdatedDate = now;
             }
 
-            if (_posProductCatalogService != null)
-                await _posProductCatalogService.RefreshProductsAsync(keys.Select(key => key.ProductId), cancellationToken);
-
             await _context.SaveChangesAsync(cancellationToken);
+
+            if (_posProductCatalogRefreshQueue != null)
+                _posProductCatalogRefreshQueue.Enqueue(keys.Select(key => key.ProductId));
+            else if (_posProductCatalogService != null)
+                await _posProductCatalogService.RefreshProductsAsync(keys.Select(key => key.ProductId), cancellationToken);
         }
     }
 }

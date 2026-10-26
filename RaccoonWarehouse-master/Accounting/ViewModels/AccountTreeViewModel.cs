@@ -14,7 +14,7 @@ namespace RaccoonWarehouse.Accounting.ViewModels
 {
     public partial class AccountTreeViewModel : ObservableObject
     {
-        private readonly AccountService _accountService;
+        private readonly IAccountService _accountService;
         private readonly IDialogService _dialogService;
         private readonly IServiceProvider _serviceProvider;
         private readonly ILoadingService _loadingService;
@@ -31,7 +31,7 @@ namespace RaccoonWarehouse.Accounting.ViewModels
         [ObservableProperty]
         private string? selectedBalanceText;
 
-        public AccountTreeViewModel(AccountService accountService, IDialogService dialogService, IServiceProvider serviceProvider, ILoadingService loadingService)
+        public AccountTreeViewModel(IAccountService accountService, IDialogService dialogService, IServiceProvider serviceProvider, ILoadingService loadingService)
         {
             _accountService = accountService;
             _dialogService = dialogService;

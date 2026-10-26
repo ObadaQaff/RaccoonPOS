@@ -6,12 +6,11 @@ using RaccoonWarehouse.Domain.Reports.Financial.Dtos;
 
 namespace RaccoonWarehouse.Application.Service.Accounting
 {
-    public class CashFlowService
-    {
+    public class CashFlowService : ICashFlowService{
         private readonly ApplicationDbContext _context;
-        private readonly ProfitAndLossService _profitAndLossService;
+        private readonly IProfitAndLossService _profitAndLossService;
 
-        public CashFlowService(ApplicationDbContext context, ProfitAndLossService profitAndLossService)
+        public CashFlowService(ApplicationDbContext context, IProfitAndLossService profitAndLossService)
         {
             _context = context;
             _profitAndLossService = profitAndLossService;

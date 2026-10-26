@@ -13,6 +13,7 @@ namespace RaccoonWarehouse.Products.Reports
         public InactiveProductsReport(IStockReportService reportService)
         {
             _reportService = reportService;
+            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
             UiText.ApplyWindow(this);
         }

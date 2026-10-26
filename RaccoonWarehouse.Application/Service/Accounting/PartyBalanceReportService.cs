@@ -11,8 +11,7 @@ using RaccoonWarehouse.Domain.Users;
 
 namespace RaccoonWarehouse.Application.Service.Accounting
 {
-    public class PartyBalanceReportService
-    {
+    public class PartyBalanceReportService : IPartyBalanceReportService{
         private readonly ApplicationDbContext _context;
 
         public PartyBalanceReportService(ApplicationDbContext context) => _context = context;

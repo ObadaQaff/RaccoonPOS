@@ -77,7 +77,7 @@ namespace RaccoonWarehouse.Invoices
         private readonly IDelegateFeatureService _delegateFeatureService;
         private readonly IUserSession _userSession; // لو عندك جلسة مستخدم
         private readonly ILoadingService _loadingService;
-        private readonly UserStatementService _userStatementService;
+        private readonly IUserStatementService _userStatementService;
 
         private bool _isLoadingUnits = false;
         private bool _isApplyingProductSelection = false;
@@ -103,7 +103,7 @@ namespace RaccoonWarehouse.Invoices
             IStockTransactionService stockTransactionService,
             IFinancialTransactionService
             financialService,
-            UserStatementService userStatementService,
+            IUserStatementService userStatementService,
             ILoadingService loadingService)
         {
             _stockService = stockService;
@@ -119,6 +119,7 @@ namespace RaccoonWarehouse.Invoices
             _userStatementService = userStatementService;
             _loadingService = loadingService;
 
+            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
             UiText.ApplyWindow(this);
 
@@ -1987,7 +1988,14 @@ namespace RaccoonWarehouse.Invoices
 
         private async void SearchInvoiceBtn_Click(object sender, RoutedEventArgs e)
         {
-            var searchWindow = new SearchSalesInvoiceWindow(_invoicesService, _allCustomers ?? Enumerable.Empty<UserReadDto>(), true)
+            var searchWindow = new SearchSalesInvoiceWindow(
+                _invoicesService,
+                _allCustomers ?? Enumerable.Empty<UserReadDto>(),
+                true,
+                null,
+                _productService,
+                _stockService,
+                _userService)
             {
                 Owner = this
             };
@@ -2211,6 +2219,7 @@ namespace RaccoonWarehouse.Invoices
             {
                 var searchWindow = new PurchaseProductSearchWindow(
                     _productService,
+                    _stockService,
                     async row => await AddProductFromSearchAsync(row),
                     async search => await CreateProductFromSearchAsync(search))
                 {

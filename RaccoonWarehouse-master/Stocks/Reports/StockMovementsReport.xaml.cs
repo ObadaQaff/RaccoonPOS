@@ -43,6 +43,7 @@ namespace RaccoonWarehouse.Stocks.Reports
 
         public StockMovementsReport(IStockReportService stockReportService, IProductService productService, IUserService userService)
         {
+            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
             SupplierComboBoxSearch.Attach(SupplierComboBox);
             _stockReportService = stockReportService;

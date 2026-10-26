@@ -1,4 +1,4 @@
-<Window x:Class="RaccoonWarehouse.Delegates.DelegatesTable"
+<Window xmlns:security="clr-namespace:RaccoonWarehouse.Security" x:Class="RaccoonWarehouse.Delegates.DelegatesTable"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:fa="http://schemas.fontawesome.io/icons/"
@@ -52,13 +52,13 @@
                         <ComboBox x:Name="TypeFilter" Grid.Column="2" Margin="0,0,10,0" Style="{StaticResource AppComboBoxStyle}" SelectionChanged="FilterChanged"/>
                         <TextBlock x:Name="HintText" Grid.Column="3" VerticalAlignment="Center" FontSize="13" Foreground="{StaticResource AppMutedTextBrush}"/>
                         <StackPanel Grid.Column="4" Orientation="Horizontal" HorizontalAlignment="Left">
-                            <Button x:Name="FeatureSettingsBtn" Width="150" Style="{StaticResource AppSecondaryButtonStyle}" Click="FeatureSettingsBtn_Click">
+                            <Button x:Name="FeatureSettingsBtn" Width="150" Style="{StaticResource AppSecondaryButtonStyle}" Click="FeatureSettingsBtn_Click" security:PermissionWindowGuard.Keys="Settings.ManageSettings">
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                     <fa:ImageAwesome Icon="Cog" Width="16" Height="16" Margin="0,0,8,0"/>
                                     <TextBlock Text="إعدادات المندوبين"/>
                                 </StackPanel>
                             </Button>
-                            <Button x:Name="CreateDelegateBtn" Width="150" Margin="10,0,0,0" Style="{StaticResource AppHeroButtonStyle}" Click="CreateDelegateBtn_Click">
+                            <Button x:Name="CreateDelegateBtn" Width="150" Margin="10,0,0,0" Style="{StaticResource AppHeroButtonStyle}" Click="CreateDelegateBtn_Click" security:PermissionWindowGuard.Keys="Delegates.Create">
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                     <fa:ImageAwesome Icon="Plus" Width="16" Height="16" Margin="0,0,8,0"/>
                                     <TextBlock Text="مندوب جديد"/>
@@ -89,8 +89,8 @@
                     </DataGrid.Columns>
                     <DataGrid.ContextMenu>
                         <ContextMenu>
-                            <MenuItem Style="{StaticResource AppMenuItemStyle}" Header="التفاصيل" Click="Details_Click"/>
-                            <MenuItem Style="{StaticResource AppMenuItemStyle}" Header="تعديل" Click="Edit_Click"/>
+                            <MenuItem Style="{StaticResource AppMenuItemStyle}" Header="التفاصيل" Click="Details_Click" security:PermissionWindowGuard.Keys="Delegates.View"/>
+                            <MenuItem Style="{StaticResource AppMenuItemStyle}" Header="تعديل" Click="Edit_Click" security:PermissionWindowGuard.Keys="Delegates.Edit"/>
                             <MenuItem Style="{StaticResource AppMenuItemStyle}" Header="تفعيل" Click="Activate_Click"/>
                             <MenuItem Style="{StaticResource AppMenuItemStyle}" Header="تعطيل" Click="Deactivate_Click"/>
                         </ContextMenu>

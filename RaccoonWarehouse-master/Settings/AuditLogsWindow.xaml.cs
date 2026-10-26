@@ -29,6 +29,7 @@ public partial class AuditLogsWindow : Window
         _permissionService = permissionService;
         _userSession = userSession;
         _loadingService = loadingService;
+        RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
         InitializeComponent();
         UiText.ApplyWindow(this);
         Loaded += AuditLogsWindow_Loaded;

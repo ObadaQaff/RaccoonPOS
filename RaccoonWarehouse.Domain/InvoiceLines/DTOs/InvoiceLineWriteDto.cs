@@ -38,6 +38,7 @@ namespace RaccoonWarehouse.Domain.InvoiceLines.DTOs
                     OnPropertyChanged(nameof(BonusNeedsApply));
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(LineTotal)); // Also notify that LineTotal changed
+                    OnPropertyChanged(nameof(PurchaseLineTotal));
                     OnPropertyChanged(nameof(LineDiscountPercent));
                     OnPropertyChanged(nameof(LineDiscountDisplay));
                     OnPropertyChanged(nameof(LineDiscountInput));
@@ -50,6 +51,8 @@ namespace RaccoonWarehouse.Domain.InvoiceLines.DTOs
         public InvoiceWriteDto? Invoice { get; set; }
 
         public int ProductId { get; set; }
+        // POS-only lot preference; stock allocation still validates availability at checkout.
+        public int? PreferredStockLotId { get; set; }
         public ProductWriteDto? Product { get; set; }
         public int ProductUnitId { get; set; }
         public ProductUnitWriteDto? ProductUnit { get; set; }
@@ -69,6 +72,7 @@ namespace RaccoonWarehouse.Domain.InvoiceLines.DTOs
                     _unitPrice = value;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(LineTotal));
+                    OnPropertyChanged(nameof(PurchaseLineTotal));
                     OnPropertyChanged(nameof(LineDiscountPercent));
                     OnPropertyChanged(nameof(LineDiscountDisplay));
                     OnPropertyChanged(nameof(LineDiscountInput));
@@ -77,6 +81,7 @@ namespace RaccoonWarehouse.Domain.InvoiceLines.DTOs
         }
         private decimal _lineDiscountAmount;
         private bool _lineDiscountIsPercentage;
+        private decimal _lineDiscountPercent;
         private string? _lineDiscountInput;
         public decimal LineDiscountAmount
         {
@@ -88,6 +93,7 @@ namespace RaccoonWarehouse.Domain.InvoiceLines.DTOs
                     _lineDiscountAmount = value;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(LineTotal));
+                    OnPropertyChanged(nameof(PurchaseLineTotal));
                     OnPropertyChanged(nameof(LineDiscountPercent));
                     OnPropertyChanged(nameof(LineDiscountDisplay));
                     OnPropertyChanged(nameof(LineDiscountInput));
@@ -104,6 +110,8 @@ namespace RaccoonWarehouse.Domain.InvoiceLines.DTOs
                 if (_lineDiscountIsPercentage != value)
                 {
                     _lineDiscountIsPercentage = value;
+                    if (!value)
+                        _lineDiscountPercent = 0m;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(LineDiscountDisplay));
                     OnPropertyChanged(nameof(LineDiscountInput));
@@ -139,6 +147,9 @@ namespace RaccoonWarehouse.Domain.InvoiceLines.DTOs
         {
             get
             {
+                if (LineDiscountIsPercentage)
+                    return _lineDiscountPercent;
+
                 var grossLineTotal = Math.Abs(Quantity * UnitPrice);
                 return grossLineTotal <= 0m
                     ? 0m
@@ -147,6 +158,7 @@ namespace RaccoonWarehouse.Domain.InvoiceLines.DTOs
             set
             {
                 var percentage = Math.Clamp(value, 0m, 100m);
+                _lineDiscountPercent = percentage;
                 var grossLineTotal = Math.Abs(Quantity * UnitPrice);
                 LineDiscountAmount = grossLineTotal <= 0m
                     ? 0m
@@ -162,6 +174,36 @@ namespace RaccoonWarehouse.Domain.InvoiceLines.DTOs
             get => _bonusRatio;
             set { _bonusRatio = value; OnPropertyChanged(); OnPropertyChanged(nameof(BonusNeedsApply)); }
         }
+        private decimal? _bonusPercentage;
+        public decimal? BonusPercentage
+        {
+            get => _bonusPercentage;
+            set
+            {
+                if (_bonusPercentage != value)
+                {
+                    _bonusPercentage = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(BonusPercentageInput));
+                    OnPropertyChanged(nameof(BonusNeedsApply));
+                    OnPropertyChanged(nameof(PurchaseLineTotal));
+                }
+            }
+        }
+        private string? _bonusPercentageInput;
+        public string BonusPercentageInput
+        {
+            get => _bonusPercentageInput ?? (BonusPercentage.HasValue ? $"{BonusPercentage.Value:0.###}%" : string.Empty);
+            set
+            {
+                if (_bonusPercentageInput != value)
+                {
+                    _bonusPercentageInput = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(BonusNeedsApply));
+                }
+            }
+        }
         private decimal? _purchaseAcquisitionCost;
         public decimal? PurchaseAcquisitionCost
         {
@@ -172,12 +214,36 @@ namespace RaccoonWarehouse.Domain.InvoiceLines.DTOs
         public decimal TotalReceivedQuantity => Quantity + FreeQuantity;
         public decimal? EffectiveLotUnitCost => TotalReceivedQuantity > 0m && PurchaseAcquisitionCost.HasValue
             ? Math.Round(PurchaseAcquisitionCost.Value / TotalReceivedQuantity, 6) : null;
-        public bool BonusNeedsApply => !string.IsNullOrWhiteSpace(BonusRatio)
-            && (!PurchaseBonusRatio.TryCalculate(BonusRatio, Quantity, out var expected) || expected != FreeQuantity);
+        public bool BonusNeedsApply
+        {
+            get
+            {
+                if (!string.IsNullOrWhiteSpace(BonusRatio))
+                    return !PurchaseBonusRatio.TryCalculate(BonusRatio, Quantity, out var expectedRatio)
+                        || expectedRatio != FreeQuantity;
+
+                if (BonusPercentage.HasValue)
+                {
+                    return PurchaseBonusPercentage.TryNormalize(BonusPercentageInput, out var normalized)
+                        && normalized != BonusPercentage.Value;
+                }
+
+                return false;
+            }
+        }
         public bool ApplyBonus()
         {
             if (!PurchaseBonusRatio.TryCalculate(BonusRatio, Quantity, out var free)) return false;
             FreeQuantity = free;
+            return true;
+        }
+        public bool ApplyBonusPercentage()
+        {
+            if (!PurchaseBonusPercentage.TryNormalize(BonusPercentageInput, out var normalized)) return false;
+            BonusPercentage = normalized;
+            BonusRatio = null;
+            // Percentage bonus affects cost only; it must not create free stock quantity.
+            FreeQuantity = 0m;
             return true;
         }
         private decimal _freeQuantity;
@@ -223,6 +289,20 @@ namespace RaccoonWarehouse.Domain.InvoiceLines.DTOs
             }
         }
         public decimal LineTotal => Math.Max(0m, Quantity * UnitPrice - LineDiscountAmount);
+        public decimal PurchaseLineTotal
+        {
+            get
+            {
+                var lineTotal = LineTotal;
+                if (!BonusPercentage.HasValue || Quantity <= 0m)
+                    return lineTotal;
+
+                var costQuantity = PurchaseBonusPercentage.CalculateCostQuantity(Quantity, BonusPercentage.Value);
+                return costQuantity > 0m
+                    ? Math.Round(lineTotal * Quantity / costQuantity, 3, MidpointRounding.AwayFromZero)
+                    : lineTotal;
+            }
+        }
         // UI-only POS row presentation. It is never persisted with the invoice.
         public string RowBackground { get; set; } = "#FFFFFF";
         public string RowForeground { get; set; } = "#263238";
@@ -230,6 +310,7 @@ namespace RaccoonWarehouse.Domain.InvoiceLines.DTOs
         public void RefreshCalculatedProperties()
         {
             OnPropertyChanged(nameof(LineTotal));
+            OnPropertyChanged(nameof(PurchaseLineTotal));
             OnPropertyChanged(nameof(CostTotal));
             OnPropertyChanged(nameof(RowBackground));
             OnPropertyChanged(nameof(RowForeground));
@@ -271,6 +352,19 @@ namespace RaccoonWarehouse.Domain.InvoiceLines.DTOs
             }
         }
         public decimal UnitCost { get; set; }          // PurchasePrice at time of invoice
+        private decimal _salePrice;
+        public decimal SalePrice
+        {
+            get => _salePrice;
+            set
+            {
+                if (_salePrice != value)
+                {
+                    _salePrice = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
         public decimal CostTotal => Quantity * UnitCost; // optional computed
 
         public bool TaxExempt { get; set; }

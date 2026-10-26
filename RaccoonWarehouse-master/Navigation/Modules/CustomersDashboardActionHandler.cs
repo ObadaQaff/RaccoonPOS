@@ -29,7 +29,7 @@ namespace RaccoonWarehouse.Navigation.Modules
             switch (actionKey)
             {
                 case "Customers.Create":
-                    if (!await HasPermissionAsync("Users.Create"))
+                    if (!await HasPermissionAsync("Customers.Create"))
                     {
                         MessageBox.Show(UiText.T("ليس لديك صلاحية إنشاء عميل جديد.", "You do not have permission to create a new customer."));
                         return;
@@ -39,7 +39,7 @@ namespace RaccoonWarehouse.Navigation.Modules
                     return;
 
                 case "Customers.CreateSupplier":
-                    if (!await HasPermissionAsync("Users.Create"))
+                    if (!await HasPermissionAsync("Customers.Create"))
                     {
                         MessageBox.Show(UiText.T("ليس لديك صلاحية إنشاء مورد جديد.", "You do not have permission to create a new supplier."));
                         return;
@@ -49,7 +49,7 @@ namespace RaccoonWarehouse.Navigation.Modules
                     return;
 
                 case "Customers.List":
-                    if (!await HasPermissionAsync("Users.View"))
+                    if (!await HasPermissionAsync("Customers.View"))
                     {
                         MessageBox.Show(UiText.T("ليس لديك صلاحية عرض العملاء والموردين.", "You do not have permission to view customers and suppliers."));
                         return;

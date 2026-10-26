@@ -1,120 +1,47 @@
 <Window x:Class="RaccoonWarehouse.Invoices.SearchSalesInvoiceWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="استعلام عن فاتورة"
-        Height="650"
-        Width="1000"
-        WindowStartupLocation="CenterOwner"
-        FlowDirection="RightToLeft"
-        Background="#EEEEEE">
-
+        Title="استعلام عن فاتورة" Height="720" Width="1180" MinHeight="620" MinWidth="980"
+        WindowStartupLocation="CenterOwner" FlowDirection="RightToLeft" Background="#F2F6FA"
+        PreviewKeyDown="SearchSalesInvoiceWindow_PreviewKeyDown">
     <Window.Resources>
-
-        <Style x:Key="InputBoxStyle" TargetType="TextBox">
-            <Setter Property="Height" Value="34"/>
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="Padding" Value="6"/>
-            <Setter Property="Background" Value="White"/>
-            <Setter Property="BorderBrush" Value="#EBCB90"/>
-            <Setter Property="BorderThickness" Value="1"/>
+        <Style x:Key="SearchInputStyle" TargetType="Control">
+            <Setter Property="Height" Value="42"/><Setter Property="FontSize" Value="15"/><Setter Property="Padding" Value="10,6"/>
+            <Setter Property="Background" Value="White"/><Setter Property="BorderBrush" Value="#B8C9D8"/><Setter Property="BorderThickness" Value="1"/>
         </Style>
-
-        <Style x:Key="PrimaryButtonStyle" TargetType="Button">
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="Background" Value="#3396D3"/>
-            <Setter Property="Padding" Value="10,5"/>
-            <Setter Property="FontSize" Value="16"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="BorderBrush" Value="Transparent"/>
+        <Style x:Key="SearchPrimaryButtonStyle" TargetType="Button">
+            <Setter Property="Height" Value="44"/><Setter Property="MinWidth" Value="150"/><Setter Property="Padding" Value="20,8"/>
+            <Setter Property="FontSize" Value="16"/><Setter Property="FontWeight" Value="SemiBold"/><Setter Property="Foreground" Value="White"/>
+            <Setter Property="Background" Value="#3396D3"/><Setter Property="BorderBrush" Value="Transparent"/><Setter Property="Cursor" Value="Hand"/>
         </Style>
-
+        <Style x:Key="SearchSecondaryButtonStyle" TargetType="Button" BasedOn="{StaticResource SearchPrimaryButtonStyle}">
+            <Setter Property="Foreground" Value="#23658D"/><Setter Property="Background" Value="#E4EEF5"/>
+        </Style>
+        <Style TargetType="DataGridColumnHeader"><Setter Property="Background" Value="#E8F1F7"/><Setter Property="Foreground" Value="#1F526F"/><Setter Property="FontWeight" Value="SemiBold"/><Setter Property="Padding" Value="10,8"/><Setter Property="HorizontalContentAlignment" Value="Center"/></Style>
+        <Style TargetType="DataGridRow"><Setter Property="MinHeight" Value="38"/><Setter Property="Background" Value="White"/><Style.Triggers><Trigger Property="AlternationIndex" Value="1"><Setter Property="Background" Value="#F7FAFC"/></Trigger></Style.Triggers></Style>
     </Window.Resources>
-
-    <Grid Margin="20">
-
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
-
-        <Border Background="#3396D3" Padding="12" CornerRadius="8">
-            <TextBlock Text="🔍 بحث عن فاتورة"
-                       Foreground="White"
-                       FontSize="22"
-                       HorizontalAlignment="Center"/>
+    <Grid Margin="28,24">
+        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+        <Border Background="#3396D3" CornerRadius="12" Padding="24,18" Margin="0,0,0,18">
+            <StackPanel><TextBlock Text="بحث عن فاتورة" Foreground="White" FontSize="28" FontWeight="SemiBold" HorizontalAlignment="Center"/><TextBlock Text="ابحث برقم الفاتورة أو العميل أو رمز المادة" Foreground="#EAF6FD" FontSize="14" HorizontalAlignment="Center" Margin="0,5,0,0"/></StackPanel>
         </Border>
-
-        <!-- Filters -->
-        <StackPanel Grid.Row="1" Margin="0,20,0,10">
-
-            <UniformGrid Columns="4" Margin="0,0,0,10">
-
-                <StackPanel Margin="10">
-                    <TextBlock Text="رقم الفاتورة / فالكون"/>
-                    <TextBox x:Name="InvoiceNumberTxt" Style="{StaticResource InputBoxStyle}" Width="200"/>
-                </StackPanel>
-
-                <StackPanel Margin="10">
-                    <TextBlock x:Name="PartyFilterLabel" Text="الزبون / المورد"/>
-                    <ComboBox x:Name="CustomerTxt" Width="200" Height="34" FontSize="14" Padding="6" DisplayMemberPath="Name" IsEditable="True" IsTextSearchEnabled="False" StaysOpenOnEdit="True" Loaded="CustomerTxt_Loaded" PreviewTextInput="CustomerTxt_PreviewTextInput" KeyUp="CustomerTxt_KeyUp" />
-                </StackPanel>
-
-                <StackPanel Margin="10">
-                    <TextBlock Text="من تاريخ"/>
-                    <TextBox x:Name="DaysBackTxt"
-                             Style="{StaticResource InputBoxStyle}"
-                             Width="200"
-                             Text="0"
-                             Visibility="Collapsed"
-                             ToolTip="0 = today, 1 = yesterday, 2 = two days ago"/>
-                </StackPanel>
-
-                <StackPanel Margin="10">
-                    <TextBlock Text="إلى تاريخ"/>
-                    <TextBlock Text="0 = today, 1 = yesterday, 2 = two days ago"
-                               Foreground="#666666"/>
-                    <DatePicker x:Name="DateFrom" Width="200" Visibility="Collapsed"/>
-                    <DatePicker x:Name="DateTo" Width="200" Visibility="Collapsed"/>
-                </StackPanel>
-
-            </UniformGrid>
-
-            <Button Content="بحث"
-                    Width="180"
-                    HorizontalAlignment="Center"
-                    Style="{StaticResource PrimaryButtonStyle}"
-                    Click="SearchBtn_Click"/>
-
-            <Border Background="White" Height="320" Margin="0,20,0,0"
-                    CornerRadius="8" BorderBrush="#EBCB90" BorderThickness="1" Padding="10">
-
-                <ScrollViewer>
-                    <DataGrid x:Name="ResultsGrid"
-                              AutoGenerateColumns="False"
-                              IsReadOnly="True"
-                              MouseDoubleClick="SelectBtn_Click">
-
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="رقم الفاتورة" Binding="{Binding InvoiceNumber}" Width="150"/>
-                            <DataGridTextColumn Header="التاريخ" Binding="{Binding CreatedDate,StringFormat=yyyy-MM-dd}" Width="150"/>
-                            <DataGridTextColumn Header="الزبون / المورد" Binding="{Binding PartyName}" Width="200"/>
-                            <DataGridTextColumn Header="المندوب" Binding="{Binding DelegateName}" Width="180"/>
-                            <DataGridTextColumn Header="الإجمالي" Binding="{Binding TotalAmount}" Width="120"/>
-                        </DataGrid.Columns>
-
-                    </DataGrid>
-                </ScrollViewer>
-
-            </Border>
-        </StackPanel>
-
-        <Button Content="اختيار"
-                Grid.Row="2"
-                Width="200"
-                Style="{StaticResource PrimaryButtonStyle}"
-                HorizontalAlignment="Center"
-                Click="SelectBtn_Click"/>
-
+        <Border Grid.Row="1" Background="White" CornerRadius="12" BorderBrush="#D3E0EA" BorderThickness="1" Padding="18" Margin="0,0,0,16">
+            <Grid>
+                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="1.1*"/><ColumnDefinition Width="1.2*"/><ColumnDefinition Width="1.2*"/><ColumnDefinition Width="1.2*"/><ColumnDefinition Width="1.1*"/></Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" Margin="6"><TextBlock Text="رقم الفاتورة / الفالكون" Foreground="#31566E" FontWeight="SemiBold" Margin="0,0,0,6"/><TextBox x:Name="InvoiceNumberTxt" Style="{StaticResource SearchInputStyle}"/></StackPanel>
+                <StackPanel Grid.Column="1" Margin="6"><TextBlock x:Name="PartyFilterLabel" Text="الزبون / المورد" Foreground="#31566E" FontWeight="SemiBold" Margin="0,0,0,6"/><ComboBox x:Name="CustomerTxt" Style="{StaticResource SearchInputStyle}" DisplayMemberPath="Name" IsEditable="True" IsTextSearchEnabled="False" StaysOpenOnEdit="True" Loaded="CustomerTxt_Loaded" PreviewTextInput="CustomerTxt_PreviewTextInput" KeyUp="CustomerTxt_KeyUp"/></StackPanel>
+                <StackPanel Grid.Column="2" Margin="6"><TextBlock Text="من تاريخ" Foreground="#31566E" FontWeight="SemiBold" Margin="0,0,0,6"/><TextBox x:Name="DaysBackTxt" Style="{StaticResource SearchInputStyle}" Text="0" Visibility="Collapsed" ToolTip="0 = today, 1 = yesterday, 2 = two days ago"/><DatePicker x:Name="DateFrom" Style="{StaticResource SearchInputStyle}" Visibility="Collapsed"/></StackPanel>
+                <StackPanel Grid.Column="3" Margin="6"><TextBlock Text="إلى تاريخ" Foreground="#31566E" FontWeight="SemiBold" Margin="0,0,0,6"/><DatePicker x:Name="DateTo" Style="{StaticResource SearchInputStyle}" Visibility="Collapsed"/></StackPanel>
+                <StackPanel Grid.Column="4" Margin="6"><TextBlock Text="رمز المادة / Item barcode" Foreground="#31566E" FontWeight="SemiBold" Margin="0,0,0,6"/><TextBox x:Name="ItemBarcodeTxt" Style="{StaticResource SearchInputStyle}" ToolTip="Press F1 to search by product name"/></StackPanel>
+                <StackPanel Grid.Row="1" Grid.ColumnSpan="5" Orientation="Horizontal" HorizontalAlignment="Center" Margin="6,14,6,0"><Button Content="بحث" Style="{StaticResource SearchPrimaryButtonStyle}" Click="SearchBtn_Click"/><TextBlock Text="F1 لاختيار صنف بالاسم" Foreground="#718797" VerticalAlignment="Center" Margin="14,0,0,0"/></StackPanel>
+            </Grid>
+        </Border>
+        <Border Grid.Row="2" Background="White" CornerRadius="12" BorderBrush="#D3E0EA" BorderThickness="1" Padding="10">
+            <DataGrid x:Name="ResultsGrid" AutoGenerateColumns="False" IsReadOnly="True" AlternationCount="2" HeadersVisibility="Column" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#E1EAF0" RowHeaderWidth="0" SelectionMode="Single" MouseDoubleClick="SelectBtn_Click">
+                <DataGrid.Columns><DataGridTextColumn Header="رقم الفاتورة" Binding="{Binding InvoiceNumber}" Width="1.2*"/><DataGridTextColumn Header="التاريخ" Binding="{Binding CreatedDate,StringFormat=yyyy-MM-dd}" Width="1.1*"/><DataGridTextColumn Header="الزبون / المورد" Binding="{Binding PartyName}" Width="1.7*"/><DataGridTextColumn Header="المندوب" Binding="{Binding DelegateName}" Width="1.3*"/><DataGridTextColumn Header="الإجمالي" Binding="{Binding TotalAmount}" Width="1*"/></DataGrid.Columns>
+            </DataGrid>
+        </Border>
+        <Button Grid.Row="3" Content="اختيار" Style="{StaticResource SearchSecondaryButtonStyle}" HorizontalAlignment="Center" Margin="0,16,0,0" Click="SelectBtn_Click"/>
     </Grid>
 </Window>

@@ -6,6 +6,14 @@ using System.Threading.Tasks;
 
 namespace RaccoonWarehouse.Domain.Stock.DTOs
 {
+    public class CurrentStockLotDto
+    {
+        public int StockLotId { get; set; }
+        public decimal CurrentQuantity { get; set; }
+        public decimal SalePrice { get; set; }
+        public DateTime? ExpiryDate { get; set; }
+    }
+
     public class CurrentStockDto
     {
         public int ProductId { get; set; }
@@ -20,6 +28,7 @@ namespace RaccoonWarehouse.Domain.Stock.DTOs
         public decimal PurchasePrice { get; set; }
         public decimal SalePrice { get; set; }
         public DateTime? NearestExpiryDate { get; set; }
+        public List<CurrentStockLotDto> Lots { get; set; } = new();
 
         // Optional: Useful for UI
         public bool IsLowStock => MinimumQuantity.HasValue && Quantity <= MinimumQuantity;

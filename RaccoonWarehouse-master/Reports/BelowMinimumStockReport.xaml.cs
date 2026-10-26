@@ -21,6 +21,7 @@ namespace RaccoonWarehouse.Reports
     {
         public BelowMinimumStockReport()
         {
+            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
             LoadSampleData();
         }

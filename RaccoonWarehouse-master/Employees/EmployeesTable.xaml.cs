@@ -47,10 +47,21 @@ namespace RaccoonWarehouse.Employees
             _permissionService = permissionService;
             _auditPermissionService = permissionService;
             _loadingService = loadingService;
+            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
             UiText.ApplyWindow(this);
             InitializeRoleFilter();
             Loaded += EmployeesTable_Loaded;
+        }
+
+        private async void PayrollProfiles_Click(object sender,RoutedEventArgs e)
+        {
+            try
+            {
+                if(!await _permissionService.HasCurrentUserPermissionAsync("Employees.View"))throw new UnauthorizedAccessException("ليس لديك صلاحية عرض ملفات الموظفين.");
+                WindowManager.ShowDialog<RaccoonWarehouse.Employees.Payroll.EmployeePayrollWorkspaceWindow>();
+            }
+            catch(Exception ex){RaccoonWarehouse.Employees.Payroll.PayrollUi.Error(ex);}
         }
 
         private void InitializeRoleFilter()
@@ -93,6 +104,13 @@ namespace RaccoonWarehouse.Employees
                 var role = _userSession.CurrentUser?.Role;
                 if (!role.HasValue || !await _permissionService.HasPermissionAsync(role.Value, "Users.View"))
                 {
+                    if(role.HasValue&&await _permissionService.HasCurrentUserPermissionAsync("Employees.View"))
+                    {
+                        _loadingService.Hide();
+                        WindowManager.ShowDialog<RaccoonWarehouse.Employees.Payroll.EmployeePayrollWorkspaceWindow>();
+                        Close();
+                        return;
+                    }
                     MessageBox.Show(UiText.T("ليس لديك صلاحية عرض الموظفين.", "You do not have permission to view employees."));
                     Close();
                     return;

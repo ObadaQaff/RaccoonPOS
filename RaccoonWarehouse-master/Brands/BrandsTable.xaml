@@ -1,4 +1,4 @@
-<Window x:Class="RaccoonWarehouse.Brands.BrandsTable"
+<Window xmlns:security="clr-namespace:RaccoonWarehouse.Security" x:Class="RaccoonWarehouse.Brands.BrandsTable"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -42,7 +42,7 @@
             <Border Grid.Row="0" Style="{StaticResource AppCardBorderStyle}" Padding="24">
                 <DockPanel LastChildFill="False">
                     <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
-                        <Button x:Name="CreateCategoryBtn" Width="210" Style="{StaticResource AppHeroButtonStyle}" Click="CreateCategoryBtn_Click">
+                        <Button x:Name="CreateCategoryBtn" Width="210" Style="{StaticResource AppHeroButtonStyle}" Click="CreateCategoryBtn_Click" security:PermissionWindowGuard.Keys="Brands.Create">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                 <fa:ImageAwesome Icon="Plus" Width="16" Height="16" Margin="0,0,8,0" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
                                 <TextBlock Text="علامة تجارية جديدة"/>
@@ -61,8 +61,8 @@
                 <DataGrid x:Name="BrandsTable1" Style="{StaticResource AppModernDataGridStyle}" AutoGenerateColumns="True">
                     <DataGrid.ContextMenu>
                         <ContextMenu>
-                            <MenuItem Style="{StaticResource AppMenuItemStyle}" Header="تعديل" Click="Update_Brand"/>
-                            <MenuItem Style="{StaticResource AppMenuItemStyle}" Header="حذف" Click="Delete_Brand"/>
+                            <MenuItem Style="{StaticResource AppMenuItemStyle}" Header="تعديل" Click="Update_Brand" security:PermissionWindowGuard.Keys="Brands.Edit"/>
+                            <MenuItem Style="{StaticResource AppMenuItemStyle}" Header="حذف" Click="Delete_Brand" security:PermissionWindowGuard.Keys="Brands.Delete"/>
                         </ContextMenu>
                     </DataGrid.ContextMenu>
                 </DataGrid>

@@ -1,4 +1,4 @@
-﻿<Window x:Class="RaccoonWarehouse.Reports.SalesReport"
+﻿<Window xmlns:security="clr-namespace:RaccoonWarehouse.Security" x:Class="RaccoonWarehouse.Reports.SalesReport"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:fa="http://schemas.fontawesome.io/icons/"
@@ -211,7 +211,7 @@
                         <Button Style="{StaticResource SecondaryButtonStyle}"
                                 Width="130"
                                 Margin="10,0,0,0"
-                                Click="ExportPdfBtn_Click">
+                                Click="ExportPdfBtn_Click" security:PermissionWindowGuard.Keys="SalesReport.Export">
                             <StackPanel Orientation="Horizontal">
                                 <fa:ImageAwesome Icon="Download" Width="16" Height="16"/>
                                 <TextBlock Text=" تصدير PDF" Margin="8,0,0,0"/>
@@ -220,7 +220,7 @@
                         <Button Style="{StaticResource SecondaryButtonStyle}"
                                 Width="120"
                                 Margin="10,0,0,0"
-                                Click="PrintBtn_Click">
+                                Click="PrintBtn_Click" security:PermissionWindowGuard.Keys="SalesReport.Print">
                             <StackPanel Orientation="Horizontal">
                                 <fa:ImageAwesome Icon="Print" Width="16" Height="16"/>
                                 <TextBlock Text=" طباعة" Margin="8,0,0,0"/>

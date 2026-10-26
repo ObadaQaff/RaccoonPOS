@@ -11,11 +11,13 @@ public partial class PurchaseRequestDetailsWindow : Window
     private readonly IPurchaseRequestService _service;
     private readonly ILoadingService _loading;
     private int _requestId;
+    private PurchaseRequestReadDto? _request;
 
     public PurchaseRequestDetailsWindow(IPurchaseRequestService service, ILoadingService loading)
     {
         _service = service;
         _loading = loading;
+        RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
         InitializeComponent();
         UiText.ApplyWindow(this);
     }
@@ -43,6 +45,7 @@ public partial class PurchaseRequestDetailsWindow : Window
             }
 
             var request = result.Data;
+            _request=request;
             SummaryText.Text = $"{request.RequestNumber} | {request.Status}";
             RequestNumberText.Text = request.RequestNumber;
             StatusText.Text = request.Status.ToString();
@@ -71,6 +74,20 @@ public partial class PurchaseRequestDetailsWindow : Window
         }
     }
 
+    private async void Print_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            await RaccoonWarehouse.Helpers.Pdf.DocumentPrintRuntime.RequirePrintAsync("PurchaseRequest.Print");
+            var result=await _service.GetByIdAsync(_requestId);
+            if(!result.Success || result.Data==null)throw new InvalidOperationException(result.Message);
+            _request=result.Data;
+            RaccoonWarehouse.Helpers.Pdf.DocumentPrintRuntime.Preview(
+                RaccoonWarehouse.Helpers.Pdf.PurchasingDocument.Request(_request,
+                    RaccoonWarehouse.Helpers.Pdf.DocumentPrintRuntime.Branding(branchId:_request.BranchId)),this);
+        }
+        catch(Exception ex){MessageBox.Show(UiText.T("تعذرت المعاينة: ","Preview failed: ")+ex.Message);}
+    }
     private void Close_Click(object sender, RoutedEventArgs e) => Close();
 
     private static string ValueOrDash(string? value) => string.IsNullOrWhiteSpace(value) ? "-" : value;

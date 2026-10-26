@@ -16,6 +16,7 @@ namespace RaccoonWarehouse.PurchaseOrders
         public PurchaseOrderDetailsWindow(PurchaseOrderWriteDto order)
         {
             _order = order;
+            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
             UiText.ApplyWindow(this);
             OrderSummaryText.Text = $"{order.OrderNumber} | {Format(order.TotalAmount)}";
@@ -73,18 +74,14 @@ namespace RaccoonWarehouse.PurchaseOrders
             _ => UiText.T("غير محدد", "Not specified")
         };
 
-        private void Print_Click(object sender, RoutedEventArgs e)
+        private async void Print_Click(object sender, RoutedEventArgs e)
         {
             try
             {
-                var printDialog = new PrintDialog();
-                if (printDialog.ShowDialog() != true)
-                    return;
+                await RaccoonWarehouse.Helpers.Pdf.DocumentPrintRuntime.RequirePrintAsync("PurchaseOrder.Print");
+                var saved=await RaccoonWarehouse.Helpers.Pdf.DocumentPrintRuntime.SavedOrderAsync(_order.Id);
+                RaccoonWarehouse.Helpers.Pdf.DocumentPrintRuntime.Preview(RaccoonWarehouse.Helpers.Pdf.PurchasingDocument.Order(saved, RaccoonWarehouse.Helpers.Pdf.DocumentPrintRuntime.Branding(warehouseId:saved.WarehouseId)), this);
 
-                var document = BuildPrintDocument();
-                printDialog.PrintDocument(
-                    ((IDocumentPaginatorSource)document).DocumentPaginator,
-                    $"Purchase Order {_order.OrderNumber}");
             }
             catch (Exception ex)
             {
@@ -94,102 +91,6 @@ namespace RaccoonWarehouse.PurchaseOrders
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
             }
-        }
-
-        private FlowDocument BuildPrintDocument()
-        {
-            var document = new FlowDocument
-            {
-                PagePadding = new Thickness(36),
-                ColumnWidth = double.PositiveInfinity,
-                FontFamily = new FontFamily("Segoe UI"),
-                FontSize = 10
-            };
-
-            document.Blocks.Add(new Paragraph(new Run($"{UiText.T("أمر شراء", "PURCHASE ORDER")}\n{_order.OrderNumber}"))
-            {
-                FontSize = 20,
-                FontWeight = FontWeights.Bold,
-                TextAlignment = TextAlignment.Center
-            });
-
-            document.Blocks.Add(new Paragraph(new Run(
-                $"{UiText.T("المورد", "Supplier")}: {_order.SupplierName ?? _order.SupplierId?.ToString() ?? "—"}    " +
-                $"{UiText.T("التاريخ", "Date")}: {_order.DocumentDate?.ToString("dd/MM/yyyy") ?? "—"}    " +
-                $"{UiText.T("حالة الأمر", "Order status")}: {FormatOrderStatus(_order.Status)}    " +
-                $"{UiText.T("حالة الدفع", "Payment status")}: {FormatPaymentStatus(_order.PaymentStatus)}")));
-
-            document.Blocks.Add(new Paragraph(new Run(
-                $"{UiText.T("طريقة الدفع", "Payment term")}: {FormatPaymentType(_order.PaymentType)}    " +
-                $"{UiText.T("تاريخ الدفع", "Paid date")}: {_order.PaidDate?.ToString("dd/MM/yyyy HH:mm") ?? "—"}")));
-            document.Blocks.Add(new Paragraph(new Run(TaxBasisText.Text)));
-
-            var table = new Table { CellSpacing = 0 };
-            for (var i = 0; i < 8; i++)
-                table.Columns.Add(new TableColumn { Width = new GridLength(i == 0 ? 3 : 1, GridUnitType.Star) });
-
-            var headerGroup = new TableRowGroup();
-            headerGroup.Rows.Add(CreateRow(new[]
-            {
-                UiText.T("المنتج", "Product"), UiText.T("الوحدة", "Unit"), UiText.T("الكمية", "Qty"),
-                UiText.T("التكلفة", "Unit cost"), UiText.T("الخصم", "Discount"), UiText.T("الضريبة", "Tax"),
-                UiText.T("إجمالي السطر شامل الضريبة", "Line total incl. tax"), UiText.T("الانتهاء", "Expiry")
-            }, true));
-            table.RowGroups.Add(headerGroup);
-
-            var bodyGroup = new TableRowGroup();
-            foreach (var line in _order.Lines ?? new List<PurchaseOrderLineWriteDto>())
-            {
-                bodyGroup.Rows.Add(CreateRow(new[]
-                {
-                    line.ProductName ?? line.ProductId.ToString(),
-                    line.UnitName ?? line.ProductUnitId.ToString(),
-                    Format(line.Quantity),
-                    Format(line.UnitCost),
-                    Format(line.LineDiscountAmount),
-                    Format(line.TaxAmount),
-                    Format(line.LineTotal),
-                    line.ExpiryDate?.ToString("dd/MM/yyyy") ?? "—"
-                }, false));
-            }
-            table.RowGroups.Add(bodyGroup);
-            document.Blocks.Add(table);
-
-            document.Blocks.Add(new Paragraph(new Run(
-                $"{UiText.T("قبل الضريبة", "Subtotal")}: {Format(_order.SubTotal)} | " +
-                $"{UiText.T("الضريبة", "Tax")}: {Format(_order.TotalTax)} | " +
-                $"{UiText.T("خصم أمر الشراء", "Order discount")}: {Format(_order.DiscountAmount ?? 0m)} | " +
-                $"{UiText.T("الإجمالي المستحق", "Grand total")}: {Format(_order.TotalAmount)}"))
-            {
-                FontWeight = FontWeights.Bold,
-                TextAlignment = TextAlignment.Right,
-                Margin = new Thickness(0, 14, 0, 0)
-            });
-
-            if (!string.IsNullOrWhiteSpace(_order.Notes))
-                document.Blocks.Add(new Paragraph(new Run($"{UiText.T("ملاحظات", "Notes")}: {_order.Notes}")));
-            if (!string.IsNullOrWhiteSpace(_order.PaymentNote))
-                document.Blocks.Add(new Paragraph(new Run($"{UiText.T("ملاحظة الدفع", "Payment note")}: {_order.PaymentNote}")));
-
-            UiText.ApplyDocument(document);
-            return document;
-        }
-
-        private static TableRow CreateRow(IEnumerable<string> values, bool header)
-        {
-            var row = new TableRow();
-            foreach (var value in values)
-            {
-                var cell = new TableCell(new Paragraph(new Run(value)))
-                {
-                    Padding = new Thickness(5),
-                    BorderBrush = Brushes.Gray,
-                    BorderThickness = new Thickness(0.5),
-                    Background = header ? new SolidColorBrush(Color.FromRgb(225, 237, 245)) : Brushes.White
-                };
-                row.Cells.Add(cell);
-            }
-            return row;
         }
 
         private void Close_Click(object sender, RoutedEventArgs e) => Close();

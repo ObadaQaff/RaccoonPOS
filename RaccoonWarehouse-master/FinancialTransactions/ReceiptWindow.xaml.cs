@@ -19,6 +19,7 @@ namespace RaccoonWarehouse.FinancialTransactions
 
         public ReceiptWindow(IFinancialTransactionService service, int cashierSessionId, int cashierId)
         {
+            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
 
             _service = service;

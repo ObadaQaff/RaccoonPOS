@@ -36,6 +36,7 @@ public partial class InsuranceCompaniesWindow : Window
         _service = service;
         _loading = loading;
         _permissions = permissions;
+        RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
         InitializeComponent();
         _view = CollectionViewSource.GetDefaultView(_companies);
         _view.Filter = MatchesSearch;

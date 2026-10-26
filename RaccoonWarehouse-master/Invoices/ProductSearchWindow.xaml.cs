@@ -2,6 +2,7 @@ using RaccoonWarehouse.Application.Service.Products;
 using RaccoonWarehouse.Application.Service.Stocks;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Domain.Products.DTOs;
+using RaccoonWarehouse.Domain.Products;
 using RaccoonWarehouse.Domain.ProductUnits;
 using RaccoonWarehouse.Domain.ProductUnits.DTOs;
 using RaccoonWarehouse.Domain.Stock;
@@ -98,6 +99,7 @@ namespace RaccoonWarehouse.Invoices
         private readonly IUserService _userService;
         private readonly IPosRowColorRuleService? _rowColorRuleService;
         private readonly Func<ProductSearchRow, Task<bool>>? _onAddProduct;
+        private readonly bool _hasPreloadedSupplierLookup;
         private readonly HashSet<string> _disabledProductKeys;
         private readonly string _ruleScope;
         private readonly DispatcherTimer _searchDebounceTimer = new() { Interval = TimeSpan.FromMilliseconds(150) };
@@ -106,6 +108,7 @@ namespace RaccoonWarehouse.Invoices
         private int _searchVersion;
         private bool _isAddingProduct;
         private bool _isInitializing;
+        private bool _isClosing;
         private bool _isRefreshingColorRules;
         private int? _selectedSupplierId;
         private List<RaccoonWarehouse.Domain.Users.DTOs.UserReadDto> _supplierLookupItems = new();
@@ -128,14 +131,24 @@ namespace RaccoonWarehouse.Invoices
             Func<ProductSearchRow, Task<bool>>? onAddProduct = null,
             IEnumerable<string>? disabledProductKeys = null,
             IPosRowColorRuleService? rowColorRuleService = null,
-            string ruleScope = "ProductSearch")
+            string ruleScope = "ProductSearch",
+            IEnumerable<RaccoonWarehouse.Domain.Users.DTOs.UserReadDto>? preloadedSupplierLookupItems = null)
         {
+            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
             UiText.ApplyWindow(this);
             _productService = productService;
             _stockService = stockService;
             _userService = userService;
             _rowColorRuleService = rowColorRuleService;
+            _hasPreloadedSupplierLookup = preloadedSupplierLookupItems != null;
+            if (_hasPreloadedSupplierLookup)
+            {
+                _supplierLookupItems = preloadedSupplierLookupItems!
+                    .Where(user => user.Role == UserRole.Supplier)
+                    .OrderBy(user => user.Name)
+                    .ToList();
+            }
             _ruleScope = string.IsNullOrWhiteSpace(ruleScope) ? "ProductSearch" : ruleScope;
             _onAddProduct = onAddProduct;
             _disabledProductKeys = disabledProductKeys != null
@@ -157,14 +170,8 @@ namespace RaccoonWarehouse.Invoices
         {
             _isInitializing = true;
             SetLoadingState(true);
-            var initializationLockAcquired = false;
             try
             {
-                // Serialize initialization with searches so the same scoped
-                // DbContext is not queried concurrently.
-                await _serviceCallLock.WaitAsync();
-                initializationLockAcquired = true;
-
                 try
                 {
                     await WarmCatalogCacheAsync();
@@ -183,7 +190,10 @@ namespace RaccoonWarehouse.Invoices
                     _loadedColorRules = await _rowColorRuleService.GetRulesAsync();
                     RefreshColorFilterOptions();
                 }
-                await LoadSupplierFilterAsync();
+                if (_hasPreloadedSupplierLookup)
+                    ApplySupplierFilterItems();
+                else
+                    await LoadSupplierFilterAsync();
                 await Dispatcher.BeginInvoke(() =>
                 {
                     SearchTextBox.Focus();
@@ -193,32 +203,42 @@ namespace RaccoonWarehouse.Invoices
             }
             finally
             {
-                if (initializationLockAcquired)
-                    _serviceCallLock.Release();
-
                 _isInitializing = false;
                 SetLoadingState(false);
+
+                // A debounce tick can occur while the catalog is warming and
+                // be deferred by PerformSearchAsync. Run it once after the
+                // window becomes ready so typed criteria are not lost.
+                if (HasSearchCriteria())
+                    await RunSearchSafelyAsync();
             }
         }
 
         private void SetLoadingState(bool isLoading)
         {
             _isInitializing = isLoading;
-            SearchTextBox.IsEnabled = !isLoading;
-            BarcodeSearchTextBox.IsEnabled = !isLoading;
+            // Allow the user to type while the shared catalog cache is warming.
+            // PerformSearchAsync can use a direct query while it initializes.
+            SearchTextBox.IsEnabled = true;
+            BarcodeSearchTextBox.IsEnabled = true;
             SupplierFilterComboBox.IsEnabled = !isLoading;
-            ProductsGrid.IsEnabled = !isLoading;
+            // Direct searches can populate the grid while the shared catalog
+            // cache is warming, so keep the results actionable.
+            ProductsGrid.IsEnabled = true;
             ColorFilterItemsControl.IsEnabled = !isLoading;
         }
 
         private void ProductSearchWindow_Closed(object? sender, EventArgs e)
         {
+            _isClosing = true;
             PosRowColorRuleService.RulesChanged -= PosRowColorRuleService_RulesChanged;
             PosProductCatalogRefreshQueue.CatalogRefreshed -= RefreshStockResults;
             RaccoonWarehouse.Common.CatalogRefreshNotifier.CatalogChanged
                 -= ProductCatalogChanged;
             _searchDebounceTimer.Stop();
             _searchCancellation?.Cancel();
+            _searchCancellation?.Dispose();
+            _searchCancellation = null;
         }
 
         private void ProductCatalogChanged(object? sender, EventArgs e)
@@ -323,6 +343,18 @@ namespace RaccoonWarehouse.Invoices
                 }
 
                 throw;
+            }
+        }
+
+        public static async Task<IReadOnlyList<PosProductSearchResultDto>> GetCatalogSnapshotAsync(
+            IStockService stockService)
+        {
+            await WarmCatalogCacheAsync(stockService);
+            lock (CatalogCacheSync)
+            {
+                return _catalogLoadTask?.IsCompletedSuccessfully == true
+                    ? _catalogLoadTask.Result.ToList()
+                    : Array.Empty<PosProductSearchResultDto>();
             }
         }
 
@@ -434,7 +466,11 @@ namespace RaccoonWarehouse.Invoices
             lock (CatalogCacheSync)
             {
                 _catalogLoadedAt = DateTimeOffset.MinValue;
-                _catalogLoadTask = null;
+                // Do not discard an in-flight load. A second caller could otherwise
+                // start another query with the same scoped DbContext while the first
+                // query is still running.
+                if (_catalogLoadTask?.IsCompleted != false)
+                    _catalogLoadTask = null;
                 _partialSaleCatalogLoadGeneration++;
             }
         }
@@ -448,11 +484,33 @@ namespace RaccoonWarehouse.Invoices
                 startedUnitVersion = _partialSaleUnitVersion;
                 generation = ++_partialSaleCatalogLoadGeneration;
             }
-            var result = await stockService.GetPosProductCatalogAsync();
-            if (!result.Success)
-                throw new InvalidOperationException(result.Message ?? "Unable to load POS product catalog.");
+            // The catalog cache is shared by POS, purchase invoices, POs, and PRs.
+            // Do not run its database query through the caller's scoped service:
+            // that scope may be loading products, suppliers, or units at the same
+            // time on the same DbContext. Use an independent scope for the catalog
+            // read and keep the caller's scope available for its own workflow.
+            var app = System.Windows.Application.Current as RaccoonWarehouse.App;
+            List<PosProductSearchResultDto> rows;
+            if (app?.ServiceProvider != null)
+            {
+                using var scope = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions
+                    .CreateScope(app.ServiceProvider);
+                var catalogStockService = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions
+                    .GetRequiredService<IStockService>(scope.ServiceProvider);
+                var catalogResult = await catalogStockService.GetPosProductCatalogAsync();
+                if (!catalogResult.Success)
+                    throw new InvalidOperationException(catalogResult.Message ?? "Unable to load POS product catalog.");
 
-            var rows = result.Data ?? new List<PosProductSearchResultDto>();
+                rows = catalogResult.Data ?? new List<PosProductSearchResultDto>();
+            }
+            else
+            {
+                var catalogResult = await stockService.GetPosProductCatalogAsync();
+                if (!catalogResult.Success)
+                    throw new InvalidOperationException(catalogResult.Message ?? "Unable to load POS product catalog.");
+
+                rows = catalogResult.Data ?? new List<PosProductSearchResultDto>();
+            }
             lock (CatalogCacheSync)
             {
                 if (generation != _partialSaleCatalogLoadGeneration)
@@ -498,6 +556,11 @@ namespace RaccoonWarehouse.Invoices
                 .OrderBy(user => user.Name)
                 .ToList() ?? new();
 
+            ApplySupplierFilterItems();
+        }
+
+        private void ApplySupplierFilterItems()
+        {
             var suppliers = _supplierLookupItems.ToList();
             suppliers.Insert(0, new RaccoonWarehouse.Domain.Users.DTOs.UserReadDto
             {
@@ -612,6 +675,21 @@ namespace RaccoonWarehouse.Invoices
             }
             else if (e.Key == Key.Enter)
             {
+                var searchText = SearchTextBox.Text.Trim();
+                if (IsExactBarcodeInput(searchText))
+                {
+                    _searchDebounceTimer.Stop();
+                    await RunSearchSafelyAsync();
+                    if (_products.Count == 1)
+                    {
+                        ProductsGrid.SelectedIndex = 0;
+                        ProductsGrid.ScrollIntoView(_products[0]);
+                    }
+
+                    e.Handled = true;
+                    return;
+                }
+
                 if (ProductsGrid.SelectedItem is ProductSearchRow row)
                     await AddProductAsync(row);
                 e.Handled = true;
@@ -746,6 +824,11 @@ namespace RaccoonWarehouse.Invoices
             {
                 await PerformSearchAsync();
             }
+            catch (TaskCanceledException)
+            {
+                // A canceled EF query is expected when typing a newer search
+                // or closing the window.
+            }
             catch (OperationCanceledException)
             {
                 // Cancellation is expected when a newer search supersedes this one.
@@ -762,11 +845,17 @@ namespace RaccoonWarehouse.Invoices
 
         private async Task PerformSearchAsync()
         {
-            if (_isAddingProduct || _isInitializing)
+                if (_isAddingProduct)
                 return;
 
             var text = SearchTextBox.Text.Trim();
-            var barcode = BarcodeSearchTextBox.Text.Trim();
+            var barcode = BarcodeLookup.Normalize(BarcodeSearchTextBox.Text);
+            if (string.IsNullOrWhiteSpace(BarcodeSearchTextBox.Text)
+                && BarcodeLookup.ExtractGs1ProductBarcode(text) != null)
+            {
+                barcode = BarcodeLookup.Normalize(text);
+                text = string.Empty;
+            }
             var searchVersion = ++_searchVersion;
             _searchCancellation?.Cancel();
             _searchCancellation?.Dispose();
@@ -796,27 +885,42 @@ namespace RaccoonWarehouse.Invoices
                 List<PosProductSearchResultDto> searchRows;
                 if (!TryGetLoadedCatalog(out var catalog))
                 {
-                    await WarmCatalogCacheAsync();
-                    if (cancellationToken.IsCancellationRequested || !TryGetLoadedCatalog(out catalog))
-                        return;
+                    // The full catalog may still be warming in the background.
+                    // Search only the requested terms through an independent
+                    // scope so the first search does not wait for every product
+                    // and stock row to be materialized.
+                    searchRows = await SearchCatalogDirectlyAsync(
+                        text,
+                        barcode,
+                        _selectedSupplierId,
+                        cancellationToken);
+
+                    searchRows = searchRows
+                        .GroupBy(row => row.ProductId)
+                        .Where(group => string.IsNullOrWhiteSpace(_selectedColorRuleId) || MatchesSelectedColorRule(group))
+                        .SelectMany(group => group)
+                        .Take(MaxSearchResults)
+                        .ToList();
                 }
+                else
+                {
+                    var matchedCatalogRows = catalog
+                        .Where(row => MatchesCatalogFilter(row, text, barcode, _selectedSupplierId));
+                    var candidates = matchedCatalogRows
+                        .GroupBy(row => row.ProductId)
+                        .Where(group => string.IsNullOrWhiteSpace(_selectedColorRuleId) || MatchesSelectedColorRule(group))
+                        .SelectMany(group => group)
+                        .Take(MaxSearchResults * 20)
+                        .ToList();
 
-                var matchedCatalogRows = catalog
-                    .Where(row => MatchesCatalogFilter(row, text, barcode, _selectedSupplierId));
-                var candidates = matchedCatalogRows
-                    .GroupBy(row => row.ProductId)
-                    .Where(group => string.IsNullOrWhiteSpace(_selectedColorRuleId) || MatchesSelectedColorRule(group))
-                    .SelectMany(group => group)
-                    .Take(MaxSearchResults * 20)
-                    .ToList();
-
-                searchRows = candidates
-                    .GroupBy(row => row.ProductId)
-                    .OrderByDescending(group => group.Any(row => row.AvailableToSale || row.StockQuantity > MinimumSellableQuantity))
-                    .ThenBy(group => group.First().ProductName)
-                    .SelectMany(group => group)
-                    .Take(MaxSearchResults)
-                    .ToList();
+                    searchRows = candidates
+                        .GroupBy(row => row.ProductId)
+                        .OrderByDescending(group => group.Any(row => row.AvailableToSale || row.StockQuantity > MinimumSellableQuantity))
+                        .ThenBy(group => group.First().ProductName)
+                        .SelectMany(group => group)
+                        .Take(MaxSearchResults)
+                        .ToList();
+                }
 
                 if (searchVersion != _searchVersion)
                     return;
@@ -893,7 +997,9 @@ namespace RaccoonWarehouse.Invoices
                         .ToList();
                     var hasStock = productRows.Any(row => row.StockQuantity > MinimumSellableQuantity);
                     var currentStock = ResolvePreferredStock(stocksByProductId);
-                    product.CurrentSalePrice = product.DefaultSalePrice;
+                    product.CurrentSalePrice = currentStock?.SalePrice > 0m
+                        ? currentStock.SalePrice
+                        : product.DefaultSalePrice;
                     product.CurrentPurchasePrice = currentStock?.PurchasePrice ?? 0m;
                     product.CurrentExpiryDate = currentStock?.ExpiryDate;
                     var defaultSaleUnitId = ProductUnitSelector.GetDefaultSaleUnit(productUnits)?.Id;
@@ -959,6 +1065,10 @@ namespace RaccoonWarehouse.Invoices
                 ProductsGrid.Items.Refresh();
                 UiText.ApplyTranslations(ProductsGrid);
             }
+            catch (TaskCanceledException) when (cancellationToken.IsCancellationRequested || _isClosing)
+            {
+                // SQL/EF reports a canceled database command as TaskCanceledException.
+            }
             catch (Exception ex) when (IsExpectedSearchCancellation(ex, cancellationToken))
             {
                 // EF Core/SqlClient can wrap a canceled database command in an
@@ -971,10 +1081,42 @@ namespace RaccoonWarehouse.Invoices
             }
             finally
             {
-                await RestoreSearchFocusAsync();
+                if (!_isClosing && IsLoaded && !Dispatcher.HasShutdownStarted && !Dispatcher.HasShutdownFinished)
+                    await RestoreSearchFocusAsync();
                 if (serviceCallLockAcquired)
                     _serviceCallLock.Release();
             }
+        }
+
+        private async Task<List<PosProductSearchResultDto>> SearchCatalogDirectlyAsync(
+            string productName,
+            string barcode,
+            int? supplierId,
+            CancellationToken cancellationToken)
+        {
+            var app = System.Windows.Application.Current as RaccoonWarehouse.App;
+            if (app?.ServiceProvider != null)
+            {
+                using var scope = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions
+                    .CreateScope(app.ServiceProvider);
+                var stockService = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions
+                    .GetRequiredService<IStockService>(scope.ServiceProvider);
+                var result = await stockService.SearchPosProductsAsync(
+                    productName,
+                    barcode,
+                    MaxSearchResults,
+                    supplierId,
+                    cancellationToken);
+                return result.Data ?? new List<PosProductSearchResultDto>();
+            }
+
+            var fallback = await _stockService.SearchPosProductsAsync(
+                productName,
+                barcode,
+                MaxSearchResults,
+                supplierId,
+                cancellationToken);
+            return fallback.Data ?? new List<PosProductSearchResultDto>();
         }
 
         private static bool IsExpectedSearchCancellation(Exception exception, CancellationToken cancellationToken)
@@ -1025,9 +1167,18 @@ namespace RaccoonWarehouse.Invoices
 
             if (!string.IsNullOrWhiteSpace(barcode))
             {
+                barcode = BarcodeLookup.Normalize(barcode);
                 var itemCode = row.ItemCode?.ToString(CultureInfo.InvariantCulture);
-                return string.Equals(itemCode, barcode, StringComparison.OrdinalIgnoreCase) ||
+                return BarcodeLookup.MatchesItemCode(row.ItemCode, barcode) ||
                        string.Equals(row.AlternateBarcode?.Trim(), barcode, StringComparison.OrdinalIgnoreCase);
+            }
+
+            if (IsExactBarcodeInput(productName))
+            {
+                productName = BarcodeLookup.Normalize(productName);
+                var itemCode = row.ItemCode?.ToString(CultureInfo.InvariantCulture);
+                return BarcodeLookup.MatchesItemCode(row.ItemCode, productName) ||
+                       string.Equals(row.AlternateBarcode?.Trim(), productName, StringComparison.Ordinal);
             }
 
             var fragments = productName
@@ -1048,6 +1199,11 @@ namespace RaccoonWarehouse.Invoices
             }
 
             return true;
+        }
+
+        private static bool IsExactBarcodeInput(string value)
+        {
+            return value.Length > 0 && value.All(char.IsDigit);
         }
 
         private void ProductsGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
@@ -1260,7 +1416,11 @@ private void ClearBtn_Click(object sender, RoutedEventArgs e)
                 set
                 {
                     _selectedUnit = value;
-                    _salePrice = value?.SalePrice ?? 0m;
+                        _salePrice = value != null &&
+                                     SalePricesByUnitId.TryGetValue(value.Id, out var stockSalePrice) &&
+                                     stockSalePrice > 0m
+                            ? stockSalePrice
+                            : value?.SalePrice ?? 0m;
                     PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SelectedUnit)));
                     PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SalePrice)));
                     PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(UnitName)));

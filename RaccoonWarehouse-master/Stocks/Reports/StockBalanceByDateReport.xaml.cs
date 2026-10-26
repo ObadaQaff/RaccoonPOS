@@ -11,6 +11,7 @@ namespace RaccoonWarehouse.Stocks.Reports
 
         public StockBalanceByDateReport(IStockReportService stockReportService)
         {
+            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
             _stockReportService = stockReportService;
             UiText.ApplyWindow(this);

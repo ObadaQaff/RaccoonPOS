@@ -27,15 +27,15 @@ namespace RaccoonWarehouse.Navigation.Modules
             var actions = new List<ModuleActionDefinition>();
             var role = _userSession.CurrentUser?.Role;
 
-            if (role.HasValue && await _permissionService.HasPermissionAsync(role.Value, "Users.Create"))
+            if (role.HasValue && await _permissionService.HasPermissionAsync(role.Value, "Customers.Create"))
             {
-                actions.Add(new ModuleActionDefinition("Customers.Create", UiText.T("إضافة عميل جديد", "Add New Customer"), "Users.Create"));
-                actions.Add(new ModuleActionDefinition("Customers.CreateSupplier", UiText.T("إضافة مورد جديد", "Add New Supplier"), "Users.Create"));
+                actions.Add(new ModuleActionDefinition("Customers.Create", UiText.T("إضافة عميل جديد", "Add New Customer"), "Customers.Create"));
+                actions.Add(new ModuleActionDefinition("Customers.CreateSupplier", UiText.T("إضافة مورد جديد", "Add New Supplier"), "Customers.Create"));
             }
 
-            if (role.HasValue && await _permissionService.HasPermissionAsync(role.Value, "Users.View"))
+            if (role.HasValue && await _permissionService.HasPermissionAsync(role.Value, "Customers.View"))
             {
-                actions.Add(new ModuleActionDefinition("Customers.List", UiText.T("إدارة حسابات المستخدمين", "Manage User Accounts"), "Users.View"));
+                actions.Add(new ModuleActionDefinition("Customers.List", UiText.T("إدارة حسابات المستخدمين", "Manage User Accounts"), "Customers.View"));
             }
 
             return new ModuleDefinition(

@@ -16,6 +16,7 @@ namespace RaccoonWarehouse.Stocks.Reports
         private readonly IUserService _users;
         public ExpiringStockReport(IStockReportService reports, IUserService users)
         {
+            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent(); _reports = reports; _users = users; SupplierComboBoxSearch.Attach(SupplierComboBox); UiText.ApplyWindow(this); Loaded += LoadedAsync;
         }
         private async void LoadedAsync(object sender, RoutedEventArgs e)

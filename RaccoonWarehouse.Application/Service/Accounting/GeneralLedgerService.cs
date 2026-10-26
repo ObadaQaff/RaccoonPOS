@@ -3,8 +3,7 @@ using RaccoonWarehouse.Domain.Reports.Accounting.Filters;
 
 namespace RaccoonWarehouse.Application.Service.Accounting
 {
-    public class GeneralLedgerService
-    {
+    public class GeneralLedgerService : IGeneralLedgerService{
         private readonly IAccountingService _accountingService;
 
         public GeneralLedgerService(IAccountingService accountingService)

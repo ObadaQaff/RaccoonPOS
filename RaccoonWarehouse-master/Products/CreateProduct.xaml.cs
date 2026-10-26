@@ -1,6 +1,7 @@
 using Microsoft.Win32;
 using RaccoonWarehouse;
 using RaccoonWarehouse.Application.Service.Brands;
+using RaccoonWarehouse.Application.Service.Categories;
 using RaccoonWarehouse.Application.Service.Products;
 using RaccoonWarehouse.Application.Service.ProductUnits;
 using RaccoonWarehouse.Application.Service.SubCategories;
@@ -11,6 +12,7 @@ using RaccoonWarehouse.Helpers.Localization;
 using RaccoonWarehouse.Navigation;
 using RaccoonWarehouse.Units;
 using RaccoonWarehouse.Domain.Enums;
+using RaccoonWarehouse.Domain.Categories.DTOs;
 using RaccoonWarehouse.Domain.Products.DTOs;
 using RaccoonWarehouse.Domain.ProductUnits.DTOs;
 using System;
@@ -29,6 +31,7 @@ namespace RaccoonWarehouse.Products
     public partial class CreateProduct : Window
     {
         private readonly IProductService _productService;
+        private readonly ICategoryService _categoryService;
         private readonly ISubCategoryService _subCategoryService;
         private readonly IBrandService _brandService;
         private readonly IProductUnitService _productUnitService;
@@ -48,11 +51,15 @@ namespace RaccoonWarehouse.Products
         private decimal? _lastSuggestedFractionalSalePrice;
         private decimal? _lastSuggestedFractionalSaleCost;
         private bool _isUpdatingFractionalSuggestions;
+        private const string DefaultCategoryName = "مواد الصيدلية";
+        private const string DefaultSubCategoryName = "مواد عامة";
+        private const decimal DefaultNameSimilarityThreshold = 0.80m;
         public string? InitialItemCode { get; set; }
         public int? CreatedProductId { get; private set; }
 
         public CreateProduct(
             IProductService productService,
+            ICategoryService categoryService,
             ISubCategoryService subCategoryService,
             IBrandService brandService,
             IProductUnitService productUnitService,
@@ -60,12 +67,14 @@ namespace RaccoonWarehouse.Products
             IUserService userService)
         {
             _productService = productService;
+            _categoryService = categoryService;
             _subCategoryService = subCategoryService;
             _brandService = brandService;
             _productUnitService = productUnitService;
             _unitService = unitService;
             _userService = userService;
 
+            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
             UnitComboBox.Loaded += UnitComboBox_Loaded;
             SalePriceTextBox.TextChanged += FractionalSuggestionSourceChanged;
@@ -578,6 +587,124 @@ namespace RaccoonWarehouse.Products
             return Math.Round(value, 3);
         }
 
+        private async Task<int> EnsureDefaultSubCategoryAsync()
+        {
+            var categoriesResult = await _categoryService.GetAllAsync();
+            var parentCategory = categoriesResult.Data?
+                .Select(category => new
+                {
+                    Category = category,
+                    Similarity = CalculateNameSimilarity(category.Name, DefaultCategoryName)
+                })
+                .Where(item => item.Similarity >= DefaultNameSimilarityThreshold)
+                .OrderByDescending(item => item.Similarity)
+                .Select(item => item.Category)
+                .FirstOrDefault();
+
+            var parentCategoryId = parentCategory?.Id;
+
+            if (!parentCategoryId.HasValue)
+            {
+                var categoryResult = await _categoryService.CreateAsync(new CategoryWriteDto
+                {
+                    Name = DefaultCategoryName,
+                    Description = "Default category for products without a selected subcategory.",
+                    CreatedDate = DateTime.Now,
+                    UpdatedDate = DateTime.Now
+                });
+
+                if (!categoryResult.Success || categoryResult.Data == null)
+                    throw new InvalidOperationException(categoryResult.Message ?? "The default category could not be created.");
+
+                parentCategoryId = categoryResult.Data.Id;
+            }
+
+            var subCategoriesResult = await _subCategoryService.GetAllAsync();
+            var existingSubCategory = subCategoriesResult.Data?
+                .Where(subCategory => subCategory.ParentCategoryId == parentCategoryId.Value)
+                .Select(subCategory => new
+                {
+                    SubCategory = subCategory,
+                    Similarity = CalculateNameSimilarity(subCategory.Name, DefaultSubCategoryName)
+                })
+                .Where(item => item.Similarity >= DefaultNameSimilarityThreshold)
+                .OrderByDescending(item => item.Similarity)
+                .Select(item => item.SubCategory)
+                .FirstOrDefault();
+
+            if (existingSubCategory != null)
+                return existingSubCategory.Id;
+
+            var createSubCategoryResult = await _subCategoryService.CreateAsync(new Domain.SubCategories.DTOs.SubCategoryWriteDto
+            {
+                Name = DefaultSubCategoryName,
+                Description = "Default subcategory for products without a selected subcategory.",
+                ParentCategoryId = parentCategoryId.Value,
+                CreatedDate = DateTime.Now,
+                UpdatedDate = DateTime.Now
+            });
+
+            if (createSubCategoryResult.Success && createSubCategoryResult.Data != null)
+                return createSubCategoryResult.Data.Id;
+
+            // If another process created it at the same time, reuse the existing row.
+            subCategoriesResult = await _subCategoryService.GetAllAsync();
+            existingSubCategory = subCategoriesResult.Data?
+                .Where(subCategory => subCategory.ParentCategoryId == parentCategoryId.Value)
+                .Select(subCategory => new
+                {
+                    SubCategory = subCategory,
+                    Similarity = CalculateNameSimilarity(subCategory.Name, DefaultSubCategoryName)
+                })
+                .Where(item => item.Similarity >= DefaultNameSimilarityThreshold)
+                .OrderByDescending(item => item.Similarity)
+                .Select(item => item.SubCategory)
+                .FirstOrDefault();
+
+            if (existingSubCategory != null)
+                return existingSubCategory.Id;
+
+            throw new InvalidOperationException(createSubCategoryResult.Message ?? "The default subcategory could not be created.");
+        }
+
+        private static decimal CalculateNameSimilarity(string? left, string? right)
+        {
+            var leftName = NormalizeLookupName(left);
+            var rightName = NormalizeLookupName(right);
+            if (leftName.Length == 0 || rightName.Length == 0)
+                return 0m;
+            if (leftName == rightName)
+                return 1m;
+
+            var distances = new int[leftName.Length + 1, rightName.Length + 1];
+            for (var i = 0; i <= leftName.Length; i++)
+                distances[i, 0] = i;
+            for (var j = 0; j <= rightName.Length; j++)
+                distances[0, j] = j;
+
+            for (var i = 1; i <= leftName.Length; i++)
+            {
+                for (var j = 1; j <= rightName.Length; j++)
+                {
+                    var substitutionCost = leftName[i - 1] == rightName[j - 1] ? 0 : 1;
+                    distances[i, j] = Math.Min(
+                        Math.Min(distances[i - 1, j] + 1, distances[i, j - 1] + 1),
+                        distances[i - 1, j - 1] + substitutionCost);
+                }
+            }
+
+            var maxLength = Math.Max(leftName.Length, rightName.Length);
+            return 1m - (decimal)distances[leftName.Length, rightName.Length] / maxLength;
+        }
+
+        private static string NormalizeLookupName(string? value)
+        {
+            return new string((value ?? string.Empty)
+                .Where(character => !char.IsWhiteSpace(character))
+                .Select(char.ToUpperInvariant)
+                .ToArray());
+        }
+
         private void ResetUnitEntryFields()
         {
             UnitComboBox.SelectedIndex = -1;
@@ -609,6 +736,11 @@ namespace RaccoonWarehouse.Products
                     return;
                 }
 
+                var subCategoryId = SubCategoryComboBox.SelectedValue is int selectedSubCategoryId
+                    && selectedSubCategoryId > 0
+                    ? selectedSubCategoryId
+                    : await EnsureDefaultSubCategoryAsync();
+
                 var dto = new ProductWriteDto
                 {
                     Name = NameTextBox.Text,
@@ -621,7 +753,7 @@ namespace RaccoonWarehouse.Products
                     BrandId = BrandComboBox.SelectedValue != null ? (int)BrandComboBox.SelectedValue : (int?)null,
                     SupplierId = SupplierComboBox.SelectedValue is int supplierId && supplierId > 0 ? supplierId : null,
                     AgentName = AgentNameTextBox.Text.Trim(),
-                    SubCategoryId = SubCategoryComboBox.SelectedValue != null ? (int)SubCategoryComboBox.SelectedValue : 0,
+                    SubCategoryId = subCategoryId,
                     CreatedDate = DateTime.Now,
                     UpdatedDate = DateTime.Now
                 };

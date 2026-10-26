@@ -116,9 +116,12 @@ public sealed class PosInsuranceBillingService
         if (company.ReceivableAccountId.HasValue)
         {
             var account = await _db.Set<Account>().SingleOrDefaultAsync(x => x.Id == company.ReceivableAccountId.Value);
-            if (account == null || !account.IsActive || !account.IsPosting || account.AccountType != AccountType.Asset
-                || await _db.InsuranceCompanies.AnyAsync(x => x.Id != companyId && x.ReceivableAccountId == account.Id))
-                throw new InvalidOperationException("The insurer needs an active, dedicated asset receivable account.");
+            if (account == null)
+                throw new InvalidOperationException("The insurer's receivable account was not found. Select a valid Asset posting account in the insurer settings.");
+            if (!account.IsActive || !account.IsPosting || account.AccountType != AccountType.Asset)
+                throw new InvalidOperationException("The insurer's receivable account must be active, posting, and an Asset account. Update it in the insurer settings.");
+            if (await _db.InsuranceCompanies.AnyAsync(x => x.Id != companyId && x.ReceivableAccountId == account.Id))
+                throw new InvalidOperationException("The insurer's receivable account is already assigned to another insurer. Select a dedicated account in the insurer settings.");
             return account.Id;
         }
         var code = $"INS-{companyId:000000}";

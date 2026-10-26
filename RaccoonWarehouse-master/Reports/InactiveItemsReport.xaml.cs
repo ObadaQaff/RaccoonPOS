@@ -21,6 +21,7 @@ namespace RaccoonWarehouse.Reports
     {
         public InactiveItemsReport()
         {
+            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
             LoadSampleData();
         }

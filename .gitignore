@@ -53,3 +53,16 @@ publish/
 # Local verification logs
 **/.unit-conversion-tests.log
 **/.build-unit-conversion.log
+
+# Keep the application layers and presentation projects visible. Ignore
+# local tests, verification copies, and auxiliary build/documentation output.
+**/RaccoonWarehouse.Tests/
+**/_buildverify*/
+**/_codex*/
+**/.build*/
+**/build*/
+**/publish/
+**/installer/
+**/docs/
+**/scripts/
+**/graphify-out/

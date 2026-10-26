@@ -55,7 +55,7 @@ namespace RaccoonWarehouse.Navigation.Modules
                     WindowManager.Show<CreateSalesInvoice>();
                     break;
                 case "Invoices.Purchase":
-                    WindowManager.ShowDialog<PayInvoice>();
+                    WindowManager.Show<PayInvoice>();
                     break;
                 case "PurchaseOrders.Create":
                     WindowManager.Show<PayInvoice>(WindowSizeType.FullScreen, window => window.ConfigureAsPurchaseOrder());

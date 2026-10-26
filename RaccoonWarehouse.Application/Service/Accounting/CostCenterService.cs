@@ -5,8 +5,7 @@ using RaccoonWarehouse.Domain.CostCenters.DTOs;
 
 namespace RaccoonWarehouse.Application.Service.Accounting
 {
-    public class CostCenterService
-    {
+    public class CostCenterService : ICostCenterService{
         private readonly ApplicationDbContext _dbContext;
 
         public CostCenterService(ApplicationDbContext dbContext)

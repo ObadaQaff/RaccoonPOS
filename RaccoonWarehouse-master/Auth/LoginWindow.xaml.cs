@@ -23,6 +23,7 @@ namespace RaccoonWarehouse.Auth
         private readonly IAuthService _authService;
         private readonly IPermissionService _permissionService;
         private readonly RaccoonWarehouse.Core.Audit.IAuditLogService _auditLogService;
+        private bool _loginInProgress;
 
         public LoginWindow(
             IServiceProvider serviceProvider,
@@ -92,6 +93,9 @@ namespace RaccoonWarehouse.Auth
 
         private async void Login_Click(object sender, RoutedEventArgs e)
         {
+            if (_loginInProgress)
+                return;
+
             ErrorText.Visibility = Visibility.Collapsed;
 
             var username = UsernameTextBox.Text.Trim();
@@ -105,6 +109,7 @@ namespace RaccoonWarehouse.Auth
                 return;
             }
 
+            _loginInProgress = true;
             SetLoading(true);
 
             try
@@ -124,7 +129,6 @@ namespace RaccoonWarehouse.Auth
                 }
 
                 _userSession.SetCurrentUser(user);
-                await LoadSessionPermissionsAsync(user.Role);
                 await _auditLogService.WriteAsync(new RaccoonWarehouse.Core.Audit.AuditEvent("Login"));
 
                 var openSession = await _cashierSessionService.GetOpenSessionByCashierAsync(user.Id);
@@ -168,6 +172,7 @@ namespace RaccoonWarehouse.Auth
             }
             finally
             {
+                _loginInProgress = false;
                 SetLoading(false);
             }
         }

@@ -5,8 +5,7 @@ using RaccoonWarehouse.Domain.Accounting.Periods;
 
 namespace RaccoonWarehouse.Application.Service.Accounting
 {
-    public class FiscalYearService
-    {
+    public class FiscalYearService : IFiscalYearService{
         private readonly ApplicationDbContext _dbContext;
 
         public FiscalYearService(ApplicationDbContext dbContext)

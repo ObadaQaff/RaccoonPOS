@@ -14,7 +14,8 @@ public partial class GoodsReceiptsWindow : Window
     private readonly ObservableCollection<GoodsReceiptReadDto> _receipts = new();
 
     public GoodsReceiptsWindow(IGoodsReceiptService service, ILoadingService loading)
-    { _service = service; _loading = loading; InitializeComponent(); ReceiptsGrid.ItemsSource = _receipts; UiText.ApplyWindow(this); }
+    { _service = service; _loading = loading; RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+            InitializeComponent(); ReceiptsGrid.ItemsSource = _receipts; UiText.ApplyWindow(this); }
     private async void Window_Loaded(object sender, RoutedEventArgs e) => await LoadAsync();
     private async void Refresh_Click(object sender, RoutedEventArgs e) => await LoadAsync();
     private async Task LoadAsync()

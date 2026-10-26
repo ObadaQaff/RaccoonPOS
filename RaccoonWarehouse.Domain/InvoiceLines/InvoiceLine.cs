@@ -27,6 +27,8 @@ namespace RaccoonWarehouse.Domain.InvoiceLines
         public decimal LineDiscountAmount { get; set; }
         public decimal FreeQuantity { get; set; }
         public string? BonusRatio { get; set; }
+        // Normalized bonus percentage. 110% means an additional 0.10 unit on the line.
+        public decimal? BonusPercentage { get; set; }
         // Null identifies old/ordinary lines; this snapshot excludes recoverable input VAT.
         public decimal? PurchaseAcquisitionCost { get; set; }
         // Original purchase line for an explicit paid/free purchase return.

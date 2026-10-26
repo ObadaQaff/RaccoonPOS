@@ -367,6 +367,11 @@ FodyWeavers.xsd
 
 # Local Codex/build verification outputs
 .build-check*/
+build-check*/
+build-verify/
+build_verify/
+buildverify_*/
+isolated-*-build/
 .codex-build/
 _codex_*/
 .dotnet-cli/

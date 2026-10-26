@@ -1,4 +1,4 @@
-<Window x:Class="RaccoonWarehouse.Stocks.StockIn"
+<Window xmlns:security="clr-namespace:RaccoonWarehouse.Security" x:Class="RaccoonWarehouse.Stocks.StockIn"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         PreviewKeyDown="StockIn_PreviewKeyDown"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -296,7 +296,7 @@
                                     FontSize="18"
                                     FontWeight="Bold"
                                     Click="AddSupplierBtn_Click"
-                                    ToolTip="Add supplier"/>
+                                    ToolTip="Add supplier" security:PermissionWindowGuard.Keys="Users.Create"/>
                         </Grid>
                     </StackPanel>
                 </Grid>
@@ -317,7 +317,7 @@
                             Width="230"
                             Margin="0,6,0,0"
                             Visibility="Collapsed"
-                            Click="ChecksBtn_Click"/>
+                            Click="ChecksBtn_Click" security:PermissionWindowGuard.Keys="SalesInvoice.View"/>
                 </StackPanel>
 
                 <StackPanel Margin="6,0,0,10" HorizontalAlignment="Left">
@@ -393,7 +393,7 @@
                                     VerticalAlignment="Center"
                                     Background="White"
                                     Cursor="Hand"
-                                    Click="SearchProductBtn_Click">
+                                    Click="SearchProductBtn_Click" security:PermissionWindowGuard.Keys="POS.View|PurchaseInvoice.View|PurchaseOrder.View|Products.View">
                                     <fa:ImageAwesome Icon="Search"
                                     Width="16" Height="14"
                                     Foreground="Black"/>
@@ -459,7 +459,7 @@
                             <Button Content="إضافة"
                             Style="{StaticResource PrimaryButtonStyle}"
                             Width="70"
-                            Click="AddProduct_Click"/>
+                            Click="AddProduct_Click" security:PermissionWindowGuard.Keys="StockInVoucher.Create|StockInVoucher.Edit"/>
                         </StackPanel>
 
                     </Grid>
@@ -469,7 +469,7 @@
                         Style="{StaticResource PrimaryButtonStyle}"
                         Width="180"
                         HorizontalAlignment="Center"
-                        Click="SearchProductBtn_Click"/>
+                        Click="SearchProductBtn_Click" security:PermissionWindowGuard.Keys="POS.View|PurchaseInvoice.View|PurchaseOrder.View|Products.View"/>
 
                 <!-- المنتجات -->
                 <StackPanel Margin="10,0,10,10">
@@ -543,7 +543,7 @@
                                             FontSize="16"
                                             Cursor="Hand"
                                             BorderThickness="0"
-                                            Click="DeleteProduct_Click" />
+                                            Click="DeleteProduct_Click"  security:PermissionWindowGuard.Keys="StockInVoucher.Create|StockInVoucher.Edit"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
@@ -590,7 +590,7 @@
                             FontSize="14"
                             Padding="8,4"
                             Margin="0,0,15,0"
-                            Click="SaveStockInBtn_Click">
+                            Click="SaveStockInBtn_Click" security:PermissionWindowGuard.Keys="StockInVoucher.Create|StockInVoucher.Edit;StockInVoucher.Post">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                             <fa:ImageAwesome Icon="Save" Width="18" Height="18"
                                              Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
@@ -601,7 +601,7 @@
                             Style="{StaticResource SecondaryButtonStyle}"
                             Width="180"
                             Click="SearchStockBtn_Click"    
-                            Margin="0,0,15,0">  
+                            Margin="0,0,15,0" security:PermissionWindowGuard.Keys="StockInVoucher.View">  
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                             <fa:ImageAwesome Icon="Search" Width="18" Height="18"
                                  Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
@@ -613,7 +613,7 @@
                             Width="210"
                             Visibility="Collapsed"
                             Click="ImportFalconStockBtn_Click"
-                            Margin="0,0,15,0">
+                            Margin="0,0,15,0" security:PermissionWindowGuard.Keys="StockInVoucher.Create|StockInVoucher.Edit">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                             <fa:ImageAwesome Icon="Download" Width="18" Height="18"
                                 Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
@@ -625,7 +625,7 @@
                         Width="180"
                         Margin="0,0,15,0"
                         Visibility="Collapsed" 
-                        Click="PrintBtn_Click">
+                        Click="PrintBtn_Click" security:PermissionWindowGuard.Keys="StockInVoucher.Print">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                             <fa:ImageAwesome Icon="Print" Width="18" Height="18"
                          Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"/>

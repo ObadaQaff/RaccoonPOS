@@ -4,6 +4,7 @@ using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Core.Common;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.PurchaseOrders.DTOs;
+using RaccoonWarehouse.Domain.Products;
 using RaccoonWarehouse.Helpers.Localization;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -40,6 +41,7 @@ public partial class PurchaseOrdersWindow : Window
         _service = service;
         _permissionService = permissionService;
         _loadingService = loadingService;
+        RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
         InitializeComponent();
         OrdersGrid.ItemsSource = _orders;
         _ordersView = CollectionViewSource.GetDefaultView(_orders);
@@ -240,10 +242,12 @@ public partial class PurchaseOrdersWindow : Window
             return false;
         if (!MatchesSupplier(order.SupplierName)) return false;
         var productName = ProductNameFilter?.Text.Trim() ?? string.Empty;
-        var barcode = BarcodeFilter?.Text.Trim() ?? string.Empty;
+        var barcode = BarcodeLookup.Normalize(BarcodeFilter?.Text);
         if (productName.Length == 0 && barcode.Length == 0) return true;
         return order.FilterLines.Any(line => MatchesProductName(line.ProductName, productName)
-            && (barcode.Length == 0 || (line.Barcode?.Contains(barcode, StringComparison.OrdinalIgnoreCase) ?? false)));
+            && (barcode.Length == 0 ||
+                BarcodeLookup.AreEquivalent(line.Barcode, barcode) ||
+                (line.Barcode?.Contains(barcode, StringComparison.OrdinalIgnoreCase) ?? false)));
     }
 
     private void OrdersGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -550,7 +554,7 @@ public partial class PurchaseOrdersWindow : Window
 
         dialog.Content = grid;
         dialog.Loaded += (_, _) => noteTextBox.Focus();
-        return dialog.ShowDialog() == true ? noteTextBox.Text.Trim() : null;
+        return RaccoonWarehouse.Security.PermissionWindowGuard.ShowDialog(dialog, "PurchaseOrder.View") == true ? noteTextBox.Text.Trim() : null;
     }
 
     private static string GetStatusText(PurchaseOrderStatus status) => status.ToString();

@@ -69,6 +69,7 @@ public partial class InsuranceInvoiceWindow : Window
         _userService = userService;
         _loading = loading;
         _db = db;
+        RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
         InitializeComponent();
         LinesGrid.ItemsSource = _lines;
         InvoiceNumberTextBox.Text = (DateTime.Now.Ticks % 100000).ToString("00000", CultureInfo.InvariantCulture);
@@ -160,6 +161,7 @@ public partial class InsuranceInvoiceWindow : Window
 
     private async void Save_Click(object sender, RoutedEventArgs e)
     {
+        RaccoonWarehouse.Security.PermissionWindowGuard.DemandRule("InsuranceClaims.Create;SalesInvoice.Post");
         if (!await CalculateAsync(true) || _calculation == null || !TryParseIds(out var customerId, out var policyId, out var companyId, out var contractId, out var planId, out var versionId))
             return;
         if (_userSession.CurrentCashierSession is not CashierSessionReadDto session)
@@ -231,13 +233,12 @@ public partial class InsuranceInvoiceWindow : Window
                 DeductibleAmount = _calculation.DeductibleAmount, CopayAmount = _calculation.CopayAmount,
                 CreatedDate = DateTime.Now, UpdatedDate = DateTime.Now
             };
-            _db.InsuranceInvoiceCoverages.Add(coverage);
-            await _db.SaveChangesAsync();
+            var coverageLines = new List<InsuranceInvoiceCoverageLine>();
             var savedLines = saved.InvoiceLines?.ToList() ?? new List<InvoiceLineWriteDto>();
             for (var i = 0; i < _calculation.Lines.Count; i++)
             {
                 var calculated = _calculation.Lines[i];
-                _db.InsuranceInvoiceCoverageLines.Add(new InsuranceInvoiceCoverageLine
+                coverageLines.Add(new InsuranceInvoiceCoverageLine
                 {
                     InsuranceInvoiceCoverageId = coverage.Id, InvoiceLineId = savedLines.ElementAtOrDefault(i)?.Id ?? 0,
                     ProductId = calculated.ProductId, Quantity = calculated.Quantity, ContractedUnitPrice = calculated.ContractedUnitPrice,
@@ -249,7 +250,8 @@ public partial class InsuranceInvoiceWindow : Window
                     CreatedDate = DateTime.Now, UpdatedDate = DateTime.Now
                 });
             }
-            await _db.SaveChangesAsync();
+            var coverageResult = await _insuranceService.SaveInvoiceCoverageAsync(coverage, coverageLines);
+            if (!coverageResult.Success) { MessageBox.Show(coverageResult.Message); return; }
             await _insuranceService.CreateClaimAsync(saved.Id, coverage.Id);
             MessageBox.Show(UiText.T("تم حفظ فاتورة التأمين وإنشاء المطالبة.", "Insurance invoice and claim saved successfully."), UiText.T("نجاح", "Success"));
             Close();

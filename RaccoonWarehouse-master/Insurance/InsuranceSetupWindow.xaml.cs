@@ -1,3 +1,4 @@
+using RaccoonWarehouse.Application.Service.Permissions;
 using RaccoonWarehouse.Application.Service.Insurance;
 using RaccoonWarehouse.Application.Service.Products;
 using RaccoonWarehouse.Application.Service.Stocks;
@@ -14,6 +15,7 @@ namespace RaccoonWarehouse.Insurance;
 
 public partial class InsuranceSetupWindow : Window
 {
+    private readonly IPermissionService _permissions;
     private readonly IInsuranceManagementService _service;
     private readonly ILoadingService _loading;
     private readonly IProductService _productService;
@@ -24,13 +26,15 @@ public partial class InsuranceSetupWindow : Window
     private readonly ObservableCollection<InsuranceMemberPolicyDto> _members = new();
     private readonly ObservableCollection<InsuranceCoverageRuleDto> _rules = new();
 
-    public InsuranceSetupWindow(IInsuranceManagementService service, ILoadingService loading, IProductService productService, IStockService stockService, IUserService userService)
+    public InsuranceSetupWindow(IInsuranceManagementService service, ILoadingService loading, IProductService productService, IStockService stockService, IUserService userService, IPermissionService permissions)
     {
+        _permissions = permissions;
         _service = service;
         _loading = loading;
         _productService = productService;
         _stockService = stockService;
         _userService = userService;
+        RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
         InitializeComponent();
         ContractsGrid.ItemsSource = _contracts;
         PlansGrid.ItemsSource = _plans;
@@ -46,17 +50,19 @@ public partial class InsuranceSetupWindow : Window
         _loading.Show();
         try
         {
-            var contracts = await _service.GetContractsAsync();
-            var members = await _service.GetMemberPoliciesAsync();
-            if (!contracts.Success || !members.Success)
+            _contracts.Clear(); _members.Clear();
+            if (await _permissions.HasCurrentUserPermissionAsync("InsuranceContracts.View"))
             {
-                MessageBox.Show(contracts.Success ? members.Message : contracts.Message, UiText.T("خطأ", "Error"));
-                return;
+                var contracts = await _service.GetContractsAsync();
+                if (contracts.Success) foreach (var row in contracts.Data ?? new()) _contracts.Add(row);
+                else MessageBox.Show(contracts.Message, UiText.T("خطأ", "Error"));
             }
-            _contracts.Clear();
-            foreach (var row in contracts.Data ?? new()) _contracts.Add(row);
-            _members.Clear();
-            foreach (var row in members.Data ?? new()) _members.Add(row);
+            if (await _permissions.HasCurrentUserPermissionAsync("InsurancePolicies.View"))
+            {
+                var members = await _service.GetMemberPoliciesAsync();
+                if (members.Success) foreach (var row in members.Data ?? new()) _members.Add(row);
+                else MessageBox.Show(members.Message, UiText.T("خطأ", "Error"));
+            }
             if (_contracts.Count > 0)
             {
                 ContractsGrid.SelectedIndex = 0;
@@ -101,6 +107,12 @@ public partial class InsuranceSetupWindow : Window
         });
         MessageBox.Show(result.Message, result.Success ? UiText.T("تم", "Success") : UiText.T("خطأ", "Error"));
         if (result.Success) await LoadAsync();
+    }
+
+    private async void LoadPlans_Click(object sender, RoutedEventArgs e)
+    {
+        if (int.TryParse(PlanContractIdTextBox.Text, out var contractId) && contractId > 0)
+            await LoadPlansAsync(contractId);
     }
 
     private async void SavePlan_Click(object sender, RoutedEventArgs e)

@@ -52,6 +52,7 @@ namespace RaccoonWarehouse.Products
         private bool _isUpdatingFractionalSuggestions;
         public ObservableCollection<ProductMovementRow> ProductMovements { get; } = new();
         public ObservableCollection<ProductStockUnitRow> ProductStockByUnit { get; } = new();
+        public ObservableCollection<ProductStockLotRow> ProductStockLots { get; } = new();
         public decimal CurrentStockTotalBaseQuantity { get; set; }
         public decimal CurrentStockTotalQuantity { get; set; }
         public decimal CurrentStockAverageCost { get; set; }
@@ -69,6 +70,7 @@ namespace RaccoonWarehouse.Products
             IStockService stockService,
             IUserService userService)
         {
+            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
 
             _productService = productService;
@@ -262,6 +264,27 @@ namespace RaccoonWarehouse.Products
 
             var rows = result.Data?.ToList() ?? new List<StockReadDto>();
             ProductStockByUnit.Clear();
+            ProductStockLots.Clear();
+
+            var lotResult = await _stockService.GetBatchLookupAsync(_productId);
+            var activeLots = (lotResult.Data ?? new List<StockBatchLookupDto>())
+                .Where(lot => lot.Status == BatchStatus.Active && lot.RemainingQuantity > 0)
+                .OrderBy(lot => lot.ExpiryDate.HasValue ? 0 : 1)
+                .ThenBy(lot => lot.ExpiryDate)
+                .ThenBy(lot => lot.CreatedDate)
+                .ToList();
+
+            foreach (var lot in activeLots)
+            {
+                ProductStockLots.Add(new ProductStockLotRow
+                {
+                    StockLotId = lot.StockLotId,
+                    UnitName = lot.UnitName,
+                    Quantity = lot.RemainingQuantity,
+                    SalePrice = lot.SalePrice,
+                    ExpiryDate = lot.ExpiryDate
+                });
+            }
 
             CurrentStockTotalQuantity = rows.Sum(stock => stock.Quantity);
             CurrentStockTotalBaseQuantity = rows.Sum(stock =>
@@ -281,9 +304,9 @@ namespace RaccoonWarehouse.Products
                 CurrentStockAverageSalePrice = 0m;
             }
 
-            var nearestExpiry = rows
-                .Where(stock => stock.ExpiryDate.HasValue)
-                .Select(stock => stock.ExpiryDate!.Value)
+            var nearestExpiry = activeLots
+                .Where(lot => lot.ExpiryDate.HasValue)
+                .Select(lot => lot.ExpiryDate!.Value)
                 .OrderBy(date => date)
                 .FirstOrDefault();
             CurrentStockNearestExpiry = nearestExpiry == default ? "-" : nearestExpiry.ToString("yyyy-MM-dd");
@@ -995,6 +1018,15 @@ namespace RaccoonWarehouse.Products
             public decimal BaseQuantity { get; set; }
             public decimal PurchasePrice { get; set; }
             public decimal SalePrice { get; set; }
+        }
+
+        public sealed class ProductStockLotRow
+        {
+            public int StockLotId { get; set; }
+            public string UnitName { get; set; } = "-";
+            public decimal Quantity { get; set; }
+            public decimal SalePrice { get; set; }
+            public DateTime? ExpiryDate { get; set; }
         }
     }
 }

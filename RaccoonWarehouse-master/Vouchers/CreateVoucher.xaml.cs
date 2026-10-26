@@ -13,6 +13,8 @@ using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.FinancialTransactions.DTOs;
 using RaccoonWarehouse.Domain.Users.DTOs;
 using RaccoonWarehouse.Domain.Vouchers.DTOs;
+using RaccoonWarehouse.Application.Service.Insurance;
+using RaccoonWarehouse.Domain.Insurance;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -53,13 +55,18 @@ namespace RaccoonWarehouse.Vouchers
         private List<UserReadDto> _allAccountUsers = new();
         private bool _isFilteringAccountUsers;
         private bool _isNavigatingAccountChoices;
+        private readonly IInsuranceManagementService _insuranceService;
+        private bool _insuranceReceiptMode;
+        private decimal _insuranceOutstanding;
+        private InsuranceCompanyDto? _selectedInsuranceCompany;
 
 
         public CreateVoucher(IVoucherService voucherService, IUserService userService,
                                      IFinancialTransactionService financialService,
                                      IUserSession userSession,
                                      IWarehouseService warehouseService,
-                                     ILoadingService loadingService)
+                                     ILoadingService loadingService,
+                                     IInsuranceManagementService insuranceService)
         {
             _voucherService = voucherService;
             _userService = userService;
@@ -67,6 +74,8 @@ namespace RaccoonWarehouse.Vouchers
             _userSession = userSession;
             _warehouseService = warehouseService;
             _loadingService = loadingService;
+            _insuranceService = insuranceService;
+            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
             AccountComboBox.Loaded += AccountComboBox_Loaded;
             AccountComboBox.PreviewKeyDown += AccountComboBox_PreviewKeyDown;
@@ -99,6 +108,18 @@ namespace RaccoonWarehouse.Vouchers
                 PaymentTypeCombo.Items.Remove(creditItem);
             PaymentTypeCombo.SelectedIndex = 0;
         }
+
+        public void InitializeInsuranceReceipt()
+        {
+            _insuranceReceiptMode = true;
+            Title = UiText.T("سند قبض تأمين", "Insurance Receipt Voucher");
+            ReceiptDescription.Text = UiText.T("تحصيل ذمم شركة تأمين", "Insurance company receivable collection");
+            AccountComboBox.Visibility = Visibility.Collapsed;
+            AddCustomerButton.Visibility = Visibility.Collapsed;
+            InsuranceCompanyComboBox.Visibility = Visibility.Visible;
+            WarehouseComboBox.Visibility = Visibility.Collapsed;
+            PaymentTypeCombo.SelectedIndex = 0;
+        }
         private string GenerateDocumentNumber()
         {
             return (DateTime.Now.Ticks % 90000 + 10000).ToString();
@@ -110,6 +131,17 @@ namespace RaccoonWarehouse.Vouchers
             {
                 _loadingService.Show();
                 ReceiptDate.SelectedDate = DateTime.Now;
+                if (_insuranceReceiptMode)
+                {
+                    var companies = await _insuranceService.GetCompaniesAsync(activeOnly: true);
+                    InsuranceCompanyComboBox.ItemsSource = companies.Data ?? new List<InsuranceCompanyDto>();
+                    InsuranceCompanyComboBox.DisplayMemberPath = "Name";
+                    InsuranceCompanyComboBox.SelectedValuePath = "Id";
+                    InsuranceCompanyComboBox.SelectionChanged += InsuranceCompanyComboBox_SelectionChanged;
+                    AccountComboBox.Visibility = Visibility.Collapsed;
+                    AddCustomerButton.Visibility = Visibility.Collapsed;
+                    InsuranceCompanyComboBox.Visibility = Visibility.Visible;
+                }
                 var users = await _userService.GetAllAsync();
                 _allAccountUsers = users.Data?.ToList() ?? new List<UserReadDto>();
                 AccountComboBox.ItemsSource = _allAccountUsers.ToList();
@@ -141,6 +173,22 @@ namespace RaccoonWarehouse.Vouchers
                 _loadingService.Hide();
             }
 
+        }
+
+        private async void InsuranceCompanyComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!_insuranceReceiptMode || InsuranceCompanyComboBox.SelectedItem is not InsuranceCompanyDto company)
+                return;
+
+            _selectedInsuranceCompany = company;
+            var claims = await _insuranceService.GetClaimsAsync(company.Id);
+            _insuranceOutstanding = claims.Data?
+                .Where(claim => claim.OutstandingAmount > 0m)
+                .Sum(claim => claim.OutstandingAmount) ?? 0m;
+            Amount.Text = _insuranceOutstanding.ToString("0.000");
+            ReceiptDescription.Text = UiText.T(
+                $"تحصيل ذمم شركة التأمين {company.Name}",
+                $"Insurance receivable collection - {company.Name}");
         }
         private bool TryGetActiveCashierSession(out CashierSessionReadDto? session)
         {
@@ -265,6 +313,26 @@ namespace RaccoonWarehouse.Vouchers
                 {
                     MessageBox.Show(UiText.T("يرجى إدخال مبلغ صالح.", "Please enter a valid amount."), UiText.T("تحذير", "Warning"), MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
+                }
+
+                if (_insuranceReceiptMode)
+                {
+                    if (InsuranceCompanyComboBox.SelectedItem is not InsuranceCompanyDto company)
+                    {
+                        MessageBox.Show(UiText.T("يرجى اختيار شركة التأمين.", "Please select an insurance company."), UiText.T("تنبيه", "Notice"));
+                        return;
+                    }
+                    if (!company.ReceivableAccountId.HasValue)
+                    {
+                        MessageBox.Show(UiText.T("يرجى إعداد حساب الذمم لشركة التأمين أولاً.", "Configure the insurance company's receivable account first."), UiText.T("تنبيه", "Notice"));
+                        return;
+                    }
+                    if (amount > _insuranceOutstanding)
+                    {
+                        MessageBox.Show(string.Format(UiText.T("لا يمكن أن يتجاوز المبلغ الرصيد المستحق {0:N3}.", "The amount cannot exceed the outstanding balance of {0:N3}."), _insuranceOutstanding), UiText.T("تنبيه", "Notice"));
+                        return;
+                    }
+                    _selectedInsuranceCompany = company;
                 }
 
                 if (_customerCollectionMode && AccountComboBox.SelectedValue == null)
@@ -415,6 +483,8 @@ namespace RaccoonWarehouse.Vouchers
                     CashierId = session.CashierId,
 
                     Notes = $"{dto.VoucherType} Voucher #{dto.VoucherNumber}"
+                    ,
+                    CounterpartAccountId = _insuranceReceiptMode ? _selectedInsuranceCompany?.ReceivableAccountId : null
                 };
 
                 // مهم: إذا الطريقة Cash لازم SessionId مش null (حسب validations عندك)
@@ -424,6 +494,26 @@ namespace RaccoonWarehouse.Vouchers
                     HideLoadingIfShown();
                     MessageBox.Show(postRes.Message ?? UiText.T("تم حفظ السند لكن فشل تسجيل الحركة المالية", "The voucher was saved, but posting the financial transaction failed."), UiText.T("تحذير", "Warning"));
                     return;
+                }
+
+                if (_insuranceReceiptMode && _selectedInsuranceCompany != null)
+                {
+                    var insuranceResult = await _insuranceService.RecordPaymentAsync(new InsuranceClaimPaymentWriteDto
+                    {
+                        InsuranceCompanyId = _selectedInsuranceCompany.Id,
+                        ReceiptNumber = dto.VoucherNumber ?? string.Empty,
+                        PaymentDate = dto.CreatedDate,
+                        Amount = dto.Amount,
+                        FinancialTransactionId = postRes.Data?.Id,
+                        Notes = dto.Notes,
+                        Allocations = new List<InsuranceClaimPaymentAllocationDto>()
+                    });
+                    if (!insuranceResult.Success)
+                    {
+                        HideLoadingIfShown();
+                        MessageBox.Show($"{UiText.T("تم حفظ السند ولكن فشل تحديث مطالبات التأمين", "The voucher was saved but insurance claims were not updated")}: {insuranceResult.Message}", UiText.T("تحذير", "Warning"));
+                        return;
+                    }
                 }
 
                 // =========================
@@ -441,7 +531,7 @@ namespace RaccoonWarehouse.Vouchers
                 {
                     try
                     {
-                        PrintVoucherPdf(dto);
+                        PrintVoucherPdf(await RaccoonWarehouse.Helpers.Pdf.VoucherPrintRuntime.LoadAsync(savedVoucherId,VoucherType.Receipt));
                     }
                     catch (Exception pdfEx)
                     {
@@ -1292,57 +1382,23 @@ namespace RaccoonWarehouse.Vouchers
         }
 
 
-        private void PrintBtn_Click(object sender, RoutedEventArgs e)
+        private async void PrintBtn_Click(object sender, RoutedEventArgs e)
         {
+            var button=sender as System.Windows.Controls.Button;
+            if(button!=null)button.IsEnabled=false;
             try
             {
-                // Commit DataGrid edits
-                ChecksGrid.CommitEdit(DataGridEditingUnit.Cell, true);
-                ChecksGrid.CommitEdit(DataGridEditingUnit.Row, true);
-
-                _checks = ChecksGrid.Items
-                                    .OfType<CheckWriteDto>()
-                                    .ToList();
-
-                if (!decimal.TryParse(Amount.Text, out decimal amount))
-                {
-                    MessageBox.Show(UiText.T("يرجى إدخال مبلغ صحيح.", "Please enter a valid amount."), UiText.T("خطأ", "Error"));
-                    return;
-                }
-
-                if (PaymentTypeCombo.SelectedItem is not ComboBoxItem paymentItem || paymentItem.Tag == null)
-                {
-                    MessageBox.Show(UiText.T("يرجى اختيار طريقة الدفع.", "Please choose a payment method."), UiText.T("تنبيه", "Notice"));
-                    return;
-                }
-
-                var paymentType = (PaymentType)int.Parse(paymentItem.Tag.ToString()!);
-                var dto = new VoucherWriteDto
-                {
-                    Id = _currentVoucherId ?? 0,
-                    VoucherNumber = ReceiptNumber.Text,
-                    Amount = amount,
-                    Notes = string.IsNullOrWhiteSpace(ReceiptDescription.Text) ? null : ReceiptDescription.Text.Trim(),
-                    CreatedDate = ReceiptDate.SelectedDate ?? DateTime.Now,
-                    UpdatedDate = DateTime.Now,
-                    VoucherType = VoucherType.Receipt,
-                    PaymentType = paymentType,
-                    Checks = paymentType == PaymentType.Check ? _checks : null
-                };
-
-                if (paymentType == PaymentType.Check && !ValidatePaymentByCheck(amount))
-                    return;
-
-                PrintVoucherPdf(dto);
+                if(!_currentVoucherId.HasValue)throw new InvalidOperationException(UiText.T("احفظ السند قبل الطباعة.","Save the voucher before printing."));
+                var data=await RaccoonWarehouse.Helpers.Pdf.VoucherPrintRuntime.LoadAsync(_currentVoucherId.Value,VoucherType.Receipt);
+                PrintVoucherPdf(data);
             }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"{UiText.T("حدث خطأ أثناء الطباعة", "An error occurred while printing")}:\n{ex.Message}", UiText.T("خطأ", "Error"), MessageBoxButton.OK, MessageBoxImage.Error);
-            }
+            catch(Exception ex){MessageBox.Show(UiText.T("تعذرت طباعة السند: ","Voucher printing failed: ")+ex.Message,UiText.T("خطأ","Error"),MessageBoxButton.OK,MessageBoxImage.Error);}
+            finally{if(button!=null)button.IsEnabled=true;}
         }
 
-        private void PrintVoucherPdf(VoucherWriteDto dto)
+        private void PrintVoucherPdf(RaccoonWarehouse.Domain.Vouchers.DTOs.VoucherPrintData data)
         {
+            var dto=data.Voucher;
             var dlg = new Microsoft.Win32.SaveFileDialog
             {
                 Filter = "PDF File (*.pdf)|*.pdf",
@@ -1351,7 +1407,7 @@ namespace RaccoonWarehouse.Vouchers
 
             if (dlg.ShowDialog() == true)
             {
-                PdfGenerator.GenerateVoucherPdf(dto, dlg.FileName);
+                QuestPDF.Fluent.GenerateExtensions.GeneratePdf(new RaccoonWarehouse.Helpers.Pdf.Reports.VoucherReportDocument(data),dlg.FileName);
 
                 MessageBox.Show(UiText.T("تم حفظ ملف PDF بنجاح.", "The PDF file was saved successfully."), UiText.T("نجاح", "Success"),
                     MessageBoxButton.OK, MessageBoxImage.Information);

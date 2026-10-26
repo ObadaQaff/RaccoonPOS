@@ -27,6 +27,7 @@ namespace RaccoonWarehouse.Stocks
         public CreateStock(IStockService stockService)
         {
             _stockService = stockService;
+            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
         }
 

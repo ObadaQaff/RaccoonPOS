@@ -37,6 +37,10 @@ namespace RaccoonWarehouse.Application.Service.Stocks
             if (asOfDate.HasValue)
             {
                 var balanceRows = await GetStockBalanceByDateAsync(asOfDate.Value);
+                var currentPriceRows = await GetCurrentStockAsync(null, null, supplierId);
+                var currentPricesByProduct = currentPriceRows
+                    .GroupBy(x => x.ProductId)
+                    .ToDictionary(group => group.Key, group => group.First());
                 var normalizedDateSearch = string.IsNullOrWhiteSpace(searchText) ? null : searchText.Trim();
                 return balanceRows
                     .Where(x => (!supplierId.HasValue || supplierId.Value <= 0 || x.SupplierId == supplierId.Value) &&
@@ -53,9 +57,16 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                         UnitName = x.UnitName,
                         Quantity = x.Quantity,
                         MinimumQuantity = x.MinimumQuantity,
-                        PurchasePrice = 0m,
-                        SalePrice = 0m,
-                        NearestExpiryDate = x.NearestExpiryDate
+                        PurchasePrice = currentPricesByProduct.TryGetValue(x.ProductId, out var currentPrice)
+                            ? currentPrice.PurchasePrice
+                            : 0m,
+                        SalePrice = currentPricesByProduct.TryGetValue(x.ProductId, out currentPrice)
+                            ? currentPrice.SalePrice
+                            : 0m,
+                        NearestExpiryDate = x.NearestExpiryDate,
+                        Lots = currentPricesByProduct.TryGetValue(x.ProductId, out currentPrice)
+                            ? currentPrice.Lots
+                            : new List<CurrentStockLotDto>()
                     })
                     .OrderBy(x => x.ProductName)
                     .ToList();
@@ -89,6 +100,7 @@ namespace RaccoonWarehouse.Application.Service.Stocks
 
             var stocks = await query.ToListAsync();
             var nearestLots = await GetNearestLotsByProductAsync();
+            var currentLotsByProduct = await GetCurrentLotsByProductAsync(stocks.Select(stock => stock.ProductId).Distinct().ToList());
 
             return stocks
                 .GroupBy(s => s.ProductId)
@@ -99,6 +111,15 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                     var nearestLot = nearestLots.TryGetValue(group.Key, out var lot) ? lot : null;
                     var totalBaseQuantity = group.Sum(GetNormalizedStockQuantity);
                     var saleUnitFactor = GetUnitFactor(saleUnit);
+                    var currentLots = currentLotsByProduct.TryGetValue(group.Key, out var lots)
+                        ? lots.Select(currentLot => new CurrentStockLotDto
+                        {
+                            StockLotId = currentLot.Id,
+                            CurrentQuantity = GetEffectiveRemainingBaseQuantity(currentLot) / saleUnitFactor,
+                            SalePrice = currentLot.SalePrice,
+                            ExpiryDate = currentLot.ExpiryDate
+                        }).ToList()
+                        : new List<CurrentStockLotDto>();
 
                     return new CurrentStockDto
                     {
@@ -114,7 +135,8 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                             : null,
                         PurchasePrice = nearestLot?.PurchasePrice ?? sample.PurchasePrice,
                         SalePrice = nearestLot?.SalePrice ?? sample.SalePrice,
-                        NearestExpiryDate = nearestLot?.ExpiryDate
+                        NearestExpiryDate = nearestLot?.ExpiryDate,
+                        Lots = currentLots
                     };
                 })
                 .OrderBy(x => x.ProductName)
@@ -868,6 +890,39 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                         .First());
         }
 
+        private async Task<Dictionary<int, List<StockLot>>> GetCurrentLotsByProductAsync(IReadOnlyCollection<int> productIds)
+        {
+            var lotRepo = _uow.GetRepository<StockLot>();
+            var lots = await lotRepo.GetAllAsQueryable()
+                .AsNoTracking()
+                .Where(l => productIds.Contains(l.ProductId) &&
+                            l.Status == BatchStatus.Active &&
+                            (l.RemainingBaseQuantity > 0 || l.RemainingQuantity > 0))
+                .Select(l => new StockLot
+                {
+                    Id = l.Id,
+                    ProductId = l.ProductId,
+                    ProductUnitId = l.ProductUnitId,
+                    RemainingQuantity = l.RemainingQuantity,
+                    QuantityPerUnitSnapshot = l.QuantityPerUnitSnapshot,
+                    RemainingBaseQuantity = l.RemainingBaseQuantity,
+                    SalePrice = l.SalePrice,
+                    ExpiryDate = l.ExpiryDate,
+                    CreatedDate = l.CreatedDate
+                })
+                .ToListAsync();
+
+            return lots
+                .GroupBy(l => l.ProductId)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group
+                        .OrderBy(l => l.ExpiryDate == null ? 1 : 0)
+                        .ThenBy(l => l.ExpiryDate)
+                        .ThenBy(l => l.CreatedDate)
+                        .ToList());
+        }
+
         private async Task<Dictionary<(int ProductId, int ProductUnitId), StockLot>> GetNearestLotsByProductUnitAsync()
         {
             var lotRepo = _uow.GetRepository<StockLot>();
@@ -903,6 +958,15 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                 return unit.QuantityPerUnit;
 
             return 1m;
+        }
+
+        private static decimal GetEffectiveRemainingBaseQuantity(StockLot lot)
+        {
+            if (lot.RemainingBaseQuantity > 0m)
+                return lot.RemainingBaseQuantity;
+
+            var factor = lot.QuantityPerUnitSnapshot > 0m ? lot.QuantityPerUnitSnapshot : 1m;
+            return lot.RemainingQuantity * factor;
         }
 
         private static decimal GetNormalizedStockQuantity(Stock stock)

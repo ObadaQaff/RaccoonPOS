@@ -22,6 +22,7 @@ namespace RaccoonWarehouse.Reports
             _financialTransactionService = financialTransactionService;
             _userService = userService;
             _sourceDocumentNavigationService = sourceDocumentNavigationService;
+            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
             UiText.ApplyWindow(this);
             Loaded += CreditSalesReport_Loaded;

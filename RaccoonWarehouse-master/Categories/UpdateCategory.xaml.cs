@@ -22,6 +22,7 @@ namespace RaccoonWarehouse.Categories
             _mapper = mapper;
             _categoryService = categoryService;
             _loadingService = loadingService;
+            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
             _category = new CategoryWriteDto();
             UiText.ApplyWindow(this);

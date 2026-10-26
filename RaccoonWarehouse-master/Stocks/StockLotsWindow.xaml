@@ -1,4 +1,4 @@
-<Window x:Class="RaccoonWarehouse.Stocks.StockLotsWindow"
+<Window xmlns:security="clr-namespace:RaccoonWarehouse.Security" x:Class="RaccoonWarehouse.Stocks.StockLotsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Lot Management / إدارة دفعات المخزون"
@@ -73,7 +73,7 @@
                         Padding="18,9" Margin="0,0,8,0" />
                 <Button x:Name="AdjustmentButton" Content="Open adjustment / تعديل المخزون"
                         Style="{DynamicResource AppHeroButtonStyle}" Click="AdjustmentButton_Click"
-                        Padding="18,9" />
+                        Padding="18,9"  security:PermissionWindowGuard.Keys="StockAdjustment.View"/>
             </StackPanel>
         </DockPanel>
     </Grid>

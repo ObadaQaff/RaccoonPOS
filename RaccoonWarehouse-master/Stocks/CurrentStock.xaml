@@ -1,4 +1,4 @@
-<Window x:Class="RaccoonWarehouse.Stocks.CurrentStock"
+<Window xmlns:security="clr-namespace:RaccoonWarehouse.Security" x:Class="RaccoonWarehouse.Stocks.CurrentStock"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:fa="http://schemas.fontawesome.io/icons/"
@@ -68,7 +68,8 @@
         </Style>
 
         <Style x:Key="ReportDataGridStyle" TargetType="DataGrid">
-            <Setter Property="RowHeight" Value="42"/>
+            <Setter Property="RowHeight" Value="Auto"/>
+            <Setter Property="MinRowHeight" Value="42"/>
             <Setter Property="ColumnHeaderHeight" Value="46"/>
             <Setter Property="GridLinesVisibility" Value="Horizontal"/>
             <Setter Property="HorizontalGridLinesBrush" Value="#E9EEF3"/>
@@ -82,6 +83,7 @@
             <Setter Property="CanUserAddRows" Value="False"/>
             <Setter Property="CanUserDeleteRows" Value="False"/>
             <Setter Property="CanUserResizeRows" Value="False"/>
+            <Setter Property="VerticalContentAlignment" Value="Top"/>
             <Setter Property="CanUserSortColumns" Value="True"/>
             <Setter Property="ColumnHeaderStyle">
                 <Setter.Value>
@@ -245,7 +247,7 @@
                             Width="140"
                             Margin="12,0,0,0"
                             Style="{StaticResource SecondaryButtonStyle}"
-                            Click="ExportBtn_Click">
+                            Click="ExportBtn_Click" security:PermissionWindowGuard.Keys="CurrentStockReport.Export">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                             <fa:ImageAwesome Icon="Download" Width="15" Height="15"/>
                             <TextBlock Text=" تصدير Excel" Margin="8,0,0,0"/>
@@ -256,7 +258,7 @@
                             Width="150"
                             Margin="12,0,0,0"
                             Style="{StaticResource SecondaryButtonStyle}"
-                            Click="AdjustBtn_Click">
+                            Click="AdjustBtn_Click" security:PermissionWindowGuard.Keys="StockAdjustment.View">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                             <fa:ImageAwesome Icon="Sliders" Width="15" Height="15"/>
                             <TextBlock Text=" تسوية دفعة" Margin="8,0,0,0"/>
@@ -323,6 +325,56 @@
                         <DataGridTextColumn Header="تكلفة المخزون" Binding="{Binding PurchasePrice}" Width="130"/>
                         <DataGridTextColumn Header="سعر البيع الحالي" Binding="{Binding SalePrice}" Width="130"/>
                         <DataGridTextColumn Header="أقرب انتهاء" Binding="{Binding NearestExpiryDate, StringFormat=yyyy-MM-dd, TargetNullValue=-}" Width="150"/>
+                        <DataGridTemplateColumn Header="Lots / الدفعات" Width="360">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <ScrollViewer MaxHeight="110"
+                                                  VerticalScrollBarVisibility="Auto"
+                                                  HorizontalScrollBarVisibility="Disabled">
+                                        <StackPanel>
+                                            <Grid Margin="0,0,0,2">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="125"/>
+                                                    <ColumnDefinition Width="95"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0" Text="Expiry / انتهاء" FontWeight="SemiBold"/>
+                                                <TextBlock Grid.Column="1" Text="Qty / كمية" FontWeight="SemiBold" TextAlignment="Right"/>
+                                                <TextBlock Grid.Column="2" Text="Sale / بيع" FontWeight="SemiBold" TextAlignment="Right"/>
+                                            </Grid>
+                                            <ItemsControl ItemsSource="{Binding Lots}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Border Margin="0,2"
+                                                                Padding="6,4"
+                                                                Background="#F3F7FA"
+                                                                BorderBrush="#D7E3EB"
+                                                                BorderThickness="1"
+                                                                CornerRadius="5">
+                                                            <Grid>
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="125"/>
+                                                                    <ColumnDefinition Width="95"/>
+                                                                    <ColumnDefinition Width="*"/>
+                                                                </Grid.ColumnDefinitions>
+                                                                <TextBlock Grid.Column="0"
+                                                                           Text="{Binding ExpiryDate, StringFormat=yyyy-MM-dd, TargetNullValue=-}"/>
+                                                                <TextBlock Grid.Column="1"
+                                                                           Text="{Binding CurrentQuantity, StringFormat={}{0:N2}}"
+                                                                           TextAlignment="Right"/>
+                                                                <TextBlock Grid.Column="2"
+                                                                           Text="{Binding SalePrice, StringFormat={}{0:N2}}"
+                                                                           TextAlignment="Right"/>
+                                                            </Grid>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
                         <DataGridTextColumn Header="الحد الأدنى" Binding="{Binding MinimumQuantity}" Width="130"/>
                         <DataGridTemplateColumn Header="تنبيه" Width="120">
                             <DataGridTemplateColumn.CellTemplate>

@@ -10,7 +10,7 @@ namespace RaccoonWarehouse.Accounting.ViewModels
 {
     public partial class AddAccountViewModel : ObservableObject
     {
-        private readonly AccountService _accountService;
+        private readonly IAccountService _accountService;
         private Action<bool?>? _closeAction;
         private HashSet<string> _existingCodes = new(StringComparer.OrdinalIgnoreCase);
         private int _parentId;
@@ -45,7 +45,7 @@ namespace RaccoonWarehouse.Accounting.ViewModels
         public bool HasNatureError => !string.IsNullOrWhiteSpace(NatureError);
         public bool HasCategoryError => !string.IsNullOrWhiteSpace(CategoryError);
 
-        public AddAccountViewModel(AccountService accountService)
+        public AddAccountViewModel(IAccountService accountService)
         {
             _accountService = accountService;
         }

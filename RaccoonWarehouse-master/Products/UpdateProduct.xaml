@@ -1,4 +1,4 @@
-<Window x:Class="RaccoonWarehouse.Products.UpdateProduct"
+<Window xmlns:security="clr-namespace:RaccoonWarehouse.Security" x:Class="RaccoonWarehouse.Products.UpdateProduct"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="تعديل صنف"
@@ -136,7 +136,7 @@
                                 <CheckBox x:Name="IsDefaultPurchaseUnitCheckBox" VerticalAlignment="Center" HorizontalAlignment="Center"/>
                             </StackPanel>
                         </WrapPanel>
-                        <Button x:Name="AddUnitButton" Content="إضافة وحدة" Width="200" Style="{StaticResource AppFormButtonStyle}" HorizontalAlignment="Center" Margin="0,10,0,20" Click="AddUnit_Click" IsEnabled="False"/>
+                        <Button x:Name="AddUnitButton" Content="إضافة وحدة" Width="200" Style="{StaticResource AppFormButtonStyle}" HorizontalAlignment="Center" Margin="0,10,0,20" Click="AddUnit_Click" IsEnabled="False" security:PermissionWindowGuard.Keys="Products.Create"/>
                       </StackPanel>
                      </ScrollViewer>
                     </TabItem>
@@ -191,6 +191,24 @@
                                 <DataGridTextColumn Header="الكمية الأساسية" Binding="{Binding BaseQuantity, StringFormat={}{0:0.000}}" Width="130"/>
                                 <DataGridTextColumn Header="سعر الشراء" Binding="{Binding PurchasePrice, StringFormat={}{0:0.000}}" Width="110"/>
                                 <DataGridTextColumn Header="سعر البيع" Binding="{Binding SalePrice, StringFormat={}{0:0.000}}" Width="110"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                        <TextBlock Text="Lots / الدفعات" FontSize="16" FontWeight="Bold" Foreground="{StaticResource AppBlueBrush}" Margin="8,6,8,8"/>
+                        <DataGrid x:Name="ProductStockLotsGrid"
+                                  ItemsSource="{Binding ProductStockLots}"
+                                  AutoGenerateColumns="False"
+                                  IsReadOnly="True"
+                                  HeadersVisibility="Column"
+                                  MinHeight="130"
+                                  MaxHeight="260"
+                                  Margin="0,0,0,12"
+                                  Style="{StaticResource AppModernDataGridStyle}">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Lot / الدفعة" Binding="{Binding StockLotId}" Width="110"/>
+                                <DataGridTextColumn Header="الوحدة" Binding="{Binding UnitName}" Width="*"/>
+                                <DataGridTextColumn Header="الكمية الحالية" Binding="{Binding Quantity, StringFormat={}{0:0.000}}" Width="130"/>
+                                <DataGridTextColumn Header="سعر البيع" Binding="{Binding SalePrice, StringFormat={}{0:0.000}}" Width="110"/>
+                                <DataGridTextColumn Header="تاريخ الانتهاء" Binding="{Binding ExpiryDate, StringFormat=yyyy-MM-dd, TargetNullValue=-}" Width="140"/>
                             </DataGrid.Columns>
                         </DataGrid>
                       </StackPanel>
@@ -254,7 +272,7 @@
                 <StackPanel>
                     <TextBlock Text="إجراءات" FontSize="24" FontWeight="Bold" Foreground="{StaticResource AppBlueBrush}"/>
                     <TextBlock Margin="0,12,0,0" FontSize="14" Foreground="{StaticResource AppMutedTextBrush}" Text="حدث بيانات الصنف ووحداته ثم احفظ التعديلات أو ارجع."/>
-                    <Button x:Name="UpdateButton" Content="تحديث" Margin="0,34,0,0" Width="160" Style="{StaticResource AppFormButtonStyle}" Background="{StaticResource AppBlueBrush}" Click="Update_Click" IsEnabled="False"/>
+                    <Button x:Name="UpdateButton" Content="تحديث" Margin="0,34,0,0" Width="160" Style="{StaticResource AppFormButtonStyle}" Background="{StaticResource AppBlueBrush}" Click="Update_Click" IsEnabled="False" security:PermissionWindowGuard.Keys="Products.Edit"/>
                     <Button Content="عودة" Margin="0,14,0,0" Width="160" Style="{StaticResource AppSecondaryButtonStyle}" Click="Back_Click"/>
                 </StackPanel>
             </Border>

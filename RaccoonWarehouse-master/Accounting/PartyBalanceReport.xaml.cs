@@ -40,16 +40,17 @@ namespace RaccoonWarehouse.Accounting
 
     public partial class PartyBalanceReport : Window
     {
-        private readonly PartyBalanceReportService _reportService;
+        private readonly IPartyBalanceReportService _reportService;
         private readonly ILoadingService _loadingService;
         private UserRole _role = UserRole.Customer;
         private bool _combinedMode;
         private bool _initialized;
 
-        public PartyBalanceReport(PartyBalanceReportService reportService, ILoadingService loadingService)
+        public PartyBalanceReport(IPartyBalanceReportService reportService, ILoadingService loadingService)
         {
             _reportService = reportService;
             _loadingService = loadingService;
+            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
             UiText.ApplyWindow(this);
             Loaded += PartyBalanceReport_Loaded;

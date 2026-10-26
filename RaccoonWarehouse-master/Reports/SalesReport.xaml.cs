@@ -44,6 +44,7 @@ namespace RaccoonWarehouse.Reports
             SourceDocumentNavigationService sourceDocumentNavigationService,
             IFinancialTransactionService financialTransactionService)
         {
+            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
             UiText.ApplyWindow(this);
 

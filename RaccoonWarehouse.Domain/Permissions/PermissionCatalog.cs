@@ -9,11 +9,17 @@ namespace RaccoonWarehouse.Domain.Permissions
         public string DisplayName { get; init; } = string.Empty;
         public string? Description { get; init; }
         public string? LegacyReportKey { get; init; }
+        public bool IsLegacy { get; init; } = true;
         public int SortOrder { get; init; }
     }
 
     public static class PermissionCatalog
     {
+        // Temporary Pharmacy-branch switch: permission enforcement is disabled
+        // while the navigation and workflow permission mapping is completed.
+        // Set this to true to restore the existing permission enforcement.
+        public static bool EnforcementEnabled { get; } = false;
+
         public static IReadOnlyList<PermissionCatalogItem> All { get; } = BuildPermissions();
 
         public static PermissionCatalogItem? FindByKey(string key)
@@ -56,6 +62,8 @@ namespace RaccoonWarehouse.Domain.Permissions
             AddResource(items, ref sort, "MasterData", "Warehouses", "المستودعات", "View", "Create", "Edit", "Delete");
             AddResource(items, ref sort, "MasterData", "Branches", "الفروع", "View", "Create", "Edit", "Delete");
             AddResource(items, ref sort, "MasterData", "Employees", "الموظفون", "View", "Create", "Edit", "Delete");
+            AddResource(items, ref sort, "Employees", "Employees", "بيانات الموظفين الحساسة", "SensitiveView", "SensitiveEdit");
+            AddResource(items, ref sort, "Employees", "Payroll", "الرواتب الشهرية", "View", "Calculate", "Configure", "Adjust", "Approve", "Correct");
             AddResource(items, ref sort, "MasterData", "Delegates", "المندوبون", "View", "Create", "Edit", "Delete");
             AddResource(items, ref sort, "Finance", "Vouchers", "السندات", "View", "Create", "Edit", "Delete", "Print", "Approve", "Post");
             AddResource(items, ref sort, "Finance", "Vouchers", "Receipt Voucher", "Receipt");
@@ -80,6 +88,9 @@ namespace RaccoonWarehouse.Domain.Permissions
             AddResource(items, ref sort, "Accounting", "Accounting.PartyBalances", "Party Balances", "View");
             AddDashboardActionPermissions(items, ref sort);
             AddReportPermissions(items, ref sort);
+            foreach (var additional in PermissionCoverageCatalog.AdditionalPermissions())
+                if (!items.Any(item => item.Key.Equals(additional.Key, StringComparison.OrdinalIgnoreCase)))
+                    items.Add(additional);
             return items;
         }
 

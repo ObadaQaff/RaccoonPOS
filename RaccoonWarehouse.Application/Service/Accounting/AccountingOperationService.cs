@@ -1,3 +1,4 @@
+using RaccoonWarehouse.Application.Service.Permissions;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
@@ -5,6 +6,7 @@ using RaccoonWarehouse.Core.Common;
 using RaccoonWarehouse.Core.Interface;
 using RaccoonWarehouse.Domain.Accounting.Operations;
 using RaccoonWarehouse.Domain.FinancialTransactions.DTOs;
+using RaccoonWarehouse.Domain.InvoiceLines.DTOs;
 using RaccoonWarehouse.Domain.Invoices.DTOs;
 
 namespace RaccoonWarehouse.Application.Service.Accounting;
@@ -49,12 +51,108 @@ public sealed class AccountingOperationService : IAccountingOperationService
             ReferenceId = invoice.Id,
             ReferenceNumber = invoice.InvoiceNumber ?? invoice.Id.ToString(),
             OperationType = "PostInvoiceJournal",
-            PayloadJson = JsonSerializer.Serialize(invoice),
+            PayloadJson = JsonSerializer.Serialize(CreateAccountingSnapshot(invoice)),
             Status = AccountingOperationStatus.Pending,
             CreatedDate = now,
             UpdatedDate = now,
             NextAttemptDate = now
         });
+    }
+
+    // Accounting retries need only persisted invoice values. POS rows also carry
+    // UI/navigation objects (SelectedProduct, ProductUnit.Product, Invoice, etc.)
+    // which form circular graphs and must never be placed in the queue payload.
+    private static InvoiceWriteDto CreateAccountingSnapshot(InvoiceWriteDto source)
+    {
+        return new InvoiceWriteDto
+        {
+            Id = source.Id,
+            InvoiceNumber = source.InvoiceNumber,
+            FalconInvoiceNumber = source.FalconInvoiceNumber,
+            OriginalInvoiceId = source.OriginalInvoiceId,
+            InvoiceType = source.InvoiceType,
+            PaymentType = source.PaymentType,
+            CasherId = source.CasherId,
+            SupplierId = source.SupplierId,
+            WarehouseId = source.WarehouseId,
+            CurrencyId = source.CurrencyId,
+            DocumentDate = source.DocumentDate,
+            DueDate = source.DueDate,
+            CustomerId = source.CustomerId,
+            IsInsuranceSale = source.IsInsuranceSale,
+            InsuranceMemberPolicyId = source.InsuranceMemberPolicyId,
+            InsuranceCompanyId = source.InsuranceCompanyId,
+            InsuranceContractId = source.InsuranceContractId,
+            InsuranceContractVersionId = source.InsuranceContractVersionId,
+            PatientResponsibility = source.PatientResponsibility,
+            InsuranceResponsibility = source.InsuranceResponsibility,
+            DelegateId = source.DelegateId,
+            DelegateName = source.DelegateName,
+            VoucherId = source.VoucherId,
+            TotalAmount = source.TotalAmount,
+            Notes = source.Notes,
+            Status = source.Status,
+            IsPOS = source.IsPOS,
+            OpenedAt = source.OpenedAt,
+            ClosedAt = source.ClosedAt,
+            HeldColor = source.HeldColor,
+            DiscountAmount = source.DiscountAmount,
+            CostPriceIncludesTax = source.CostPriceIncludesTax,
+            SubTotal = source.SubTotal,
+            TotalTax = source.TotalTax,
+            TotalCOGS = source.TotalCOGS,
+            GrossProfit = source.GrossProfit,
+            NetSales = source.NetSales,
+            DeferAccountingPosting = source.DeferAccountingPosting,
+            CreatedBy = source.CreatedBy,
+            UpdatedBy = source.UpdatedBy,
+            CreatedDate = source.CreatedDate,
+            UpdatedDate = source.UpdatedDate,
+            Payments = source.Payments?.Select(payment => new InvoicePaymentWriteDto
+            {
+                Id = payment.Id,
+                PaymentType = payment.PaymentType,
+                Amount = payment.Amount,
+                CreatedDate = payment.CreatedDate,
+                UpdatedDate = payment.UpdatedDate
+            }).ToList(),
+            InvoiceLines = source.InvoiceLines?.Select(CreateAccountingLineSnapshot).ToList()
+        };
+    }
+
+    private static InvoiceLineWriteDto CreateAccountingLineSnapshot(InvoiceLineWriteDto source)
+    {
+        return new InvoiceLineWriteDto
+        {
+            Id = source.Id,
+            InvoiceId = source.InvoiceId,
+            OriginalInvoiceId = source.OriginalInvoiceId,
+            ProductId = source.ProductId,
+            ProductUnitId = source.ProductUnitId,
+            QuantityPerUnitSnapshot = source.QuantityPerUnitSnapshot,
+            BaseQuantity = source.BaseQuantity,
+            Quantity = source.Quantity,
+            UnitPrice = source.UnitPrice,
+            LineDiscountAmount = source.LineDiscountAmount,
+            BonusRatio = source.BonusRatio,
+            PurchaseAcquisitionCost = source.PurchaseAcquisitionCost,
+            SourcePurchaseLineId = source.SourcePurchaseLineId,
+            FreeQuantity = source.FreeQuantity,
+            ProductName = source.ProductName,
+            UnitName = source.UnitName,
+            ExpiryDate = source.ExpiryDate,
+            CreatedDate = source.CreatedDate,
+            UpdatedDate = source.UpdatedDate,
+            UnitCost = source.UnitCost,
+            TaxExempt = source.TaxExempt,
+            TaxRate = source.TaxRate,
+            TaxAmount = source.TaxAmount,
+            LineSubTotal = source.LineSubTotal,
+            Profit = source.Profit,
+            ProfitBeforeTax = source.ProfitBeforeTax,
+            AvailableQuantitySnapshot = source.AvailableQuantitySnapshot,
+            UnitNameSnapshot = source.UnitNameSnapshot
+        };
     }
 
     public async Task EnqueueFinancialAsync(FinancialPostDto transaction, string referenceNumber)
@@ -197,7 +295,7 @@ public sealed class AccountingOperationProcessor
         {
             try
             {
-                await ProcessDueAsync(ignoreSchedule: false, excludedOperationIds: null);
+                 await ProcessDueAsync(ignoreSchedule: false, excludedOperationIds: null);
             }
             catch
             {
@@ -208,6 +306,7 @@ public sealed class AccountingOperationProcessor
 
     public async Task<bool> ProcessPendingAsync()
     {
+        await RequireManualProcessingAsync();
         await _runGate.WaitAsync();
         try
         {
@@ -221,6 +320,7 @@ public sealed class AccountingOperationProcessor
 
     public async Task<(int Processed, int Failed)> ProcessPendingBatchAsync(int maxOperations)
     {
+        await RequireManualProcessingAsync();
         if (maxOperations <= 0)
             return (0, 0);
 
@@ -252,10 +352,18 @@ public sealed class AccountingOperationProcessor
         }
     }
 
+    private async Task RequireManualProcessingAsync()
+    {
+        using var scope = _scopeFactory.CreateScope();
+        if (!await scope.ServiceProvider.GetRequiredService<IPermissionService>().HasCurrentUserPermissionAsync("Accounting.Operations.Post"))
+            throw new UnauthorizedAccessException("ليس لديك صلاحية معالجة العمليات المحاسبية. / Accounting posting permission required.");
+    }
+
     private async Task<OperationProcessResult?> ProcessDueAsync(
         bool ignoreSchedule,
         HashSet<int>? excludedOperationIds)
     {
+        using var authorizedWorker = ApplicationPermissionBoundary.EnterSystemWorkflow();
         using var scope = _scopeFactory.CreateScope();
         var uow = scope.ServiceProvider.GetRequiredService<IUOW>();
          var operation = await uow.GetRepository<AccountingOperation>()
@@ -317,6 +425,7 @@ public sealed class AccountingOperationProcessor
 
     private async Task UpdateOperationStatusAsync(int operationId, bool completed, string? errorMessage)
     {
+        using var authorizedWorker = ApplicationPermissionBoundary.EnterSystemWorkflow();
         using var scope = _scopeFactory.CreateScope();
         var uow = scope.ServiceProvider.GetRequiredService<IUOW>();
         var operation = await uow.GetRepository<AccountingOperation>()

@@ -20,6 +20,7 @@ namespace RaccoonWarehouse.Domain.FinancialTransactions.DTOs
 
         public FinancialSourceType SourceType { get; set; }
         public int? SourceId { get; set; }
+        public int? CounterpartAccountId { get; set; }
 
         public int? CashierSessionId { get; set; }
         public int? CashierId { get; set; }

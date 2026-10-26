@@ -68,6 +68,7 @@ namespace RaccoonWarehouse.Vouchers
             _warehouseService = warehouseService;
             _loadingService = loadingService;
 
+            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
             AccountComboBox.Loaded += AccountComboBox_Loaded;
             AccountComboBox.PreviewKeyDown += AccountComboBox_PreviewKeyDown;
@@ -339,7 +340,7 @@ namespace RaccoonWarehouse.Vouchers
                 {
                     try
                     {
-                        SavePaymentVoucherPdf(dto);
+                        SavePaymentVoucherPdf(await RaccoonWarehouse.Helpers.Pdf.VoucherPrintRuntime.LoadAsync(savedVoucherId,VoucherType.Payment));
                     }
                     catch (Exception pdfEx)
                     {
@@ -1002,8 +1003,9 @@ namespace RaccoonWarehouse.Vouchers
 
 
 
-        private void SavePaymentVoucherPdf(VoucherWriteDto dto)
+        private void SavePaymentVoucherPdf(RaccoonWarehouse.Domain.Vouchers.DTOs.VoucherPrintData data)
         {
+            var dto=data.Voucher;
             var dlg = new Microsoft.Win32.SaveFileDialog
             {
                 Filter = "PDF File (*.pdf)|*.pdf",
@@ -1012,7 +1014,7 @@ namespace RaccoonWarehouse.Vouchers
 
             if (dlg.ShowDialog() == true)
             {
-                PdfGenerator.GeneratePaymentVoucherPdf(dto, dlg.FileName);
+                QuestPDF.Fluent.GenerateExtensions.GeneratePdf(new RaccoonWarehouse.Helpers.Pdf.Reports.PaymentVoucherReportDocument(data),dlg.FileName);
 
                 MessageBox.Show(UiText.T("تم حفظ ملف PDF بنجاح.", "The PDF file was saved successfully."),
                     UiText.T("تم الحفظ", "Saved"),
@@ -1215,57 +1217,18 @@ namespace RaccoonWarehouse.Vouchers
         }
 
 
-        private void PrintBtn_Click(object sender, RoutedEventArgs e)
+        private async void PrintBtn_Click(object sender, RoutedEventArgs e)
         {
+            var button=sender as System.Windows.Controls.Button;
+            if(button!=null)button.IsEnabled=false;
             try
             {
-                // تأكيد حفظ بيانات الشيكات من الـ DataGrid
-                ChecksGrid.CommitEdit(DataGridEditingUnit.Cell, true);
-                ChecksGrid.CommitEdit(DataGridEditingUnit.Row, true);
-
-                _checks = ChecksGrid.Items
-                                    .OfType<CheckWriteDto>()
-                                    .ToList();
-
-                if (!decimal.TryParse(Amount.Text, out decimal amount))
-                {
-                    MessageBox.Show(UiText.T("يرجى إدخال مبلغ صالح.", "Please enter a valid amount."), UiText.T("تنبيه", "Notice"));
-                    return;
-                }
-
-                if (PaymentTypeCombo.SelectedItem is not ComboBoxItem paymentItem || paymentItem.Tag == null)
-                {
-                    MessageBox.Show(UiText.T("يرجى اختيار طريقة الدفع.", "Please choose a payment method."), UiText.T("تنبيه", "Notice"));
-                    return;
-                }
-
-                var paymentType = (PaymentType)int.Parse(paymentItem.Tag.ToString()!);
-
-                var dto = new VoucherWriteDto
-                {
-                    Id = _currentVoucherId ?? 0,
-                    VoucherNumber = ReceiptNumber.Text,
-                    VoucherType = VoucherType.Payment,
-                    Amount = amount,
-                    CasherId = 0,
-                    SupplierId = AccountComboBox.SelectedValue != null ? (int)AccountComboBox.SelectedValue : null,
-                    WarehouseId = WarehouseComboBox.SelectedValue != null ? (int)WarehouseComboBox.SelectedValue : null,
-                    Notes = string.IsNullOrWhiteSpace(ReceiptDescription.Text) ? null : ReceiptDescription.Text.Trim(),
-                    CreatedDate = ReceiptDate.SelectedDate ?? DateTime.Now,
-                    UpdatedDate = DateTime.Now,
-                    PaymentType = paymentType,
-                    Checks = paymentType == PaymentType.Check ? _checks.ToList() : null
-                };
-
-                if (paymentType == PaymentType.Check && !ValidatePaymentByCheck(amount))
-                    return;
-
-                SavePaymentVoucherPdf(dto);
+                if(!_currentVoucherId.HasValue)throw new InvalidOperationException(UiText.T("احفظ السند قبل الطباعة.","Save the voucher before printing."));
+                var data=await RaccoonWarehouse.Helpers.Pdf.VoucherPrintRuntime.LoadAsync(_currentVoucherId.Value,VoucherType.Payment);
+                SavePaymentVoucherPdf(data);
             }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"{UiText.T("حدث خطأ أثناء الطباعة", "An error occurred while printing")}:\n{ex.Message}", UiText.T("خطأ", "Error"), MessageBoxButton.OK, MessageBoxImage.Error);
-            }
+            catch(Exception ex){MessageBox.Show(UiText.T("تعذرت طباعة السند: ","Voucher printing failed: ")+ex.Message,UiText.T("خطأ","Error"),MessageBoxButton.OK,MessageBoxImage.Error);}
+            finally{if(button!=null)button.IsEnabled=true;}
         }
 
         #endregion

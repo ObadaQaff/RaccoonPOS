@@ -5,12 +5,15 @@ using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Core.Audit;
 using RaccoonWarehouse.Core.Common;
 using RaccoonWarehouse.Data;
+using RaccoonWarehouse.Domain.Accounting.Accounts;
+using RaccoonWarehouse.Domain.Accounting.Enums;
 using RaccoonWarehouse.Domain.Insurance;
 
 namespace RaccoonWarehouse.Application.Service.Insurance;
 
 public interface IInsuranceManagementService
 {
+    Task<Result<int>> SaveInvoiceCoverageAsync(InsuranceInvoiceCoverage coverage, IReadOnlyList<InsuranceInvoiceCoverageLine> lines);
     Task<Result<List<InsuranceCompanyDto>>> GetCompaniesAsync(bool activeOnly = false);
     Task<Result<InsuranceCompanyDto>> SaveCompanyAsync(InsuranceCompanyWriteDto dto);
     Task<Result<InsuranceCompanyWriteDto>> GetCompanyForEditAsync(int id);
@@ -36,6 +39,27 @@ public interface IInsuranceManagementService
 
 public sealed class InsuranceManagementService : IInsuranceManagementService
 {
+    public async Task<Result<int>> SaveInvoiceCoverageAsync(InsuranceInvoiceCoverage coverage, IReadOnlyList<InsuranceInvoiceCoverageLine> lines)
+    {
+        if (_permissions == null || !await _permissions.HasCurrentUserPermissionAsync("InsuranceClaims.Create") ||
+            !await _permissions.HasCurrentUserPermissionAsync("SalesInvoice.Post"))
+            return Result<int>.Fail("ليس لديك صلاحية حفظ تغطية التأمين. / Insurance coverage permission denied.");
+        if (coverage.Id != 0 || coverage.InvoiceId <= 0 || lines.Any(line => line.Id != 0))
+            return Result<int>.Fail("Invalid new invoice coverage.");
+        var invoiceLineIds = await _db.Set<RaccoonWarehouse.Domain.InvoiceLines.InvoiceLine>().AsNoTracking().Where(line => line.InvoiceId == coverage.InvoiceId)
+            .Select(line => line.Id).ToListAsync();
+        if (lines.Any(line => !invoiceLineIds.Contains(line.InvoiceLineId)))
+            return Result<int>.Fail("Coverage lines must belong to the selected invoice.");
+        await using var transaction = _db.Database.IsRelational() && _db.Database.CurrentTransaction == null
+            ? await _db.Database.BeginTransactionAsync() : null;
+        _db.InsuranceInvoiceCoverages.Add(coverage);
+        await _db.SaveChangesAsync();
+        foreach (var line in lines) { line.InsuranceInvoiceCoverageId = coverage.Id; _db.InsuranceInvoiceCoverageLines.Add(line); }
+        await _db.SaveChangesAsync();
+        if (transaction != null) await transaction.CommitAsync();
+        return Result<int>.Ok(coverage.Id);
+    }
+
     private readonly ApplicationDbContext _db;
     private readonly IAccountingService? _accounting;
     private readonly IPermissionService? _permissions;
@@ -77,6 +101,8 @@ public sealed class InsuranceManagementService : IInsuranceManagementService
                 Address = x.Address,
                 Status = x.Status,
                 OrganizationType = x.OrganizationType,
+                ReceivableAccountId = x.ReceivableAccountId,
+                PaymentAccountId = x.PaymentAccountId,
                 CreatedDate = x.CreatedDate,
                 UpdatedDate = x.UpdatedDate
             })
@@ -95,6 +121,19 @@ public sealed class InsuranceManagementService : IInsuranceManagementService
 
         if (dto.ContractualDiscountPercent is < 0m or > 100m)
             return Result<InsuranceCompanyDto>.Fail("Contractual discount must be between 0 and 100.");
+
+        if (dto.ReceivableAccountId.HasValue)
+        {
+            var receivableAccount = await _db.Set<Account>()
+                .AsNoTracking()
+                .SingleOrDefaultAsync(x => x.Id == dto.ReceivableAccountId.Value);
+            if (receivableAccount == null)
+                return Result<InsuranceCompanyDto>.Fail("The selected insurance receivable account was not found.");
+            if (!receivableAccount.IsActive || !receivableAccount.IsPosting || receivableAccount.AccountType != AccountType.Asset)
+                return Result<InsuranceCompanyDto>.Fail("The insurance receivable account must be active, posting, and an Asset account.");
+            if (await _db.InsuranceCompanies.AnyAsync(x => x.Id != dto.Id && x.ReceivableAccountId == receivableAccount.Id))
+                return Result<InsuranceCompanyDto>.Fail("The selected insurance receivable account is already assigned to another insurer.");
+        }
 
         var normalizedCode = dto.Code.Trim();
         var duplicate = await _db.InsuranceCompanies.AnyAsync(x =>
@@ -765,14 +804,47 @@ public sealed class InsuranceManagementService : IInsuranceManagementService
             return Result<InsuranceClaimPayment>.Fail("You do not have permission to record insurance payments.");
         if (_accounting == null)
             return Result<InsuranceClaimPayment>.Fail("Accounting is required to record an insurance receipt.");
-        if (dto.Allocations.Select(x => x.InsuranceClaimId).Distinct().Count() != dto.Allocations.Count)
-            return Result<InsuranceClaimPayment>.Fail("Each claim can appear only once in a payment.");
-        if (dto.FinancialTransactionId.HasValue)
-            return Result<InsuranceClaimPayment>.Fail("Use an insurance receipt without an existing financial transaction to avoid duplicate posting.");
-        if (dto.Amount <= 0 || dto.Allocations.Count == 0)
-            return Result<InsuranceClaimPayment>.Fail("Payment amount and allocations are required.");
+        if (dto.Amount <= 0)
+            return Result<InsuranceClaimPayment>.Fail("Payment amount is required.");
 
-        var allocationTotal = dto.Allocations.Sum(x => x.Amount);
+        var allocations = dto.Allocations
+            .Where(x => x.InsuranceClaimId > 0 && x.Amount > 0m)
+            .ToList();
+        if (allocations.Count == 0)
+        {
+            var claimsForAllocation = await _db.InsuranceClaims
+                .Where(x => x.InsuranceCompanyId == dto.InsuranceCompanyId
+                    && x.OutstandingAmount > 0m
+                    && (x.Status == InsuranceClaimStatus.Approved
+                        || x.Status == InsuranceClaimStatus.PartiallyApproved
+                        || x.Status == InsuranceClaimStatus.PartiallyPaid
+                        || x.Status == InsuranceClaimStatus.PartiallySettled))
+                .OrderBy(x => x.CreatedDate)
+                .ThenBy(x => x.Id)
+                .ToListAsync();
+
+            var remaining = dto.Amount;
+            foreach (var claim in claimsForAllocation)
+            {
+                if (remaining <= 0m)
+                    break;
+
+                var amount = Math.Min(remaining, claim.OutstandingAmount);
+                allocations.Add(new InsuranceClaimPaymentAllocationDto
+                {
+                    InsuranceClaimId = claim.Id,
+                    Amount = amount
+                });
+                remaining -= amount;
+            }
+        }
+
+        if (allocations.Count == 0)
+            return Result<InsuranceClaimPayment>.Fail("The insurance company has no outstanding approved claims.");
+        if (allocations.Select(x => x.InsuranceClaimId).Distinct().Count() != allocations.Count)
+            return Result<InsuranceClaimPayment>.Fail("Each claim can appear only once in a payment.");
+
+        var allocationTotal = allocations.Sum(x => x.Amount);
         if (allocationTotal <= 0 || Math.Abs(allocationTotal - dto.Amount) > 0.000001m)
             return Result<InsuranceClaimPayment>.Fail("Payment allocations must equal the payment amount.");
         if (string.IsNullOrWhiteSpace(dto.ReceiptNumber))
@@ -785,7 +857,7 @@ public sealed class InsuranceManagementService : IInsuranceManagementService
             if (await _db.InsuranceClaimPayments.AnyAsync(x => x.InsuranceCompanyId == dto.InsuranceCompanyId && x.ReceiptNumber == dto.ReceiptNumber.Trim()))
                 return Result<InsuranceClaimPayment>.Fail("This insurance payment receipt already exists.");
 
-            var claimIds = dto.Allocations.Select(x => x.InsuranceClaimId).Distinct().ToList();
+            var claimIds = allocations.Select(x => x.InsuranceClaimId).Distinct().ToList();
             var claims = await _db.InsuranceClaims
                 .Where(x => claimIds.Contains(x.Id) && x.InsuranceCompanyId == dto.InsuranceCompanyId)
                 .ToDictionaryAsync(x => x.Id);
@@ -793,7 +865,7 @@ public sealed class InsuranceManagementService : IInsuranceManagementService
             if (claims.Count != claimIds.Count)
                 return Result<InsuranceClaimPayment>.Fail("One or more claims do not belong to this insurance company.");
 
-            foreach (var allocation in dto.Allocations)
+            foreach (var allocation in allocations)
             {
                 var claim = claims[allocation.InsuranceClaimId];
                 if (allocation.Amount <= 0m || allocation.Amount > claim.OutstandingAmount
@@ -816,7 +888,7 @@ public sealed class InsuranceManagementService : IInsuranceManagementService
             await _db.InsuranceClaimPayments.AddAsync(payment);
             await _db.SaveChangesAsync();
 
-            foreach (var allocation in dto.Allocations)
+            foreach (var allocation in allocations)
             {
                 var claim = claims[allocation.InsuranceClaimId];
                 await _db.InsuranceClaimPaymentAllocations.AddAsync(new InsuranceClaimPaymentAllocation
@@ -834,9 +906,12 @@ public sealed class InsuranceManagementService : IInsuranceManagementService
             }
 
             await _db.SaveChangesAsync();
-            await new PosInsuranceBillingService(_db).PostCompanyMovementAsync(_accounting,
-                dto.InsuranceCompanyId, dto.Amount, "InsuranceClaimPayment", payment.Id,
-                payment.ReceiptNumber, payment.PaymentDate, receipt: true);
+            if (!dto.FinancialTransactionId.HasValue)
+            {
+                await new PosInsuranceBillingService(_db).PostCompanyMovementAsync(_accounting,
+                    dto.InsuranceCompanyId, dto.Amount, "InsuranceClaimPayment", payment.Id,
+                    payment.ReceiptNumber, payment.PaymentDate, receipt: true);
+            }
             await WriteAuditAsync("Insurance payment recorded", "InsurancePayments.Create", payment.Id, true);
             if (transaction != null) await transaction.CommitAsync();
             return Result<InsuranceClaimPayment>.Ok(payment);

@@ -1,17 +1,25 @@
 using RaccoonWarehouse.Application.Service.Products;
+using RaccoonWarehouse.Application.Service.Stocks;
 using RaccoonWarehouse.Domain.ProductUnits;
 using RaccoonWarehouse.Domain.ProductUnits.DTOs;
 using RaccoonWarehouse.Domain.Products.DTOs;
+using RaccoonWarehouse.Domain.Products;
 using RaccoonWarehouse.Helpers.Localization;
+using RaccoonWarehouse.Common;
+using RaccoonWarehouse.Navigation;
+using RaccoonWarehouse.Products;
 using Microsoft.EntityFrameworkCore;
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Threading;
@@ -24,6 +32,7 @@ namespace RaccoonWarehouse.Invoices
         {
             private decimal _quantity = 1m;
             private decimal _purchasePrice;
+            private decimal _salePrice;
             private DateTime _expiryDate = DateTime.Today.AddMonths(6);
             private ProductUnitReadDto? _selectedUnit;
             public ProductReadDto Product { get; }
@@ -35,16 +44,19 @@ namespace RaccoonWarehouse.Invoices
                 {
                     _selectedUnit = value;
                     _purchasePrice = value?.PurchasePrice ?? 0m;
+                    _salePrice = value?.SalePrice ?? 0m;
                     PropertyChanged?.Invoke(this, new(nameof(SelectedUnit)));
                     PropertyChanged?.Invoke(this, new(nameof(ProductUnitId)));
                     PropertyChanged?.Invoke(this, new(nameof(UnitName)));
                     PropertyChanged?.Invoke(this, new(nameof(QuantityPerUnit)));
                     PropertyChanged?.Invoke(this, new(nameof(PurchasePrice)));
+                    PropertyChanged?.Invoke(this, new(nameof(SalePrice)));
                 }
             }
             public int ProductUnitId => SelectedUnit?.Id ?? 0;
             public decimal Quantity { get => _quantity; set { _quantity = value; PropertyChanged?.Invoke(this, new(nameof(Quantity))); } }
             public decimal PurchasePrice { get => _purchasePrice; set { _purchasePrice = value; PropertyChanged?.Invoke(this, new(nameof(PurchasePrice))); } }
+            public decimal SalePrice { get => _salePrice; set { _salePrice = value; PropertyChanged?.Invoke(this, new(nameof(SalePrice))); } }
             public DateTime ExpiryDate { get => _expiryDate; set { _expiryDate = value; PropertyChanged?.Invoke(this, new(nameof(ExpiryDate))); } }
             public string ItemCode => Product.ITEMCODE?.ToString() ?? string.Empty;
             public string ProductName => Product.Name ?? string.Empty;
@@ -60,6 +72,7 @@ namespace RaccoonWarehouse.Invoices
         }
 
         private readonly IProductService _productService;
+        private readonly IStockService? _stockService;
         private readonly Func<PurchaseProductSearchRow, Task<bool>>? _onSelectProduct;
         private readonly Func<string, Task>? _onCreateProduct;
         private readonly int? _supplierId;
@@ -67,51 +80,285 @@ namespace RaccoonWarehouse.Invoices
         private readonly SemaphoreSlim _searchLock = new(1, 1);
         private int _searchVersion;
         private bool _isSelecting;
+        private bool _isInitializing;
+        private List<PosProductSearchResultDto> _catalogRows = new();
+        private int? _selectedSupplierId;
         private ObservableCollection<PurchaseProductSearchRow> Products { get; } = new();
+        private ObservableCollection<SupplierOption> SupplierOptions { get; } = new();
+
+        private sealed class SupplierOption
+        {
+            public int Id { get; init; }
+            public string Name { get; init; } = string.Empty;
+        }
+
+        public PurchaseProductSearchWindow(
+            IProductService productService,
+            IStockService stockService,
+            Func<PurchaseProductSearchRow, Task<bool>>? onSelectProduct = null,
+            Func<string, Task>? onCreateProduct = null,
+            int? supplierId = null)
+        {
+            _productService = productService; _stockService = stockService; _onSelectProduct = onSelectProduct; _onCreateProduct = onCreateProduct; _supplierId = supplierId;
+            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+            InitializeComponent(); UiText.ApplyWindow(this); ProductsGrid.ItemsSource = Products;
+            SupplierFilter.ItemsSource = SupplierOptions;
+            _searchDebounceTimer.Tick += SearchDebounceTimer_Tick;
+            Loaded += (_, _) => FocusSearchBox();
+            CatalogRefreshNotifier.CatalogChanged += CatalogRefreshNotifier_CatalogChanged;
+            Closed += (_, _) => CatalogRefreshNotifier.CatalogChanged -= CatalogRefreshNotifier_CatalogChanged;
+        }
 
         public PurchaseProductSearchWindow(
             IProductService productService,
             Func<PurchaseProductSearchRow, Task<bool>>? onSelectProduct = null,
             Func<string, Task>? onCreateProduct = null,
             int? supplierId = null)
+            : this(productService, null!, onSelectProduct, onCreateProduct, supplierId)
         {
-            _productService = productService; _onSelectProduct = onSelectProduct; _onCreateProduct = onCreateProduct; _supplierId = supplierId;
-            InitializeComponent(); UiText.ApplyWindow(this); ProductsGrid.ItemsSource = Products;
-            _searchDebounceTimer.Tick += SearchDebounceTimer_Tick; Loaded += (_, _) => FocusSearchBox();
         }
-        private void PurchaseProductSearchWindow_PreviewKeyDown(object sender, KeyEventArgs e)
+        private async void PurchaseProductSearchWindow_PreviewKeyDown(object sender, KeyEventArgs e)
         {
+            if (e.Key == Key.F3)
+            {
+                await UpdateSelectedProductAsync();
+                e.Handled = true;
+                return;
+            }
+
             if (e.Key != Key.Escape)
                 return;
 
             Close();
             e.Handled = true;
         }
+
+        private async void CatalogRefreshNotifier_CatalogChanged(object? sender, EventArgs e)
+        {
+            if (!IsLoaded || _isSelecting || _isInitializing)
+                return;
+
+            await RefreshCatalogAndSearchAsync();
+        }
+
+        private async void UpdateProductBtn_Click(object sender, RoutedEventArgs e)
+        {
+            await UpdateSelectedProductAsync(sender is Button button
+                ? button.DataContext as PurchaseProductSearchRow
+                : ProductsGrid.SelectedItem as PurchaseProductSearchRow);
+        }
+
+        private async Task UpdateSelectedProductAsync(PurchaseProductSearchRow? selectedRow = null)
+        {
+            var row = selectedRow ?? ProductsGrid.CurrentItem as PurchaseProductSearchRow ?? ProductsGrid.SelectedItem as PurchaseProductSearchRow;
+            if (row == null)
+            {
+                MessageBox.Show(UiText.T("يجب تحديد الصنف قبل التحديث.", "Select a product before updating."),
+                    UiText.T("تنبيه", "Notice"), MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            CommitProductRowEdits(row);
+            WindowManager.ShowDialog<UpdateProduct>(WindowSizeType.MediumRectangle, window =>
+            {
+                window.Initialize(row.Product.Id);
+            });
+
+            await RefreshCatalogAndSearchAsync();
+        }
+
+        private async Task RefreshCatalogAndSearchAsync()
+        {
+            if (_stockService == null)
+                return;
+
+            try
+            {
+                _catalogRows = (await ProductSearchWindow.GetCatalogSnapshotAsync(_stockService)).ToList();
+                await SearchAsync();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"{UiText.T("تعذر تحديث كتالوج المنتجات", "Could not refresh the product catalog")}: {ex.Message}",
+                    UiText.T("خطأ", "Error"), MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
         private void FocusSearchBox() { SearchTextBox.Focus(); Keyboard.Focus(SearchTextBox); SearchTextBox.SelectAll(); }
-        private void SearchTextBox_TextChanged(object sender, TextChangedEventArgs e) { _searchDebounceTimer.Stop(); _searchDebounceTimer.Start(); }
+
+        private void SalePriceTextBox_Loaded(object sender, RoutedEventArgs e)
+        {
+            if (sender is TextBox textBox)
+                QueueTextBoxSelection(textBox, DispatcherPriority.ContextIdle);
+        }
+
+        private void SalePriceTextBox_GotFocus(object sender, RoutedEventArgs e)
+        {
+            if (sender is TextBox textBox)
+                QueueTextBoxSelection(textBox, DispatcherPriority.Input);
+        }
+
+        private void QueueTextBoxSelection(TextBox textBox, DispatcherPriority priority)
+        {
+            Dispatcher.BeginInvoke(
+                new Action(() =>
+                {
+                    if (!textBox.IsKeyboardFocusWithin)
+                        textBox.Focus();
+
+                    textBox.SelectAll();
+                }),
+                priority);
+        }
+
+        private void ExpiryDatePicker_Loaded(object sender, RoutedEventArgs e)
+        {
+            if (sender is DatePicker datePicker)
+                QueueDatePickerTextSelection(datePicker, DispatcherPriority.ContextIdle);
+        }
+
+        private void ExpiryDatePicker_GotFocus(object sender, RoutedEventArgs e)
+        {
+            if (sender is DatePicker datePicker)
+                QueueDatePickerTextSelection(datePicker, DispatcherPriority.Input);
+        }
+
+        private void QueueDatePickerTextSelection(DatePicker datePicker, DispatcherPriority priority)
+        {
+            Dispatcher.BeginInvoke(
+                new Action(() =>
+                {
+                    datePicker.ApplyTemplate();
+                    if (datePicker.Template.FindName("PART_TextBox", datePicker) is TextBoxBase textBox)
+                    {
+                        if (!textBox.IsKeyboardFocusWithin)
+                            textBox.Focus();
+
+                        textBox.SelectAll();
+                    }
+                }),
+                priority);
+        }
+
+        private async void Window_Loaded(object sender, RoutedEventArgs e)
+        {
+            _isInitializing = true;
+            SetLoadingState(true);
+            try
+            {
+                if (_stockService == null)
+                    return;
+
+                _catalogRows = (await ProductSearchWindow.GetCatalogSnapshotAsync(_stockService)).ToList();
+                SupplierOptions.Clear();
+                foreach (var supplier in _catalogRows
+                    .Where(row => row.SupplierId.HasValue && !string.IsNullOrWhiteSpace(row.SupplierName))
+                    .GroupBy(row => new { Id = row.SupplierId!.Value, Name = row.SupplierName!.Trim() })
+                    .OrderBy(group => group.Key.Name))
+                    SupplierOptions.Add(new SupplierOption { Id = supplier.Key.Id, Name = supplier.Key.Name });
+
+                if (_supplierId.HasValue)
+                {
+                    _selectedSupplierId = _supplierId;
+                    SupplierFilter.SelectedValue = _supplierId.Value;
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"{UiText.T("تعذر تحميل كتالوج المنتجات", "Could not load the product catalog")}: {ex.Message}",
+                    UiText.T("خطأ", "Error"), MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                _isInitializing = false;
+                SetLoadingState(false);
+                FocusSearchBox();
+                if (SearchTextBox.Text.Trim().Length > 0 || BarcodeSearchTextBox.Text.Trim().Length > 0 || _selectedSupplierId.HasValue)
+                    await SearchAsync();
+            }
+        }
+
+        private void SetLoadingState(bool isLoading)
+        {
+            // Keep search input available while the shared catalog cache warms.
+            // The initializing guard defers the actual query until loading completes.
+            SearchTextBox.IsEnabled = true;
+            BarcodeSearchTextBox.IsEnabled = true;
+            SupplierFilter.IsEnabled = !isLoading;
+            ProductsGrid.IsEnabled = !isLoading;
+        }
+
+        private void SearchTextBox_TextChanged(object sender, TextChangedEventArgs e) { if (!_isInitializing) { _searchDebounceTimer.Stop(); _searchDebounceTimer.Start(); } }
+        private void BarcodeSearchTextBox_TextChanged(object sender, TextChangedEventArgs e) { if (!_isInitializing) { _searchDebounceTimer.Stop(); _searchDebounceTimer.Start(); } }
+        private async void BarcodeSearchTextBox_PreviewKeyDown(object sender, KeyEventArgs e) { if (e.Key == Key.Enter) { _searchDebounceTimer.Stop(); await SearchAsync(); e.Handled = true; } }
+        private async void SupplierFilter_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_isInitializing) return;
+            _selectedSupplierId = SupplierFilter.SelectedValue is int id && id > 0 ? id : null;
+            await SearchAsync();
+        }
         private async void SearchDebounceTimer_Tick(object? sender, EventArgs e) { _searchDebounceTimer.Stop(); await SearchAsync(); }
         private async Task SearchAsync()
         {
-            if (_isSelecting) return;
-            var search = SearchTextBox.Text.Trim(); var version = ++_searchVersion;
-            if (search.Length < 1) { Products.Clear(); return; }
-            var searchTerms = search.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            var databaseSearchTerm = searchTerms[0];
+            if (_isSelecting || _isInitializing) return;
+            var search = SearchTextBox.Text.Trim();
+            var barcode = BarcodeLookup.Normalize(BarcodeSearchTextBox.Text);
+            if (string.IsNullOrWhiteSpace(BarcodeSearchTextBox.Text)
+                && BarcodeLookup.ExtractGs1ProductBarcode(search) != null)
+            {
+                barcode = BarcodeLookup.Normalize(search);
+                search = string.Empty;
+            }
+            var version = ++_searchVersion;
+            var searchTerms = search.Split(new[] { ' ', '\t', '\r', '\n', '%' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (searchTerms.Length == 0 && string.IsNullOrWhiteSpace(barcode) && !_selectedSupplierId.HasValue) { Products.Clear(); return; }
             await _searchLock.WaitAsync();
             try
             {
-                var result = await _productService.GetAllWithAdvancedIncludeAsync(
-                    query => query
-                        .Include(p => p.ProductUnits!)
-                        .ThenInclude(productUnit => productUnit.Unit),
-                    p => ((p.Name ?? string.Empty).Contains(databaseSearchTerm) ||
-                          p.ITEMCODE.ToString().Contains(databaseSearchTerm) ||
-                          p.ProductUnits!.Any(unit => unit.AlternateBarcode == databaseSearchTerm)) &&
-                         (!_supplierId.HasValue || p.SupplierId == _supplierId.Value));
                 if (version != _searchVersion) return;
                 Products.Clear();
-                foreach (var product in (result?.Data ?? new System.Collections.Generic.List<ProductReadDto>())
-                    .Where(p => p.DefaultPurchaseUnit != null && MatchesSearch(p, searchTerms))
+                IEnumerable<ProductReadDto> products;
+                if (_stockService == null)
+                {
+                    var databaseSearchTerm = searchTerms.FirstOrDefault() ?? barcode;
+                    var result = await _productService.GetAllWithAdvancedIncludeAsync(
+                        query => query.Include(p => p.ProductUnits!).ThenInclude(productUnit => productUnit.Unit),
+                        p => ((p.Name ?? string.Empty).Contains(databaseSearchTerm) ||
+                              p.ITEMCODE.ToString().Contains(databaseSearchTerm) ||
+                              p.ProductUnits!.Any(unit => unit.AlternateBarcode == databaseSearchTerm)) &&
+                             (!_supplierId.HasValue || p.SupplierId == _supplierId.Value));
+                    products = result?.Data ?? new List<ProductReadDto>();
+                }
+                else
+                {
+                    var catalogProducts = BuildProducts(_catalogRows
+                        .Where(row => MatchesCatalogFilter(row, searchTerms, barcode, _selectedSupplierId)));
+
+                    // The shared catalog is optimized for active POS rows. A
+                    // purchase product can exist in the products table without
+                    // appearing in that catalog, so preserve the original
+                    // purchase-search behavior as a fallback when no catalog
+                    // row matches.
+                    var catalogProductList = catalogProducts.ToList();
+                    if (catalogProductList.Count > 0)
+                    {
+                        products = catalogProductList;
+                    }
+                    else
+                    {
+                        var databaseSearchTerm = searchTerms.FirstOrDefault() ?? barcode;
+                        var result = await _productService.GetAllWithAdvancedIncludeAsync(
+                            query => query.Include(p => p.ProductUnits!).ThenInclude(productUnit => productUnit.Unit),
+                            p => (string.IsNullOrWhiteSpace(databaseSearchTerm) ||
+                                  (p.Name ?? string.Empty).Contains(databaseSearchTerm) ||
+                                  p.ITEMCODE.ToString().Contains(databaseSearchTerm) ||
+                                  p.ProductUnits!.Any(unit => unit.AlternateBarcode == databaseSearchTerm)) &&
+                                 (!_selectedSupplierId.HasValue || p.SupplierId == _selectedSupplierId.Value));
+                        products = result?.Data ?? new List<ProductReadDto>();
+                    }
+                }
+
+                foreach (var product in products
+                    .Where(p => p.DefaultPurchaseUnit != null)
                     .OrderBy(p => p.Name)) Products.Add(new(product));
                 CreateProductBtn.Visibility = Products.Count == 0 && _onCreateProduct != null ? Visibility.Visible : Visibility.Collapsed;
                 ProductsGrid.SelectedIndex = -1;
@@ -129,19 +376,67 @@ namespace RaccoonWarehouse.Invoices
             catch (Exception ex) { MessageBox.Show($"{UiText.T("تعذر البحث عن الصنف", "Could not search for the product")}: {ex.Message}", UiText.T("خطأ", "Error")); }
             finally { _searchLock.Release(); }
         }
-        private static bool MatchesSearch(ProductReadDto product, string[] searchTerms)
+        private static bool MatchesCatalogFilter(PosProductSearchResultDto row, string[] searchTerms, string barcode, int? supplierId)
         {
-            var name = product.Name ?? string.Empty;
-            var itemCode = product.ITEMCODE.ToString();
-            var alternateBarcodes = product.ProductUnits?.Where(unit => !string.IsNullOrWhiteSpace(unit.AlternateBarcode))
-                .Select(unit => unit.AlternateBarcode!)
-                .ToArray() ?? Array.Empty<string>();
+            if (supplierId.HasValue && row.SupplierId != supplierId.Value) return false;
+            if (!string.IsNullOrWhiteSpace(barcode))
+            {
+                barcode = BarcodeLookup.Normalize(barcode);
+                var itemCode = row.ItemCode?.ToString(CultureInfo.InvariantCulture);
+                return BarcodeLookup.MatchesItemCode(row.ItemCode, barcode) ||
+                       string.Equals(row.AlternateBarcode?.Trim(), barcode, StringComparison.OrdinalIgnoreCase);
+            }
 
-            return searchTerms.All(term =>
-                name.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-                itemCode.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-                alternateBarcodes.Any(barcode => barcode.Contains(term, StringComparison.OrdinalIgnoreCase)));
+            var candidate = row.ProductName ?? string.Empty;
+            var searchFrom = 0;
+            foreach (var term in searchTerms)
+            {
+                var matchAt = candidate.IndexOf(term, searchFrom, StringComparison.CurrentCultureIgnoreCase);
+                if (matchAt < 0)
+                    return false;
+
+                searchFrom = matchAt + term.Length;
+            }
+
+            return true;
         }
+
+        private static IEnumerable<ProductReadDto> BuildProducts(IEnumerable<PosProductSearchResultDto> rows)
+            => rows.GroupBy(row => row.ProductId).Select(group =>
+            {
+                var first = group.First();
+                return new ProductReadDto
+                {
+                    Id = first.ProductId,
+                    Name = first.ProductName,
+                    ITEMCODE = first.ItemCode,
+                    TaxExempt = first.TaxExempt,
+                    TaxRate = first.TaxRate,
+                    SupplierId = first.SupplierId,
+                    ProductUnits = group.GroupBy(row => row.ProductUnitId).Select(unitGroup =>
+                    {
+                        var row = unitGroup.First();
+                        return new ProductUnitReadDto
+                        {
+                            Id = row.ProductUnitId,
+                            ProductId = row.ProductId,
+                            AlternateBarcode = row.AlternateBarcode,
+                            SalePrice = row.UnitSalePrice,
+                            PurchasePrice = row.UnitPurchasePrice,
+                            QuantityPerUnit = row.QuantityPerUnit,
+                            AllowFractionalSale = row.AllowFractionalSale,
+                            FractionalPartsPerUnit = row.FractionalPartsPerUnit,
+                            FractionalPartName = row.FractionalPartName,
+                            FractionalSalePrice = row.FractionalSalePrice,
+                            FractionalSaleCost = row.FractionalSaleCost,
+                            IsBaseUnit = row.IsBaseUnit,
+                            IsDefaultSaleUnit = row.IsDefaultSaleUnit,
+                            IsDefaultPurchaseUnit = row.IsDefaultPurchaseUnit,
+                            Unit = new RaccoonWarehouse.Domain.Units.DTOs.UnitReadDto { Name = row.UnitName ?? string.Empty }
+                        };
+                    }).ToList()
+                };
+            });
         private async void SearchTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
         {
             if (e.Key == Key.Down && Products.Count > 0)
@@ -152,15 +447,27 @@ namespace RaccoonWarehouse.Invoices
                 ProductsGrid.BeginEdit();
                 e.Handled = true;
             }
-            else if (e.Key == Key.Enter && ProductsGrid.SelectedItem is PurchaseProductSearchRow row) { await SelectProductAsync(row); e.Handled = true; }
+            else if (e.Key == Key.Enter && ProductsGrid.SelectedItem is PurchaseProductSearchRow row)
+            {
+                CommitProductRowEdits(row);
+                await SelectProductAsync(row);
+                e.Handled = true;
+            }
         }
+
+        private void CommitProductRowEdits(PurchaseProductSearchRow row)
+        {
+            ProductsGrid.SelectedItem = row;
+            ProductsGrid.CommitEdit(DataGridEditingUnit.Cell, true);
+            ProductsGrid.CommitEdit(DataGridEditingUnit.Row, true);
+        }
+
         private async void ProductsGrid_PreviewKeyDown(object sender, KeyEventArgs e)
         {
             if (ProductsGrid.CurrentItem is not PurchaseProductSearchRow row) return;
             if (e.Key == Key.Enter)
             {
-                ProductsGrid.CommitEdit(DataGridEditingUnit.Cell, true);
-                ProductsGrid.CommitEdit(DataGridEditingUnit.Row, true);
+                CommitProductRowEdits(row);
                 var currentColumn = ProductsGrid.CurrentCell.Column;
                 var nextColumn = ProductsGrid.Columns
                     .Where(column => column.Visibility == Visibility.Visible)
@@ -182,11 +489,20 @@ namespace RaccoonWarehouse.Invoices
             }
             if (e.Key == Key.Up && ProductsGrid.SelectedIndex == 0) { FocusSearchBox(); e.Handled = true; }
         }
-        private async void SelectProductBtn_Click(object sender, RoutedEventArgs e) { if (sender is Button { DataContext: PurchaseProductSearchRow row }) await SelectProductAsync(row); }
+        private async void SelectProductBtn_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button { DataContext: PurchaseProductSearchRow row })
+            {
+                CommitProductRowEdits(row);
+                await SelectProductAsync(row);
+            }
+        }
+
         private async Task SelectProductAsync(PurchaseProductSearchRow row)
         {
             if (_isSelecting) return;
-            if (row.Quantity <= 0 || row.PurchasePrice < 0 || row.ExpiryDate.Date < DateTime.Today) { MessageBox.Show(UiText.T("تحقق من الكمية والسعر وتاريخ الانتهاء.", "Check quantity, price, and expiry date."), UiText.T("تنبيه", "Notice")); return; }
+            CommitProductRowEdits(row);
+            if (row.Quantity <= 0 || row.PurchasePrice < 0 || row.SalePrice < 0 || row.ExpiryDate.Date < DateTime.Today) { MessageBox.Show(UiText.T("تحقق من الكمية وأسعار الشراء والبيع وتاريخ الانتهاء.", "Check quantity, purchase/sale prices, and expiry date."), UiText.T("تنبيه", "Notice")); return; }
             _isSelecting = true;
             try { if (_onSelectProduct == null || await _onSelectProduct(row)) { SearchTextBox.Clear(); Products.Clear(); FocusSearchBox(); } }
             finally { _isSelecting = false; }
@@ -216,7 +532,16 @@ namespace RaccoonWarehouse.Invoices
 
             await SearchAsync();
         }
-        private void ClearBtn_Click(object sender, RoutedEventArgs e) { SearchTextBox.Clear(); Products.Clear(); CreateProductBtn.Visibility = Visibility.Collapsed; FocusSearchBox(); }
+        private void ClearBtn_Click(object sender, RoutedEventArgs e)
+        {
+            SearchTextBox.Clear();
+            BarcodeSearchTextBox.Clear();
+            SupplierFilter.SelectedIndex = -1;
+            _selectedSupplierId = null;
+            Products.Clear();
+            CreateProductBtn.Visibility = Visibility.Collapsed;
+            FocusSearchBox();
+        }
         private void CloseBtn_Click(object sender, RoutedEventArgs e) => Close();
     }
 }

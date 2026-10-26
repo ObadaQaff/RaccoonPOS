@@ -10,7 +10,7 @@
         ShowActivated="False"
         Topmost="True"
         Width="420"
-        Height="272">
+        Height="380">
 
     <Grid Margin="0,0,40,0">
         <Border Width="351"
@@ -128,6 +128,26 @@
                                Margin="0,4,0,0"
                                FontSize="11"
                                Foreground="#B9D0CC"
+                               HorizontalAlignment="Center"
+                               TextAlignment="Center"
+                               Visibility="Collapsed"/>
+
+                    <ProgressBar x:Name="LoadingProgressBar"
+                                 Minimum="0"
+                                 Maximum="100"
+                                 Value="0"
+                                 Width="220"
+                                 Height="8"
+                                 Margin="0,16,0,5"
+                                 Foreground="#A9E5BB"
+                                 Background="#35FFFFFF"
+                                 BorderThickness="0"
+                                 Visibility="Collapsed"/>
+
+                    <TextBlock x:Name="ProgressText"
+                               Text="0%"
+                               FontSize="11"
+                               Foreground="#DDEDEA"
                                HorizontalAlignment="Center"
                                TextAlignment="Center"
                                Visibility="Collapsed"/>

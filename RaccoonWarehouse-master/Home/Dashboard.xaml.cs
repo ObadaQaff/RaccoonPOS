@@ -33,12 +33,12 @@ using RaccoonWarehouse.Products.Reports;
 using RaccoonWarehouse.FinancialTransactions.Reports;
 using RaccoonWarehouse.FinancialTransactions;
 using RaccoonWarehouse.Settings;
+using RaccoonWarehouse.Domain.Permissions;
 using System.Linq;
 using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Core.Modules;
 using RaccoonWarehouse.Navigation.Modules;
 using RaccoonWarehouse.Domain.Enums;
-using RaccoonWarehouse.Domain.Permissions;
 using RaccoonWarehouse.Domain.Notifications;
 using RaccoonWarehouse.Application.Service.Orders;
 using RaccoonWarehouse.Application.Service.Stocks;
@@ -116,6 +116,7 @@ namespace RaccoonWarehouse
             DashboardActionRegistry dashboardActions,
             IStockService stockService)
         {
+            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
             _userSession = userSession;
             _reportPermissionService = reportPermissionService;
@@ -141,6 +142,7 @@ namespace RaccoonWarehouse
             {
                 _loadingService.Show();
                 UiText.ApplyWindow(this);
+                PurchaseManagementText.Text = UiText.T("إدارة المشتريات", "Purchase Management");
                 await Task.Yield();
 
                 AccountingNavButton.Visibility = await _accountingFeatureService.IsEnabledAsync()
@@ -182,7 +184,8 @@ namespace RaccoonWarehouse
             try
             {
                 var role = _userSession.CurrentUser?.Role;
-                if (!role.HasValue || !await _permissionService.HasPermissionAsync(role.Value, "StockLots.View"))
+                if (PermissionCatalog.EnforcementEnabled &&
+                    (!role.HasValue || !await _permissionService.HasPermissionAsync(role.Value, "StockLots.View")))
                     return;
 
                 if (!await _stockService.HasExpiredStockAsync())
@@ -546,9 +549,10 @@ namespace RaccoonWarehouse
                 foreach (var action in group.Actions)
                 {
                     var permissionKey = ResolveDashboardPermissionKey(action);
-                    var canView = string.IsNullOrWhiteSpace(permissionKey) ||
-                        !(_userSession.CurrentRole is UserRole role) ||
-                        await _permissionService.HasPermissionAsync(role, permissionKey);
+                    var canView = !PermissionCatalog.EnforcementEnabled ||
+                        (!string.IsNullOrWhiteSpace(permissionKey) &&
+                         _userSession.CurrentRole is UserRole role &&
+                         await _permissionService.HasPermissionAsync(role, permissionKey));
                     if (canView)
                         visibleActions.Add(action);
                 }
@@ -600,9 +604,10 @@ namespace RaccoonWarehouse
                 foreach (var action in group.Actions)
                 {
                     var permissionKey = ResolveDashboardPermissionKey(action);
-                    var canView = string.IsNullOrWhiteSpace(permissionKey) ||
-                        !(_userSession.CurrentRole is UserRole role) ||
-                        await _permissionService.HasPermissionAsync(role, permissionKey);
+                    var canView = !PermissionCatalog.EnforcementEnabled ||
+                        (!string.IsNullOrWhiteSpace(permissionKey) &&
+                         _userSession.CurrentRole is UserRole role &&
+                         await _permissionService.HasPermissionAsync(role, permissionKey));
                     if (canView)
                         visibleActions.Add(action);
                 }
@@ -665,6 +670,27 @@ namespace RaccoonWarehouse
 
             return action.Key switch
             {
+                "Customers.Create" => "Customers.Create",
+                "Customers.CreateSupplier" => "Suppliers.Create",
+                "Customers.List" => "Customers.View",
+                "Users.List" => "Users.View",
+                "PurchaseOrders.Create" => "PurchaseOrder.Create",
+                "PurchaseOrders.List" => "PurchaseOrder.View",
+                "PurchaseRequests.List" => "PurchaseRequest.View",
+                "Insurance.Companies" => "InsuranceCompanies.View",
+                "Insurance.Setup" => "InsuranceContracts.View",
+                "Insurance.Claims" => "InsuranceClaims.View",
+                "Insurance.Settlements" => "InsurancePayments.View",
+                "Settings.AuditLogs" => "AuditLogs.View",
+                "Settings.DocumentBranding" => "Settings.ManageSettings",
+                "Settings.InventoryCosting" => "Settings.ManageSettings",
+                "Settings.PosRowColors" => "Settings.ManageSettings",
+                "Settings.RefundCode" => "Settings.ManageSettings",
+                "Settings.SwitchDatabase" => "Permissions.ManageSettings",
+                "Stocks.ExpiringStockReport" => "ExpiringStockReport.View",
+                "cashier-board" => "CashierReport.View",
+                "product-sales-average" => "SalesReport.View",
+                "below-min-stock" => "BelowMinimumStockReport.View",
                 "Stocks.In" => "StockInVoucher.Create",
                 "Stocks.Out" => "StockOutVoucher.Create",
                 "Stocks.Adjustment" => "StockAdjustment.Create",
@@ -684,7 +710,7 @@ namespace RaccoonWarehouse
                 "Accounting.CustomerDebts" => "Accounting.CustomerDebts.View",
                 "Accounting.SupplierPayables" => "Accounting.SupplierPayables.View",
                 "Accounting.PartyBalances" => "Accounting.PartyBalances.View",
-                _ => PermissionCatalog.FindByKey(action.Key)?.Key
+                _ => PermissionCatalog.FindByKey(action.Key)?.Key ?? PermissionCatalog.FindByLegacyReportKey(action.Key)?.Key ?? "Permissions.Unmapped"
             };
         }
 
@@ -741,7 +767,8 @@ namespace RaccoonWarehouse
             {
                 var action = new ModuleActionDefinition(actionKey, actionKey);
                 var permissionKey = ResolveDashboardPermissionKey(action);
-                if (!string.IsNullOrWhiteSpace(permissionKey) &&
+                if (PermissionCatalog.EnforcementEnabled &&
+                    !string.IsNullOrWhiteSpace(permissionKey) &&
                     !(_userSession.CurrentRole is UserRole role &&
                       await _permissionService.HasPermissionAsync(role, permissionKey)))
                 {

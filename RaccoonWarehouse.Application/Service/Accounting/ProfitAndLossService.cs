@@ -5,8 +5,7 @@ using RaccoonWarehouse.Domain.Reports.Financial.Dtos;
 
 namespace RaccoonWarehouse.Application.Service.Accounting
 {
-    public class ProfitAndLossService
-    {
+    public class ProfitAndLossService : IProfitAndLossService{
         private readonly ApplicationDbContext _context;
 
         public ProfitAndLossService(ApplicationDbContext context)

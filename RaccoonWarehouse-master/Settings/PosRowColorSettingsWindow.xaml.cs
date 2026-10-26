@@ -61,6 +61,7 @@ public partial class PosRowColorSettingsWindow : Window
 
     public PosRowColorSettingsWindow(IPosRowColorRuleService service, IProductService productService)
     {
+        RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
         InitializeComponent(); _service = service; _productService = productService; RulesGrid.ItemsSource = _rules; ConditionComboBox.ItemsSource = Conditions;
         ScopeComboBox.ItemsSource = Scopes; SaleActionComboBox.ItemsSource = SaleActions;
         ProductSearchResultsGrid.ItemsSource = _productSearchResults;
