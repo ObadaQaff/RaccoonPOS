@@ -22,6 +22,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
 
 namespace RaccoonWarehouse.Invoices
@@ -464,6 +465,32 @@ namespace RaccoonWarehouse.Invoices
         private async void ProductsGrid_PreviewKeyDown(object sender, KeyEventArgs e)
         {
             if (ProductsGrid.CurrentItem is not PurchaseProductSearchRow row) return;
+
+            if (e.KeyboardDevice.Modifiers == ModifierKeys.None
+                && IsCellTypingKey(e.Key)
+                && ProductsGrid.CurrentCell.Column?.IsReadOnly == false
+                && e.OriginalSource is not TextBoxBase)
+            {
+                ProductsGrid.BeginEdit();
+
+                if (e.OriginalSource is DependencyObject source)
+                {
+                    var cell = FindVisualParent<DataGridCell>(source);
+                    if (cell != null)
+                    {
+                        Dispatcher.BeginInvoke(new Action(() =>
+                        {
+                            var editor = FindVisualChild<TextBox>(cell);
+                            if (editor != null)
+                            {
+                                editor.Focus();
+                                editor.SelectAll();
+                            }
+                        }), DispatcherPriority.Input);
+                    }
+                }
+            }
+
             if (e.Key == Key.Enter)
             {
                 CommitProductRowEdits(row);
@@ -488,6 +515,48 @@ namespace RaccoonWarehouse.Invoices
             }
             if (e.Key == Key.Up && ProductsGrid.SelectedIndex == 0) { FocusSearchBox(); e.Handled = true; }
         }
+
+        private static T? FindVisualParent<T>(DependencyObject? child) where T : DependencyObject
+        {
+            while (child != null)
+            {
+                if (child is T match)
+                    return match;
+
+                child = VisualTreeHelper.GetParent(child);
+            }
+
+            return null;
+        }
+
+        private static T? FindVisualChild<T>(DependencyObject? parent) where T : DependencyObject
+        {
+            if (parent == null)
+                return null;
+
+            for (var index = 0; index < VisualTreeHelper.GetChildrenCount(parent); index++)
+            {
+                var child = VisualTreeHelper.GetChild(parent, index);
+                if (child is T match)
+                    return match;
+
+                var nestedMatch = FindVisualChild<T>(child);
+                if (nestedMatch != null)
+                    return nestedMatch;
+            }
+
+            return null;
+        }
+
+        private static bool IsCellTypingKey(Key key)
+        {
+            return key is Key.Back or Key.Delete or Key.Decimal or Key.Add or Key.Subtract
+                or Key.Multiply or Key.Divide or Key.OemPlus or Key.OemMinus
+                or Key.OemPeriod or Key.OemComma
+                || key is >= Key.D0 and <= Key.D9
+                || key is >= Key.NumPad0 and <= Key.NumPad9;
+        }
+
         private async void SelectProductBtn_Click(object sender, RoutedEventArgs e)
         {
             if (sender is Button { DataContext: PurchaseProductSearchRow row })
