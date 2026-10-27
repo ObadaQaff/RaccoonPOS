@@ -78,6 +78,7 @@ namespace RaccoonWarehouse.Invoices
         private readonly System.Threading.SemaphoreSlim _productLoadSemaphore = new(1, 1);
         private int? _currentInvoiceId = null;   // لتحديث الفاتورة بعد الحفظ الأول
         private bool _originalCostPriceIncludesTax;
+        private bool _lastCostPriceIncludesTax;
         private readonly IUOW _purchaseUow;
         private readonly ApplicationDbContext _purchaseDb;
         private bool _isSavingPurchase;
@@ -406,7 +407,26 @@ namespace RaccoonWarehouse.Invoices
                 line.LineDiscountAmount = Math.Round(line.LineDiscountAmount * factor, 3);
             }
 
+            _lastCostPriceIncludesTax = true;
             CostPriceIncludesTaxCheckBox.IsChecked = true;
+        }
+
+        private void ConvertPurchasePriceMode(bool fromIncludesTax, bool toIncludesTax)
+        {
+            if (fromIncludesTax == toIncludesTax)
+                return;
+
+            foreach (var line in InvoiceLines)
+            {
+                if (line.TaxExempt || line.TaxRate <= 0m)
+                    continue;
+
+                var factor = 1m + line.TaxRate / 100m;
+                var conversion = toIncludesTax ? factor : 1m / factor;
+                line.UnitPrice = Math.Round(line.UnitPrice * conversion, 3, MidpointRounding.AwayFromZero);
+                line.UnitCost = Math.Round(line.UnitCost * conversion, 3, MidpointRounding.AwayFromZero);
+                line.LineDiscountAmount = Math.Round(line.LineDiscountAmount * conversion, 3, MidpointRounding.AwayFromZero);
+            }
         }
 
         private IEnumerable<StockMovementPostDto> BuildInvoiceStockMovements(
@@ -1125,6 +1145,9 @@ namespace RaccoonWarehouse.Invoices
         {
             if (IsLoaded)
             {
+                var includesTax = CostPriceIncludesTax;
+                ConvertPurchasePriceMode(_lastCostPriceIncludesTax, includesTax);
+                _lastCostPriceIncludesTax = includesTax;
                 UpdateTotal();
                 ProductsGrid.Items.Refresh();
             }
@@ -2072,6 +2095,7 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
 
             _currentInvoiceId = invoice.Id;
             _originalCostPriceIncludesTax = invoice.CostPriceIncludesTax;
+            _lastCostPriceIncludesTax = invoice.CostPriceIncludesTax;
 
             _originalLines = invoice.InvoiceLines.ToList();   // 🔥 مهم جداً
 
@@ -2135,6 +2159,7 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
             _currentInvoiceId = null;
             _originalLines.Clear();
             _originalCostPriceIncludesTax = false;
+            _lastCostPriceIncludesTax = false;
 
             InvoiceLines.Clear();
             ProductsGrid.Items.Refresh();

@@ -121,6 +121,23 @@ namespace RaccoonWarehouse.Navigation
             window.ShowDialog();
         }
 
+        public static async Task ShowDialogAsync<T>(
+            WindowSizeType size = WindowSizeType.MediumRectangle,
+            Func<T, Task>? initAsync = null)
+            where T : Window
+        {
+            var app = (App)System.Windows.Application.Current;
+
+            using var scope = app.ServiceProvider.CreateScope();
+            var window = scope.ServiceProvider.GetRequiredService<T>();
+
+            ApplySize(window, size);
+            if (initAsync != null)
+                await initAsync(window);
+
+            window.ShowDialog();
+        }
+
         // ==========================
         // HELPERS
         // ==========================

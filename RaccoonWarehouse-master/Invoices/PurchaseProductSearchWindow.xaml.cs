@@ -159,10 +159,9 @@ namespace RaccoonWarehouse.Invoices
             }
 
             CommitProductRowEdits(row);
-            WindowManager.ShowDialog<UpdateProduct>(WindowSizeType.MediumRectangle, window =>
-            {
-                window.Initialize(row.Product.Id);
-            });
+            await WindowManager.ShowDialogAsync<UpdateProduct>(
+                WindowSizeType.MediumRectangle,
+                window => window.Initialize(row.Product.Id));
 
             await RefreshCatalogAndSearchAsync();
         }

@@ -729,10 +729,9 @@ namespace RaccoonWarehouse.Invoices
             {
                 if (row.Product != null)
                 {
-                    WindowManager.ShowDialog<UpdateProduct>(WindowSizeType.MediumRectangle, window =>
-                    {
-                        window.Initialize(row.Product.Id);
-                    });
+                    await WindowManager.ShowDialogAsync<UpdateProduct>(
+                        WindowSizeType.MediumRectangle,
+                        window => window.Initialize(row.Product.Id));
 
                     await RunSearchSafelyAsync();
                 }
