@@ -3085,6 +3085,9 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Property<string>("JordanEInvoiceReference")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("JordanEInvoiceUuid")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("JordanEInvoiceResponse")
                         .HasColumnType("nvarchar(max)");
 

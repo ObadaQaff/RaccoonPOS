@@ -31,6 +31,7 @@ namespace RaccoonWarehouse.Stocks
         private readonly SemaphoreSlim _stockLoadLock = new(1, 1);
 
         private int _searchVersion;
+        private int? _selectedSupplierId;
 
         public ObservableCollection<CurrentStockDto> CurrentStockItems { get; set; }
             = new ObservableCollection<CurrentStockDto>();
@@ -83,8 +84,7 @@ namespace RaccoonWarehouse.Stocks
                 if (requestVersion != _searchVersion)
                     return;
 
-                var supplierId = SupplierComboBox.SelectedValue is int selectedSupplierId && selectedSupplierId > 0 ? selectedSupplierId : (int?)null;
-                var data = await _stockReportService.GetCurrentStockAsync(normalizedSearch, AsOfDatePicker.SelectedDate?.Date, supplierId);
+                var data = await _stockReportService.GetCurrentStockAsync(normalizedSearch, AsOfDatePicker.SelectedDate?.Date, _selectedSupplierId);
                 if (requestVersion != _searchVersion)
                     return;
 
@@ -148,6 +148,20 @@ namespace RaccoonWarehouse.Stocks
         {
             var searchVersion = Interlocked.Increment(ref _searchVersion);
             _ = DebouncedLoadStockAsync(GetSearchText(), searchVersion);
+        }
+
+        private async void SupplierComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!IsLoaded || SupplierComboBox.SelectedItem is not RaccoonWarehouse.Domain.Users.DTOs.UserReadDto supplier)
+                return;
+
+            var supplierId = supplier.Id > 0 ? supplier.Id : (int?)null;
+            if (_selectedSupplierId == supplierId)
+                return;
+
+            _selectedSupplierId = supplierId;
+            var searchVersion = Interlocked.Increment(ref _searchVersion);
+            await LoadStockAsync(GetSearchText(), searchVersion);
         }
 
         private async Task DebouncedLoadStockAsync(string? searchText, int searchVersion)

@@ -36,6 +36,8 @@ publish/
 /installer/ROCCOPOS-Setup.sed
 *.log
 
+# Local JoFotara credentials; never commit these values.
+
 # Generated local build and verification output
 **/build-check*/
 **/isolated-*/
@@ -66,3 +68,4 @@ publish/
 **/docs/
 **/scripts/
 **/graphify-out/
+/RaccoonWarehouse.Application/Service/Invoices/JordanEInvoiceConfiguration.local.cs

@@ -70,6 +70,7 @@ namespace RaccoonWarehouse.Domain.Invoices.DTOs
         public bool DeferAccountingPosting { get; set; }
         public JordanEInvoiceStatus JordanEInvoiceStatus { get; set; }
         public string? JordanEInvoiceReference { get; set; }
+        public string? JordanEInvoiceUuid { get; set; }
         public string? JordanEInvoiceQr { get; set; }
         public string? JordanEInvoiceResponse { get; set; }
         public DateTime? JordanEInvoiceSubmittedAtUtc { get; set; }

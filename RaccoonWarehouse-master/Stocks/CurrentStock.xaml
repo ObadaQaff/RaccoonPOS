@@ -68,7 +68,7 @@
         </Style>
 
         <Style x:Key="ReportDataGridStyle" TargetType="DataGrid">
-            <Setter Property="RowHeight" Value="Auto"/>
+            <Setter Property="RowHeight" Value="42"/>
             <Setter Property="MinRowHeight" Value="42"/>
             <Setter Property="ColumnHeaderHeight" Value="46"/>
             <Setter Property="GridLinesVisibility" Value="Horizontal"/>
@@ -208,7 +208,7 @@
 
                     <ComboBox x:Name="SupplierComboBox" Grid.Column="2" Grid.Row="1" Height="42" Width="230" Margin="12,12,0,0"
                               DisplayMemberPath="Name" SelectedValuePath="Id" IsEditable="True" IsTextSearchEnabled="False"
-                              StaysOpenOnEdit="True"/>
+                              StaysOpenOnEdit="True" SelectionChanged="SupplierComboBox_SelectionChanged"/>
 
                     <DatePicker x:Name="AsOfDatePicker" Grid.Column="1" Grid.Row="1" Height="42" Width="190" HorizontalAlignment="Right" Margin="0,12,0,0" ToolTip="As of date / التاريخ حتى" SelectedDateChanged="AsOfDatePicker_SelectedDateChanged"/>
 

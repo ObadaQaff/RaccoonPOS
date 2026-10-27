@@ -180,6 +180,7 @@ namespace RaccoonWarehouse.Invoices
         private readonly ISaleCheckoutService _saleCheckoutService;
         private readonly IRefundAuthorizationCodeService _refundAuthorizationCodeService;
         private readonly IJordanEInvoiceService _jordanEInvoiceService;
+        private readonly IJordanEInvoiceSettingsService _jordanEInvoiceSettingsService;
         private bool _isProcessingPayment;
         private bool _isHoldingInvoice;
 
@@ -376,6 +377,7 @@ namespace RaccoonWarehouse.Invoices
         private ObservableCollection<InvoiceLineWriteDto> _invoiceLines
             = new ObservableCollection<InvoiceLineWriteDto>();
         private readonly IPosRowColorRuleService _rowColorRuleService;
+        private bool _isRefreshingPosData;
 
         #region Construction and initialization
         public POS(
@@ -391,7 +393,8 @@ namespace RaccoonWarehouse.Invoices
                    ISaleCheckoutService saleCheckoutService,
                    IPosRowColorRuleService rowColorRuleService,
                    IRefundAuthorizationCodeService refundAuthorizationCodeService,
-                   IJordanEInvoiceService jordanEInvoiceService
+                    IJordanEInvoiceService jordanEInvoiceService,
+                    IJordanEInvoiceSettingsService jordanEInvoiceSettingsService
             )
         {
             #region Dependency initialization
@@ -411,6 +414,7 @@ namespace RaccoonWarehouse.Invoices
             _rowColorRuleService = rowColorRuleService;
             _refundAuthorizationCodeService = refundAuthorizationCodeService;
             _jordanEInvoiceService = jordanEInvoiceService;
+            _jordanEInvoiceSettingsService = jordanEInvoiceSettingsService;
 
             RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
@@ -519,6 +523,59 @@ namespace RaccoonWarehouse.Invoices
                 UiText.T("جاري تحميل كتالوج المنتجات...", "Loading the product catalog..."),
                 UiText.T("تم تحميل ألوان المنتجات", "Product colors loaded"));
             await ProductSearchWindow.WarmCatalogCacheAsync(stockService);
+        }
+
+        private async Task RefreshPosDataAsync()
+        {
+            if (_isRefreshingPosData || !IsLoaded)
+                return;
+
+            _isRefreshingPosData = true;
+            var selectedCustomerId = (CustomerComboBox.SelectedItem as UserReadDto)?.Id
+                ?? _currentInvoice.CustomerId;
+
+            try
+            {
+                _loading.Show();
+                _loading.UpdateProgress(
+                    10,
+                    UiText.T("جاري تحديث بيانات نقطة البيع...", "Refreshing point-of-sale data..."),
+                    UiText.T("تحديث العملاء والموردين", "Refreshing customers and suppliers"));
+
+                // Invalidate both shared caches before reloading all POS lookup data.
+                ProductSearchWindow.InvalidateCatalogCache();
+                _rowColorRuleService.InvalidateCache();
+
+                await LoadCustomersAsync(selectedCustomerId);
+                _loading.UpdateProgress(
+                    35,
+                    UiText.T("جاري تحديث كتالوج المنتجات...", "Refreshing the product catalog..."),
+                    UiText.T("تحميل قواعد الألوان", "Loading color rules"));
+
+                await WarmProductCatalogInBackgroundAsync();
+                await LoadBrowseSubCategoriesAsync();
+                await ReloadBrowseAsync();
+
+                // Reclassify existing invoice rows using the refreshed color rules.
+                RecalculateTotals();
+                _loading.UpdateProgress(
+                    100,
+                    UiText.T("اكتمل تحديث بيانات نقطة البيع", "Point-of-sale data refreshed"),
+                    UiText.T("المنتجات والألوان محدثة", "Products and colors are up to date"));
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"{UiText.T("تعذر تحديث بيانات نقطة البيع", "Could not refresh point-of-sale data")}: {ex.Message}",
+                    UiText.T("خطأ", "Error"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+            finally
+            {
+                _loading.Hide();
+                _isRefreshingPosData = false;
+            }
         }
 
         private async void OpenInsuranceInvoiceBtn_Click(object sender, RoutedEventArgs e)
@@ -790,6 +847,10 @@ namespace RaccoonWarehouse.Invoices
                     case Key.D7:
                     case Key.NumPad7:
                         CreditPaymentBtn_Click(this, new RoutedEventArgs());
+                        e.Handled = true;
+                        return;
+                    case Key.R:
+                        _ = RefreshPosDataAsync();
                         e.Handled = true;
                         return;
                 }
@@ -6908,7 +6969,9 @@ namespace RaccoonWarehouse.Invoices
                         : UiText.T("تم حفظ الفاتورة، وسيتم تسجيل الحركة المالية تلقائياً ✅", "The invoice was saved; the financial transaction will be posted automatically."),
                     UiText.T("نجاح", "Success"));
 
-                await AskToSubmitToJordanEInvoiceAsync(checkoutResult.Data.SavedInvoice.Id);
+                // JoFotara POS submission is temporarily disabled while the
+                // accountant finalizes the integration configuration. The
+                // settings and submission service remain available for reactivation.
 
                 var printChoice = MessageBox.Show(
                     UiText.T("هل تريد طباعة الفاتورة الصغيرة؟", "Do you want to print the small invoice?"),

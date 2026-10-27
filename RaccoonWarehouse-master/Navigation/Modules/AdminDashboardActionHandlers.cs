@@ -82,6 +82,7 @@ namespace RaccoonWarehouse.Navigation.Modules
                 "Settings.InventoryCosting" or
                 "Settings.RefundCode" or
                 "Settings.DocumentBranding" or
+                "Settings.JoFotara" or
                 "Settings.PosRowColors" or
                 "Settings.SwitchDatabase";
         }
@@ -162,6 +163,10 @@ namespace RaccoonWarehouse.Navigation.Modules
                 case "Settings.DocumentBranding":
                     if (!await HasPermissionAsync("Settings.ManageSettings")) return;
                     WindowManager.ShowDialog<RaccoonWarehouse.Settings.DocumentBrandingWindow>(WindowSizeType.LargeRectangle);
+                    return;
+                case "Settings.JoFotara":
+                    if (!await HasPermissionAsync("Settings.ManageSettings")) return;
+                    WindowManager.ShowDialog<JordanEInvoiceSettingsWindow>(WindowSizeType.MediumRectangle);
                     return;
                 case "Settings.PosRowColors":
                     if (!await HasPermissionAsync("Settings.ManageSettings"))

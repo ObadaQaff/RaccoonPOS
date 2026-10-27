@@ -1007,6 +1007,7 @@ END;";
             services.AddScoped<IJordanEInvoiceService>(sp => new JordanEInvoiceService(
                 sp.GetRequiredService<ApplicationDbContext>(),
                 sp.GetRequiredService<DocumentBrandingService>(),
+                sp.GetRequiredService<IJordanEInvoiceSettingsService>(),
                 new HttpClient()));
             services.AddScoped<IPurchaseOrderService, PurchaseOrderService>();
             services.AddScoped<RaccoonWarehouse.Application.Service.PurchaseRequests.IPurchaseRequestService, RaccoonWarehouse.Application.Service.PurchaseRequests.PurchaseRequestService>();
@@ -1080,6 +1081,7 @@ END;";
             services.AddScoped<IInventoryCostingSettingsService, InventoryCostingSettingsService>();
             services.AddScoped<IRefundAuthorizationCodeService, RefundAuthorizationCodeService>();
             services.AddScoped<IPosRowColorRuleService, PosRowColorRuleService>();
+            services.AddScoped<IJordanEInvoiceSettingsService, JordanEInvoiceSettingsService>();
             services.AddScoped<IPermissionService, PermissionService>();
             services.AddScoped<IReportPermissionService, ReportPermissionService>();
             services.AddScoped<IDelegateService, DelegateService>();
@@ -1272,6 +1274,7 @@ END;";
             services.AddTransient<LanguageSettingsWindow>();
             services.AddTransient<InventoryCostingSettingsWindow>();
             services.AddTransient<RefundCodeSettingsWindow>();
+            services.AddTransient<JordanEInvoiceSettingsWindow>();
             services.AddTransient<PosRowColorSettingsWindow>();
             #endregion
 

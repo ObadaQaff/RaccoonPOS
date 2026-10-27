@@ -306,11 +306,18 @@ namespace RaccoonWarehouse.Invoices
             await LoadProductsAsync();
         }
 
-        private void PayInvoice_PreviewKeyDown(object sender, KeyEventArgs e)
+        private async void PayInvoice_PreviewKeyDown(object sender, KeyEventArgs e)
         {
             if (e.Key == Key.F1)
             {
                 SearchProductBtn_Click(this, new RoutedEventArgs());
+                e.Handled = true;
+                return;
+            }
+
+            if (e.Key == Key.F3)
+            {
+                await OpenSelectedProductCardAsync();
                 e.Handled = true;
                 return;
             }
@@ -327,6 +334,28 @@ namespace RaccoonWarehouse.Invoices
                 DeleteProduct_Click(this, new RoutedEventArgs());
                 e.Handled = true;
             }
+        }
+
+        private async Task OpenSelectedProductCardAsync()
+        {
+            ProductsGrid.CommitEdit(DataGridEditingUnit.Cell, true);
+            ProductsGrid.CommitEdit(DataGridEditingUnit.Row, true);
+
+            var line = ProductsGrid.CurrentItem as InvoiceLineWriteDto
+                ?? ProductsGrid.SelectedItem as InvoiceLineWriteDto;
+            if (line == null || line.ProductId <= 0)
+            {
+                MessageBox.Show(
+                    UiText.T("يجب تحديد الصنف قبل التحديث.", "Select a product before updating."),
+                    UiText.T("تنبيه", "Notice"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+
+            await WindowManager.ShowDialogAsync<UpdateProduct>(
+                WindowSizeType.MediumRectangle,
+                window => window.Initialize(line.ProductId));
         }
 
         private void ExpiryDatePicker_Loaded(object sender, RoutedEventArgs e)
@@ -931,6 +960,61 @@ namespace RaccoonWarehouse.Invoices
 
         private void ProductsGrid_PreviewKeyDown(object sender, KeyEventArgs e)
         {
+            if (e.KeyboardDevice.Modifiers == ModifierKeys.None
+                && e.Key is Key.Up or Key.Down
+                && ProductsGrid.CurrentItem is InvoiceLineWriteDto currentLine
+                && ProductsGrid.CurrentCell.Column is DataGridColumn currentColumn)
+            {
+                var currentIndex = InvoiceLines.IndexOf(currentLine);
+                var targetIndex = currentIndex + (e.Key == Key.Up ? -1 : 1);
+
+                // Commit the value before changing rows so CellEditEnding and
+                // the binding update run for the cell the user just edited.
+                ProductsGrid.CommitEdit(DataGridEditingUnit.Cell, true);
+                ProductsGrid.CommitEdit(DataGridEditingUnit.Row, true);
+
+                if (currentIndex >= 0 && targetIndex >= 0 && targetIndex < InvoiceLines.Count)
+                {
+                    var targetLine = InvoiceLines[targetIndex];
+                    ProductsGrid.SelectedItem = targetLine;
+                    ProductsGrid.CurrentCell = new DataGridCellInfo(targetLine, currentColumn);
+                    ProductsGrid.ScrollIntoView(targetLine, currentColumn);
+
+                    Dispatcher.BeginInvoke(new Action(() =>
+                    {
+                        if (!IsLoaded)
+                            return;
+
+                        ProductsGrid.UpdateLayout();
+                        ProductsGrid.BeginEdit();
+
+                        var row = ProductsGrid.ItemContainerGenerator.ContainerFromItem(targetLine) as DataGridRow;
+                        var cell = row == null
+                            ? null
+                            : FindGridCell(row, currentColumn.DisplayIndex);
+
+                        if (cell == null)
+                            return;
+
+                        cell.Focus();
+                        if (FindVisualChild<TextBox>(cell) is TextBox editor)
+                        {
+                            editor.Focus();
+                            editor.SelectAll();
+                        }
+                        else if (FindVisualChild<DatePicker>(cell) is DatePicker datePicker)
+                        {
+                            datePicker.Focus();
+                        }
+                    }), System.Windows.Threading.DispatcherPriority.Input);
+                }
+
+                // Do not let the active TextBox move its caret instead of
+                // moving to the adjacent invoice line.
+                e.Handled = true;
+                return;
+            }
+
             if (e.KeyboardDevice.Modifiers != ModifierKeys.None
                 || !IsCellTypingKey(e.Key)
                 || ProductsGrid.CurrentCell.Column?.IsReadOnly != false)
@@ -962,6 +1046,12 @@ namespace RaccoonWarehouse.Invoices
                     }), System.Windows.Threading.DispatcherPriority.Input);
                 }
             }
+        }
+
+        private static DataGridCell? FindGridCell(DataGridRow row, int displayIndex)
+        {
+            var presenter = FindVisualChild<DataGridCellsPresenter>(row);
+            return presenter?.ItemContainerGenerator.ContainerFromIndex(displayIndex) as DataGridCell;
         }
 
         private static T? FindVisualParent<T>(DependencyObject? child) where T : DependencyObject
@@ -1813,7 +1903,6 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
                 committed = true;
                 HideLoadingIfShown();
                 MessageBox.Show(UiText.T("تم حفظ فاتورة المشتريات بنجاح.", "Purchase invoice saved successfully."), UiText.T("تنبيه", "Notice"));
-                await AskForSupplierJoFotaraReferenceAsync(savedInvoiceId, supplier);
                 NewInvoiceBtn_Click(this, new RoutedEventArgs());
             }
             catch (Exception ex)

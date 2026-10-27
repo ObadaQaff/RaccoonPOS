@@ -1064,9 +1064,13 @@ namespace RaccoonWarehouse.Invoices
                 ProductsGrid.Items.Refresh();
                 UiText.ApplyTranslations(ProductsGrid);
             }
-            catch (TaskCanceledException) when (cancellationToken.IsCancellationRequested || _isClosing)
+            catch (TaskCanceledException)
             {
                 // SQL/EF reports a canceled database command as TaskCanceledException.
+            }
+            catch (OperationCanceledException)
+            {
+                // Cancellation is expected when the query is replaced or the window closes.
             }
             catch (Exception ex) when (IsExpectedSearchCancellation(ex, cancellationToken))
             {

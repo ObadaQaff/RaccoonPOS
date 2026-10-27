@@ -80,7 +80,7 @@
                                           IsEditable="True" IsTextSearchEnabled="False" StaysOpenOnEdit="True"
                                           DisplayMemberPath="Name"
                                           SelectedValuePath="Id"
-                                          DropDownClosed="SupplierFilterComboBox_DropDownClosed"/>
+                                          SelectionChanged="SupplierFilterComboBox_SelectionChanged"/>
                             </StackPanel>
                         </Border>
 

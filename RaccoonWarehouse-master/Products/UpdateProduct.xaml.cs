@@ -17,6 +17,7 @@ using RaccoonWarehouse.Domain.Stock.DTOs;
 using RaccoonWarehouse.Domain.StockTransactions;
 using RaccoonWarehouse.Domain.StockTransactions.DTOs;
 using System;
+using System.ComponentModel;
 using System.Collections.ObjectModel;
 using System.Collections.Generic;
 using System.Linq;
@@ -41,6 +42,7 @@ namespace RaccoonWarehouse.Products
         private int _productId;
         private bool _isInitializing;
         private bool _isSaving;
+        private bool _closeWhenIdle;
         private List<ProductUnitWriteDto> _productUnits = new();
         private List<UnitLookupItem> _unitLookupItems = new();
         private List<RaccoonWarehouse.Domain.Users.DTOs.UserReadDto> _supplierLookupItems = new();
@@ -83,6 +85,30 @@ namespace RaccoonWarehouse.Products
             _stockService = stockService;
             _userService = userService;
             DataContext = this;
+            Closing += UpdateProduct_Closing;
+        }
+
+        private void UpdateProduct_Closing(object? sender, CancelEventArgs e)
+        {
+            if (!_isInitializing && !_isSaving)
+                return;
+
+            // WindowManager owns this window's DI scope and disposes it when
+            // the window closes. Keep the window alive until all EF queries
+            // using that scope have completed.
+            e.Cancel = true;
+            _closeWhenIdle = true;
+        }
+
+        private void CloseWhenIdleIfRequested()
+        {
+            if (!_closeWhenIdle || _isInitializing || _isSaving || !IsLoaded)
+                return;
+
+            _closeWhenIdle = false;
+            Dispatcher.BeginInvoke(
+                new Action(Close),
+                System.Windows.Threading.DispatcherPriority.Background);
         }
 
         public async Task Initialize(int id)
@@ -98,6 +124,7 @@ namespace RaccoonWarehouse.Products
             {
                 _isInitializing = false;
                 SetEditorEnabled(true);
+                CloseWhenIdleIfRequested();
             }
         }
 
@@ -827,6 +854,7 @@ namespace RaccoonWarehouse.Products
             {
                 _isSaving = false;
                 SetEditorEnabled(!_isInitializing);
+                CloseWhenIdleIfRequested();
             }
         }
 

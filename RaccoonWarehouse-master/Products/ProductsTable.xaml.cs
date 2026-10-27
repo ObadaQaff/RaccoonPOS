@@ -113,14 +113,23 @@ namespace RaccoonWarehouse.Products
             QueueSearch();
         }
 
-        private void SupplierFilterComboBox_DropDownClosed(object sender, EventArgs e)
+        private void SupplierFilterComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (!IsLoaded)
                 return;
 
-            _currentSupplierId = SupplierFilterComboBox.SelectedValue is int supplierId && supplierId > 0
-                ? supplierId
-                : null;
+            // The editable supplier helper temporarily clears SelectedValue while
+            // the user is typing. Only commit a real selected supplier (or the
+            // explicit "All suppliers" item) so typing does not discard the
+            // currently applied filter before a new supplier is chosen.
+            if (SupplierFilterComboBox.SelectedItem is not RaccoonWarehouse.Domain.Users.DTOs.UserReadDto supplier)
+                return;
+
+            var supplierId = supplier.Id > 0 ? supplier.Id : (int?)null;
+            if (_currentSupplierId == supplierId)
+                return;
+
+            _currentSupplierId = supplierId;
             QueueSearch();
         }
 

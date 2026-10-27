@@ -378,6 +378,7 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 var existingChecks = existingInvoice.Checks?.ToList() ?? new List<Check>();
                 var existingJordanStatus = existingInvoice.JordanEInvoiceStatus;
                 var existingJordanReference = existingInvoice.JordanEInvoiceReference;
+                var existingJordanUuid = existingInvoice.JordanEInvoiceUuid;
                 var existingJordanQr = existingInvoice.JordanEInvoiceQr;
                 var existingJordanResponse = existingInvoice.JordanEInvoiceResponse;
                 var existingJordanSubmittedAt = existingInvoice.JordanEInvoiceSubmittedAtUtc;
@@ -392,6 +393,7 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 existingInvoice.UpdatedDate = dto.UpdatedDate;
                 existingInvoice.JordanEInvoiceStatus = existingJordanStatus;
                 existingInvoice.JordanEInvoiceReference = existingJordanReference;
+                existingInvoice.JordanEInvoiceUuid = existingJordanUuid;
                 existingInvoice.JordanEInvoiceQr = existingJordanQr;
                 existingInvoice.JordanEInvoiceResponse = existingJordanResponse;
                 existingInvoice.JordanEInvoiceSubmittedAtUtc = existingJordanSubmittedAt;
