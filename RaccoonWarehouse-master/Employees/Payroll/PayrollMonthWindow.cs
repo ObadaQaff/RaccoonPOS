@@ -8,15 +8,19 @@ namespace RaccoonWarehouse.Employees.Payroll;
 
 public sealed class PayrollMonthWindow : Window
 {
-    private readonly EmployeePayrollService _service;
+    private readonly EmployeePayrollService _service;private readonly Func<int,int,int,Task>? _openEmployee;
     private readonly DatePicker _period=new(){SelectedDate=new DateTime(DateTime.Today.Year,DateTime.Today.Month,1)};
     private readonly DataGrid _grid=new(){AutoGenerateColumns=false,IsReadOnly=true,CanUserAddRows=false};
     private readonly TextBlock _message=new(){TextWrapping=TextWrapping.Wrap,Margin=new Thickness(8)};
     private sealed record Row(int EmployeeId,string EmployeeName,string State,decimal? EmployeeSsc,decimal? EmployerSsc,decimal? NetSalary,decimal? EmployerCost,PayrollRecord? Record);
-    public PayrollMonthWindow(EmployeePayrollService service)
+    public PayrollMonthWindow(EmployeePayrollService service) : this(service, null, true)
     {
-        RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
-        _service=service;Title="الرواتب الشهرية — مسودات وكشوف معتمدة";Width=1180;Height=740;MinWidth=850;MinHeight=500;FlowDirection=FlowDirection.RightToLeft;WindowStartupLocation=WindowStartupLocation.CenterScreen;
+    }
+
+    internal PayrollMonthWindow(EmployeePayrollService service,Func<int,int,int,Task>? openEmployee,bool enforcePermission)
+    {
+        if(enforcePermission)RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+        _service=service;_openEmployee=openEmployee;Title="الرواتب الشهرية — مسودات وكشوف معتمدة";Width=1180;Height=740;MinWidth=850;MinHeight=500;FlowDirection=FlowDirection.RightToLeft;WindowStartupLocation=WindowStartupLocation.CenterScreen;
         var root=new DockPanel{Margin=new Thickness(22)};var top=PayrollUi.Fields();top.Children.Add(new TextBlock{Text=Title,FontSize=24,FontWeight=FontWeights.Bold});PayrollUi.Field(top,"شهر وسنة الرواتب",_period);
         var tools=new WrapPanel();tools.Children.Add(PayrollUi.AsyncButton("تحميل الموظفين والكشوف",LoadAsync));tools.Children.Add(PayrollUi.AsyncButton("إنشاء المسودات الناقصة",GenerateAsync));tools.Children.Add(PayrollUi.AsyncButton("فتح تبويبات الموظف والراتب",OpenAsync));tools.Children.Add(PayrollUi.Button("عرض النسخة المحفوظة",ShowSnapshot));top.Children.Add(tools);top.Children.Add(_message);DockPanel.SetDock(top,Dock.Top);root.Children.Add(top);
         Add("الموظف","EmployeeName");Add("الحالة","State");Add("اقتطاع الموظف للضمان","EmployeeSsc");Add("حصة الشركة","EmployerSsc");Add("صافي الراتب (د.أ)","NetSalary");Add("تكلفة صاحب العمل (د.أ)","EmployerCost");root.Children.Add(_grid);Content=root;
@@ -24,6 +28,7 @@ public sealed class PayrollMonthWindow : Window
         _period.SelectedDateChanged+=(_,_)=>{_grid.ItemsSource=null;_message.Text="تم تغيير الشهر؛ اضغط تحميل.";};
     }
     private (int Year,int Month) Period(){var d=_period.SelectedDate??throw new ArgumentException("اختر الشهر والسنة.");return(d.Year,d.Month);}
+    public Task RefreshAsync()=>LoadAsync();
     private void Add(string label,string path)=>_grid.Columns.Add(new DataGridTextColumn{Header=label,Binding=new Binding(path){StringFormat=path is "EmployeeName" or "State"?null:"0.000"},Width=new DataGridLength(1,DataGridLengthUnitType.Star)});
     private async Task LoadAsync()
     {
@@ -40,6 +45,6 @@ public sealed class PayrollMonthWindow : Window
         }
         await LoadAsync();_message.Text=$"تم إنشاء {created} مسودة.\n"+string.Join("\n",errors);
     }
-    private Task OpenAsync(){if(_grid.SelectedItem is not Row row)throw new ArgumentException("اختر الموظف.");var(y,m)=Period();WindowManager.ShowDialog<EmployeeDetails>(WindowSizeType.LargeRectangle,w=>w.InitializePayroll(row.EmployeeId,y,m));return LoadAsync();}
+    private async Task OpenAsync(){if(_grid.SelectedItem is not Row row)throw new ArgumentException("اختر الموظف.");var(y,m)=Period();if(_openEmployee!=null)await _openEmployee(row.EmployeeId,y,m);else WindowManager.ShowDialog<EmployeeDetails>(WindowSizeType.LargeRectangle,w=>w.InitializePayroll(row.EmployeeId,y,m));await LoadAsync();}
     private void ShowSnapshot(){if(_grid.SelectedItem is not Row{Record:not null} row){MessageBox.Show("اختر كشفاً محفوظاً.");return;}PayrollUi.ShowSnapshot(row.Record.Calculation);}
 }

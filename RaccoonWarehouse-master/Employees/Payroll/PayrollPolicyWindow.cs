@@ -9,14 +9,19 @@ namespace RaccoonWarehouse.Employees.Payroll;
 public sealed class PayrollPolicyWindow : Window
 {
     private readonly EmployeePayrollService _service;private readonly DataGrid _grid=new(){AutoGenerateColumns=false,IsReadOnly=true,CanUserAddRows=false,MinHeight=160};
-    public PayrollPolicyWindow(EmployeePayrollService service)
+    public PayrollPolicyWindow(EmployeePayrollService service) : this(service, true)
     {
-        RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+    }
+
+    internal PayrollPolicyWindow(EmployeePayrollService service,bool enforcePermission)
+    {
+        if(enforcePermission)RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
         _service=service;Title="إصدارات سياسات الرواتب والضمان";Width=1100;Height=650;FlowDirection=FlowDirection.RightToLeft;WindowStartupLocation=WindowStartupLocation.CenterScreen;
         var root=new DockPanel{Margin=new Thickness(20)};var top=PayrollUi.Fields();top.Children.Add(new TextBlock{Text=Title,FontSize=24,FontWeight=FontWeights.Bold});top.Children.Add(new TextBlock{Text="كل تعديل مالي إصدار مؤرخ جديد. راجع العقد وطريقة أجر الساعة والخصم والسقف وفئة الشمول من المصادر الرسمية قبل اعتماد السياسة.",TextWrapping=TextWrapping.Wrap});var buttons=new WrapPanel();buttons.Children.Add(PayrollUi.AsyncButton("تحميل",LoadAsync));buttons.Children.Add(PayrollUi.AsyncButton("إضافة إصدار من السياسة المحددة",AddAsync));buttons.Children.Add(PayrollUi.AsyncButton("توثيق مراجعة السياسة",ReviewAsync));top.Children.Add(buttons);DockPanel.SetDock(top,Dock.Top);root.Children.Add(top);
         Add("اسم السياسة","Name");Add("الفئة","Category");Add("السريان","EffectiveFrom","yyyy-MM-dd");Add("حتى","EffectiveTo","yyyy-MM-dd");Add("نسبة الموظف","EmployeeSscPercent","0.##");Add("نسبة الشركة","EmployerSscPercent","0.##");Add("سقف الأجر (د.أ)","InsurableWageCeiling","0.000");Add("مصدر التحقق","SourceReference");root.Children.Add(_grid);Content=root;Loaded+=async(_,_)=>{try{await _service.Require("Payroll.Configure");await LoadAsync();}catch(Exception ex){PayrollUi.Error(ex);Close();}};
     }
     private void Add(string title,string path,string? format=null)=>_grid.Columns.Add(new DataGridTextColumn{Header=title,Binding=new Binding(path){StringFormat=format},Width=new DataGridLength(1,DataGridLengthUnitType.Star)});
+    public Task RefreshAsync()=>LoadAsync();
     private async Task LoadAsync()=>_grid.ItemsSource=await _service.PoliciesAsync();
     private async Task ReviewAsync(){if(_grid.SelectedItem is not PayrollPolicy row)throw new ArgumentException("اختر السياسة.");var reason=PayrollUi.Reason("مرجع مراجعة السياسة والعقد وقواعد الضمان");if(reason==null)return;await _service.ReviewPolicyAsync(row.Id,reason);await LoadAsync();}
     private async Task AddAsync()

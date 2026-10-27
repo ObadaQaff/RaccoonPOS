@@ -65,5 +65,15 @@ namespace RaccoonWarehouse.Domain.Invoices
         public decimal TotalCOGS { get; set; }
         public decimal GrossProfit { get; set; }
         public decimal NetSales { get; set; }
+        public JordanEInvoiceStatus JordanEInvoiceStatus { get; set; } = JordanEInvoiceStatus.NotSubmitted;
+        public string? JordanEInvoiceReference { get; set; }
+        public string? JordanEInvoiceQr { get; set; }
+        public string? JordanEInvoiceResponse { get; set; }
+        public DateTime? JordanEInvoiceSubmittedAtUtc { get; set; }
+        public DateTime? JordanEInvoiceLastAttemptAtUtc { get; set; }
+        public int JordanEInvoiceAttemptCount { get; set; }
+        public string? SupplierJoFotaraNumber { get; set; }
+        public string? SupplierJoFotaraUuid { get; set; }
+        public string? SupplierJoFotaraQr { get; set; }
     }
 }

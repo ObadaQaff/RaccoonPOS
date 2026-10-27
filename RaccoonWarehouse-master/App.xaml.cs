@@ -1,4 +1,5 @@
 using AutoMapper;
+using System.Net.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using PdfSharpCore.Fonts;
@@ -1003,6 +1004,10 @@ END;";
                 sp.GetRequiredService<IUOW>(),
                 sp.GetRequiredService<IMapper>(),
                 sp.GetRequiredService<IAccountingService>()));
+            services.AddScoped<IJordanEInvoiceService>(sp => new JordanEInvoiceService(
+                sp.GetRequiredService<ApplicationDbContext>(),
+                sp.GetRequiredService<DocumentBrandingService>(),
+                new HttpClient()));
             services.AddScoped<IPurchaseOrderService, PurchaseOrderService>();
             services.AddScoped<RaccoonWarehouse.Application.Service.PurchaseRequests.IPurchaseRequestService, RaccoonWarehouse.Application.Service.PurchaseRequests.PurchaseRequestService>();
             services.AddScoped<RaccoonWarehouse.Application.Service.GoodsReceipts.IGoodsReceiptService, RaccoonWarehouse.Application.Service.GoodsReceipts.GoodsReceiptService>();
@@ -1156,6 +1161,7 @@ END;";
             services.AddTransient<CreateEmployee>();
             services.AddTransient<UpdateEmployee>();
             services.AddTransient<EmployeeDetails>();
+            services.AddTransient<EmployeeProfileSummaryWindow>();
             services.AddTransient<EmployeeFeatureSettingsWindow>();
 
             services.AddTransient<CategoriesTable>();
@@ -1187,6 +1193,7 @@ END;";
             services.AddTransient<CreateUnit>();
             services.AddTransient<UpdateUnit>();
             services.AddTransient<CreateSalesInvoice>();
+            services.AddTransient<SupplierJoFotaraReferenceWindow>();
 
             services.AddTransient<PayInvoice>();
             services.AddTransient<PurchaseOrdersWindow>();

@@ -376,10 +376,30 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 var existingLines = existingInvoice.InvoiceLines?.ToList() ?? new List<InvoiceLine>();
                 var existingPayments = existingInvoice.Payments?.ToList() ?? new List<InvoicePayment>();
                 var existingChecks = existingInvoice.Checks?.ToList() ?? new List<Check>();
+                var existingJordanStatus = existingInvoice.JordanEInvoiceStatus;
+                var existingJordanReference = existingInvoice.JordanEInvoiceReference;
+                var existingJordanQr = existingInvoice.JordanEInvoiceQr;
+                var existingJordanResponse = existingInvoice.JordanEInvoiceResponse;
+                var existingJordanSubmittedAt = existingInvoice.JordanEInvoiceSubmittedAtUtc;
+                var existingJordanLastAttemptAt = existingInvoice.JordanEInvoiceLastAttemptAtUtc;
+                var existingJordanAttemptCount = existingInvoice.JordanEInvoiceAttemptCount;
+                var existingSupplierNumber = existingInvoice.SupplierJoFotaraNumber;
+                var existingSupplierUuid = existingInvoice.SupplierJoFotaraUuid;
+                var existingSupplierQr = existingInvoice.SupplierJoFotaraQr;
 
                 _mapper.Map(dto, existingInvoice);
                 existingInvoice.CreatedDate = dto.CreatedDate;
                 existingInvoice.UpdatedDate = dto.UpdatedDate;
+                existingInvoice.JordanEInvoiceStatus = existingJordanStatus;
+                existingInvoice.JordanEInvoiceReference = existingJordanReference;
+                existingInvoice.JordanEInvoiceQr = existingJordanQr;
+                existingInvoice.JordanEInvoiceResponse = existingJordanResponse;
+                existingInvoice.JordanEInvoiceSubmittedAtUtc = existingJordanSubmittedAt;
+                existingInvoice.JordanEInvoiceLastAttemptAtUtc = existingJordanLastAttemptAt;
+                existingInvoice.JordanEInvoiceAttemptCount = existingJordanAttemptCount;
+                existingInvoice.SupplierJoFotaraNumber = existingSupplierNumber;
+                existingInvoice.SupplierJoFotaraUuid = existingSupplierUuid;
+                existingInvoice.SupplierJoFotaraQr = existingSupplierQr;
 
                 if (existingLines.Count > 0)
                     _context.Set<InvoiceLine>().RemoveRange(existingLines);
@@ -467,6 +487,26 @@ namespace RaccoonWarehouse.Application.Service.Invoices
             {
                 return Result<InvoiceWriteDto>.Fail($"Error updating invoice: {ex.Message}");
             }
+        }
+
+        public async Task<Result<bool>> SaveSupplierJoFotaraReferenceAsync(
+            int invoiceId,
+            string? number,
+            string? uuid,
+            string? qr)
+        {
+            var invoice = await _uow.GetRepository<Invoice>().GetByIdAsync(invoiceId);
+            if (invoice == null)
+                return Result<bool>.Fail("Invoice not found / الفاتورة غير موجودة.");
+            if (invoice.InvoiceType != InvoiceType.Purchase)
+                return Result<bool>.Fail("Supplier JoFotara references can only be saved on purchase invoices / يمكن حفظ مرجع جوافوترة للمورد على فواتير الشراء فقط.");
+
+            invoice.SupplierJoFotaraNumber = string.IsNullOrWhiteSpace(number) ? null : number.Trim();
+            invoice.SupplierJoFotaraUuid = string.IsNullOrWhiteSpace(uuid) ? null : uuid.Trim();
+            invoice.SupplierJoFotaraQr = string.IsNullOrWhiteSpace(qr) ? null : qr.Trim();
+            invoice.UpdatedDate = DateTime.Now;
+            await _uow.CommitAsync();
+            return Result<bool>.Ok(true, "Supplier JoFotara reference saved / تم حفظ مرجع جوافوترة للمورد.");
         }
 
         private static string? ValidateCreditParty(InvoiceWriteDto dto)
@@ -1520,6 +1560,8 @@ namespace RaccoonWarehouse.Application.Service.Invoices
 
 
         Task<InvoiceReadDto?> GetFullInvoiceByIdAsync(int id);
+
+        Task<Result<bool>> SaveSupplierJoFotaraReferenceAsync(int invoiceId, string? number, string? uuid, string? qr);
 
         Task<Result<List<InvoiceReadDto>>> GetHeldPOSInvoicesAsync();
         Task<Result<(FinancialSummaryDto summary, List<SalesReportRowDto> rows)>>

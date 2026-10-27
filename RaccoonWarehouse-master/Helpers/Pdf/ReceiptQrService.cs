@@ -5,11 +5,16 @@ namespace RaccoonWarehouse.Helpers.Pdf;
 
 public sealed record ReceiptQrData(string? Payload,byte[]? Image,bool IsOfficial);
 public interface IReceiptQrProvider { ReceiptQrData Get(InvoiceReadDto invoice); }
-// No official QR field exists in the current invoice schema. A future verified
-// integration replaces this provider with its persisted official payload/image.
 public sealed class TestReceiptQrProvider : IReceiptQrProvider
 {
-    public ReceiptQrData Get(InvoiceReadDto invoice)=>new($"TEST|INVOICE={invoice.InvoiceNumber}|DATE={invoice.CreatedDate:yyyy-MM-dd}|TOTAL={invoice.TotalAmount.ToString("0.000",System.Globalization.CultureInfo.InvariantCulture)}",null,false);
+    public ReceiptQrData Get(InvoiceReadDto invoice)
+    {
+        if (!string.IsNullOrWhiteSpace(invoice.JordanEInvoiceQr) &&
+            invoice.JordanEInvoiceStatus == RaccoonWarehouse.Domain.Invoices.JordanEInvoiceStatus.Submitted)
+            return new ReceiptQrData(invoice.JordanEInvoiceQr, null, true);
+
+        return new ReceiptQrData($"TEST|INVOICE={invoice.InvoiceNumber}|DATE={invoice.CreatedDate:yyyy-MM-dd}|TOTAL={invoice.TotalAmount.ToString("0.000",System.Globalization.CultureInfo.InvariantCulture)}", null, false);
+    }
 }
 public static class ReceiptQrService
 {

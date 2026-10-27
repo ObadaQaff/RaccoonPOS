@@ -31,6 +31,7 @@ using RaccoonWarehouse.Helpers.Pdf;
 using RaccoonWarehouse.Helpers.Localization;
 using RaccoonWarehouse.Navigation;
 using RaccoonWarehouse.Products;
+using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -1789,6 +1790,7 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
                 committed = true;
                 HideLoadingIfShown();
                 MessageBox.Show(UiText.T("تم حفظ فاتورة المشتريات بنجاح.", "Purchase invoice saved successfully."), UiText.T("تنبيه", "Notice"));
+                await AskForSupplierJoFotaraReferenceAsync(savedInvoiceId, supplier);
                 NewInvoiceBtn_Click(this, new RoutedEventArgs());
             }
             catch (Exception ex)
@@ -1814,6 +1816,52 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
                 }
                 _isSavingPurchase = false;
                 HideLoadingIfShown();
+            }
+        }
+
+        private async Task AskForSupplierJoFotaraReferenceAsync(int invoiceId, UserReadDto? supplier)
+        {
+            var choice = MessageBox.Show(
+                UiText.T("هل قدم المورد فاتورة رسمية من جوافوترة؟", "Did the supplier provide an official JoFotara invoice?"),
+                UiText.T("مرجع فاتورة المورد", "Supplier invoice reference"),
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (choice != MessageBoxResult.Yes)
+                return;
+
+            try
+            {
+                using var scope = ((RaccoonWarehouse.App)System.Windows.Application.Current).ServiceProvider.CreateScope();
+                var window = scope.ServiceProvider.GetRequiredService<SupplierJoFotaraReferenceWindow>();
+                window.Initialize(supplier?.Name);
+                window.Owner = this;
+
+                if (window.ShowDialog() != true)
+                    return;
+
+                var result = await _invoicesService.SaveSupplierJoFotaraReferenceAsync(
+                    invoiceId,
+                    window.InvoiceNumber,
+                    window.InvoiceUuid,
+                    window.QrPayload);
+
+                if (!result.Success)
+                {
+                    MessageBox.Show(
+                        result.Message,
+                        UiText.T("تعذر حفظ المرجع", "Could not save reference"),
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    UiText.T($"تم حفظ فاتورة الشراء لكن تعذر حفظ مرجع جوافوترة:\n{ex.Message}", $"The purchase invoice was saved, but the JoFotara reference could not be saved:\n{ex.Message}"),
+                    UiText.T("تعذر حفظ المرجع", "Could not save reference"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
             }
         }
 
@@ -2226,8 +2274,52 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
 
         private static bool TryParseDecimalInput(string? text, out decimal value)
         {
-            return decimal.TryParse(text, NumberStyles.Number, CultureInfo.CurrentCulture, out value)
-                || decimal.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out value);
+            value = 0m;
+            if (string.IsNullOrWhiteSpace(text))
+                return false;
+
+            var normalized = NormalizeDecimalInput(text);
+            return decimal.TryParse(
+                normalized,
+                NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint,
+                CultureInfo.InvariantCulture,
+                out value);
+        }
+
+        private static string NormalizeDecimalInput(string text)
+        {
+            var mapped = new System.Text.StringBuilder(text.Length);
+            foreach (var character in text.Trim())
+            {
+                if (character is >= '\u0660' and <= '\u0669')
+                    mapped.Append((char)('0' + character - '\u0660'));
+                else if (character is >= '\u06F0' and <= '\u06F9')
+                    mapped.Append((char)('0' + character - '\u06F0'));
+                else if (character is '\u066B' or '\u060C' or ',')
+                    mapped.Append(',');
+                else if (character == '\u066C')
+                    mapped.Append(',');
+                else if (character == '.')
+                    mapped.Append('.');
+                else if (!char.IsWhiteSpace(character))
+                    mapped.Append(character);
+            }
+
+            var normalizedText = mapped.ToString();
+            var lastComma = normalizedText.LastIndexOf(',');
+            var lastDot = normalizedText.LastIndexOf('.');
+            var decimalSeparator = lastComma > lastDot ? ',' : '.';
+            var result = new System.Text.StringBuilder(normalizedText.Length);
+
+            foreach (var character in normalizedText)
+            {
+                if (character is >= '0' and <= '9' || character == '-' || character == '+')
+                    result.Append(character);
+                else if (character == decimalSeparator && !result.ToString().Contains('.'))
+                    result.Append('.');
+            }
+
+            return result.ToString();
         }
     }
 }

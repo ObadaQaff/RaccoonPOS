@@ -179,6 +179,7 @@ namespace RaccoonWarehouse.Invoices
         private readonly IFinancialTransactionService _financialService;
         private readonly ISaleCheckoutService _saleCheckoutService;
         private readonly IRefundAuthorizationCodeService _refundAuthorizationCodeService;
+        private readonly IJordanEInvoiceService _jordanEInvoiceService;
         private bool _isProcessingPayment;
         private bool _isHoldingInvoice;
 
@@ -389,7 +390,8 @@ namespace RaccoonWarehouse.Invoices
                    IFinancialTransactionService financialService,
                    ISaleCheckoutService saleCheckoutService,
                    IPosRowColorRuleService rowColorRuleService,
-                   IRefundAuthorizationCodeService refundAuthorizationCodeService
+                   IRefundAuthorizationCodeService refundAuthorizationCodeService,
+                   IJordanEInvoiceService jordanEInvoiceService
             )
         {
             #region Dependency initialization
@@ -408,6 +410,7 @@ namespace RaccoonWarehouse.Invoices
             _saleCheckoutService = saleCheckoutService;
             _rowColorRuleService = rowColorRuleService;
             _refundAuthorizationCodeService = refundAuthorizationCodeService;
+            _jordanEInvoiceService = jordanEInvoiceService;
 
             RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
@@ -6905,6 +6908,8 @@ namespace RaccoonWarehouse.Invoices
                         : UiText.T("تم حفظ الفاتورة، وسيتم تسجيل الحركة المالية تلقائياً ✅", "The invoice was saved; the financial transaction will be posted automatically."),
                     UiText.T("نجاح", "Success"));
 
+                await AskToSubmitToJordanEInvoiceAsync(checkoutResult.Data.SavedInvoice.Id);
+
                 var printChoice = MessageBox.Show(
                     UiText.T("هل تريد طباعة الفاتورة الصغيرة؟", "Do you want to print the small invoice?"),
                     UiText.T("طباعة الفاتورة", "Print invoice"),
@@ -6932,6 +6937,45 @@ namespace RaccoonWarehouse.Invoices
                     _loading.Hide();
 
                 _isProcessingPayment = false;
+            }
+        }
+
+        private async Task AskToSubmitToJordanEInvoiceAsync(int invoiceId)
+        {
+            var choice = MessageBox.Show(
+                UiText.T("هل تريد إرسال هذه الفاتورة إلى نظام الفوترة الوطني؟", "Do you want to submit this invoice to JoFotara?"),
+                UiText.T("الفوترة الوطنية", "National e-invoicing"),
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (choice != MessageBoxResult.Yes)
+                return;
+
+            try
+            {
+                _loading.Show();
+                _loading.UpdateProgress(0, UiText.T("جاري إرسال الفاتورة...", "Submitting invoice..."), UiText.T("جوافوترة", "JoFotara"));
+                var result = await _jordanEInvoiceService.SubmitAsync(invoiceId);
+                _loading.Hide();
+
+                MessageBox.Show(
+                    result.Success
+                        ? result.Message
+                        : UiText.T($"تم حفظ الفاتورة لكن فشل الإرسال:\n{result.Message}", $"The invoice was saved, but JoFotara submission failed:\n{result.Message}"),
+                    result.Success
+                        ? UiText.T("تم الإرسال", "Submitted")
+                        : UiText.T("فشل الإرسال", "Submission failed"),
+                    MessageBoxButton.OK,
+                    result.Success ? MessageBoxImage.Information : MessageBoxImage.Warning);
+            }
+            catch (Exception ex)
+            {
+                _loading.Hide();
+                MessageBox.Show(
+                    UiText.T($"تم حفظ الفاتورة لكن حدث خطأ أثناء الإرسال:\n{ex.Message}", $"The invoice was saved, but submission failed:\n{ex.Message}"),
+                    UiText.T("فشل الإرسال", "Submission failed"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
             }
         }
 

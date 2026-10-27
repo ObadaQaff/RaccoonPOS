@@ -1,4 +1,6 @@
 using RaccoonWarehouse.Application.Service.Permissions;
+using RaccoonWarehouse.Application.Service.Employees;
+using RaccoonWarehouse.Application.Service.Payroll;
 using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Application.Service.Settings;
 using RaccoonWarehouse.Application.Service.Audit;
@@ -31,15 +33,22 @@ namespace RaccoonWarehouse.Employees
         private readonly IPermissionService _permissionService;
         private readonly ILoadingService _loadingService;
         private readonly IPermissionService _auditPermissionService;
+        private readonly IEmployeeService _employeeService;
+        private readonly EmployeePayrollService _employeePayrollService;
+        private readonly PayrollCalculator _payrollCalculator;
         private readonly List<UserReadDto> _items = new();
         private ICollectionView? _view;
+        private bool _loaded;
 
         public EmployeesTable(
             IUserService userService,
             IEmployeeFeatureService featureService,
             IUserSession userSession,
             IPermissionService permissionService,
-            ILoadingService loadingService)
+            ILoadingService loadingService,
+            IEmployeeService employeeService,
+            EmployeePayrollService employeePayrollService,
+            PayrollCalculator payrollCalculator)
         {
             _userService = userService;
             _featureService = featureService;
@@ -47,6 +56,9 @@ namespace RaccoonWarehouse.Employees
             _permissionService = permissionService;
             _auditPermissionService = permissionService;
             _loadingService = loadingService;
+            _employeeService = employeeService;
+            _employeePayrollService = employeePayrollService;
+            _payrollCalculator = payrollCalculator;
             RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
             UiText.ApplyWindow(this);
@@ -59,9 +71,35 @@ namespace RaccoonWarehouse.Employees
             try
             {
                 if(!await _permissionService.HasCurrentUserPermissionAsync("Employees.View"))throw new UnauthorizedAccessException("ليس لديك صلاحية عرض ملفات الموظفين.");
-                WindowManager.ShowDialog<RaccoonWarehouse.Employees.Payroll.EmployeePayrollWorkspaceWindow>();
+                if(!await ConfigurePayrollWorkspaceAsync())throw new UnauthorizedAccessException("ليس لديك صلاحية عرض ملفات الموظفين.");
+                EmployeeMainTabs.SelectedItem = PayrollWorkspaceTab;
             }
             catch(Exception ex){RaccoonWarehouse.Employees.Payroll.PayrollUi.Error(ex);}
+        }
+
+        private async Task<bool> ConfigurePayrollWorkspaceAsync()
+        {
+            var allowed = await _permissionService.HasCurrentUserPermissionAsync("Employees.View");
+            LegacyEmployeeToolbarCard.Visibility = Visibility.Collapsed;
+            PayrollProfilesBtn.Visibility = Visibility.Collapsed;
+            EmployeeAccountsTab.Visibility = Visibility.Collapsed;
+            PayrollWorkspaceTab.Visibility = allowed ? Visibility.Visible : Visibility.Collapsed;
+            if (!allowed)
+                return false;
+
+            if (PayrollWorkspaceHost.Content == null)
+            {
+                PayrollWorkspaceHost.Content = new RaccoonWarehouse.Employees.Payroll.EmployeePayrollWorkspaceControl(
+                    _employeeService,
+                    _userService,
+                    _employeePayrollService,
+                    _permissionService,
+                    _payrollCalculator);
+            }
+
+            EmployeeMainTabs.SelectedItem = PayrollWorkspaceTab;
+
+            return true;
         }
 
         private void InitializeRoleFilter()
@@ -85,6 +123,10 @@ namespace RaccoonWarehouse.Employees
 
         private async void EmployeesTable_Loaded(object sender, RoutedEventArgs e)
         {
+            if (_loaded)
+                return;
+
+            _loaded = true;
             await LoadUsersAsync();
         }
 
@@ -101,16 +143,19 @@ namespace RaccoonWarehouse.Employees
                     return;
                 }
 
+                if (!await ConfigurePayrollWorkspaceAsync())
+                {
+                    MessageBox.Show(UiText.T("ليس لديك صلاحية عرض الموظفين.", "You do not have permission to view employees."));
+                    Close();
+                    return;
+                }
+
+                EmployeeMainTabs.SelectedItem = PayrollWorkspaceTab;
+                return;
+
                 var role = _userSession.CurrentUser?.Role;
                 if (!role.HasValue || !await _permissionService.HasPermissionAsync(role.Value, "Users.View"))
                 {
-                    if(role.HasValue&&await _permissionService.HasCurrentUserPermissionAsync("Employees.View"))
-                    {
-                        _loadingService.Hide();
-                        WindowManager.ShowDialog<RaccoonWarehouse.Employees.Payroll.EmployeePayrollWorkspaceWindow>();
-                        Close();
-                        return;
-                    }
                     MessageBox.Show(UiText.T("ليس لديك صلاحية عرض الموظفين.", "You do not have permission to view employees."));
                     Close();
                     return;
@@ -118,7 +163,7 @@ namespace RaccoonWarehouse.Employees
 
                 FeatureStateText.Text = UiText.T(
                     "النظام مفعل حالياً ويعرض الموظفين والكاشيرات والمدراء وموظفي الموارد البشرية.",
-                    "The system is enabled and shows staff users, managers, and HR users.");
+                    "The system is enabled and shows employees only.");
                 AdminHintText.Text = UiText.T(
                     "يمكن البحث بالاسم أو الهاتف أو الدور المختار.",
                     "You can search by name, phone, or the selected role.");
@@ -324,7 +369,7 @@ namespace RaccoonWarehouse.Employees
 
         private static bool IsStaffUser(UserReadDto user)
         {
-            return user.Role is not UserRole.Customer and not UserRole.Supplier;
+            return user.Role is UserRole.Admin or UserRole.Casher or UserRole.Manager or UserRole.HR;
         }
     }
 }

@@ -19,6 +19,7 @@ namespace RaccoonWarehouse
         private readonly IPermissionService _permissionService;
         private readonly ILoadingService _loadingService;
         private bool _customerQuickCreateMode;
+        private bool _employeeCreateMode;
         private UserRole? _quickCreateRole;
 
         private static readonly UserRole[] QuickCreateRoles =
@@ -28,6 +29,14 @@ namespace RaccoonWarehouse
             UserRole.Doctor,
             UserRole.Pharmacy,
             UserRole.PharmaceuticalWarehouse
+        };
+
+        private static readonly UserRole[] StaffRoles =
+        {
+            UserRole.Admin,
+            UserRole.Casher,
+            UserRole.Manager,
+            UserRole.HR
         };
 
         public int? CreatedUserId { get; private set; }
@@ -91,7 +100,9 @@ namespace RaccoonWarehouse
         public void InitializeForEmployeeCreate()
         {
             _customerQuickCreateMode = false;
+            _employeeCreateMode = true;
             _quickCreateRole = null;
+            Role.ItemsSource = StaffRoles;
             Role.SelectedItem = UserRole.Casher;
             Role.IsEnabled = true;
             Role.Visibility = Visibility.Visible;
@@ -130,6 +141,15 @@ namespace RaccoonWarehouse
                 var selectedRole = _customerQuickCreateMode
                     ? GetSelectedQuickRole()
                     : Role.SelectedItem is UserRole roleValue ? roleValue : UserRole.Customer;
+
+                if (_employeeCreateMode && !StaffRoles.Contains(selectedRole))
+                {
+                    MessageBox.Show(UiText.T(
+                        "يجب أن يكون دور الموظف مديراً أو كاشيراً أو مديراً أو من الموارد البشرية.",
+                        "An employee must use an Admin, Cashier, Manager, or HR role."));
+                    return;
+                }
+
                 var isCustomer = selectedRole == UserRole.Customer;
                 var isQuickCreate = _quickCreateRole.HasValue;
 
@@ -208,6 +228,13 @@ namespace RaccoonWarehouse
                 }
                 CreateStatusText.Text = UiText.T("تم", "Done");
                 MessageBox.Show(UiText.T("تمت إضافة المستخدم بنجاح.", "User added successfully."));
+
+                if (_employeeCreateMode)
+                {
+                    DialogResult = true;
+                    Close();
+                    return;
+                }
 
                 if (_quickCreateRole.HasValue)
                 {

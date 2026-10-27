@@ -63,7 +63,8 @@
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
-            <Border Grid.Row="0"
+            <Border x:Name="LegacyEmployeeToolbarCard"
+                    Grid.Row="0"
                     Style="{StaticResource AppCardBorderStyle}"
                     Padding="24">
                 <StackPanel>
@@ -116,9 +117,9 @@
                         <StackPanel Grid.Column="2"
                                     Orientation="Horizontal"
                                     HorizontalAlignment="Left">
-                            <Button Content="ملفات الموظفين والرواتب"
+                            <Button x:Name="PayrollProfilesBtn" Content="ملفات الموظفين والرواتب"
                                     Margin="6" Padding="14,8" Style="{StaticResource AppSecondaryButtonStyle}"
-                                    Click="PayrollProfiles_Click" security:PermissionWindowGuard.Keys="Employees.View"/>
+                                    Click="PayrollProfiles_Click" Visibility="Collapsed" security:PermissionWindowGuard.Keys="Employees.View"/>
                             <Button x:Name="FeatureSettingsBtn"
                                     Width="158"
                                     Height="48"
@@ -189,10 +190,14 @@
                 </StackPanel>
             </Border>
 
-            <Border Grid.Row="1"
-                    Margin="0,18,0,0"
-                    Style="{StaticResource AppCardBorderStyle}"
-                    Padding="16">
+            <TabControl x:Name="EmployeeMainTabs"
+                        Grid.Row="1"
+                        Margin="0,18,0,0">
+                <TabItem x:Name="EmployeeAccountsTab"
+                         Visibility="Collapsed"
+                         Header="المستخدمون والموظفون">
+                    <Border Style="{StaticResource AppCardBorderStyle}"
+                            Padding="16">
                 <DataGrid x:Name="UsersTable1"
                           Style="{StaticResource AppModernDataGridStyle}"
                           SelectionMode="Single"
@@ -215,7 +220,14 @@
                         </ContextMenu>
                     </DataGrid.ContextMenu>
                 </DataGrid>
-            </Border>
+                    </Border>
+                </TabItem>
+                <TabItem x:Name="PayrollWorkspaceTab"
+                         Header="ملفات الموظفين والرواتب"
+                         Visibility="Collapsed">
+                    <ContentControl x:Name="PayrollWorkspaceHost"/>
+                </TabItem>
+            </TabControl>
         </Grid>
     </Grid>
 </Window>
