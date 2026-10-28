@@ -20,7 +20,7 @@ namespace RaccoonWarehouse.Accounting
             _accountingService = accountingService;
             _featureService = featureService;
             _loadingService = loadingService;
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
             InitializeComponent();
             UiText.ApplyWindow(this);
             Loaded += BalanceSheetReport_Loaded;

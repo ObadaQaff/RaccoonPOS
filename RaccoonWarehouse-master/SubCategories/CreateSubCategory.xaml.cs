@@ -31,7 +31,7 @@ namespace RaccoonWarehouse.SubCategories
             _categoryService = categoryService;
             _subCategoryService = subCategoryService;
             _loadingService = loadingService;
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
             InitializeComponent();
             UiText.ApplyWindow(this);
             Loaded += CreateSubCategory_Loaded;

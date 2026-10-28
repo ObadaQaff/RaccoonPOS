@@ -1,4 +1,4 @@
-﻿using RaccoonWarehouse.Application.Service.Stocks;
+using RaccoonWarehouse.Application.Service.Stocks;
 using RaccoonWarehouse;
 using System;
 using System.Collections.Generic;
@@ -27,7 +27,7 @@ namespace RaccoonWarehouse.Stocks
         public CreateStock(IStockService stockService)
         {
             _stockService = stockService;
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+            
             InitializeComponent();
         }
 

@@ -1,4 +1,4 @@
-<Window xmlns:security="clr-namespace:RaccoonWarehouse.Security" x:Class="RaccoonWarehouse.Insurance.InsuranceCompaniesWindow"
+<Window x:Class="RaccoonWarehouse.Insurance.InsuranceCompaniesWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="شركات التأمين" Width="1400" Height="800" MinWidth="1000" MinHeight="600"
@@ -25,7 +25,7 @@
                     <TextBox x:Name="SearchTextBox" Style="{StaticResource AppSearchTextBoxStyle}"
                              ToolTip="ابحث بالرمز أو الاسم أو الهاتف." TextChanged="SearchTextBox_TextChanged"/>
                 </StackPanel>
-                <Button x:Name="AddButton" Content="إضافة جديد" Style="{StaticResource AppFormButtonStyle}" Padding="22,10" Margin="0,20,12,0" VerticalAlignment="Bottom" Click="Add_Click" security:PermissionWindowGuard.Keys="InsuranceCompanies.Create"/>
+                <Button x:Name="AddButton" Content="إضافة جديد" Style="{StaticResource AppFormButtonStyle}" Padding="22,10" Margin="0,20,12,0" VerticalAlignment="Bottom" Click="Add_Click"/>
                 <Button x:Name="RefreshButton" Content="تحديث" Style="{StaticResource AppSecondaryButtonStyle}" Padding="22,10" Margin="0,20,12,0" VerticalAlignment="Bottom" Click="Refresh_Click"/>
                 <Button Content="عودة" Style="{StaticResource AppSecondaryButtonStyle}" Padding="22,10" Margin="0,20,0,0" VerticalAlignment="Bottom" Click="Back_Click"/>
             </WrapPanel>
@@ -39,9 +39,9 @@
                           ContextMenuOpening="CompaniesGrid_ContextMenuOpening">
                     <DataGrid.ContextMenu>
                         <ContextMenu x:Name="CompaniesContextMenu">
-                            <MenuItem x:Name="CompanyStatementMenuItem" Header="كشف الحساب" Style="{StaticResource AppMenuItemStyle}" Click="Statement_Click" security:PermissionWindowGuard.Keys="Accounting.GeneralLedger.View"/>
-                            <MenuItem x:Name="EditCompanyMenuItem" Header="تعديل" Style="{StaticResource AppMenuItemStyle}" Click="Edit_Click" security:PermissionWindowGuard.Keys="InsuranceCompanies.Edit"/>
-                            <MenuItem x:Name="DeleteCompanyMenuItem" Header="حذف" Style="{StaticResource AppMenuItemStyle}" Click="Delete_Click" security:PermissionWindowGuard.Keys="InsuranceCompanies.Delete"/>
+                            <MenuItem x:Name="CompanyStatementMenuItem" Header="كشف الحساب" Style="{StaticResource AppMenuItemStyle}" Click="Statement_Click"/>
+                            <MenuItem x:Name="EditCompanyMenuItem" Header="تعديل" Style="{StaticResource AppMenuItemStyle}" Click="Edit_Click"/>
+                            <MenuItem x:Name="DeleteCompanyMenuItem" Header="حذف" Style="{StaticResource AppMenuItemStyle}" Click="Delete_Click"/>
                         </ContextMenu>
                     </DataGrid.ContextMenu>
                     <DataGrid.Columns>

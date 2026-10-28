@@ -93,7 +93,7 @@ namespace RaccoonWarehouse.Stocks
             _falconStockImportService = falconStockImportService;
             _loadingService = loadingService;
 
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
             InitializeComponent();
             UiText.ApplyWindow(this);
             DataContext = this;

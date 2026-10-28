@@ -26,7 +26,7 @@ public partial class CreateInsuranceCompany : Window
         _service = service;
         _accounting = accounting;
         _loading = loading;
-        RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
         InitializeComponent();
         AddOption(OrganizationTypeComboBox, InsuranceOrganizationType.Insurer, "شركة تأمين", "Insurer");
         AddOption(OrganizationTypeComboBox, InsuranceOrganizationType.Administrator, "مدير تأمين", "Administrator");
@@ -131,8 +131,6 @@ public partial class CreateInsuranceCompany : Window
     private static string CompanyError(string? error) => error switch
     {
         "Insurance company was not found." => UiText.T("لم يتم العثور على شركة التأمين.", "Insurance company was not found."),
-        "You do not have permission to edit insurance companies." => UiText.T("لا تملك صلاحية تعديل شركات التأمين.", "You do not have permission to edit insurance companies."),
-        "You do not have permission to save insurance companies." => UiText.T("لا تملك صلاحية حفظ شركات التأمين.", "You do not have permission to save insurance companies."),
         _ => error ?? UiText.T("تعذر تحميل شركات التأمين.", "Could not load insurance companies.")
     };
 

@@ -54,7 +54,7 @@ namespace RaccoonWarehouse.Stocks
             _userSession = userSession;
             _loadingService = loadingService;
 
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
             InitializeComponent();
             UiText.ApplyWindow(this);
             Loaded += StockAdjustmentWindow_Loaded;

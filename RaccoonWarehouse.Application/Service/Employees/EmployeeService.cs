@@ -1,6 +1,5 @@
 using System.Text.Json;
 using RaccoonWarehouse.Application.Service.Payroll;
-using RaccoonWarehouse.Application.Service.Permissions;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Domain.Payroll;
 using AutoMapper;
@@ -38,36 +37,24 @@ namespace RaccoonWarehouse.Application.Service.Employees
         private readonly IUOW _uow;
         private readonly IMapper _mapper;
         private readonly IEmployeeFeatureService _featureService;
-        private readonly IPermissionService? _permissions;
         private readonly IUserSession? _session;
         private readonly IPayrollSensitiveDataProtector _protector;
-        private Task<bool> Allowed(string key) => _permissions?.HasCurrentUserPermissionAsync(key) ?? Task.FromResult(true);
         private static string EmploymentSnapshot(EmployeeEntity e) => JsonSerializer.Serialize(new {e.Code,e.JobTitle,e.HireDate,e.TerminationDate,e.BranchId,e.DepartmentId,e.ManagerId,e.Status,e.EmploymentType});
         private void History(EmployeeEntity e,string before,string reason) => _dbContext.Set<EmployeeEmploymentHistory>().Add(new EmployeeEmploymentHistory {Employee=e,BeforeJson=before,AfterJson=EmploymentSnapshot(e),Reason=reason,ChangedBy=_session?.CurrentUser?.Id,CreatedDate=DateTime.Now,UpdatedDate=DateTime.Now});
         private static string? Dates(DateTime? birth,DateTime? hire,DateTime? termination,decimal? salary)
             => birth?.Date>DateTime.Today?"تاريخ الميلاد لا يجوز أن يكون في المستقبل.":termination.HasValue&&hire.HasValue&&termination.Value.Date<hire.Value.Date?"تاريخ انتهاء العمل يسبق تاريخ التعيين.":salary<0m?"الراتب لا يجوز أن يكون سالباً.":null;
-        private static string? National(string? value) => string.IsNullOrWhiteSpace(value)?null:new string(value.Trim().Select(c=>char.IsDigit(c)?(char)('0'+(int)char.GetNumericValue(c)):c).ToArray());
-        private async Task Redact(EmployeeReadDto value)
-        {
-            if(!await Allowed("Employees.SensitiveView"))value.NationalId=null;
-            if(!await Allowed("Payroll.View"))value.BasicSalary=null;
-        }
-
-
-        public EmployeeService(ApplicationDbContext dbContext, IUOW uow, IMapper mapper, IEmployeeFeatureService featureService, IPermissionService? permissions = null, IUserSession? session = null, IPayrollSensitiveDataProtector? protector = null)
+        private static string? National(string? value) => string.IsNullOrWhiteSpace(value)?null:new string(value.Trim().Select(c=>char.IsDigit(c)?(char)('0'+(int)char.GetNumericValue(c)):c).ToArray());        public EmployeeService(ApplicationDbContext dbContext, IUOW uow, IMapper mapper, IEmployeeFeatureService featureService = null, IUserSession? session = null, IPayrollSensitiveDataProtector? protector = null)
         {
             _dbContext = dbContext;
             _uow = uow;
             _mapper = mapper;
             _featureService = featureService;
-            _permissions=permissions; _session=session; _protector=protector??new PayrollSensitiveDataProtector();
+_session=session; _protector=protector??new PayrollSensitiveDataProtector();
         }
 
         public async Task<Result<EmployeeCreateDto>> CreateAsync(EmployeeCreateDto dto)
         {
-            if(!await Allowed("Employees.Create"))return Result<EmployeeCreateDto>.Fail("ليس لديك صلاحية إنشاء الموظفين.");
             dto.Code=(dto.Code??"").Trim();dto.FullName=(dto.FullName??"").Trim();dto.NationalId=National(dto.NationalId);
-            if(!string.IsNullOrWhiteSpace(dto.NationalId)&&!await Allowed("Employees.SensitiveEdit"))return Result<EmployeeCreateDto>.Fail("ليس لديك صلاحية تعديل الرقم الوطني.");
             var dates=Dates(dto.DateOfBirth,dto.HireDate,dto.TerminationDate,dto.BasicSalary);
             if(dates!=null)return Result<EmployeeCreateDto>.Fail(dates);
             if(!string.IsNullOrEmpty(dto.NationalId)&&(dto.NationalId.Length!=10||dto.NationalId.Any(c=>c<'0'||c>'9')))
@@ -76,7 +63,6 @@ namespace RaccoonWarehouse.Application.Service.Employees
             string? encrypted=null;
             if(!string.IsNullOrWhiteSpace(dto.SocialSecurityNumber))
             {
-                if(!await Allowed("Employees.SensitiveEdit"))return Result<EmployeeCreateDto>.Fail("ليس لديك صلاحية تعديل بيانات الضمان الحساسة.");
                 try{if(dto.SocialSecurityNumber.Trim().Length>64||dto.SocialSecurityNumber.Any(char.IsControl))throw new ArgumentException("رقم الضمان غير صالح أو طويل جداً.");encrypted=_protector.Protect(dto.SocialSecurityNumber.Trim());}catch(Exception ex){return Result<EmployeeCreateDto>.Fail(ex.Message);}
             }
             var validation = await ValidateAsync(dto.Id, dto.Code, dto.FullName, dto.PhoneNumber, dto.Email, dto.NationalId, dto.UserId);
@@ -103,11 +89,7 @@ namespace RaccoonWarehouse.Application.Service.Employees
             var entity = await _dbContext.Set<EmployeeEntity>().FirstOrDefaultAsync(x => x.Id == dto.Id);
             if (entity == null)
                 return Result<EmployeeUpdateDto>.Fail("Employee not found.");
-
-            if(!await Allowed("Employees.Edit"))return Result<EmployeeUpdateDto>.Fail("ليس لديك صلاحية تعديل الموظفين.");
             dto.Code=(dto.Code??"").Trim();dto.FullName=(dto.FullName??"").Trim();dto.NationalId=National(dto.NationalId);
-            if(!await Allowed("Employees.SensitiveEdit"))dto.NationalId=entity.NationalId;
-            if(!await Allowed("Payroll.Configure"))dto.BasicSalary=entity.BasicSalary;
             var dates=Dates(dto.DateOfBirth,dto.HireDate,dto.TerminationDate,dto.BasicSalary);
             if(dates!=null)return Result<EmployeeUpdateDto>.Fail(dates);
             if(dto.NationalId!=entity.NationalId&&!string.IsNullOrEmpty(dto.NationalId)&&(dto.NationalId.Length!=10||dto.NationalId.Any(c=>c<'0'||c>'9')))
@@ -116,7 +98,6 @@ namespace RaccoonWarehouse.Application.Service.Employees
             var encrypted=entity.SocialSecurityNumberEncrypted;
             if(!string.IsNullOrWhiteSpace(dto.SocialSecurityNumber)||dto.ClearSocialSecurityNumber)
             {
-                if(!await Allowed("Employees.SensitiveEdit"))return Result<EmployeeUpdateDto>.Fail("ليس لديك صلاحية تعديل بيانات الضمان الحساسة.");
                 try{if(!dto.ClearSocialSecurityNumber&&(dto.SocialSecurityNumber!.Trim().Length>64||dto.SocialSecurityNumber.Any(char.IsControl)))throw new ArgumentException("رقم الضمان غير صالح أو طويل جداً.");encrypted=dto.ClearSocialSecurityNumber?null:_protector.Protect(dto.SocialSecurityNumber!.Trim());}catch(Exception ex){return Result<EmployeeUpdateDto>.Fail(ex.Message);}
             }
             var validation = await ValidateAsync(dto.Id, dto.Code, dto.FullName, dto.PhoneNumber, dto.Email, dto.NationalId, dto.UserId);
@@ -145,8 +126,6 @@ namespace RaccoonWarehouse.Application.Service.Employees
             var entity = await _dbContext.Set<EmployeeEntity>().FirstOrDefaultAsync(x => x.Id == employeeId);
             if (entity == null)
                 return Result<bool>.Fail("Employee not found.");
-
-            if(!await Allowed("Employees.Edit"))return Result<bool>.Fail("ليس لديك صلاحية تعديل حالة الموظف.");
             if(!Enum.IsDefined(status))return Result<bool>.Fail("حالة الموظف غير صالحة.");
             var before=EmploymentSnapshot(entity);
             entity.Status = status;
@@ -194,14 +173,12 @@ namespace RaccoonWarehouse.Application.Service.Employees
 
             var employees = await query.OrderBy(x => x.FullName).ToListAsync();
             var values=_mapper.Map<List<EmployeeReadDto>>(employees);
-            var canViewSensitive=await Allowed("Employees.SensitiveView");var canViewPayroll=await Allowed("Payroll.View");
-            foreach(var value in values){if(!canViewSensitive)value.NationalId=null;if(!canViewPayroll)value.BasicSalary=null;}
+            
             return Result<List<EmployeeReadDto>>.Ok(values);
         }
 
         public async Task<Result<EmployeeReadDto>> GetByIdAsync(int id)
         {
-            if(!await Allowed("Employees.View"))return Result<EmployeeReadDto>.Fail("ليس لديك صلاحية عرض الموظفين.");
             var entity = await _dbContext.Set<EmployeeEntity>()
                 .Include(x => x.User)
                 .Include(x => x.Manager)
@@ -211,7 +188,7 @@ namespace RaccoonWarehouse.Application.Service.Employees
             if (entity == null)
                 return Result<EmployeeReadDto>.Fail("Employee not found.");
 
-            var value=_mapper.Map<EmployeeReadDto>(entity);await Redact(value);
+            var value=_mapper.Map<EmployeeReadDto>(entity);
             return Result<EmployeeReadDto>.Ok(value);
         }
 

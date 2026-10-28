@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using RaccoonWarehouse.Application.Service.Permissions;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Core.Common;
 using RaccoonWarehouse.Data;
@@ -18,21 +17,17 @@ public interface ISupplierPaymentAllocationService
 public sealed class SupplierPaymentAllocationService : ISupplierPaymentAllocationService
 {
     private readonly ApplicationDbContext _db;
-    private readonly IPermissionService _permissions;
     private readonly IUserSession _session;
 
-    public SupplierPaymentAllocationService(ApplicationDbContext db, IPermissionService permissions, IUserSession session)
+    public SupplierPaymentAllocationService(ApplicationDbContext db, IUserSession session)
     {
         _db = db;
-        _permissions = permissions;
         _session = session;
     }
 
     public async Task<Result> AllocateAsync(SupplierPaymentAllocationWriteDto dto)
     {
-        if (!await _permissions.HasCurrentUserPermissionAsync("SupplierPayment.Allocate"))
-            return Result.Fail("You do not have permission to allocate supplier payments.");
-        if (dto.VoucherId <= 0 || dto.SupplierId <= 0 || dto.Lines == null || dto.Lines.Count == 0)
+if (dto.VoucherId <= 0 || dto.SupplierId <= 0 || dto.Lines == null || dto.Lines.Count == 0)
             return Result.Fail("A confirmed voucher, supplier, and at least one invoice allocation are required.");
         if (dto.Lines.Any(x => x.InvoiceId <= 0 || x.Amount <= 0))
             return Result.Fail("Allocation amounts must be positive.");

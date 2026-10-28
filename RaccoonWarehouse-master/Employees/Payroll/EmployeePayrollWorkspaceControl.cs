@@ -4,7 +4,6 @@ using System.Windows.Data;
 using System.Windows.Input;
 using RaccoonWarehouse.Application.Service.Employees;
 using RaccoonWarehouse.Application.Service.Payroll;
-using RaccoonWarehouse.Application.Service.Permissions;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Domain.Employees.DTOs;
 using RaccoonWarehouse.Domain.Enums;
@@ -43,7 +42,6 @@ public sealed class EmployeePayrollWorkspaceControl : UserControl
     private readonly IEmployeeService _employees;
     private readonly IUserService _users;
     private readonly EmployeePayrollService _payroll;
-    private readonly IPermissionService _permissions;
     private readonly TextBox _search = new() { MinWidth = 300, Padding = new Thickness(8), Margin = new Thickness(0, 0, 0, 10) };
     private readonly DataGrid _grid = new() { AutoGenerateColumns = false, CanUserAddRows = false, IsReadOnly = true, SelectionMode = DataGridSelectionMode.Single };
     private readonly Button _profileButton;
@@ -61,10 +59,9 @@ public sealed class EmployeePayrollWorkspaceControl : UserControl
         IEmployeeService employees,
         IUserService users,
         EmployeePayrollService payroll,
-        IPermissionService permissions,
         PayrollCalculator calculator)
     {
-        (_employees, _users, _payroll, _permissions) = (employees, users, payroll, permissions);
+        (_employees, _users, _payroll) = (employees, users, payroll);
 
         FlowDirection = FlowDirection.RightToLeft;
         var root = new DockPanel { Margin = new Thickness(14) };
@@ -80,8 +77,7 @@ public sealed class EmployeePayrollWorkspaceControl : UserControl
         _userButton = PayrollUi.AsyncButton(UiText.T("حساب المستخدم", "User account"), OpenUserAsync);
         _settingsButton = PayrollUi.AsyncButton(UiText.T("إعدادات الموظفين", "Employee settings"), OpenSettingsAsync);
         _shiftsButton = PayrollUi.AsyncButton(UiText.T("مبيعات الكاشير", "Cashier sales"), OpenCashierSalesAsync);
-        foreach (var button in new[] { _profileButton, _editButton, _payrollButton, _policyButton, _userButton, _settingsButton, _shiftsButton })
-            button.IsEnabled = false;
+        
         tools.Children.Add(_profileButton);
         tools.Children.Add(_editButton);
         tools.Children.Add(_payrollButton);
@@ -144,22 +140,9 @@ public sealed class EmployeePayrollWorkspaceControl : UserControl
             return;
 
         _initialized = true;
-        _profileButton.Visibility = await HasPermissionAsync("Employees.View") ? Visibility.Visible : Visibility.Collapsed;
-        _editButton.Visibility = await HasPermissionAsync("Employees.Edit") ? Visibility.Visible : Visibility.Collapsed;
-        _payrollButton.Visibility = await HasPermissionAsync("Payroll.View") ? Visibility.Visible : Visibility.Collapsed;
-        _policyButton.Visibility = await HasPermissionAsync("Payroll.Configure") ? Visibility.Visible : Visibility.Collapsed;
-        _userButton.Visibility = await HasPermissionAsync("Users.Edit") ? Visibility.Visible : Visibility.Collapsed;
-        _settingsButton.Visibility = await HasPermissionAsync("Settings.ManageSettings") ? Visibility.Visible : Visibility.Collapsed;
-        _shiftsButton.Visibility = await HasPermissionAsync("Reports.ShiftSummary") ? Visibility.Visible : Visibility.Collapsed;
+        foreach (var button in new[] { _profileButton, _editButton, _payrollButton, _policyButton, _userButton, _settingsButton, _shiftsButton })
+            button.Visibility = Visibility.Visible;
         await LoadAsync();
-    }
-
-    private async Task<bool> HasPermissionAsync(string key) => await _permissions.HasCurrentUserPermissionAsync(key);
-
-    private async Task RequireAsync(string key)
-    {
-        if (!await HasPermissionAsync(key))
-            throw new UnauthorizedAccessException(UiText.T("ليس لديك الصلاحية المطلوبة.", "You do not have the required permission."));
     }
 
     private void AddColumn(string header, string path)
@@ -174,7 +157,7 @@ public sealed class EmployeePayrollWorkspaceControl : UserControl
 
     private async Task LoadAsync()
     {
-        await RequireAsync("Employees.View");
+        
         var usersResult = await _users.GetAllAsync();
         if (!usersResult.Success)
             throw new ArgumentException(usersResult.Message);
@@ -224,7 +207,7 @@ public sealed class EmployeePayrollWorkspaceControl : UserControl
 
     private async Task CreateAsync()
     {
-        await RequireAsync("Employees.Create");
+        
         CreateUser? created = null;
         WindowManager.ShowDialog<CreateUser>(WindowSizeType.MediumRectangle, window =>
         {
@@ -245,7 +228,7 @@ public sealed class EmployeePayrollWorkspaceControl : UserControl
 
     private async Task OpenProfileAsync()
     {
-        await RequireAsync("Employees.View");
+        
         var row = SelectedRow() ?? throw new ArgumentException(UiText.T("اختر موظفاً أولاً.", "Select an employee first."));
         WindowManager.ShowDialog<EmployeeProfileSummaryWindow>(WindowSizeType.LargeRectangle,
             window => window.Initialize(row.User, row.Profile));
@@ -253,7 +236,7 @@ public sealed class EmployeePayrollWorkspaceControl : UserControl
 
     private async Task EditProfileAsync()
     {
-        await RequireAsync("Employees.Edit");
+        
         var row = SelectedRow() ?? throw new ArgumentException(UiText.T("اختر موظفاً أولاً.", "Select an employee first."));
         if (row.Profile == null)
         {
@@ -267,19 +250,19 @@ public sealed class EmployeePayrollWorkspaceControl : UserControl
 
     private async Task OpenPayrollAsync()
     {
-        await RequireAsync("Payroll.View");
+        
         WindowManager.ShowDialog<PayrollMonthWindow>(WindowSizeType.LargeRectangle);
     }
 
     private async Task OpenPoliciesAsync()
     {
-        await RequireAsync("Payroll.Configure");
+        
         WindowManager.ShowDialog<PayrollPolicyWindow>(WindowSizeType.LargeRectangle);
     }
 
     private async Task OpenUserAsync()
     {
-        await RequireAsync("Users.Edit");
+        
         var row = SelectedRow() ?? throw new ArgumentException(UiText.T("اختر موظفاً أولاً.", "Select an employee first."));
         WindowManager.ShowDialog<UpdateUser>(WindowSizeType.SmallSquare, window => window.Initialize(row.UserId));
         await LoadAsync();
@@ -287,13 +270,13 @@ public sealed class EmployeePayrollWorkspaceControl : UserControl
 
     private async Task OpenSettingsAsync()
     {
-        await RequireAsync("Settings.ManageSettings");
+        
         WindowManager.ShowDialog<EmployeeFeatureSettingsWindow>(WindowSizeType.SmallSquare);
     }
 
     private async Task OpenCashierSalesAsync()
     {
-        await RequireAsync("Reports.ShiftSummary");
+        
         var row = SelectedRow() ?? throw new ArgumentException(UiText.T("اختر موظفاً أولاً.", "Select an employee first."));
         if (row.User.Role is not (UserRole.Admin or UserRole.Casher))
             throw new ArgumentException(UiText.T("هذا التقرير متاح للكاشير والمدير فقط.", "This report is available only for cashiers and admins."));

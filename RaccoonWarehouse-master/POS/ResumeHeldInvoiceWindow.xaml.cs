@@ -61,7 +61,7 @@ namespace RaccoonWarehouse.POS
 
         public ResumeHeldInvoiceWindow(IInvoiceService invoiceService)
         {
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
             InitializeComponent();
             _invoiceService = invoiceService;
             UiText.ApplyWindow(this);

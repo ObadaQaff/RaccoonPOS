@@ -16,7 +16,7 @@ namespace RaccoonWarehouse.PurchaseOrders
         public PurchaseOrderDetailsWindow(PurchaseOrderWriteDto order)
         {
             _order = order;
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+            
             InitializeComponent();
             UiText.ApplyWindow(this);
             OrderSummaryText.Text = $"{order.OrderNumber} | {Format(order.TotalAmount)}";
@@ -78,7 +78,6 @@ namespace RaccoonWarehouse.PurchaseOrders
         {
             try
             {
-                await RaccoonWarehouse.Helpers.Pdf.DocumentPrintRuntime.RequirePrintAsync("PurchaseOrder.Print");
                 var saved=await RaccoonWarehouse.Helpers.Pdf.DocumentPrintRuntime.SavedOrderAsync(_order.Id);
                 RaccoonWarehouse.Helpers.Pdf.DocumentPrintRuntime.Preview(RaccoonWarehouse.Helpers.Pdf.PurchasingDocument.Order(saved, RaccoonWarehouse.Helpers.Pdf.DocumentPrintRuntime.Branding(warehouseId:saved.WarehouseId)), this);
 

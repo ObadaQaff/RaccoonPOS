@@ -42,7 +42,7 @@ public partial class LowStockReport : Window
         _stockReportService = stockReportService;
         _userService = userService;
         _productService = productService;
-        RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+        
         InitializeComponent();
         Resources["BarcodeCopyToolTip"] = UiText.T("نسخ الباركود", "Copy barcode");
         SupplierComboBoxSearch.Attach(SupplierComboBox);

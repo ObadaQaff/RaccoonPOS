@@ -74,7 +74,7 @@ namespace RaccoonWarehouse.Products
             _unitService = unitService;
             _userService = userService;
 
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
             InitializeComponent();
             UnitComboBox.Loaded += UnitComboBox_Loaded;
             SalePriceTextBox.TextChanged += FractionalSuggestionSourceChanged;

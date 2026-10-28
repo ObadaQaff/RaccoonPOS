@@ -37,7 +37,7 @@ namespace RaccoonWarehouse.Invoices
 
         public SalesReturn(IProductService productService)
         {
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
             InitializeComponent();
             UiText.ApplyWindow(this);
             _productService = productService;

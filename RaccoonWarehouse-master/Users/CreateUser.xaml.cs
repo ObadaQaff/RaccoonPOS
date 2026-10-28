@@ -1,4 +1,3 @@
-using RaccoonWarehouse.Application.Service.Permissions;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Domain.Enums;
@@ -16,7 +15,6 @@ namespace RaccoonWarehouse
     {
         private readonly IUserService _userService;
         private readonly IUserSession _userSession;
-        private readonly IPermissionService _permissionService;
         private readonly ILoadingService _loadingService;
         private bool _customerQuickCreateMode;
         private bool _employeeCreateMode;
@@ -41,13 +39,12 @@ namespace RaccoonWarehouse
 
         public int? CreatedUserId { get; private set; }
 
-        public CreateUser(IUserService userService, IUserSession userSession, IPermissionService permissionService, ILoadingService loadingService)
+        public CreateUser(IUserService userService, IUserSession userSession, ILoadingService loadingService)
         {
             _userService = userService;
             _userSession = userSession;
-            _permissionService = permissionService;
             _loadingService = loadingService;
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
             InitializeComponent();
             UiText.ApplyWindow(this);
             CreateBtn.Content = UiText.T("إنشاء الحساب", "Create Account");
@@ -124,15 +121,7 @@ namespace RaccoonWarehouse
         {
             var loadingShown = false;
             try
-            {
-                var role = _userSession.CurrentUser?.Role;
-                if (!role.HasValue || !await _permissionService.HasPermissionAsync(role.Value, "Users.Create"))
-                {
-                    MessageBox.Show(UiText.T("ليس لديك صلاحية إنشاء مستخدم جديد.", "You do not have permission to create a new user."));
-                    return;
-                }
-
-                if (string.IsNullOrWhiteSpace(FullName.Text))
+            {if (string.IsNullOrWhiteSpace(FullName.Text))
                 {
                     MessageBox.Show(UiText.T("الرجاء تعبئة الحقول المطلوبة.", "Please fill in the required fields."));
                     return;

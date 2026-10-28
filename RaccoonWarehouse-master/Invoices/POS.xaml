@@ -1,4 +1,4 @@
-<Window xmlns:security="clr-namespace:RaccoonWarehouse.Security" x:Class="RaccoonWarehouse.Invoices.POS"
+<Window x:Class="RaccoonWarehouse.Invoices.POS"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:iconPacks="http://metro.mahapps.com/winfx/xaml/iconpacks"
@@ -342,7 +342,7 @@
                 <StackPanel DockPanel.Dock="Top" Margin="10,10,10,4">
                     <Button x:Name="OpenSessionBtn" Style="{StaticResource SidebarSuccessBtn}"
                             Click="OpenSessionBtn_Click"
-                            ToolTip="فتح جلسة" security:PermissionWindowGuard.Keys="CashDrawer.View">
+                            ToolTip="فتح جلسة">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
@@ -355,7 +355,7 @@
                     </Button>
                     <Button x:Name="CloseSessionBtn" Style="{StaticResource SidebarDangerBtn}"
                             Click="CloseSessionBtn_Click"
-                            ToolTip="إغلاق جلسة" security:PermissionWindowGuard.Keys="CashDrawer.CloseShift">
+                            ToolTip="إغلاق جلسة">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
@@ -377,6 +377,15 @@
                     <StackPanel Margin="10,4,10,4">
 
                         <!-- Invoice actions group -->
+                        <Button Style="{StaticResource SidebarActionBtn}" Click="CreateCustomerRequestBtn_Click" ToolTip="Customer Request">
+                            <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="8"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><iconPacks:PackIconMaterial Kind="ClipboardPlusOutline" Width="18" Height="18"/><TextBlock Grid.Column="2" Text="Customer Request" Style="{StaticResource SidebarButtonText}"/></Grid>
+                        </Button>
+                        <Button Style="{StaticResource SidebarActionBtn}" Click="ManageCustomerRequestsBtn_Click" ToolTip="متابعة طلبات العملاء">
+                            <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="8"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><iconPacks:PackIconMaterial Kind="ClipboardTextOutline" Width="18" Height="18"/><TextBlock Grid.Column="2" Text="متابعة طلبات العملاء" Style="{StaticResource SidebarButtonText}"/></Grid>
+                        </Button>
+                        <Button Style="{StaticResource SidebarActionBtn}" Click="LostCustomerBtn_Click" ToolTip="Lost Customer">
+                            <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="8"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><iconPacks:PackIconMaterial Kind="AccountAlertOutline" Width="18" Height="18"/><TextBlock Grid.Column="2" Text="Lost Customer" Style="{StaticResource SidebarButtonText}"/></Grid>
+                        </Button>
                         <Button Style="{StaticResource SidebarActionBtn}"
                                 Click="NewInvoiceBtn_Click" ToolTip="فاتورة جديدة">
                             <Grid>
@@ -398,7 +407,7 @@
                             </Grid>
                         </Button>
                         <Button Style="{StaticResource SidebarActionBtn}"
-                                Click="SearchProductBtn_Click" ToolTip="بحث عن مادة (F1)" security:PermissionWindowGuard.Keys="POS.View|PurchaseInvoice.View|PurchaseOrder.View|Products.View">
+                                Click="SearchProductBtn_Click" ToolTip="بحث عن مادة (F1)">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
@@ -410,7 +419,7 @@
                             </Grid>
                         </Button>
                         <Button Style="{StaticResource SidebarDangerBtn}"
-                                Click="DeleteItemBtn_Click" ToolTip="حذف مادة (F3 / Del)" security:PermissionWindowGuard.Keys="POS.Delete">
+                                Click="DeleteItemBtn_Click" ToolTip="حذف مادة (F3 / Del)">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
@@ -446,7 +455,7 @@
                             </Grid>
                         </Button>
                         <Button Style="{StaticResource SidebarActionBtn}"
-                                Click="ResumeHoldBtn_Click" ToolTip="استئناف (F6)" security:PermissionWindowGuard.Keys="POS.View">
+                                Click="ResumeHoldBtn_Click" ToolTip="استئناف (F6)">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
@@ -458,7 +467,7 @@
                             </Grid>
                         </Button>
                         <Button Style="{StaticResource SidebarActionBtn}"
-                                Click="PrintBtn_Click" ToolTip="طباعة (F9)" security:PermissionWindowGuard.Keys="POS.Print">
+                                Click="PrintBtn_Click" ToolTip="طباعة (F9)">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
@@ -470,7 +479,7 @@
                             </Grid>
                         </Button>
                         <Button Style="{StaticResource SidebarWarningBtn}"
-                                Click="ExchangeItemBtn_Click" ToolTip="استبدال (Shift+F2)" security:PermissionWindowGuard.Keys="SalesInvoice.View">
+                                Click="ExchangeItemBtn_Click" ToolTip="استبدال (Shift+F2)">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
@@ -482,7 +491,7 @@
                             </Grid>
                         </Button>
                         <Button Style="{StaticResource SidebarDangerBtn}"
-                                Click="ReturnItemBtn_Click" ToolTip="مرتجع" security:PermissionWindowGuard.Keys="SalesInvoice.View|PurchaseReturn.View">
+                                Click="ReturnItemBtn_Click" ToolTip="مرتجع">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
@@ -494,7 +503,7 @@
                             </Grid>
                         </Button>
                         <Button Style="{StaticResource SidebarWarningBtn}"
-                                Click="DiscountBtn_Click" ToolTip="خصم (F11)" security:PermissionWindowGuard.Keys="POS.ApplyDiscount">
+                                Click="DiscountBtn_Click" ToolTip="خصم (F11)">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
@@ -506,7 +515,7 @@
                             </Grid>
                         </Button>
                         <Button Style="{StaticResource SidebarActionBtn}"
-                                Click="OpenReceipt_Click" ToolTip="مقبوضات (F7)" security:PermissionWindowGuard.Keys="Vouchers.View">
+                                Click="OpenReceipt_Click" ToolTip="مقبوضات (F7)">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
@@ -518,7 +527,7 @@
                             </Grid>
                         </Button>
                         <Button Style="{StaticResource SidebarDangerBtn}"
-                                Click="OpenPayment_Click" ToolTip="مدفوعات" security:PermissionWindowGuard.Keys="Vouchers.View">
+                                Click="OpenPayment_Click" ToolTip="مدفوعات">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
@@ -530,7 +539,7 @@
                             </Grid>
                         </Button>
                         <Button Style="{StaticResource SidebarActionBtn}"
-                                Click="DailyReportBtn_Click" ToolTip="ملخص الشفت (F10)" security:PermissionWindowGuard.Keys="CashierReport.View">
+                                Click="DailyReportBtn_Click" ToolTip="ملخص الشفت (F10)">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
@@ -543,7 +552,7 @@
                         </Button>
                         <Button Style="{StaticResource SidebarActionBtn}"
                                 Click="ChangePaymentMethodBtn_Click"
-                                ToolTip="تغيير طريقة الدفع" security:PermissionWindowGuard.Keys="SalesInvoice.View|SalesInvoice.ChangePayment">
+                                ToolTip="تغيير طريقة الدفع">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
@@ -555,7 +564,7 @@
                             </Grid>
                         </Button>
                         <Button Style="{StaticResource SidebarDangerBtn}"
-                                Click="CancelInvoiceBtn_Click" ToolTip="إلغاء (Esc)" security:PermissionWindowGuard.Keys="POS.Cancel">
+                                Click="CancelInvoiceBtn_Click" ToolTip="إلغاء (Esc)">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
@@ -649,7 +658,7 @@
                                     Height="34"
                                     Margin="4,0,0,0"
                                     ToolTip="إضافة عميل جديد"
-                                    Click="AddCustomerBtn_Click" security:PermissionWindowGuard.Keys="Users.Create">
+                                    Click="AddCustomerBtn_Click">
                                 <iconPacks:PackIconMaterial Kind="Plus" Width="16" Height="16"/>
                             </Button>
                         </Grid>
@@ -1199,7 +1208,7 @@
                         <Button Style="{StaticResource PaymentBtn}"
                                 Background="{StaticResource AppPrimaryBrush}"
                                 Click="CashPaymentBtn_Click"
-                                ToolTip="Ctrl+1" security:PermissionWindowGuard.Keys="POS.Create;POS.Post">
+                                ToolTip="Ctrl+1">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                 <iconPacks:PackIconMaterial Kind="Cash" Width="15" Height="15"/>
                                 <TextBlock Text="كاش" Margin="6,0,0,0"/>
@@ -1208,7 +1217,7 @@
                         <Button Style="{StaticResource PaymentBtn}"
                                 Background="#445A68"
                                 Click="VisaPaymentBtn_Click"
-                                ToolTip="Ctrl+2" security:PermissionWindowGuard.Keys="POS.Create;POS.Post">
+                                ToolTip="Ctrl+2">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                 <iconPacks:PackIconMaterial Kind="CreditCard" Width="15" Height="15"/>
                                 <TextBlock Text="Visa" Margin="6,0,0,0"/>
@@ -1217,7 +1226,7 @@
                         <Button Style="{StaticResource PaymentBtn}"
                                 Background="#445A68"
                                 Click="DebitPaymentBtn_Click"
-                                ToolTip="Ctrl+4" security:PermissionWindowGuard.Keys="POS.Create;POS.Post">
+                                ToolTip="Ctrl+4">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                 <iconPacks:PackIconMaterial Kind="BankTransfer" Width="15" Height="15"/>
                                 <TextBlock Text="Debit" Margin="6,0,0,0"/>
@@ -1226,7 +1235,7 @@
                         <Button Style="{StaticResource PaymentBtn}"
                                 Background="#445A68"
                                 Click="CheckPaymentBtn_Click"
-                                ToolTip="Ctrl+5" security:PermissionWindowGuard.Keys="POS.Create;POS.Post">
+                                ToolTip="Ctrl+5">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                 <iconPacks:PackIconMaterial Kind="FileDocumentCheckOutline" Width="15" Height="15"/>
                                 <TextBlock Text="Check" Margin="6,0,0,0"/>
@@ -1235,7 +1244,7 @@
                         <Button Style="{StaticResource PaymentBtn}"
                                 Background="#445A68"
                                 Click="MobilePaymentBtn_Click"
-                                ToolTip="Ctrl+6" security:PermissionWindowGuard.Keys="POS.Create;POS.Post">
+                                ToolTip="Ctrl+6">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                 <iconPacks:PackIconMaterial Kind="CellphoneNfc" Width="15" Height="15"/>
                                 <TextBlock Text="Mobile" Margin="6,0,0,0"/>
@@ -1244,7 +1253,7 @@
                         <Button Style="{StaticResource PaymentBtn}"
                                 Background="#D98A1F"
                                 Click="CreditPaymentBtn_Click"
-                                ToolTip="Ctrl+7 / F12" security:PermissionWindowGuard.Keys="POS.Create;POS.Post">
+                                ToolTip="Ctrl+7 / F12">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                 <iconPacks:PackIconMaterial Kind="AccountClock" Width="15" Height="15"/>
                                 <TextBlock Text="آجل" Margin="6,0,0,0"/>
@@ -1253,7 +1262,7 @@
                         <Button Style="{StaticResource PaymentBtn}"
                                 Background="#7A5AA6"
                                 Click="SplitPaymentBtn_Click"
-                                ToolTip="Split payment" security:PermissionWindowGuard.Keys="SalesInvoice.ChangePayment">
+                                ToolTip="Split payment">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                 <iconPacks:PackIconMaterial Kind="CallSplit" Width="15" Height="15"/>
                                 <TextBlock Text="Split" Margin="6,0,0,0"/>

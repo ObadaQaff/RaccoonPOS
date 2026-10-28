@@ -12,6 +12,7 @@ namespace RaccoonWarehouse.Domain.Users
 {
     public class User:BaseEntity
     {
+        public int UserNumber { get; set; }
         public string Name { get; set; }
         public string? PhoneNumber { get; set; } = string.Empty;
         public string Password { get; set; }    

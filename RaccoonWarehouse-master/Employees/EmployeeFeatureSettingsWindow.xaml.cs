@@ -11,7 +11,7 @@ namespace RaccoonWarehouse.Employees
         public EmployeeFeatureSettingsWindow(IEmployeeFeatureService featureService)
         {
             _featureService = featureService;
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
             InitializeComponent();
             UiText.ApplyWindow(this);
             Loaded += EmployeeFeatureSettingsWindow_Loaded;

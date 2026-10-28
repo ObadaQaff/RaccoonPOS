@@ -12,16 +12,17 @@ using RaccoonWarehouse.Domain.Accounting.TaxRates;
 using RaccoonWarehouse.Domain.Base;
 using RaccoonWarehouse.Domain.Branches;
 using RaccoonWarehouse.Domain.Categories;
+using RaccoonWarehouse.Domain.CustomerRequests;
 using RaccoonWarehouse.Domain.CostCenters;
 using RaccoonWarehouse.Domain.Currencies;
 using RaccoonWarehouse.Domain.Employees;
 using RaccoonWarehouse.Domain.EntityAndDtoStructure;
 using RaccoonWarehouse.Domain.FinancialTransactions;
 using RaccoonWarehouse.Domain.InvoiceLines;
+using RaccoonWarehouse.Domain.LostCustomers;
 using RaccoonWarehouse.Domain.Invoices;
 using RaccoonWarehouse.Domain.Integration;
 using RaccoonWarehouse.Domain.Insurance;
-using RaccoonWarehouse.Domain.Permissions;
 using RaccoonWarehouse.Domain.PurchaseOrders;
 using RaccoonWarehouse.Domain.PurchaseRequests;
 using RaccoonWarehouse.Domain.GoodsReceipts;
@@ -54,14 +55,13 @@ namespace RaccoonWarehouse.Data
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
             : base(options) { }
 
-        public DbSet<ReportPermission> ReportPermissions => Set<ReportPermission>();
-        public DbSet<PermissionDefinition> PermissionDefinitions => Set<PermissionDefinition>();
-        public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
-        public DbSet<UserPermission> UserPermissions => Set<UserPermission>();
         public DbSet<PurchaseOrder> PurchaseOrders => Set<PurchaseOrder>();
         public DbSet<PurchaseOrderLine> PurchaseOrderLines => Set<PurchaseOrderLine>();
         public DbSet<PurchaseRequest> PurchaseRequests => Set<PurchaseRequest>();
         public DbSet<PurchaseRequestLine> PurchaseRequestLines => Set<PurchaseRequestLine>();
+        public DbSet<CustomerRequest> CustomerRequests => Set<CustomerRequest>();
+        public DbSet<CustomerRequestLine> CustomerRequestLines => Set<CustomerRequestLine>();
+        public DbSet<LostCustomer> LostCustomers => Set<LostCustomer>();
         public DbSet<GoodsReceipt> GoodsReceipts => Set<GoodsReceipt>();
         public DbSet<GoodsReceiptLine> GoodsReceiptLines => Set<GoodsReceiptLine>();
         public DbSet<PurchaseInvoiceMatch> PurchaseInvoiceMatches => Set<PurchaseInvoiceMatch>();
@@ -146,20 +146,15 @@ namespace RaccoonWarehouse.Data
                 modelBuilder.Entity(type);
             }
 
-            modelBuilder.Entity<ReportPermission>()
-                .HasIndex(x => new { x.ReportKey, x.Role })
-                .IsUnique();
-
-            modelBuilder.Entity<PermissionDefinition>()
-                .HasIndex(x => x.Key)
-                .IsUnique();
-
-            modelBuilder.Entity<RolePermission>()
-                .HasIndex(x => new { x.Role, x.PermissionKey })
-                .IsUnique();
-
-            modelBuilder.Entity<UserPermission>()
-                .HasIndex(x => new { x.UserId, x.PermissionKey })
+            modelBuilder.HasSequence<int>("UserNumberSequence", "dbo")
+                .StartsAt(1)
+                .IncrementsBy(1);
+            modelBuilder.Entity<User>()
+                .Property(x => x.UserNumber)
+                .ValueGeneratedOnAdd()
+                .HasDefaultValueSql("NEXT VALUE FOR dbo.UserNumberSequence");
+            modelBuilder.Entity<User>()
+                .HasIndex(x => x.UserNumber)
                 .IsUnique();
 
             modelBuilder.Entity<PurchaseOrder>()
@@ -264,10 +259,6 @@ namespace RaccoonWarehouse.Data
                 .Property(x => x.Action)
                 .HasMaxLength(200)
                 .IsRequired();
-
-            modelBuilder.Entity<AuditLog>()
-                .Property(x => x.PermissionKey)
-                .HasMaxLength(200);
 
             modelBuilder.Entity<AuditLog>()
                 .Property(x => x.EntityType)

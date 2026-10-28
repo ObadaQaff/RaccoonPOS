@@ -30,7 +30,7 @@ namespace RaccoonWarehouse.SubCategories
             _mapper = mapper;
             _categoryService = categoryService;
             _loadingService = loadingService;
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
             InitializeComponent();
             UiText.ApplyWindow(this);
         }

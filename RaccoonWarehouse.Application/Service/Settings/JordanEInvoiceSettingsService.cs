@@ -3,7 +3,6 @@ using Microsoft.EntityFrameworkCore;
 using RaccoonWarehouse.Core.Common;
 using RaccoonWarehouse.Data;
 using RaccoonWarehouse.Domain.Settings;
-using RaccoonWarehouse.Application.Service.Permissions;
 
 namespace RaccoonWarehouse.Application.Service.Settings;
 
@@ -25,12 +24,10 @@ public sealed class JordanEInvoiceSettingsService : IJordanEInvoiceSettingsServi
     public const string SettingKey = "Integration.JoFotara";
 
     private readonly ApplicationDbContext _dbContext;
-    private readonly IPermissionService _permissions;
 
-    public JordanEInvoiceSettingsService(ApplicationDbContext dbContext, IPermissionService permissions)
+    public JordanEInvoiceSettingsService(ApplicationDbContext dbContext)
     {
         _dbContext = dbContext;
-        _permissions = permissions;
     }
 
     public async Task<JordanEInvoiceSettingsDto> GetAsync(CancellationToken cancellationToken = default)
@@ -65,10 +62,7 @@ public sealed class JordanEInvoiceSettingsService : IJordanEInvoiceSettingsServi
         JordanEInvoiceSettingsDto settings,
         CancellationToken cancellationToken = default)
     {
-        if (!await _permissions.HasCurrentUserPermissionAsync("Settings.ManageSettings"))
-            return Result.Fail("Settings permission is required / صلاحية تعديل الإعدادات مطلوبة.");
-
-        var normalized = settings with
+var normalized = settings with
         {
             ClientId = settings.ClientId?.Trim() ?? string.Empty,
             SecretKey = settings.SecretKey?.Trim() ?? string.Empty,

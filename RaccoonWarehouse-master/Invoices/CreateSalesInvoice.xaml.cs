@@ -119,7 +119,7 @@ namespace RaccoonWarehouse.Invoices
             _userStatementService = userStatementService;
             _loadingService = loadingService;
 
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+            
             InitializeComponent();
             UiText.ApplyWindow(this);
 

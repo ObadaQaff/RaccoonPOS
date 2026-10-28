@@ -1,4 +1,3 @@
-using RaccoonWarehouse.Application.Service.Permissions;
 using RaccoonWarehouse.Application.Service.Employees;
 using RaccoonWarehouse.Application.Service.Payroll;
 using RaccoonWarehouse.Common.Loading;
@@ -29,10 +28,7 @@ namespace RaccoonWarehouse.Employees
 
         private readonly IUserService _userService;
         private readonly IEmployeeFeatureService _featureService;
-        private readonly IUserSession _userSession;
-        private readonly IPermissionService _permissionService;
         private readonly ILoadingService _loadingService;
-        private readonly IPermissionService _auditPermissionService;
         private readonly IEmployeeService _employeeService;
         private readonly EmployeePayrollService _employeePayrollService;
         private readonly PayrollCalculator _payrollCalculator;
@@ -43,8 +39,6 @@ namespace RaccoonWarehouse.Employees
         public EmployeesTable(
             IUserService userService,
             IEmployeeFeatureService featureService,
-            IUserSession userSession,
-            IPermissionService permissionService,
             ILoadingService loadingService,
             IEmployeeService employeeService,
             EmployeePayrollService employeePayrollService,
@@ -52,14 +46,11 @@ namespace RaccoonWarehouse.Employees
         {
             _userService = userService;
             _featureService = featureService;
-            _userSession = userSession;
-            _permissionService = permissionService;
-            _auditPermissionService = permissionService;
             _loadingService = loadingService;
             _employeeService = employeeService;
             _employeePayrollService = employeePayrollService;
             _payrollCalculator = payrollCalculator;
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
             InitializeComponent();
             UiText.ApplyWindow(this);
             InitializeRoleFilter();
@@ -70,8 +61,6 @@ namespace RaccoonWarehouse.Employees
         {
             try
             {
-                if(!await _permissionService.HasCurrentUserPermissionAsync("Employees.View"))throw new UnauthorizedAccessException("ليس لديك صلاحية عرض ملفات الموظفين.");
-                if(!await ConfigurePayrollWorkspaceAsync())throw new UnauthorizedAccessException("ليس لديك صلاحية عرض ملفات الموظفين.");
                 EmployeeMainTabs.SelectedItem = PayrollWorkspaceTab;
             }
             catch(Exception ex){RaccoonWarehouse.Employees.Payroll.PayrollUi.Error(ex);}
@@ -79,7 +68,7 @@ namespace RaccoonWarehouse.Employees
 
         private async Task<bool> ConfigurePayrollWorkspaceAsync()
         {
-            var allowed = await _permissionService.HasCurrentUserPermissionAsync("Employees.View");
+            var allowed = true;
             LegacyEmployeeToolbarCard.Visibility = Visibility.Collapsed;
             PayrollProfilesBtn.Visibility = Visibility.Collapsed;
             EmployeeAccountsTab.Visibility = Visibility.Collapsed;
@@ -93,7 +82,6 @@ namespace RaccoonWarehouse.Employees
                     _employeeService,
                     _userService,
                     _employeePayrollService,
-                    _permissionService,
                     _payrollCalculator);
             }
 
@@ -145,23 +133,13 @@ namespace RaccoonWarehouse.Employees
 
                 if (!await ConfigurePayrollWorkspaceAsync())
                 {
-                    MessageBox.Show(UiText.T("ليس لديك صلاحية عرض الموظفين.", "You do not have permission to view employees."));
+                    MessageBox.Show(UiText.T("تعذر فتح مساحة الموظفين.", "The employee workspace is unavailable."));
                     Close();
                     return;
                 }
 
                 EmployeeMainTabs.SelectedItem = PayrollWorkspaceTab;
-                return;
-
-                var role = _userSession.CurrentUser?.Role;
-                if (!role.HasValue || !await _permissionService.HasPermissionAsync(role.Value, "Users.View"))
-                {
-                    MessageBox.Show(UiText.T("ليس لديك صلاحية عرض الموظفين.", "You do not have permission to view employees."));
-                    Close();
-                    return;
-                }
-
-                FeatureStateText.Text = UiText.T(
+                return;FeatureStateText.Text = UiText.T(
                     "النظام مفعل حالياً ويعرض الموظفين والكاشيرات والمدراء وموظفي الموارد البشرية.",
                     "The system is enabled and shows employees only.");
                 AdminHintText.Text = UiText.T(
@@ -169,9 +147,9 @@ namespace RaccoonWarehouse.Employees
                     "You can search by name, phone, or the selected role.");
 
                 CreateUserBtn.IsEnabled = true;
-                ActivityBtn.Visibility = await HasPermissionAsync("AuditLogs.View") ? Visibility.Visible : Visibility.Collapsed;
-                ViewShiftsBtn.Visibility = await HasPermissionAsync("Reports.ShiftSummary") ? Visibility.Visible : Visibility.Collapsed;
-                FeatureSettingsBtn.Visibility = await HasPermissionAsync("Settings.ManageSettings") ? Visibility.Visible : Visibility.Collapsed;
+                ActivityBtn.Visibility = true ? Visibility.Visible : Visibility.Collapsed;
+                ViewShiftsBtn.Visibility = true ? Visibility.Visible : Visibility.Collapsed;
+                FeatureSettingsBtn.Visibility = true ? Visibility.Visible : Visibility.Collapsed;
 
                 var result = await _userService.GetAllAsync();
                 _items.Clear();
@@ -230,22 +208,12 @@ namespace RaccoonWarehouse.Employees
         }
 
         private async void CreateUserBtn_Click(object sender, RoutedEventArgs e)
-        {
-            var role = _userSession.CurrentUser?.Role;
-            if (!role.HasValue || !await _permissionService.HasPermissionAsync(role.Value, "Users.Create"))
-            {
-                MessageBox.Show(UiText.T("ليس لديك صلاحية إنشاء مستخدم جديد.", "You do not have permission to create a new user."));
-                return;
-            }
-
-            WindowManager.ShowDialog<CreateUser>(WindowSizeType.MediumRectangle, window => window.InitializeForEmployeeCreate());
+        {WindowManager.ShowDialog<CreateUser>(WindowSizeType.MediumRectangle, window => window.InitializeForEmployeeCreate());
             await LoadUsersAsync();
         }
 
         private async void ViewShiftsBtn_Click(object sender, RoutedEventArgs e)
         {
-            if (!await HasPermissionAsync("Reports.ShiftSummary"))
-                return;
 
             var selected = GetSelectedUser();
             if (selected == null)
@@ -267,20 +235,12 @@ namespace RaccoonWarehouse.Employees
         private async void ActivityBtn_Click(object sender, RoutedEventArgs e)
         {
             var selected = GetSelectedUser();
-            if (selected == null || !await HasPermissionAsync("AuditLogs.View"))
+            if (selected == null)
                 return;
 
             WindowManager.Show<AuditLogsWindow>(WindowSizeType.LargeRectangle,
                 window => window.InitializeForUser(selected.Id, selected.Name));
-        }
-
-        private async Task<bool> HasPermissionAsync(string permissionKey)
-        {
-            var role = _userSession.CurrentUser?.Role;
-            return role.HasValue && await _auditPermissionService.HasPermissionAsync(role.Value, permissionKey);
-        }
-
-        private UserReadDto? GetSelectedUser()
+        }private UserReadDto? GetSelectedUser()
         {
             if (UsersTable1.SelectedItem is UserReadDto dto)
                 return dto;
@@ -290,15 +250,7 @@ namespace RaccoonWarehouse.Employees
         }
 
         private async void Update_User(object sender, RoutedEventArgs e)
-        {
-            var role = _userSession.CurrentUser?.Role;
-            if (!role.HasValue || !await _permissionService.HasPermissionAsync(role.Value, "Users.Edit"))
-            {
-                MessageBox.Show(UiText.T("ليس لديك صلاحية تعديل المستخدمين.", "You do not have permission to edit users."));
-                return;
-            }
-
-            var selected = GetSelectedUser();
+        {var selected = GetSelectedUser();
             if (selected == null)
                 return;
 
@@ -309,15 +261,7 @@ namespace RaccoonWarehouse.Employees
         }
 
         private async void Delete_User(object sender, RoutedEventArgs e)
-        {
-            var role = _userSession.CurrentUser?.Role;
-            if (!role.HasValue || !await _permissionService.HasPermissionAsync(role.Value, "Users.Delete"))
-            {
-                MessageBox.Show(UiText.T("ليس لديك صلاحية حذف المستخدمين.", "You do not have permission to delete users."));
-                return;
-            }
-
-            var selected = GetSelectedUser();
+        {var selected = GetSelectedUser();
             if (selected == null)
                 return;
 
@@ -350,8 +294,6 @@ namespace RaccoonWarehouse.Employees
 
         private async void FeatureSettingsBtn_Click(object sender, RoutedEventArgs e)
         {
-            if (!await HasPermissionAsync("Settings.ManageSettings"))
-                return;
 
             WindowManager.ShowDialog<EmployeeFeatureSettingsWindow>(WindowSizeType.SmallSquare);
         }

@@ -1,5 +1,4 @@
 using RaccoonWarehouse.Accounting;
-using RaccoonWarehouse.Application.Service.Permissions;
 using RaccoonWarehouse.Application.Service.Settings;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Brands;
@@ -57,23 +56,16 @@ namespace RaccoonWarehouse.Navigation.Modules
 
     public sealed class SettingsDashboardActionHandler : IDashboardActionHandler
     {
-        private readonly IPermissionService _permissionService;
-        private readonly IUserSession _userSession;
-
         public SettingsDashboardActionHandler(
-            IPermissionService permissionService,
             IUserSession userSession)
         {
-            _permissionService = permissionService;
-            _userSession = userSession;
-        }
+            }
 
         public bool CanHandle(string actionKey)
         {
             return actionKey is
                 "Units.Create" or
                 "Units.List" or
-                "Settings.Permissions" or
                 "Settings.AuditLogs" or
                 "Settings.Delegates" or
                 "Settings.Employees" or
@@ -97,102 +89,30 @@ namespace RaccoonWarehouse.Navigation.Modules
                 case "Units.List":
                     WindowManager.Show<UnitsTable>();
                     return;
-                case "Settings.Permissions":
-                    if (!await HasPermissionAsync("Permissions.ManageRoles"))
-                    {
-                        MessageBox.Show(UiText.T("ليس لديك صلاحية إدارة صلاحيات النظام.", "You do not have permission to manage system permissions."));
-                        return;
-                    }
-
-                    WindowManager.Show<ReportPermissionsManager>(WindowSizeType.LargeRectangle);
+                case "Settings.AuditLogs":WindowManager.Show<AuditLogsWindow>(WindowSizeType.LargeRectangle);
                     return;
-                case "Settings.AuditLogs":
-                    if (!await HasPermissionAsync("AuditLogs.View"))
-                    {
-                        MessageBox.Show(UiText.T("ليس لديك صلاحية عرض سجل المراجعة.", "You do not have permission to view audit logs."));
-                        return;
-                    }
-
-                    WindowManager.Show<AuditLogsWindow>(WindowSizeType.LargeRectangle);
+                case "Settings.Delegates":WindowManager.ShowDialog<DelegateFeatureSettingsWindow>(WindowSizeType.SmallSquare);
                     return;
-                case "Settings.Delegates":
-                    if (!await HasPermissionAsync("Settings.ManageSettings"))
-                    {
-                        MessageBox.Show(UiText.T("ليس لديك صلاحية تعديل الإعدادات.", "You do not have permission to edit settings."));
-                        return;
-                    }
-
-                    WindowManager.ShowDialog<DelegateFeatureSettingsWindow>(WindowSizeType.SmallSquare);
+                case "Settings.Employees":WindowManager.ShowDialog<EmployeeFeatureSettingsWindow>(WindowSizeType.SmallSquare);
                     return;
-                case "Settings.Employees":
-                    if (!await HasPermissionAsync("Settings.ManageSettings"))
-                    {
-                        MessageBox.Show(UiText.T("ليس لديك صلاحية تعديل الإعدادات.", "You do not have permission to edit settings."));
-                        return;
-                    }
-
-                    WindowManager.ShowDialog<EmployeeFeatureSettingsWindow>(WindowSizeType.SmallSquare);
-                    return;
-                case "Settings.Accounting":
-                    if (!await HasPermissionAsync("Settings.ManageSettings"))
-                    {
-                        MessageBox.Show(UiText.T("ليس لديك صلاحية تعديل الإعدادات.", "You do not have permission to edit settings."));
-                        return;
-                    }
-
-                    WindowManager.ShowDialog<AccountingFeatureSettingsWindow>(WindowSizeType.SmallSquare);
+                case "Settings.Accounting":WindowManager.ShowDialog<AccountingFeatureSettingsWindow>(WindowSizeType.SmallSquare);
                     await context.RefreshAccountingNavigationAsync();
                     return;
-                case "Settings.InventoryCosting":
-                    if (!await HasPermissionAsync("Settings.ManageSettings"))
-                    {
-                        MessageBox.Show(UiText.T("ليس لديك صلاحية تعديل الإعدادات.", "You do not have permission to edit settings."));
-                        return;
-                    }
-
-                    WindowManager.ShowDialog<InventoryCostingSettingsWindow>(WindowSizeType.SmallSquare);
+                case "Settings.InventoryCosting":WindowManager.ShowDialog<InventoryCostingSettingsWindow>(WindowSizeType.SmallSquare);
                     return;
-                case "Settings.RefundCode":
-                    if (!await HasPermissionAsync("Settings.ManageSettings"))
-                    {
-                        MessageBox.Show(UiText.T("ليس لديك صلاحية تعديل الإعدادات.", "You do not have permission to edit settings."));
-                        return;
-                    }
-                    WindowManager.ShowDialog<RefundCodeSettingsWindow>(WindowSizeType.SmallSquare);
+                case "Settings.RefundCode":WindowManager.ShowDialog<RefundCodeSettingsWindow>(WindowSizeType.SmallSquare);
                     return;
                 case "Settings.DocumentBranding":
-                    if (!await HasPermissionAsync("Settings.ManageSettings")) return;
                     WindowManager.ShowDialog<RaccoonWarehouse.Settings.DocumentBrandingWindow>(WindowSizeType.LargeRectangle);
                     return;
                 case "Settings.JoFotara":
-                    if (!await HasPermissionAsync("Settings.ManageSettings")) return;
                     WindowManager.ShowDialog<JordanEInvoiceSettingsWindow>(WindowSizeType.MediumRectangle);
                     return;
-                case "Settings.PosRowColors":
-                    if (!await HasPermissionAsync("Settings.ManageSettings"))
-                    {
-                        MessageBox.Show(UiText.T("ليس لديك صلاحية تعديل الإعدادات.", "You do not have permission to edit settings."));
-                        return;
-                    }
-                    WindowManager.ShowDialog<PosRowColorSettingsWindow>(WindowSizeType.LargeRectangle);
+                case "Settings.PosRowColors":WindowManager.ShowDialog<PosRowColorSettingsWindow>(WindowSizeType.LargeRectangle);
                     return;
-                case "Settings.Language":
-                    if (!await HasPermissionAsync("Settings.ManageSettings"))
-                    {
-                        MessageBox.Show(UiText.T("ليس لديك صلاحية تعديل الإعدادات.", "You do not have permission to edit settings."));
-                        return;
-                    }
-
-                    WindowManager.ShowDialog<LanguageSettingsWindow>(WindowSizeType.SmallSquare);
+                case "Settings.Language":WindowManager.ShowDialog<LanguageSettingsWindow>(WindowSizeType.SmallSquare);
                     return;
-                case "Settings.SwitchDatabase":
-                    if (!await HasPermissionAsync("Permissions.ManageSettings"))
-                    {
-                        MessageBox.Show(UiText.T("ليس لديك صلاحية تعديل الإعدادات.", "You do not have permission to edit settings."));
-                        return;
-                    }
-
-                    var currentProfile = DatabaseConnectionStringProvider.GetActiveProfile();
+                case "Settings.SwitchDatabase":var currentProfile = DatabaseConnectionStringProvider.GetActiveProfile();
                     var targetProfile = string.Equals(currentProfile, "Raccoon", StringComparison.OrdinalIgnoreCase)
                         ? "Pharmacy"
                         : "Raccoon";
@@ -200,7 +120,7 @@ namespace RaccoonWarehouse.Navigation.Modules
                         UiText.T(
                             $"قاعدة البيانات الحالية: {currentProfile}\nهل تريد التبديل إلى: {targetProfile}؟ يجب إعادة تشغيل التطبيق.",
                             $"Current database: {currentProfile}\nSwitch to {targetProfile}? The application must be restarted."),
-                        UiText.T("تبديل قاعدة البيانات", "Switch Database"),
+                        UiText.T("تبديل قاعدة البيانات", "Notice"),
                         MessageBoxButton.YesNo,
                         MessageBoxImage.Warning);
                     if (switchResult != MessageBoxResult.Yes)
@@ -213,19 +133,12 @@ namespace RaccoonWarehouse.Navigation.Modules
                         UiText.T(
                             $"تم اختيار قاعدة بيانات {targetProfile}. أغلق التطبيق وأعد تشغيله لتطبيق التغيير.",
                             $"Database {targetProfile} selected. Close and restart the application to apply the change."),
-                        UiText.T("تم الحفظ", "Saved"),
+                        UiText.T("تم الحفظ", "Notice"),
                         MessageBoxButton.OK,
                         MessageBoxImage.Information);
                     return;
             }
-        }
-
-        private async Task<bool> HasPermissionAsync(string permissionKey)
-        {
-            var role = _userSession.CurrentUser?.Role;
-            return role.HasValue && await _permissionService.HasPermissionAsync(role.Value, permissionKey);
-        }
-    }
+        }}
 
     public sealed class AccountingDashboardActionHandler : IDashboardActionHandler
     {

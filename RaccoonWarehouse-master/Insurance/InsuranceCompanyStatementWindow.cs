@@ -32,7 +32,7 @@ public sealed class InsuranceCompanyStatementWindow : Window
     private bool _busy;
     public InsuranceCompanyStatementWindow(ApplicationDbContext db,IAccountingService accounting,InsuranceCompanyDto company)
     {
-        RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
         _db=db; _accounting=accounting; _company=company;
         Title=UiText.T("كشف حساب شركة التأمين","Insurance company statement");
         Width=1150; Height=780; MinWidth=850; MinHeight=580; WindowStartupLocation=WindowStartupLocation.CenterOwner;

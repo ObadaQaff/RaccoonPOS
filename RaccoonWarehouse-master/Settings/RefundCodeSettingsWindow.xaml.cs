@@ -11,7 +11,7 @@ public partial class RefundCodeSettingsWindow : Window
 
     public RefundCodeSettingsWindow(IRefundAuthorizationCodeService service)
     {
-        RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+        
         InitializeComponent();
         _service = service;
         _app = (App)System.Windows.Application.Current;

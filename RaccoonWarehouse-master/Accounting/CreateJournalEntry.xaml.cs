@@ -38,7 +38,7 @@ namespace RaccoonWarehouse.Accounting
             _featureService = featureService;
             _loadingService = loadingService;
             _userService = userService;
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
             InitializeComponent();
             UiText.ApplyWindow(this);
 

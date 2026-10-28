@@ -28,7 +28,7 @@ namespace RaccoonWarehouse.Vouchers
         private readonly bool _isSale =false;
         public SearchVoucherWindow(IVoucherService voucherService, IEnumerable<UserReadDto> users, bool Sale)
         {
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
             InitializeComponent();
             UiText.ApplyWindow(this);
             _voucherService = voucherService;

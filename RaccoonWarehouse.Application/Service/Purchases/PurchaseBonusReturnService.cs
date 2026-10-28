@@ -1,6 +1,5 @@
 using System.Data;
 using Microsoft.EntityFrameworkCore;
-using RaccoonWarehouse.Application.Service.Permissions;
 using RaccoonWarehouse.Application.Service.Sales;
 using RaccoonWarehouse.Application.Service.Stocks;
 using RaccoonWarehouse.Core.Common;
@@ -30,17 +29,14 @@ public sealed class PurchaseBonusReturnService
 {
     private readonly ApplicationDbContext _db;
     private readonly ISaleCheckoutService _checkout;
-    private readonly IPermissionService _permissions;
     private readonly IPosProductCatalogRefreshQueue? _catalog;
-    public PurchaseBonusReturnService(ApplicationDbContext db, ISaleCheckoutService checkout, IPermissionService permissions,
+    public PurchaseBonusReturnService(ApplicationDbContext db, ISaleCheckoutService checkout,
         IPosProductCatalogRefreshQueue? catalog = null)
-        => (_db, _checkout, _permissions, _catalog) = (db, checkout, permissions, catalog);
+        => (_db, _checkout, _catalog) = (db, checkout, catalog);
 
     public async Task<List<PurchaseBonusReturnRow>> GetRowsAsync(int invoiceId)
     {
-        if (!await _permissions.HasCurrentUserPermissionAsync("PurchaseReturn.Create"))
-            throw new InvalidOperationException("Purchase return permission is required / صلاحية مرتجع الشراء مطلوبة.");
-        var sources = await _db.Set<InvoiceLine>().AsNoTracking().Include(x => x.Product)
+var sources = await _db.Set<InvoiceLine>().AsNoTracking().Include(x => x.Product)
             .Where(x => x.InvoiceId == invoiceId).ToListAsync();
         var ids = sources.Select(x => x.Id).ToList();
         var prior = await _db.Set<InvoiceLine>().AsNoTracking()
@@ -60,9 +56,6 @@ public sealed class PurchaseBonusReturnService
     public async Task<Result<SaleCheckoutResult>> CompleteAsync(int invoiceId, IEnumerable<PurchaseBonusReturnRow> requested,
         PaymentType paymentType, CashierSessionReadDto session)
     {
-        if (!await _permissions.HasCurrentUserPermissionAsync("PurchaseReturn.Create")
-            || !await _permissions.HasCurrentUserPermissionAsync("PurchaseReturn.Confirm"))
-            return Result<SaleCheckoutResult>.Fail("Purchase return permission is required / صلاحية مرتجع الشراء مطلوبة.");
         // Serialize return-limit reads and original-lot deduction on SQL Server.
         await using var transaction = _db.Database.IsRelational()
             ? await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable) : null;

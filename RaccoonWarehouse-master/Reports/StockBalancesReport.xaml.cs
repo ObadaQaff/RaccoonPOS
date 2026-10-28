@@ -12,7 +12,7 @@ namespace RaccoonWarehouse.Reports
 
         public StockBalancesReport(IStockReportService stockReportService)
         {
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+            
             InitializeComponent();
             _stockReportService = stockReportService;
             UiText.ApplyWindow(this);

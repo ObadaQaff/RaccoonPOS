@@ -14,7 +14,7 @@ namespace RaccoonWarehouse.POS
 
         public HoldInvoiceColorWindow(IEnumerable<string> colors, ISet<string> occupiedColors)
         {
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
             InitializeComponent();
             UiText.ApplyWindow(this);
 

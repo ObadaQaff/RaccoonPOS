@@ -17,7 +17,7 @@ namespace RaccoonWarehouse.Warehouses
         public CreateWarehouse(IWarehouseService warehouseService)
         {
             _warehouseService = warehouseService;
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
             InitializeComponent();
             UiText.ApplyWindow(this);
             WarehouseStatus.ItemsSource = Enum.GetValues(typeof(WarehouseStatus));

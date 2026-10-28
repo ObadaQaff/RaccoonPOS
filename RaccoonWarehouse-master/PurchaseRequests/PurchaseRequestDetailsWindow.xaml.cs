@@ -17,7 +17,7 @@ public partial class PurchaseRequestDetailsWindow : Window
     {
         _service = service;
         _loading = loading;
-        RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+        
         InitializeComponent();
         UiText.ApplyWindow(this);
     }
@@ -78,7 +78,6 @@ public partial class PurchaseRequestDetailsWindow : Window
     {
         try
         {
-            await RaccoonWarehouse.Helpers.Pdf.DocumentPrintRuntime.RequirePrintAsync("PurchaseRequest.Print");
             var result=await _service.GetByIdAsync(_requestId);
             if(!result.Success || result.Data==null)throw new InvalidOperationException(result.Message);
             _request=result.Data;

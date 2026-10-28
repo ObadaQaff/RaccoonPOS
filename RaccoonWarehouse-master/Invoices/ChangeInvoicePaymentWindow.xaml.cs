@@ -82,7 +82,7 @@ namespace RaccoonWarehouse.Invoices
             IEnumerable<InvoicePaymentReadDto>? payments = null,
             IReadOnlyDictionary<PaymentType, decimal>? allowedPaymentAmounts = null)
         {
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+            
             InitializeComponent();
             UiText.ApplyWindow(this);
             TitleText.Text = UiText.T("تغيير طريقة الدفع", "Change payment method");

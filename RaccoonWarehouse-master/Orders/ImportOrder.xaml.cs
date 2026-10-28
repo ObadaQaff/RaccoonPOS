@@ -22,7 +22,7 @@ namespace RaccoonWarehouse.Orders
             IBoxOrderImportService boxOrderImportService,
             ILoadingService loadingService)
         {
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
             InitializeComponent();
             _boxCartApiService = boxCartApiService;
             _boxOrderImportService = boxOrderImportService;

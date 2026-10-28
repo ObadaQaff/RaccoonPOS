@@ -48,7 +48,7 @@ namespace RaccoonWarehouse.Stocks
             _loadingService = loadingService;
             _serviceProvider = serviceProvider;
             _userService = userService;
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+            
             InitializeComponent();
             SupplierComboBoxSearch.Attach(SupplierComboBox);
             DataContext = this;

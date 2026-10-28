@@ -50,7 +50,7 @@ namespace RaccoonWarehouse.Accounting
         {
             _reportService = reportService;
             _loadingService = loadingService;
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
             InitializeComponent();
             UiText.ApplyWindow(this);
             Loaded += PartyBalanceReport_Loaded;

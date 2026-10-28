@@ -113,12 +113,12 @@ namespace RaccoonWarehouse.Invoices
             _purchaseOrderService = purchaseOrderService;
             _isLoadingUnits = false;
 
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+            
             InitializeComponent();
             // Keep legacy 1+2 bonus support in code/data, but use percentage bonus in purchase invoices.
             BonusRatioColumn.Visibility = Visibility.Collapsed;
             BonusPercentageColumn.Visibility = Visibility.Visible;
-            RaccoonWarehouse.Security.PermissionWindowGuard.SetKeys(this, "PurchaseInvoice.View");
+            
             UiText.ApplyWindow(this);
             DataContext = this;
 
@@ -137,8 +137,8 @@ namespace RaccoonWarehouse.Invoices
 
         public void ConfigureAsPurchaseOrder()
         {
-            RaccoonWarehouse.Security.PermissionWindowGuard.SetKeys(this, "PurchaseOrder.View");
-            RaccoonWarehouse.Security.PermissionWindowGuard.SetKeys(SaveReceiptBtn, "PurchaseOrder.Create|PurchaseOrder.Edit");
+            
+            
             _isPurchaseOrderMode = true;
             InvoiceNumberTextBox.Text = GenerateInvoiceNumber();
             BonusRatioColumn.Visibility = Visibility.Collapsed;

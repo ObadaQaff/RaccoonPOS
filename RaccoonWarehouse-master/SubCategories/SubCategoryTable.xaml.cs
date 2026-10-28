@@ -39,7 +39,7 @@ namespace RaccoonWarehouse.SubCategories
             _subCategoryService = subCategoryService;
             _mapper = mapper;
             _loadingService = loadingService;
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
             InitializeComponent();
             UiText.ApplyWindow(this);
             SubCategoriesTable1.AutoGeneratingColumn += SubCategoriesTable1_AutoGeneratingColumn;

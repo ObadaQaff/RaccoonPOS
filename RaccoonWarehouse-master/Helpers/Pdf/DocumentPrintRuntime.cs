@@ -9,12 +9,6 @@ namespace RaccoonWarehouse.Helpers.Pdf;
 
 public static class DocumentPrintRuntime
 {
-    public static async Task RequirePrintAsync(string permission)
-    {
-        using var scope=((App)System.Windows.Application.Current).ServiceProvider.CreateScope();
-        if(!await scope.ServiceProvider.GetRequiredService<RaccoonWarehouse.Application.Service.Permissions.IPermissionService>().HasCurrentUserPermissionAsync(permission))
-            throw new UnauthorizedAccessException(RaccoonWarehouse.Helpers.Localization.UiText.T("ليس لديك صلاحية الطباعة.","You do not have print permission."));
-    }
     public static async Task<RaccoonWarehouse.Domain.PurchaseOrders.DTOs.PurchaseOrderWriteDto> SavedOrderAsync(int id)
     {
         using var scope=((App)System.Windows.Application.Current).ServiceProvider.CreateScope();

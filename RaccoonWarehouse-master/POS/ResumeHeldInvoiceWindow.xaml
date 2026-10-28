@@ -1,4 +1,4 @@
-﻿<Window xmlns:security="clr-namespace:RaccoonWarehouse.Security" x:Class="RaccoonWarehouse.POS.ResumeHeldInvoiceWindow"
+<Window x:Class="RaccoonWarehouse.POS.ResumeHeldInvoiceWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="الفواتير المعلقة"
@@ -86,7 +86,7 @@
                         Background="#A83245"
                         Foreground="White"
                         BorderThickness="0"
-                        FontWeight="SemiBold" security:PermissionWindowGuard.Keys="POS.Delete"/>
+                        FontWeight="SemiBold"/>
             </StackPanel>
         </Border>
     </Grid>

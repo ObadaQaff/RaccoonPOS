@@ -2,7 +2,6 @@ using System.Windows;
 using System.Windows.Controls;
 using RaccoonWarehouse.Application.Service.Employees;
 using RaccoonWarehouse.Application.Service.Payroll;
-using RaccoonWarehouse.Application.Service.Permissions;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Domain.Employees.DTOs;
 using RaccoonWarehouse.Domain.Enums;
@@ -12,7 +11,7 @@ namespace RaccoonWarehouse.Employees.Payroll;
 
 public sealed class EmployeeEditorControl : UserControl
 {
-    private readonly IEmployeeService _employees;private readonly IUserService _users;private readonly EmployeePayrollService _payroll;private readonly IPermissionService _permissions;private readonly PayrollCalculator _calculator;
+    private readonly IEmployeeService _employees;private readonly IUserService _users;private readonly EmployeePayrollService _payroll;private readonly PayrollCalculator _calculator;
     private readonly bool _readOnly;private readonly Func<Task> _saved;
     private readonly Dictionary<string,TextBox> _text=new();private readonly Dictionary<string,DatePicker> _dates=new();
     private readonly PasswordBox _sscNumber=new(){Margin=new Thickness(0,4,0,8),Padding=new Thickness(7)};
@@ -31,9 +30,9 @@ public sealed class EmployeeEditorControl : UserControl
     private readonly StackPanel _personal=PayrollUi.Fields(),_employmentPanel=PayrollUi.Fields(),_hours=PayrollUi.Fields();
     private readonly UserReadDto? _linkedUser;
     private EmployeeReadDto? _original;private EmployeeSalaryVersion? _salary;private PayrollPolicy? _policy;private List<PayrollPolicy> _policies=new();private bool _loading=true,_canConfigure,_canViewPayroll;
-    public EmployeeEditorControl(IEmployeeService employees,IUserService users,EmployeePayrollService payroll,IPermissionService permissions,PayrollCalculator calculator,bool readOnly,Func<Task> saved,bool embedded=false,UserReadDto? linkedUser=null)
+    public EmployeeEditorControl(IEmployeeService employees,IUserService users,EmployeePayrollService payroll,PayrollCalculator calculator,bool readOnly,Func<Task> saved,bool embedded=false,UserReadDto? linkedUser=null)
     {
-        (_employees,_users,_payroll,_permissions,_calculator,_readOnly,_saved,_linkedUser)=(employees,users,payroll,permissions,calculator,readOnly,saved,linkedUser);
+        (_employees,_users,_payroll,_calculator,_readOnly,_saved,_linkedUser)=(employees,users,payroll,calculator,readOnly,saved,linkedUser);
         FlowDirection=FlowDirection.RightToLeft;
         Text(_personal,"اسم الموظف *","FullName");Text(_personal,"الرقم الوطني الأردني (اختياري — عشرة أرقام)","NationalId");PayrollUi.Field(_personal,"رقم الضمان الاجتماعي (مشفر؛ اتركه فارغاً للاحتفاظ بالمحفوظ)",_sscNumber);_personal.Children.Add(_clearSsc);
         _personal.Children.Add(PayrollUi.AsyncButton("عرض رقم الضمان للمخولين",async()=>{if(_original==null)throw new ArgumentException("احفظ الموظف أولاً.");var value=await _payroll.RevealSocialSecurityNumberAsync(_original.Id);MessageBox.Show(value??"غير مسجل","رقم الضمان");}));
@@ -49,7 +48,7 @@ public sealed class EmployeeEditorControl : UserControl
         _newSalary.Checked+=(_,_)=>{if(!_loading&&_salary!=null&&_dates["Effective"].SelectedDate==_salary.EffectiveFrom){var current=new DateTime(DateTime.Today.Year,DateTime.Today.Month,1);_dates["Effective"].SelectedDate=_salary.EffectiveFrom==current?current.AddMonths(1):current;}EnableSalary();};_newSalary.Unchecked+=(_,_)=>EnableSalary();
         _dates["Effective"].SelectedDateChanged+=(_,_)=>{if(!_loading){RefreshPolicy();RefreshWages();}};
         _category.SelectionChanged+=(_,_)=>{if(_category.SelectedItem is PayrollPolicy policy){_text["Category"].Text=policy.Category;RefreshPolicy();RefreshWages();}};
-        _salaryPanel.Children.Add(PayrollUi.AsyncButton("سجل إعدادات الراتب المؤرخة",async()=>{if(_original==null)return;var rows=await _payroll.SalaryHistoryAsync(_original.Id);var window=new Window{Title="سجل إعدادات الراتب",Width=850,Height=500,FlowDirection=FlowDirection.RightToLeft,WindowStartupLocation=WindowStartupLocation.CenterScreen};var grid=new DataGrid{AutoGenerateColumns=false,IsReadOnly=true,CanUserAddRows=false,ItemsSource=rows};foreach(var item in new Dictionary<string,string>{{"EffectiveFrom","السريان"},{"BasicMonthlySalary","الراتب الأساسي"},{"FixedAllowances","البدلات الثابتة"},{"StandardDailyHours","الساعات اليومية"},{"StandardMonthlyHours","الساعات الشهرية"},{"ChangeReason","سبب التغيير"}})grid.Columns.Add(new DataGridTextColumn{Header=item.Value,Binding=new System.Windows.Data.Binding(item.Key){StringFormat=item.Key=="EffectiveFrom"?"yyyy-MM-dd":null},Width=new DataGridLength(1,DataGridLengthUnitType.Star)});window.Content=grid;RaccoonWarehouse.Security.PermissionWindowGuard.ShowDialog(window, "Employees.View");}));
+        _salaryPanel.Children.Add(PayrollUi.AsyncButton("سجل إعدادات الراتب المؤرخة",async()=>{if(_original==null)return;var rows=await _payroll.SalaryHistoryAsync(_original.Id);var window=new Window{Title="سجل إعدادات الراتب",Width=850,Height=500,FlowDirection=FlowDirection.RightToLeft,WindowStartupLocation=WindowStartupLocation.CenterScreen};var grid=new DataGrid{AutoGenerateColumns=false,IsReadOnly=true,CanUserAddRows=false,ItemsSource=rows};foreach(var item in new Dictionary<string,string>{{"EffectiveFrom","السريان"},{"BasicMonthlySalary","الراتب الأساسي"},{"FixedAllowances","البدلات الثابتة"},{"StandardDailyHours","الساعات اليومية"},{"StandardMonthlyHours","الساعات الشهرية"},{"ChangeReason","سبب التغيير"}})grid.Columns.Add(new DataGridTextColumn{Header=item.Value,Binding=new System.Windows.Data.Binding(item.Key){StringFormat=item.Key=="EffectiveFrom"?"yyyy-MM-dd":null},Width=new DataGridLength(1,DataGridLengthUnitType.Star)});window.Content=grid;window.ShowDialog();}));
         foreach(var key in new[]{"Basic","Fixed","DailyHours","WeeklyDays","MonthlyHours","NormalMultiplier","HolidayMultiplier"})_text[key].TextChanged+=(_,_)=>RefreshWages();_hourly.SelectionChanged+=(_,_)=>RefreshWages();
     }
     private void Text(Panel p,string label,string key){var box=PayrollUi.Number();if(new[]{"FullName","Address","Notes","JobTitle","EmploymentReason","SalaryReason"}.Contains(key))box.FlowDirection=FlowDirection.RightToLeft;_text[key]=box;PayrollUi.Field(p,label,box);}
@@ -60,7 +59,7 @@ public sealed class EmployeeEditorControl : UserControl
         _loading=true;IsEnabled=false;
         try
         {
-            _canViewPayroll=await _permissions.HasCurrentUserPermissionAsync("Payroll.View");_canConfigure=!_readOnly&&await _permissions.HasCurrentUserPermissionAsync("Payroll.Configure");
+            _canViewPayroll=true;_canConfigure=!_readOnly;
             if(id>0){var result=await _employees.GetByIdAsync(id);if(!result.Success)throw new ArgumentException(result.Message);_original=result.Data;}
             var d=_original??new EmployeeReadDto{UserId=_linkedUser?.Id,FullName=_linkedUser?.Name??"",PhoneNumber=_linkedUser?.PhoneNumber,Status=EmployeeStatus.Active,EmploymentType=EmploymentType.FullTime};
             foreach(var pair in new Dictionary<string,string?>{{"Code",d.Code},{"FullName",d.FullName},{"NationalId",d.NationalId},{"Phone",d.PhoneNumber},{"AltPhone",d.AlternatePhoneNumber},{"Email",d.Email},{"Address",d.Address},{"Notes",d.Notes},{"JobTitle",d.JobTitle},{"Department",d.DepartmentId?.ToString()}})_text[pair.Key].Text=pair.Value??"";
@@ -89,8 +88,8 @@ public sealed class EmployeeEditorControl : UserControl
             _employmentPanel.IsEnabled=!_readOnly;
             foreach(var key in new[]{"FullName","Phone","AltPhone","Email","Address","Notes"})_text[key].IsReadOnly=_readOnly;
             _dates["Birth"].IsEnabled=!_readOnly;_gender.IsEnabled=!_readOnly;
-            _sscNumber.IsEnabled=_clearSsc.IsEnabled=!_readOnly&&await _permissions.HasCurrentUserPermissionAsync("Employees.SensitiveEdit");
-            _text["NationalId"].IsReadOnly=!await _permissions.HasCurrentUserPermissionAsync("Employees.SensitiveEdit");
+            _sscNumber.IsEnabled=_clearSsc.IsEnabled=!_readOnly;
+            _text["NationalId"].IsReadOnly=false;
             _newSalary.IsEnabled=_canConfigure;_save.IsEnabled=!_readOnly;_loading=false;EnableSalary();RefreshWages();
         }
         finally{_loading=false;IsEnabled=true;}

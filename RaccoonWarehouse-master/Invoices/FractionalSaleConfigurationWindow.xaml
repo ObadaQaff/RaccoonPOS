@@ -1,4 +1,4 @@
-<Window xmlns:security="clr-namespace:RaccoonWarehouse.Security" x:Class="RaccoonWarehouse.Invoices.FractionalSaleConfigurationWindow"
+<Window x:Class="RaccoonWarehouse.Invoices.FractionalSaleConfigurationWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="إعداد البيع الجزئي" Width="520" SizeToContent="Height"
@@ -22,7 +22,7 @@
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
                 <Button Content="إلغاء" Width="110" Height="38" Margin="0,0,10,0" IsCancel="True" Click="Cancel_Click"/>
                 <Button Content="حفظ" Width="110" Height="38" Background="#0C6B63" Foreground="White"
-                        IsDefault="True" Click="Save_Click" security:PermissionWindowGuard.Keys="Products.Create|Products.Edit"/>
+                        IsDefault="True" Click="Save_Click"/>
             </StackPanel>
         </StackPanel>
     </Border>

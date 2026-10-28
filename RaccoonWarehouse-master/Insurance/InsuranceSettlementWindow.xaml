@@ -1,4 +1,4 @@
-<Window xmlns:security="clr-namespace:RaccoonWarehouse.Security" x:Class="RaccoonWarehouse.Insurance.InsuranceSettlementWindow"
+<Window x:Class="RaccoonWarehouse.Insurance.InsuranceSettlementWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="تسويات التأمين / Insurance Settlements"
@@ -25,8 +25,8 @@
                     <TextBlock Text="تجميع المطالبات ومتابعة الذمم وتسجيل الدفعات" Foreground="White" Opacity="0.78" FontSize="13" Margin="0,12,0,0"/>
                 </StackPanel>
                 <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,22,0,0">
-                    <Button Content="Record receipt" MinWidth="170" Padding="20,11" Margin="0,0,10,0" Style="{StaticResource AppFormButtonStyle}" Click="RecordPayment_Click" security:PermissionWindowGuard.Keys="InsurancePayments.Create"/>
-                    <Button Content="أعمار الذمم / Aging" MinWidth="190" Padding="18,11" Margin="0,0,10,0" Style="{StaticResource AppSecondaryButtonStyle}" Click="Aging_Click" security:PermissionWindowGuard.Keys="InsuranceReports.View"/>
+                    <Button Content="Record receipt" MinWidth="170" Padding="20,11" Margin="0,0,10,0" Style="{StaticResource AppFormButtonStyle}" Click="RecordPayment_Click"/>
+                    <Button Content="أعمار الذمم / Aging" MinWidth="190" Padding="18,11" Margin="0,0,10,0" Style="{StaticResource AppSecondaryButtonStyle}" Click="Aging_Click"/>
                     <Button Content="تحديث / Refresh" MinWidth="170" Padding="18,11" Style="{StaticResource AppSecondaryButtonStyle}" Click="Refresh_Click"/>
                 </StackPanel>
             </Grid>
@@ -68,7 +68,7 @@
                         <TextBlock Text="الشركة" Grid.Column="6" VerticalAlignment="Center"/>
                         <TextBox x:Name="PaymentCompanyIdTextBox" Grid.Column="7" Margin="8,0,18,0" Padding="8,6"/>
                         <TextBox x:Name="PaymentReferenceTextBox" Grid.Column="8" Margin="0,0,18,0" Padding="8,6" ToolTip="Reference / مرجع"/>
-                        <Button Content="حفظ الدفعة / Save" Grid.Column="9" Padding="18,9" Style="{StaticResource AppFormButtonStyle}" Click="RecordPayment_Click" security:PermissionWindowGuard.Keys="InsurancePayments.Create"/>
+                        <Button Content="حفظ الدفعة / Save" Grid.Column="9" Padding="18,9" Style="{StaticResource AppFormButtonStyle}" Click="RecordPayment_Click"/>
                     </Grid>
                 </Grid>
             </Border>
@@ -89,7 +89,7 @@
                 <TextBlock Text="إلى" Grid.Column="4" VerticalAlignment="Center"/>
                 <DatePicker x:Name="BatchToDatePicker" Grid.Column="5" Margin="8,0,18,0"/>
                 <TextBlock Text="إنشاء دفعة جاهزة للإرسال / Create submission batch" Grid.Column="6" Foreground="{StaticResource AppMutedTextBrush}" VerticalAlignment="Center"/>
-                <Button Content="إنشاء / Create" Grid.Column="7" Padding="18,9" Style="{StaticResource AppFormButtonStyle}" Click="CreateBatch_Click" security:PermissionWindowGuard.Keys="InsuranceClaims.Submit"/>
+                <Button Content="إنشاء / Create" Grid.Column="7" Padding="18,9" Style="{StaticResource AppFormButtonStyle}" Click="CreateBatch_Click"/>
             </Grid>
         </Border>
     </Grid>

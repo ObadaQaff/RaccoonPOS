@@ -29,7 +29,7 @@ public sealed class PosInsuranceDetailsWindow : Window
     public PosInsuranceDetailsWindow(IInsuranceManagementService service, IEnumerable<UserReadDto> customers,
         decimal total, PosInsuranceBillingDto? current, int? customerId)
     {
-        RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
         _service = service; _total = total; _original = current;
         Title = UiText.T("بيانات التأمين", "Insurance details");
         Width = 900; Height = 730; MinWidth = 720; MinHeight = 620;

@@ -1,50 +1,20 @@
-using RaccoonWarehouse.Application.Service.Permissions;
-using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Core.Modules;
 using RaccoonWarehouse.Helpers.Localization;
 
-namespace RaccoonWarehouse.Navigation.Modules
+namespace RaccoonWarehouse.Navigation.Modules;
+
+public sealed class CustomersDashboardModule : IModuleDefinitionProvider
 {
-    public sealed class CustomersDashboardModule : IModuleDefinitionProvider
+    public const string Key = "Customers";
+    public string ModuleKey => Key;
+    public Task<ModuleDefinition> GetDefinitionAsync()
     {
-        public const string Key = "Customers";
-
-        private readonly IUserSession _userSession;
-        private readonly IPermissionService _permissionService;
-
-        public CustomersDashboardModule(
-            IUserSession userSession,
-            IPermissionService permissionService)
+        var actions = new[]
         {
-            _userSession = userSession;
-            _permissionService = permissionService;
-        }
-
-        public string ModuleKey => Key;
-
-        public async Task<ModuleDefinition> GetDefinitionAsync()
-        {
-            var actions = new List<ModuleActionDefinition>();
-            var role = _userSession.CurrentUser?.Role;
-
-            if (role.HasValue && await _permissionService.HasPermissionAsync(role.Value, "Customers.Create"))
-            {
-                actions.Add(new ModuleActionDefinition("Customers.Create", UiText.T("إضافة عميل جديد", "Add New Customer"), "Customers.Create"));
-                actions.Add(new ModuleActionDefinition("Customers.CreateSupplier", UiText.T("إضافة مورد جديد", "Add New Supplier"), "Customers.Create"));
-            }
-
-            if (role.HasValue && await _permissionService.HasPermissionAsync(role.Value, "Customers.View"))
-            {
-                actions.Add(new ModuleActionDefinition("Customers.List", UiText.T("إدارة حسابات المستخدمين", "Manage User Accounts"), "Customers.View"));
-            }
-
-            return new ModuleDefinition(
-                Key,
-                UiText.T("حسابات المستخدمين", "User Accounts"),
-                new[]
-                {
-                    new ModuleGroupDefinition(UiText.T("إدارة حسابات المستخدمين", "User Account Management"), actions)
-                });
-        }
+            new ModuleActionDefinition("Customers.Create", UiText.T("إضافة عميل جديد", "Add New Customer")),
+            new ModuleActionDefinition("Customers.CreateSupplier", UiText.T("إضافة مورد جديد", "Add New Supplier")),
+            new ModuleActionDefinition("Customers.List", UiText.T("إدارة حسابات المستخدمين", "Manage User Accounts"))
+        };
+        return Task.FromResult(new ModuleDefinition(Key, UiText.T("حسابات المستخدمين", "User Accounts"), new[] { new ModuleGroupDefinition(UiText.T("إدارة حسابات المستخدمين", "User Account Management"), actions) }));
     }
 }

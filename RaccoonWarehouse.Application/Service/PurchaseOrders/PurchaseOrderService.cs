@@ -1,7 +1,6 @@
 using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using RaccoonWarehouse.Application.Service.Invoices;
-using RaccoonWarehouse.Application.Service.Permissions;
 using RaccoonWarehouse.Application.Service.Stocks;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Core.Common;
@@ -34,13 +33,11 @@ namespace RaccoonWarehouse.Application.Service.PurchaseOrders
 
     public sealed class PurchaseOrderService : IPurchaseOrderService
     {
-        private const string ApprovePermission = "PurchaseOrder.Approve";
         private readonly ApplicationDbContext _db;
         private readonly IUOW _uow;
         private readonly IMapper _mapper;
         private readonly IInvoiceService _invoiceService;
         private readonly IStockService _stockService;
-        private readonly IPermissionService _permissionService;
         private readonly IUserSession _userSession;
 
         public PurchaseOrderService(
@@ -49,7 +46,6 @@ namespace RaccoonWarehouse.Application.Service.PurchaseOrders
             IMapper mapper,
             IInvoiceService invoiceService,
             IStockService stockService,
-            IPermissionService permissionService,
             IUserSession userSession)
         {
             _db = db;
@@ -57,15 +53,12 @@ namespace RaccoonWarehouse.Application.Service.PurchaseOrders
             _mapper = mapper;
             _invoiceService = invoiceService;
             _stockService = stockService;
-            _permissionService = permissionService;
             _userSession = userSession;
         }
 
         public async Task<Result<PurchaseOrderWriteDto>> CreateAsync(PurchaseOrderWriteDto dto)
         {
-            if (!await _permissionService.HasCurrentUserPermissionAsync("PurchaseOrder.Create"))
-                return Result<PurchaseOrderWriteDto>.Fail("You do not have permission to create purchase orders.");
-            if (dto.Lines == null || dto.Lines.Count == 0)
+if (dto.Lines == null || dto.Lines.Count == 0)
                 return Result<PurchaseOrderWriteDto>.Fail("A purchase order must contain at least one line.");
             if (dto.Lines.Any(x => x.ProductId <= 0 || x.ProductUnitId <= 0 || x.Quantity <= 0))
                 return Result<PurchaseOrderWriteDto>.Fail("Every purchase order line must have a product, unit, and positive quantity.");
@@ -128,10 +121,7 @@ namespace RaccoonWarehouse.Application.Service.PurchaseOrders
 
         public async Task<Result<List<PurchaseOrderWriteDto>>> CreateFromPurchaseRequestAsync(int purchaseRequestId)
         {
-            if (!await _permissionService.HasCurrentUserPermissionAsync("PurchaseOrder.Create"))
-                return Result<List<PurchaseOrderWriteDto>>.Fail("You do not have permission to create purchase orders.");
-
-            var request = await _db.PurchaseRequests
+var request = await _db.PurchaseRequests
                 .Include(x => x.Lines)
                 .FirstOrDefaultAsync(x => x.Id == purchaseRequestId);
             if (request == null)
@@ -230,10 +220,7 @@ namespace RaccoonWarehouse.Application.Service.PurchaseOrders
 
         public async Task<Result<List<PurchaseOrderReadDto>>> GetAllAsync()
         {
-            if (!await _permissionService.HasCurrentUserPermissionAsync("PurchaseOrder.View"))
-                return Result<List<PurchaseOrderReadDto>>.Fail("You do not have permission to view purchase orders.");
-
-            var orders = await _db.PurchaseOrders
+var orders = await _db.PurchaseOrders
                 .AsNoTracking()
                 .Include(x => x.Supplier)
                 .Include(x => x.Lines)
@@ -266,10 +253,7 @@ namespace RaccoonWarehouse.Application.Service.PurchaseOrders
 
         public async Task<Result<PurchaseOrderWriteDto>> GetByIdAsync(int id)
         {
-            if (!await _permissionService.HasCurrentUserPermissionAsync("PurchaseOrder.View"))
-                return Result<PurchaseOrderWriteDto>.Fail("You do not have permission to view purchase orders.");
-
-            var entity = await _db.PurchaseOrders
+var entity = await _db.PurchaseOrders
                 .AsNoTracking()
                 .Include(x => x.Supplier)
                 .Include(x => x.Lines)
@@ -364,10 +348,7 @@ namespace RaccoonWarehouse.Application.Service.PurchaseOrders
 
         public async Task<Result<PurchaseOrderWriteDto>> ApproveAsync(int id)
         {
-            if (!await _permissionService.HasCurrentUserPermissionAsync(ApprovePermission))
-                return Result<PurchaseOrderWriteDto>.Fail("You do not have permission to approve purchase orders.");
-
-            var order = await _db.PurchaseOrders.FirstOrDefaultAsync(x => x.Id == id);
+var order = await _db.PurchaseOrders.FirstOrDefaultAsync(x => x.Id == id);
             if (order == null)
                 return Result<PurchaseOrderWriteDto>.Fail("Purchase order was not found.");
             if (order.Status != PurchaseOrderStatus.Submitted)
@@ -388,9 +369,7 @@ namespace RaccoonWarehouse.Application.Service.PurchaseOrders
 
         public async Task<Result<PurchaseOrderWriteDto>> MarkPaidAsync(int id, string note)
         {
-            if (!await _permissionService.HasCurrentUserPermissionAsync("PurchaseOrder.MarkPaid"))
-                return Result<PurchaseOrderWriteDto>.Fail("You do not have permission to mark purchase orders as paid.");
-            if (string.IsNullOrWhiteSpace(note))
+if (string.IsNullOrWhiteSpace(note))
                 return Result<PurchaseOrderWriteDto>.Fail("A payment note is required.");
 
             var order = await _db.PurchaseOrders.FirstOrDefaultAsync(x => x.Id == id);
@@ -443,9 +422,7 @@ namespace RaccoonWarehouse.Application.Service.PurchaseOrders
 
         public async Task<Result<PurchaseOrderWriteDto>> RejectAsync(int id, string reason)
         {
-            if (!await _permissionService.HasCurrentUserPermissionAsync("PurchaseOrder.Reject"))
-                return Result<PurchaseOrderWriteDto>.Fail("You do not have permission to reject purchase orders.");
-            var order = await _db.PurchaseOrders.FirstOrDefaultAsync(x => x.Id == id);
+var order = await _db.PurchaseOrders.FirstOrDefaultAsync(x => x.Id == id);
             if (order == null)
                 return Result<PurchaseOrderWriteDto>.Fail("Purchase order was not found.");
             if (order.Status != PurchaseOrderStatus.Submitted)

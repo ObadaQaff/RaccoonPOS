@@ -125,8 +125,8 @@
     "keywords": ["add user", "new user", "create user", "اضافة مستخدم", "إضافة مستخدم", "مستخدم جديد"],
     "titleEn": "Create a system user",
     "titleAr": "إنشاء مستخدم للنظام",
-    "stepsEn": ["From the main sidebar, select Warehouse Settings.", "Open user management and select Create User.", "Enter the user information and credentials.", "Assign the appropriate permissions for the user's role.", "Review and save the user."],
-    "stepsAr": ["من القائمة الجانبية الرئيسية اختر إعدادات المستودع.", "افتح إدارة المستخدمين ثم اختر إنشاء مستخدم.", "أدخل معلومات المستخدم وبيانات الدخول.", "حدد الصلاحيات المناسبة لدور المستخدم.", "راجع المعلومات ثم احفظ المستخدم."],
+    "stepsEn": ["From the main sidebar, select Warehouse Settings.", "Open user management and select Create User.", "Enter the user information and credentials.", "Review and save the user."],
+    "stepsAr": ["من القائمة الجانبية الرئيسية اختر إعدادات المستودع.", "افتح إدارة المستخدمين ثم اختر إنشاء مستخدم.", "أدخل معلومات المستخدم وبيانات الدخول.", "راجع بيانات المستخدم المناسبة.", "راجع المعلومات ثم احفظ المستخدم."],
     "actionKey": "Users.Create",
     "actionLabelEn": "Open Create User",
     "actionLabelAr": "فتح إنشاء مستخدم"
@@ -274,8 +274,8 @@
     "keywords": ["search user", "edit user", "user list", "بحث مستخدم", "تعديل مستخدم", "قائمة المستخدمين"],
     "titleEn": "Search for or edit a system user",
     "titleAr": "البحث عن مستخدم أو تعديله",
-    "stepsEn": ["From the main sidebar, select Warehouse Settings.", "Open User Management and select Search or Edit User.", "Find the user and open Edit.", "Update allowed details or permissions and save."],
-    "stepsAr": ["من القائمة الجانبية الرئيسية اختر إعدادات المستودع.", "افتح إدارة المستخدمين واختر استعلام أو تعديل مستخدم.", "ابحث عن المستخدم وافتح التعديل.", "حدّث البيانات أو الصلاحيات المسموحة ثم احفظ."],
+    "stepsEn": ["From the main sidebar, select Warehouse Settings.", "Open User Management and select Search or Edit User.", "Find the user and open Edit.", "Update the allowed details and save."],
+    "stepsAr": ["من القائمة الجانبية الرئيسية اختر إعدادات المستودع.", "افتح إدارة المستخدمين واختر استعلام أو تعديل مستخدم.", "ابحث عن المستخدم وافتح التعديل.", "حدّث البيانات المطلوبة ثم احفظ."],
     "actionKey": "Users.List", "actionLabelEn": "Open Users", "actionLabelAr": "فتح المستخدمين"
   },
   {
@@ -354,15 +354,6 @@
     "stepsEn": ["From the main sidebar, select Warehouse Settings.", "Under System Settings, select Language Settings.", "Choose Arabic or English.", "Save and follow any restart or refresh instruction displayed by the application."],
     "stepsAr": ["من القائمة الجانبية الرئيسية اختر إعدادات المستودع.", "من إعدادات النظام اختر إعدادات اللغة.", "اختر العربية أو الإنجليزية.", "احفظ واتبع أي تعليمات لإعادة التشغيل أو التحديث يعرضها التطبيق."],
     "actionKey": "Settings.Language", "actionLabelEn": "Open Language Settings", "actionLabelAr": "فتح إعدادات اللغة"
-  },
-  {
-    "id": "settings.permissions",
-    "keywords": ["permissions", "report permissions", "user access", "role permissions", "الصلاحيات", "صلاحيات التقارير", "صلاحيات المستخدم"],
-    "titleEn": "Manage system and report permissions",
-    "titleAr": "إدارة صلاحيات النظام والتقارير",
-    "stepsEn": ["From the main sidebar, select Warehouse Settings.", "Select System Permissions Manager.", "Choose the role or user scope provided by the window.", "Enable or deny the required permissions and save."],
-    "stepsAr": ["من القائمة الجانبية الرئيسية اختر إعدادات المستودع.", "اختر مدير صلاحيات النظام.", "حدد الدور أو نطاق المستخدم الذي تعرضه النافذة.", "فعّل أو امنع الصلاحيات المطلوبة ثم احفظ."],
-    "actionKey": "Settings.Permissions", "actionLabelEn": "Open Permissions", "actionLabelAr": "فتح الصلاحيات"
   },
   {
     "id": "settings.chat-assistant",

@@ -1,4 +1,4 @@
-<Window xmlns:security="clr-namespace:RaccoonWarehouse.Security" x:Class="RaccoonWarehouse.Insurance.CreateInsuranceCompany"
+<Window x:Class="RaccoonWarehouse.Insurance.CreateInsuranceCompany"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="إنشاء شركة تأمين" Height="800" Width="1400" MinWidth="1000" MinHeight="650"
@@ -81,7 +81,7 @@
                     <TextBlock Text="الإجراءات" FontSize="24" FontWeight="Bold" Foreground="{StaticResource AppPrimaryBrush}"/>
                     <TextBlock x:Name="ActionHelpText" Text="احفظ شركة التأمين الجديدة أو عد إلى الجدول." Margin="0,12,0,0" FontSize="14"
                                Foreground="{StaticResource AppMutedTextBrush}" TextWrapping="Wrap"/>
-                    <Button x:Name="SaveButton" Content="حفظ" Style="{StaticResource AppFormButtonStyle}" Margin="0,34,0,0" Click="Save_Click" security:PermissionWindowGuard.Keys="InsuranceCompanies.Create|InsuranceCompanies.Edit"/>
+                    <Button x:Name="SaveButton" Content="حفظ" Style="{StaticResource AppFormButtonStyle}" Margin="0,34,0,0" Click="Save_Click"/>
                     <Button x:Name="BackButton" Content="عودة" Style="{StaticResource AppSecondaryButtonStyle}" Margin="0,14,0,0" Click="Back_Click"/>
                 </StackPanel>
             </Border>

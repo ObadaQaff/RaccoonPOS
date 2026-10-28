@@ -23,7 +23,7 @@ namespace RaccoonWarehouse.Navigation
         {
             if (_windows.TryGetValue(windowKey, out var existing))
             {
-                RaccoonWarehouse.Security.PermissionWindowGuard.Demand(existing);
+                
                 Restore(existing);
                 return;
             }
@@ -33,7 +33,7 @@ namespace RaccoonWarehouse.Navigation
                 throw new InvalidOperationException($"Window key '{windowKey}' is not registered.");
             }
 
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(windowType);
+            
             var resolved = _serviceProvider.GetRequiredService(windowType);
             if (resolved is not Window window)
             {

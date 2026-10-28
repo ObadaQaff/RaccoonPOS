@@ -11,7 +11,7 @@ namespace RaccoonWarehouse.Delegates
         public DelegateFeatureSettingsWindow(IDelegateFeatureService featureService)
         {
             _featureService = featureService;
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
             InitializeComponent();
             UiText.ApplyWindow(this);
             Loaded += DelegateFeatureSettingsWindow_Loaded;

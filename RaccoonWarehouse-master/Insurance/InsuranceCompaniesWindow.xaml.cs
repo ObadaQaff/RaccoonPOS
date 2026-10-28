@@ -2,7 +2,6 @@ using Microsoft.Extensions.DependencyInjection;
 using RaccoonWarehouse.Application.Service.Accounting;
 using RaccoonWarehouse.Data;
 using RaccoonWarehouse.Application.Service.Insurance;
-using RaccoonWarehouse.Application.Service.Permissions;
 using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Domain.Insurance;
 using RaccoonWarehouse.Helpers.Localization;
@@ -21,7 +20,6 @@ public partial class InsuranceCompaniesWindow : Window
     private readonly IServiceProvider _services;
     private readonly IInsuranceManagementService _service;
     private readonly ILoadingService _loading;
-    private readonly IPermissionService _permissions;
     private readonly ObservableCollection<CompanyRow> _companies = new();
     private readonly ICollectionView _view;
     private bool _busy;
@@ -30,13 +28,11 @@ public partial class InsuranceCompaniesWindow : Window
     private bool _canDelete;
     private CompanyRow? _contextRow;
 
-    public InsuranceCompaniesWindow(IInsuranceManagementService service, ILoadingService loading, IPermissionService permissions, IServiceProvider services)
+    public InsuranceCompaniesWindow(IInsuranceManagementService service, ILoadingService loading, IServiceProvider services)
     {
         _services = services;
         _service = service;
         _loading = loading;
-        _permissions = permissions;
-        RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
         InitializeComponent();
         _view = CollectionViewSource.GetDefaultView(_companies);
         _view.Filter = MatchesSearch;
@@ -57,9 +53,9 @@ public partial class InsuranceCompaniesWindow : Window
         try
         {
             _loading.Show();
-            _canCreate = await _permissions.HasCurrentUserPermissionAsync("InsuranceCompanies.Create");
-            _canEdit = await _permissions.HasCurrentUserPermissionAsync("InsuranceCompanies.Edit");
-            _canDelete = await _permissions.HasCurrentUserPermissionAsync("InsuranceCompanies.Delete");
+            _canCreate = true;
+            _canEdit = true;
+            _canDelete = true;
             var result = await _service.GetCompaniesAsync();
             if (!result.Success)
             {
@@ -133,8 +129,6 @@ public partial class InsuranceCompaniesWindow : Window
     private async void Statement_Click(object sender, RoutedEventArgs e)
     {
         if (_busy || _contextRow is not CompanyRow row) return;
-        if (!await _permissions.HasCurrentUserPermissionAsync("Accounting.GeneralLedger.View"))
-        { MessageBox.Show(this, UiText.T("لا تملك صلاحية عرض كشف الحساب.", "You do not have permission to view the account statement.")); return; }
         try { new InsuranceCompanyStatementWindow(_services.GetRequiredService<ApplicationDbContext>(),
             _services.GetRequiredService<IAccountingService>(), row.Company) { Owner = this }.ShowDialog(); }
         catch (Exception ex) { MessageBox.Show(this, ex.Message, UiText.T("خطأ", "Error")); }
@@ -151,8 +145,6 @@ public partial class InsuranceCompaniesWindow : Window
         "Cannot delete an insurance company with linked records." => UiText.T(
             "لا يمكن حذف شركة التأمين لوجود سجلات مرتبطة بها. يمكنك تعديل حالتها إلى غير نشط.",
             "This insurance company has linked records and cannot be deleted. You can change its status to Inactive."),
-        "You do not have permission to delete insurance companies." => UiText.T(
-            "لا تملك صلاحية حذف شركات التأمين.", "You do not have permission to delete insurance companies."),
         _ => message ?? UiText.T("تعذر حذف شركة التأمين.", "Could not delete the insurance company.")
     };
 

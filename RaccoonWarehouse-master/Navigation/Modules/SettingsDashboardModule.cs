@@ -32,18 +32,17 @@ namespace RaccoonWarehouse.Navigation.Modules
                                 new ModuleActionDefinition("Settings.Employees", "إعدادات نظام الموظفين"),
                                 new ModuleActionDefinition("Settings.Accounting", "إعدادات نظام المحاسبة"),
                                 new ModuleActionDefinition("Settings.InventoryCosting", UiText.T("طريقة تقييم المخزون", "Inventory Costing")),
-                                new ModuleActionDefinition("Settings.RefundCode", UiText.T("إعدادات رمز المرتجع", "Refund Code Settings"), "Settings.ManageSettings"),
-                                new ModuleActionDefinition("Settings.DocumentBranding", UiText.T("إعدادات الطباعة وهوية الصيدلية", "Printing and business identity"), "Settings.ManageSettings"),
-                                new ModuleActionDefinition("Settings.JoFotara", UiText.T("إعدادات جوافوترة", "JoFotara Settings"), "Settings.ManageSettings"),
+                                new ModuleActionDefinition("Settings.RefundCode", UiText.T("إعدادات رمز المرتجع", "Refund Code Settings")),
+                                new ModuleActionDefinition("Settings.DocumentBranding", UiText.T("إعدادات الطباعة وهوية الصيدلية", "Printing and business identity")),
+                                new ModuleActionDefinition("Settings.JoFotara", UiText.T("إعدادات جوافوترة", "JoFotara Settings")),
                                 new ModuleActionDefinition("Settings.PosRowColors", UiText.T("ألوان صفوف نقطة البيع", "POS Row Colors")),
                                 new ModuleActionDefinition("Settings.Language", UiText.T("إعدادات اللغة", "Language Settings"))
                             }),
                         new ModuleGroupDefinition(
-                            UiText.T("الصلاحيات", "Permissions"),
+                            UiText.T("المراجعة", "Audit"),
                             new[]
                             {
-                                new ModuleActionDefinition("Settings.Permissions", "مدير صلاحيات النظام"),
-                                new ModuleActionDefinition("Settings.AuditLogs", UiText.T("سجل مراجعة النظام", "System audit log"), "AuditLogs.View")
+                                new ModuleActionDefinition("Settings.AuditLogs", UiText.T("سجل مراجعة النظام", "System audit log"))
                             }),
                         new ModuleGroupDefinition(
                             UiText.T("تبديل قاعدة البيانات", "Database Switching"),

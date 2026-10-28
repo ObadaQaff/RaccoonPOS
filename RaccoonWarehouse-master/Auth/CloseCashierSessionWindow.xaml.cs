@@ -1,4 +1,4 @@
-﻿using RaccoonWarehouse.Application.Service.Cashers;
+using RaccoonWarehouse.Application.Service.Cashers;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Domain.Enums;
@@ -45,7 +45,7 @@ namespace RaccoonWarehouse.Auth
             ILoadingService loadingService,
             RaccoonWarehouse.Core.Audit.IAuditLogService auditLogService)
         {
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+            
             InitializeComponent();
             UiText.ApplyWindow(this);
             UiText.ApplyTranslations(this);

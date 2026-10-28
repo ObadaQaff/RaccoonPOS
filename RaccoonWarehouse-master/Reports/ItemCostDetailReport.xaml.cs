@@ -16,7 +16,7 @@ namespace RaccoonWarehouse.Reports
 
         public ItemCostDetailReport(IStockReportService stockReportService)
         {
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+            
             InitializeComponent();
             _stockReportService = stockReportService;
             Loaded += ItemCostDetailReport_Loaded;

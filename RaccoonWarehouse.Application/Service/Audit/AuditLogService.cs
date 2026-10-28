@@ -31,10 +31,9 @@ namespace RaccoonWarehouse.Application.Service.Audit
             var level = auditEvent.Succeeded ? LogLevel.Information : LogLevel.Warning;
             _logger.Log(
                 level,
-                "Audit action {Action}; Permission={PermissionKey}; Entity={EntityType}:{EntityId}; " +
+                "Audit action {Action}; Entity={EntityType}:{EntityId}; " +
                 "Succeeded={Succeeded}; UserId={UserId}; Role={Role}; SessionId={SessionId}; Error={ErrorMessage}",
                 auditEvent.Action,
-                auditEvent.PermissionKey,
                 auditEvent.EntityType,
                 auditEvent.EntityId,
                 auditEvent.Succeeded,
@@ -52,7 +51,6 @@ namespace RaccoonWarehouse.Application.Service.Audit
                     Role = user?.Role,
                     SessionId = _userSession.SessionId,
                     Action = auditEvent.Action,
-                    PermissionKey = auditEvent.PermissionKey,
                     EntityType = auditEvent.EntityType,
                     EntityId = auditEvent.EntityId,
                     Succeeded = auditEvent.Succeeded,
@@ -66,7 +64,7 @@ namespace RaccoonWarehouse.Application.Service.Audit
             }
             catch (Exception ex)
             {
-                // Audit storage must not block login, checkout, or permission changes
+                // Audit storage must not block login, checkout, or authorization changes
                 // when an older installation has not applied the audit migration yet.
                 if (pendingAudit != null)
                     _dbContext.Entry(pendingAudit).State = EntityState.Detached;

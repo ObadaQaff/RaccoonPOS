@@ -1,4 +1,3 @@
-using RaccoonWarehouse.Application.Service.Permissions;
 using RaccoonWarehouse.Application.Service.PurchaseOrders;
 using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Core.Common;
@@ -20,7 +19,6 @@ namespace RaccoonWarehouse.PurchaseOrders;
 public partial class PurchaseOrdersWindow : Window
 {
     private readonly IPurchaseOrderService _service;
-    private readonly IPermissionService _permissionService;
     private readonly ILoadingService _loadingService;
     private readonly ObservableCollection<PurchaseOrderReadDto> _orders = new();
     private readonly ICollectionView _ordersView;
@@ -35,13 +33,11 @@ public partial class PurchaseOrdersWindow : Window
 
     public PurchaseOrdersWindow(
         IPurchaseOrderService service,
-        IPermissionService permissionService,
         ILoadingService loadingService)
     {
         _service = service;
-        _permissionService = permissionService;
         _loadingService = loadingService;
-        RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+        
         InitializeComponent();
         OrdersGrid.ItemsSource = _orders;
         _ordersView = CollectionViewSource.GetDefaultView(_orders);
@@ -84,9 +80,9 @@ public partial class PurchaseOrdersWindow : Window
             foreach (var order in result.Data ?? new List<PurchaseOrderReadDto>())
                 _orders.Add(order);
 
-            _canApprove = await _permissionService.HasCurrentUserPermissionAsync("PurchaseOrder.Approve");
-            _canReject = await _permissionService.HasCurrentUserPermissionAsync("PurchaseOrder.Reject");
-            _canMarkPaid = await _permissionService.HasCurrentUserPermissionAsync("PurchaseOrder.MarkPaid");
+            _canApprove = true;
+            _canReject = true;
+            _canMarkPaid = true;
 
             ReloadSupplierSuggestions();
             _ordersView?.Refresh();
@@ -554,7 +550,7 @@ public partial class PurchaseOrdersWindow : Window
 
         dialog.Content = grid;
         dialog.Loaded += (_, _) => noteTextBox.Focus();
-        return RaccoonWarehouse.Security.PermissionWindowGuard.ShowDialog(dialog, "PurchaseOrder.View") == true ? noteTextBox.Text.Trim() : null;
+        return dialog.ShowDialog() == true ? noteTextBox.Text.Trim() : null;
     }
 
     private static string GetStatusText(PurchaseOrderStatus status) => status.ToString();

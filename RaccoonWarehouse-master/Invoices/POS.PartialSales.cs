@@ -36,7 +36,7 @@ public partial class POS
         }
 
         // Refresh after a product edit, outside quantity entry and on an
-        // independent DbContext. Until it completes, stale permissions are blocked.
+        // independent DbContext. Until it completes, stale data is not used.
         _pendingPartialSaleProducts.Add(productId);
         ProductSearchWindow.InvalidateCachedProductUnits(productId);
         _hydratedProducts.Remove(productId);

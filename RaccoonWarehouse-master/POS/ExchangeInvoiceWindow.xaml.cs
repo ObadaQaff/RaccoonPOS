@@ -13,7 +13,7 @@ namespace RaccoonWarehouse.POS
         public ExchangeInvoiceWindow(IInvoiceService invoiceService)
         {
             _invoiceService = invoiceService;
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
             InitializeComponent();
             UiText.ApplyWindow(this);
         }

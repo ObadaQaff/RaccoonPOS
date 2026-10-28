@@ -2,17 +2,16 @@ using System.Windows;
 using RaccoonWarehouse.Application.Service.Employees;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Application.Service.Payroll;
-using RaccoonWarehouse.Application.Service.Permissions;
 using RaccoonWarehouse.Employees.Payroll;
 namespace RaccoonWarehouse.Employees;
 public partial class EmployeeDetails : Window
 {
     private readonly EmployeeEditorControl _editor;
-    public EmployeeDetails(IEmployeeService employees,IUserService users,EmployeePayrollService payroll,IPermissionService permissions,PayrollCalculator calculator)
+    public EmployeeDetails(IEmployeeService employees,IUserService users,EmployeePayrollService payroll,PayrollCalculator calculator)
     {
-        RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
         InitializeComponent();
-        _editor=new EmployeeEditorControl(employees,users,payroll,permissions,calculator,true,()=>{DialogResult=true;Close();return Task.CompletedTask;});
+        _editor=new EmployeeEditorControl(employees,users,payroll,calculator,true,()=>{DialogResult=true;Close();return Task.CompletedTask;});
         EditorHost.Content=_editor;
 
     }

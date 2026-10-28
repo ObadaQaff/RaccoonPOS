@@ -146,7 +146,7 @@ namespace RaccoonWarehouse.Helpers.Pdf
             layout.Children.Add(viewer);
 
             preview.Content = layout;
-            RaccoonWarehouse.Security.PermissionWindowGuard.ShowDialog(preview, "internal");
+            preview.ShowDialog();
         }
 
         internal static FlowDocument BuildSmallInvoiceDocument(InvoiceReadDto invoice,DocumentBranding branding,double? printableWidth=null)

@@ -3,10 +3,8 @@ using RaccoonWarehouse.Application.Service.AuthService;
 using RaccoonWarehouse.Application.Service.Audit;
 using RaccoonWarehouse.Application.Service.Cashers;
 using RaccoonWarehouse.Application.Service.FinancialTransactions;
-using RaccoonWarehouse.Application.Service.Permissions;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Domain.Cashiers.DTOs;
-using RaccoonWarehouse.Domain.Permissions;
 using System;
 using System.Windows;
 using System.Windows.Controls;
@@ -21,7 +19,6 @@ namespace RaccoonWarehouse.Auth
         private readonly ICashierSessionService _cashierSessionService;
         private readonly IUserSession _userSession;
         private readonly IAuthService _authService;
-        private readonly IPermissionService _permissionService;
         private readonly RaccoonWarehouse.Core.Audit.IAuditLogService _auditLogService;
         private bool _loginInProgress;
 
@@ -31,7 +28,6 @@ namespace RaccoonWarehouse.Auth
             IUserSession userSession,
             IAuthService authService,
             IFinancialTransactionService financialTransactionService,
-            IPermissionService permissionService,
             RaccoonWarehouse.Core.Audit.IAuditLogService auditLogService)
         {
             InitializeComponent();
@@ -39,7 +35,6 @@ namespace RaccoonWarehouse.Auth
             _cashierSessionService = cashierSessionService;
             _userSession = userSession;
             _authService = authService;
-            _permissionService = permissionService;
             _auditLogService = auditLogService;
         }
 
@@ -177,13 +172,6 @@ namespace RaccoonWarehouse.Auth
             }
         }
 
-        private async Task LoadSessionPermissionsAsync(RaccoonWarehouse.Domain.Enums.UserRole role)
-        {
-            var permissionKeys = PermissionCatalog.All.Select(permission => permission.Key);
-            var permissions = await _permissionService.GetPermissionMapAsync(role, permissionKeys);
-            _userSession.CachePermissions(permissions);
-        }
-
         private void SetLoading(bool isLoading)
         {
             LoginProgress.Visibility = isLoading ? Visibility.Visible : Visibility.Collapsed;
@@ -199,8 +187,29 @@ namespace RaccoonWarehouse.Auth
 
         private void EnterToLogin(object sender, KeyEventArgs e)
         {
-            if (e.Key == Key.Enter)
+            if (e.Key != Key.Enter) return;
+            e.Handled = true;
+            if (ReferenceEquals(sender, UsernameTextBox))
+                _ = IdentifyUserAsync();
+            else
                 Login_Click(null!, null!);
+        }
+
+        private async Task IdentifyUserAsync()
+        {
+            var identifier = UsernameTextBox.Text.Trim();
+            var user = await _authService.FindUserAsync(identifier);
+            if (user == null)
+            {
+                UserNameHint.Visibility = Visibility.Collapsed;
+                ShowError("User not found.");
+                return;
+            }
+
+            UserNameHint.Text = $"User: {user.Name}";
+            UserNameHint.Visibility = Visibility.Visible;
+            ErrorText.Visibility = Visibility.Collapsed;
+            PasswordBox.Focus();
         }
 
         private void TogglePassword(object sender, RoutedEventArgs e)

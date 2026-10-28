@@ -42,7 +42,7 @@ namespace RaccoonWarehouse
             _statementService = statementService;
             _loadingService = loadingService;
             _sourceDocumentNavigationService = sourceDocumentNavigationService;
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
             InitializeComponent();
             UiText.ApplyWindow(this);
             OpenReferenceColumn.Header = UiText.T("فتح", "Open");

@@ -14,7 +14,7 @@ namespace RaccoonWarehouse.Reports
 
         public DiscountSummaryReport(IFinancialTransactionService financialTransactionService)
         {
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+            
             InitializeComponent();
             _financialTransactionService = financialTransactionService;
             Loaded += DiscountSummaryReport_Loaded;

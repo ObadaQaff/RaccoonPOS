@@ -41,8 +41,17 @@
                 <TextBlock Text="Secure cashier login"
                            FontSize="13"
                            Foreground="#B0BEC5"
-                           Margin="0,6,0,26"
+                           Margin="0,6,0,8"
                            HorizontalAlignment="Center"/>
+
+                <TextBlock x:Name="UserNameHint"
+                           Foreground="#A5D6A7"
+                           FontSize="18"
+                           FontWeight="Bold"
+                           TextAlignment="Center"
+                           HorizontalAlignment="Center"
+                           Margin="0,0,0,22"
+                           Visibility="Collapsed"/>
 
                 <TextBlock Text="Username"
                            Foreground="#CFD8DC"
@@ -80,7 +89,8 @@
                              Foreground="White"
                              BorderThickness="0"
                              Padding="12"
-                             Visibility="Collapsed"/>
+                             Visibility="Collapsed"
+                             KeyDown="EnterToLogin"/>
 
                     <Button Content="👁"
                             Width="32"

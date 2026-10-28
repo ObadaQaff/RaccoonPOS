@@ -10,6 +10,7 @@ using RaccoonWarehouse.Application.Service.Audit;
 using RaccoonWarehouse.Application.Service.AuthService;
 using RaccoonWarehouse.Application.Service.Brands;
 using RaccoonWarehouse.Application.Service.Cashers;
+using RaccoonWarehouse.Application.Service.CustomerRequests;
 using RaccoonWarehouse.Application.Service.Categories;
 using RaccoonWarehouse.Application.Service.Checks;
 using RaccoonWarehouse.Application.Service.Delegates;
@@ -17,7 +18,6 @@ using RaccoonWarehouse.Application.Service.Employees;
 using RaccoonWarehouse.Application.Service.FinancialTransactions;
 using RaccoonWarehouse.Application.Service.InvoiceLines;
 using RaccoonWarehouse.Application.Service.Invoices;
-using RaccoonWarehouse.Application.Service.Permissions;
 using RaccoonWarehouse.Application.Service.Products;
 using RaccoonWarehouse.Application.Service.ProductUnits;
 using RaccoonWarehouse.Application.Service.PurchaseOrders;
@@ -40,6 +40,8 @@ using RaccoonWarehouse.Accounting.Services;
 using RaccoonWarehouse.Accounting.ViewModels;
 using RaccoonWarehouse.Brands;
 using RaccoonWarehouse.Categories;
+using RaccoonWarehouse.CustomerRequests;
+using RaccoonWarehouse.LostCustomers;
 using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Core.Interface;
 using RaccoonWarehouse.Data;
@@ -107,6 +109,16 @@ namespace RaccoonWarehouse
         protected override async void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
+            if (!IsTrustedDevelopmentEnvironment())
+            {
+                MessageBox.Show(
+                    "Authorization is being rebuilt. Set ROCCOPOS_TRUSTED_DEVELOPMENT=true before running this application in a controlled development environment.",
+                    "Controlled Environment Required",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                Shutdown(-1);
+                return;
+            }
             DispatcherUnhandledException += App_DispatcherUnhandledException;
             AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
             TaskScheduler.UnobservedTaskException += TaskScheduler_UnobservedTaskException;
@@ -256,7 +268,7 @@ namespace RaccoonWarehouse
         {
             if (e.Exception is UnauthorizedAccessException || e.Exception.InnerException is UnauthorizedAccessException)
             {
-                MessageBox.Show(UiText.T("ليس لديك الصلاحية المطلوبة.", "You do not have the required permission."), UiText.T("الصلاحيات", "Permissions"));
+                MessageBox.Show(UiText.T("تم رفض الوصول.", "Access was denied."), UiText.T("رفض الوصول", "Access Denied"));
                 e.Handled = true;
                 return;
             }
@@ -264,6 +276,12 @@ namespace RaccoonWarehouse
             MessageBox.Show("حدث خطأ غير متوقع وتم تسجيله. الرجاء إعادة المحاولة أو التواصل مع الدعم إذا تكرر الخطأ.", "خطأ", MessageBoxButton.OK, MessageBoxImage.Error);
             e.Handled = true;
         }
+
+        private static bool IsTrustedDevelopmentEnvironment()
+            => string.Equals(
+                Environment.GetEnvironmentVariable("ROCCOPOS_TRUSTED_DEVELOPMENT"),
+                "true",
+                StringComparison.OrdinalIgnoreCase);
 
         private void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
         {
@@ -461,37 +479,6 @@ namespace RaccoonWarehouse
             });
         }
 
-        private static async Task EnsureReportPermissionsTableAsync(ApplicationDbContext db)
-        {
-            const string sql = @"
-IF OBJECT_ID(N'dbo.ReportPermissions', N'U') IS NULL
-BEGIN
-    CREATE TABLE [dbo].[ReportPermissions]
-    (
-        [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-        [ReportKey] NVARCHAR(150) NOT NULL,
-        [Role] INT NOT NULL,
-        [CanView] BIT NOT NULL,
-        [CreatedDate] DATETIME2 NOT NULL,
-        [UpdatedDate] DATETIME2 NOT NULL
-    );
-END;
-
-IF NOT EXISTS
-(
-    SELECT 1
-    FROM sys.indexes
-    WHERE name = N'IX_ReportPermissions_ReportKey_Role'
-      AND object_id = OBJECT_ID(N'dbo.ReportPermissions')
-)
-BEGIN
-    CREATE UNIQUE INDEX [IX_ReportPermissions_ReportKey_Role]
-        ON [dbo].[ReportPermissions] ([ReportKey], [Role]);
-END;";
-
-            await db.Database.ExecuteSqlRawAsync(sql);
-        }
-
         private static async Task EnsureAppSettingsTableAsync(ApplicationDbContext db)
         {
             const string sql = @"
@@ -518,68 +505,6 @@ IF NOT EXISTS
 BEGIN
     CREATE UNIQUE INDEX [IX_AppSettings_Key]
         ON [dbo].[AppSettings] ([Key]);
-END;";
-
-            await db.Database.ExecuteSqlRawAsync(sql);
-        }
-
-        private static async Task EnsureUnifiedPermissionsSchemaAsync(ApplicationDbContext db)
-        {
-            const string sql = @"
-IF OBJECT_ID(N'dbo.PermissionDefinitions', N'U') IS NULL
-BEGIN
-    CREATE TABLE [dbo].[PermissionDefinitions]
-    (
-        [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-        [Key] NVARCHAR(200) NOT NULL,
-        [Module] NVARCHAR(100) NOT NULL,
-        [Resource] NVARCHAR(100) NOT NULL,
-        [Action] NVARCHAR(100) NOT NULL,
-        [DisplayName] NVARCHAR(200) NOT NULL,
-        [Description] NVARCHAR(500) NULL,
-        [LegacyReportKey] NVARCHAR(150) NULL,
-        [SortOrder] INT NOT NULL,
-        [IsActive] BIT NOT NULL,
-        [CreatedDate] DATETIME2 NOT NULL,
-        [UpdatedDate] DATETIME2 NOT NULL
-    );
-END;
-
-IF OBJECT_ID(N'dbo.RolePermissions', N'U') IS NULL
-BEGIN
-    CREATE TABLE [dbo].[RolePermissions]
-    (
-        [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-        [Role] INT NOT NULL,
-        [PermissionKey] NVARCHAR(200) NOT NULL,
-        [IsAllowed] BIT NOT NULL,
-        [CreatedDate] DATETIME2 NOT NULL,
-        [UpdatedDate] DATETIME2 NOT NULL
-    );
-END;
-
-IF NOT EXISTS
-(
-    SELECT 1
-    FROM sys.indexes
-    WHERE name = N'IX_PermissionDefinitions_Key'
-      AND object_id = OBJECT_ID(N'dbo.PermissionDefinitions')
-)
-BEGIN
-    CREATE UNIQUE INDEX [IX_PermissionDefinitions_Key]
-        ON [dbo].[PermissionDefinitions] ([Key]);
-END;
-
-IF NOT EXISTS
-(
-    SELECT 1
-    FROM sys.indexes
-    WHERE name = N'IX_RolePermissions_Role_PermissionKey'
-      AND object_id = OBJECT_ID(N'dbo.RolePermissions')
-)
-BEGIN
-    CREATE UNIQUE INDEX [IX_RolePermissions_Role_PermissionKey]
-        ON [dbo].[RolePermissions] ([Role], [PermissionKey]);
 END;";
 
             await db.Database.ExecuteSqlRawAsync(sql);
@@ -942,6 +867,8 @@ END;";
                 ["sales-report"] = typeof(SalesReport),
                 ["product-sales-average"] = typeof(ProductSalesAverageReport),
                 ["purchase-report"] = typeof(PurchaseReportWindow),
+                ["customer-requests-report"] = typeof(CustomerRequestsReportWindow),
+                ["lost-customers-report"] = typeof(LostCustomersReportWindow),
                 ["cashier-board"] = typeof(DailySalesReport),
                 ["credit-sales"] = typeof(CreditSalesReport),
                 ["inactive-products"] = typeof(InactiveProductsReport),
@@ -1010,6 +937,8 @@ END;";
                 sp.GetRequiredService<IJordanEInvoiceSettingsService>(),
                 new HttpClient()));
             services.AddScoped<IPurchaseOrderService, PurchaseOrderService>();
+            services.AddScoped<ICustomerRequestService, CustomerRequestService>();
+            services.AddScoped<RaccoonWarehouse.Application.Service.LostCustomers.ILostCustomerService, RaccoonWarehouse.Application.Service.LostCustomers.LostCustomerService>();
             services.AddScoped<RaccoonWarehouse.Application.Service.PurchaseRequests.IPurchaseRequestService, RaccoonWarehouse.Application.Service.PurchaseRequests.PurchaseRequestService>();
             services.AddScoped<RaccoonWarehouse.Application.Service.GoodsReceipts.IGoodsReceiptService, RaccoonWarehouse.Application.Service.GoodsReceipts.GoodsReceiptService>();
             services.AddScoped<RaccoonWarehouse.Application.Service.PurchaseInvoiceMatches.IPurchaseInvoiceMatchService, RaccoonWarehouse.Application.Service.PurchaseInvoiceMatches.PurchaseInvoiceMatchService>();
@@ -1082,8 +1011,6 @@ END;";
             services.AddScoped<IRefundAuthorizationCodeService, RefundAuthorizationCodeService>();
             services.AddScoped<IPosRowColorRuleService, PosRowColorRuleService>();
             services.AddScoped<IJordanEInvoiceSettingsService, JordanEInvoiceSettingsService>();
-            services.AddScoped<IPermissionService, PermissionService>();
-            services.AddScoped<IReportPermissionService, ReportPermissionService>();
             services.AddScoped<IDelegateService, DelegateService>();
             services.AddScoped<IDelegateFeatureService, DelegateFeatureService>();
             services.AddScoped<IEmployeeService, EmployeeService>();
@@ -1255,6 +1182,14 @@ END;";
             services.AddTransient<InvoicesProfitBrowser>();
             services.AddTransient<DailySalesReport>();
             services.AddTransient<Invoices.POS>();
+            services.AddTransient<CustomerRequestCreateWindow>();
+            services.AddTransient<CustomerRequestsWindow>();
+            services.AddTransient<CustomerRequestReceivingWindow>();
+            services.AddTransient<CustomerRequestsReportWindow>();
+            services.AddTransient<CustomerRequestDetailsWindow>();
+            services.AddTransient<LostCustomerCreateWindow>();
+            services.AddTransient<LostCustomersWindow>();
+            services.AddTransient<LostCustomersReportWindow>();
 
             //Loading Window
             services.AddTransient<LoadingWindow>();
@@ -1269,7 +1204,6 @@ END;";
             services.AddTransient<LicenseExpiredWindow>();
             services.AddTransient<StartCashierSessionWindow>();
             services.AddTransient<CloseCashierSessionWindow>();
-            services.AddTransient<ReportPermissionsManager>();
             services.AddTransient<RaccoonWarehouse.Settings.AuditLogsWindow>();
             services.AddTransient<LanguageSettingsWindow>();
             services.AddTransient<InventoryCostingSettingsWindow>();

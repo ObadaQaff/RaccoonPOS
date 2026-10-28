@@ -1,4 +1,4 @@
-<Window xmlns:security="clr-namespace:RaccoonWarehouse.Security" x:Class="RaccoonWarehouse.Dashboard"
+<Window x:Class="RaccoonWarehouse.Dashboard"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -154,14 +154,14 @@
                             </StackPanel>
                         </Button>
 
-                        <Button x:Name="EmployeeNavButton" Style="{StaticResource DashboardNavButtonStyle}" Margin="0,0,0,8" Click="Employees_Click" security:PermissionWindowGuard.Keys="Employees.View">
+                        <Button x:Name="EmployeeNavButton" Style="{StaticResource DashboardNavButtonStyle}" Margin="0,0,0,8" Click="Employees_Click">
                             <StackPanel Orientation="Horizontal" FlowDirection="{DynamicResource CurrentFlowDirection}">
                                 <fa:ImageAwesome Icon="User" Width="22" Height="22" Foreground="#9ED3FF" Margin="0,0,12,0"/>
                                 <TextBlock Text="الموظفين" Foreground="{StaticResource AppSidebarTextBrush}" FontSize="18" TextWrapping="Wrap"/>
                             </StackPanel>
                         </Button>
 
-                        <Button x:Name="ChatAssistantButton" Style="{StaticResource DashboardNavButtonStyle}" Margin="0,0,0,8" Click="ChatAssistant_Click" security:PermissionWindowGuard.Keys="ChatAssistant.View">
+                        <Button x:Name="ChatAssistantButton" Style="{StaticResource DashboardNavButtonStyle}" Margin="0,0,0,8" Click="ChatAssistant_Click">
                             <StackPanel Orientation="Horizontal" FlowDirection="{DynamicResource CurrentFlowDirection}">
                                 <fa:ImageAwesome Icon="Comments" Width="22" Height="22" Foreground="{StaticResource AppAccentBrush}" Margin="0,0,12,0"/>
                                 <TextBlock Text="&#x645;&#x633;&#x627;&#x639;&#x62F; ROCCOPOS" Foreground="{StaticResource AppSidebarTextBrush}" FontSize="18" TextWrapping="Wrap"/>
@@ -174,7 +174,7 @@
                                 <TextBlock Text="إعدادات المستودع" Foreground="{StaticResource AppSidebarTextBrush}" FontSize="18" TextWrapping="Wrap"/>
                             </StackPanel>
                         </Button>
-                        <Button Style="{StaticResource DashboardNavButtonStyle}" Margin="0,16,0,0" Click="LogoutBtn_Click" security:PermissionWindowGuard.Keys="CashDrawer.CloseShift">
+                        <Button Style="{StaticResource DashboardNavButtonStyle}" Margin="0,16,0,0" Click="LogoutBtn_Click">
                             <StackPanel Orientation="Horizontal" FlowDirection="{DynamicResource CurrentFlowDirection}">
                                 <fa:ImageAwesome Icon="SignOut" Width="22" Height="22" Foreground="#FF8D7A" Margin="0,0,12,0"/>
                                 <TextBlock Text="تسجيل خروج" Foreground="{StaticResource AppSidebarTextBrush}" FontSize="18" TextWrapping="Wrap"/>

@@ -1,4 +1,4 @@
-<Window xmlns:security="clr-namespace:RaccoonWarehouse.Security" x:Class="RaccoonWarehouse.Stocks.StockAdjustmentWindow"
+<Window x:Class="RaccoonWarehouse.Stocks.StockAdjustmentWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="تصحيح وتسوية المخزون"
@@ -126,7 +126,7 @@
                             Margin="0,34,0,0"
                             Width="160"
                             Style="{StaticResource AppFormButtonStyle}"
-                            Click="SaveButton_Click" security:PermissionWindowGuard.Keys="StockAdjustment.Create|StockAdjustment.Edit"/>
+                            Click="SaveButton_Click"/>
                     <Button Content="إلغاء"
                             Margin="0,14,0,0"
                             Width="160"

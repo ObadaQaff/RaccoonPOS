@@ -134,7 +134,7 @@ namespace RaccoonWarehouse.Invoices
             string ruleScope = "ProductSearch",
             IEnumerable<RaccoonWarehouse.Domain.Users.DTOs.UserReadDto>? preloadedSupplierLookupItems = null)
         {
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+            
             InitializeComponent();
             UiText.ApplyWindow(this);
             _productService = productService;

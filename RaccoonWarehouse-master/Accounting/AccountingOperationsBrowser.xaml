@@ -1,4 +1,4 @@
-<Window xmlns:security="clr-namespace:RaccoonWarehouse.Security" x:Class="RaccoonWarehouse.Accounting.AccountingOperationsBrowser"
+<Window x:Class="RaccoonWarehouse.Accounting.AccountingOperationsBrowser"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:fa="http://schemas.fontawesome.io/icons/"
@@ -56,7 +56,7 @@
                         <Button Width="150" Height="40" Margin="10,0,0,0" Style="{StaticResource AppSecondaryButtonStyle}" Click="RetryFailedBtn_Click">
                             <TextBlock x:Name="RetryFailedText" Text="إعادة الفاشل"/>
                         </Button>
-                        <Button Width="155" Height="40" Margin="10,0,0,0" Style="{StaticResource AppSecondaryButtonStyle}" Click="DeleteFailedBtn_Click" security:PermissionWindowGuard.Keys="Accounting.Operations.Delete">
+                        <Button Width="155" Height="40" Margin="10,0,0,0" Style="{StaticResource AppSecondaryButtonStyle}" Click="DeleteFailedBtn_Click">
                             <TextBlock x:Name="DeleteFailedText" Text="Delete failed"/>
                         </Button>
                         <Button Width="110" Height="40" Margin="10,0,0,0" Style="{StaticResource AppSecondaryButtonStyle}" Click="CloseBtn_Click">

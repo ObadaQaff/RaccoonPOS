@@ -1,6 +1,5 @@
 using AutoMapper;
 using Microsoft.EntityFrameworkCore;
-using RaccoonWarehouse.Application.Service.Permissions;
 using RaccoonWarehouse.Application.Service.Stocks;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Core.Common;
@@ -22,23 +21,19 @@ public sealed class PurchaseReturnService : IPurchaseReturnService
     private readonly ApplicationDbContext _db;
     private readonly IMapper _mapper;
     private readonly IStockService _stock;
-    private readonly IPermissionService _permissions;
     private readonly IUserSession _session;
 
-    public PurchaseReturnService(ApplicationDbContext db, IMapper mapper, IStockService stock, IPermissionService permissions, IUserSession session)
+    public PurchaseReturnService(ApplicationDbContext db, IMapper mapper, IStockService stock, IUserSession session)
     {
         _db = db;
         _mapper = mapper;
         _stock = stock;
-        _permissions = permissions;
         _session = session;
     }
 
     public async Task<Result<PurchaseReturnWriteDto>> CreateAsync(PurchaseReturnWriteDto dto)
     {
-        if (!await _permissions.HasCurrentUserPermissionAsync("PurchaseReturn.Create"))
-            return Result<PurchaseReturnWriteDto>.Fail("You do not have permission to create purchase returns.");
-        if (dto.Lines == null || dto.Lines.Count == 0 || dto.Lines.Any(x => x.GoodsReceiptLineId <= 0 || x.Quantity <= 0))
+if (dto.Lines == null || dto.Lines.Count == 0 || dto.Lines.Any(x => x.GoodsReceiptLineId <= 0 || x.Quantity <= 0))
             return Result<PurchaseReturnWriteDto>.Fail("A purchase return must contain positive quantities linked to receipt lines.");
         if (string.IsNullOrWhiteSpace(dto.Reason))
             return Result<PurchaseReturnWriteDto>.Fail("A purchase return reason is required.");
@@ -66,9 +61,7 @@ public sealed class PurchaseReturnService : IPurchaseReturnService
 
     public async Task<Result<PurchaseReturnWriteDto>> ConfirmAsync(int id)
     {
-        if (!await _permissions.HasCurrentUserPermissionAsync("PurchaseReturn.Confirm"))
-            return Result<PurchaseReturnWriteDto>.Fail("You do not have permission to confirm purchase returns.");
-        var entity = await _db.PurchaseReturns.Include(x => x.Lines).FirstOrDefaultAsync(x => x.Id == id);
+var entity = await _db.PurchaseReturns.Include(x => x.Lines).FirstOrDefaultAsync(x => x.Id == id);
         if (entity == null) return Result<PurchaseReturnWriteDto>.Fail("Purchase return was not found.");
         if (entity.Status == PurchaseReturnStatus.Confirmed)
             return Result<PurchaseReturnWriteDto>.Ok(_mapper.Map<PurchaseReturnWriteDto>(entity), "Purchase return was already confirmed; no duplicate stock deduction was created.");

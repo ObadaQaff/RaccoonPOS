@@ -68,7 +68,7 @@ namespace RaccoonWarehouse.Vouchers
             _warehouseService = warehouseService;
             _loadingService = loadingService;
 
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
             InitializeComponent();
             AccountComboBox.Loaded += AccountComboBox_Loaded;
             AccountComboBox.PreviewKeyDown += AccountComboBox_PreviewKeyDown;

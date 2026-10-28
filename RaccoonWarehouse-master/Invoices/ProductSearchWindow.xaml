@@ -1,4 +1,4 @@
-<Window xmlns:security="clr-namespace:RaccoonWarehouse.Security" x:Class="RaccoonWarehouse.Invoices.ProductSearchWindow" PreviewKeyDown="ProductSearchWindow_PreviewKeyDown"
+<Window x:Class="RaccoonWarehouse.Invoices.ProductSearchWindow" PreviewKeyDown="ProductSearchWindow_PreviewKeyDown"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:RaccoonWarehouse.Invoices"
@@ -119,7 +119,7 @@
                     <DataGridTemplateColumn Header="إضافة" Width="90">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
-                                <Button Content="إضافة" Padding="8,4" Click="AddProductBtn_Click" IsEnabled="{Binding CanAdd}" security:PermissionWindowGuard.Keys="POS.Create|POS.Edit"/>
+                                <Button Content="إضافة" Padding="8,4" Click="AddProductBtn_Click" IsEnabled="{Binding CanAdd}"/>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>

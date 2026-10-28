@@ -45,7 +45,7 @@ public partial class PurchaseRequestEditorWindow : Window
         _stockService = stockService;
         _userService = userService;
         _userSession = userSession;
-        RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+        
         InitializeComponent();
         LinesGrid.ItemsSource = _lines;
         RequestDatePicker.SelectedDate = DateTime.Today;

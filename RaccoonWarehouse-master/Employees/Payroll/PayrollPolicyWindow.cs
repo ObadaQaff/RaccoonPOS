@@ -9,16 +9,11 @@ namespace RaccoonWarehouse.Employees.Payroll;
 public sealed class PayrollPolicyWindow : Window
 {
     private readonly EmployeePayrollService _service;private readonly DataGrid _grid=new(){AutoGenerateColumns=false,IsReadOnly=true,CanUserAddRows=false,MinHeight=160};
-    public PayrollPolicyWindow(EmployeePayrollService service) : this(service, true)
+    public PayrollPolicyWindow(EmployeePayrollService service)
     {
-    }
-
-    internal PayrollPolicyWindow(EmployeePayrollService service,bool enforcePermission)
-    {
-        if(enforcePermission)RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
         _service=service;Title="إصدارات سياسات الرواتب والضمان";Width=1100;Height=650;FlowDirection=FlowDirection.RightToLeft;WindowStartupLocation=WindowStartupLocation.CenterScreen;
         var root=new DockPanel{Margin=new Thickness(20)};var top=PayrollUi.Fields();top.Children.Add(new TextBlock{Text=Title,FontSize=24,FontWeight=FontWeights.Bold});top.Children.Add(new TextBlock{Text="كل تعديل مالي إصدار مؤرخ جديد. راجع العقد وطريقة أجر الساعة والخصم والسقف وفئة الشمول من المصادر الرسمية قبل اعتماد السياسة.",TextWrapping=TextWrapping.Wrap});var buttons=new WrapPanel();buttons.Children.Add(PayrollUi.AsyncButton("تحميل",LoadAsync));buttons.Children.Add(PayrollUi.AsyncButton("إضافة إصدار من السياسة المحددة",AddAsync));buttons.Children.Add(PayrollUi.AsyncButton("توثيق مراجعة السياسة",ReviewAsync));top.Children.Add(buttons);DockPanel.SetDock(top,Dock.Top);root.Children.Add(top);
-        Add("اسم السياسة","Name");Add("الفئة","Category");Add("السريان","EffectiveFrom","yyyy-MM-dd");Add("حتى","EffectiveTo","yyyy-MM-dd");Add("نسبة الموظف","EmployeeSscPercent","0.##");Add("نسبة الشركة","EmployerSscPercent","0.##");Add("سقف الأجر (د.أ)","InsurableWageCeiling","0.000");Add("مصدر التحقق","SourceReference");root.Children.Add(_grid);Content=root;Loaded+=async(_,_)=>{try{await _service.Require("Payroll.Configure");await LoadAsync();}catch(Exception ex){PayrollUi.Error(ex);Close();}};
+        Add("اسم السياسة","Name");Add("الفئة","Category");Add("السريان","EffectiveFrom","yyyy-MM-dd");Add("حتى","EffectiveTo","yyyy-MM-dd");Add("نسبة الموظف","EmployeeSscPercent","0.##");Add("نسبة الشركة","EmployerSscPercent","0.##");Add("سقف الأجر (د.أ)","InsurableWageCeiling","0.000");Add("مصدر التحقق","SourceReference");root.Children.Add(_grid);Content=root;Loaded+=async(_,_)=>{try{await LoadAsync();}catch(Exception ex){PayrollUi.Error(ex);Close();}};
     }
     private void Add(string title,string path,string? format=null)=>_grid.Columns.Add(new DataGridTextColumn{Header=title,Binding=new Binding(path){StringFormat=format},Width=new DataGridLength(1,DataGridLengthUnitType.Star)});
     public Task RefreshAsync()=>LoadAsync();
@@ -37,6 +32,6 @@ public sealed class PayrollPolicyWindow : Window
         panel.Children.Add(PayrollUi.AsyncButton("حفظ الإصدار الجديد",async()=>{
             foreach(var pair in values){var property=typeof(PayrollPolicy).GetProperty(pair.Key)!;var value=PayrollUi.Decimal(pair.Value,pair.Value.Tag?.ToString()??"القيمة");if(property.PropertyType==typeof(int)){if(value!=decimal.Truncate(value))throw new ArgumentException("القيمة يجب أن تكون عدداً صحيحاً.");property.SetValue(policy,(int)value);}else property.SetValue(policy,value);}
             policy.Name=name.Text.Trim();policy.Category=category.Text.Trim();policy.SourceReference=source.Text.Trim();policy.EffectiveFrom=from.SelectedDate??throw new ArgumentException("تاريخ السريان مطلوب.");policy.EffectiveTo=to.SelectedDate??throw new ArgumentException("تاريخ الانتهاء مطلوب.");policy.ProrationMethod=(ProrationMethod)prorate.SelectedValue;policy.IncludeFixedAllowancesInWageBasis=fixedBasis.IsChecked==true;await _service.AddPolicyAsync(policy);w.DialogResult=true;
-        }));w.Content=PayrollUi.Scroll(panel);RaccoonWarehouse.Security.PermissionWindowGuard.ShowDialog(w, "Payroll.View");await LoadAsync();
+        }));w.Content=PayrollUi.Scroll(panel);w.ShowDialog();await LoadAsync();
     }
 }
