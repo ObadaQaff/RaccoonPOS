@@ -8,7 +8,6 @@ using RaccoonWarehouse.Auth;
 using RaccoonWarehouse.Brands;
 using RaccoonWarehouse.Categories;
 using RaccoonWarehouse.Delegates;
-using RaccoonWarehouse.Employees;
 using RaccoonWarehouse.Invoices;
 using RaccoonWarehouse.Orders;
 using RaccoonWarehouse.Products;
@@ -56,7 +55,6 @@ namespace RaccoonWarehouse
         private readonly IUserSession _userSession;
         private readonly RaccoonWarehouse.Core.Audit.IAuditLogService _auditLogService;
         private readonly IDelegateFeatureService _delegateFeatureService;
-        private readonly IEmployeeFeatureService _employeeFeatureService;
         private readonly IAccountingFeatureService _accountingFeatureService;
         private readonly INotificationService _notificationService;
         private readonly IBoxCartApiService _boxCartApiService;
@@ -84,7 +82,6 @@ namespace RaccoonWarehouse
                 ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<IUserSession>(),
                 ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<RaccoonWarehouse.Core.Audit.IAuditLogService>(),
                 ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<IDelegateFeatureService>(),
-                ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<IEmployeeFeatureService>(),
                 ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<IAccountingFeatureService>(),
                 ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<INotificationService>(),
                 ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<IBoxCartApiService>(),
@@ -99,7 +96,6 @@ namespace RaccoonWarehouse
             IUserSession userSession,
             RaccoonWarehouse.Core.Audit.IAuditLogService auditLogService,
             IDelegateFeatureService delegateFeatureService,
-            IEmployeeFeatureService employeeFeatureService,
             IAccountingFeatureService accountingFeatureService,
             INotificationService notificationService,
             IBoxCartApiService boxCartApiService,
@@ -113,7 +109,6 @@ namespace RaccoonWarehouse
             _userSession = userSession;
             _auditLogService = auditLogService;
             _delegateFeatureService = delegateFeatureService;
-            _employeeFeatureService = employeeFeatureService;
             _accountingFeatureService = accountingFeatureService;
             _notificationService = notificationService;
             _boxCartApiService = boxCartApiService;
@@ -136,10 +131,6 @@ namespace RaccoonWarehouse
                 await Task.Yield();
 
                 AccountingNavButton.Visibility = await _accountingFeatureService.IsEnabledAsync()
-                    ? Visibility.Visible
-                    : Visibility.Collapsed;
-
-                EmployeeNavButton.Visibility = await _employeeFeatureService.IsEnabledAsync()
                     ? Visibility.Visible
                     : Visibility.Collapsed;
 
@@ -648,13 +639,6 @@ namespace RaccoonWarehouse
                 : Visibility.Collapsed;
         }
 
-        private async Task RefreshEmployeeNavigationAsync()
-        {
-            EmployeeNavButton.Visibility = await _employeeFeatureService.IsEnabledAsync()
-                ? Visibility.Visible
-                : Visibility.Collapsed;
-        }
-
         private DashboardActionContext CreateDashboardActionContext()
         {
             return new DashboardActionContext
@@ -860,20 +844,6 @@ namespace RaccoonWarehouse
 
         private async void Customers_Click(object sender, RoutedEventArgs e) =>
             await RunSidebarNavigationAsync(() => ShowDashboardModuleAsync(CustomersDashboardModule.Key, DashboardActionButton_Click));
-
-        private async void Employees_Click(object sender, RoutedEventArgs e)
-        {
-            await RunSidebarNavigationAsync(async () =>
-            {
-                if (!await _employeeFeatureService.IsEnabledAsync())
-                {
-                    MessageBox.Show(UiText.T("نظام الموظفين متوقف حالياً.", "The employees module is currently disabled."));
-                    return;
-                }
-
-                WindowManager.Show<EmployeesTable>();
-            });
-        }
 
         private async void NotificationTest_Click(object sender, RoutedEventArgs e)
         {

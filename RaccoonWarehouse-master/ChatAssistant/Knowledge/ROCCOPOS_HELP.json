@@ -279,15 +279,6 @@
     "actionKey": "Users.List", "actionLabelEn": "Open Users", "actionLabelAr": "فتح المستخدمين"
   },
   {
-    "id": "employees.manage",
-    "keywords": ["employee", "add employee", "edit employee", "employee details", "موظف", "إضافة موظف", "تعديل موظف", "تفاصيل موظف"],
-    "titleEn": "Manage employees",
-    "titleAr": "إدارة الموظفين",
-    "stepsEn": ["Ensure the Employees module is enabled in Warehouse Settings.", "From the main sidebar, select Employees.", "Create a new employee or search the list and open an existing employee.", "Review details or edit the required information, then save."],
-    "stepsAr": ["تأكد من تفعيل نظام الموظفين من إعدادات المستودع.", "من القائمة الجانبية الرئيسية اختر الموظفين.", "أنشئ موظفاً جديداً أو ابحث في القائمة وافتح موظفاً موجوداً.", "راجع التفاصيل أو عدّل المعلومات المطلوبة ثم احفظ."],
-    "actionKey": "Employees.List", "actionLabelEn": "Open Employees", "actionLabelAr": "فتح الموظفين"
-  },
-  {
     "id": "delegates.manage",
     "keywords": ["delegate", "sales delegate", "add delegate", "edit delegate", "مندوب", "إضافة مندوب", "تعديل مندوب"],
     "titleEn": "Manage delegates",
@@ -340,11 +331,11 @@
   },
   {
     "id": "settings.features",
-    "keywords": ["enable employees", "enable delegates", "enable accounting", "feature settings", "تفعيل الموظفين", "تفعيل المندوبين", "تفعيل المحاسبة", "إعدادات الأنظمة"],
+    "keywords": ["enable delegates", "enable accounting", "feature settings", "تفعيل المندوبين", "تفعيل المحاسبة", "إعدادات الأنظمة"],
     "titleEn": "Enable or disable optional system modules",
     "titleAr": "تفعيل أو إيقاف أنظمة البرنامج الاختيارية",
-    "stepsEn": ["From the main sidebar, select Warehouse Settings.", "Choose Delegates Settings, Employees Settings, or Accounting Settings.", "Change the enabled state as permitted.", "Save and return to the dashboard so navigation visibility can refresh."],
-    "stepsAr": ["من القائمة الجانبية الرئيسية اختر إعدادات المستودع.", "اختر إعدادات المندوبين أو الموظفين أو المحاسبة.", "غيّر حالة التفعيل حسب صلاحيتك.", "احفظ ثم عد إلى لوحة التحكم لتحديث ظهور عناصر التنقل."]
+    "stepsEn": ["From the main sidebar, select Warehouse Settings.", "Choose Delegates Settings or Accounting Settings.", "Change the enabled state as permitted.", "Save and return to the dashboard so navigation visibility can refresh."],
+    "stepsAr": ["من القائمة الجانبية الرئيسية اختر إعدادات المستودع.", "اختر إعدادات المندوبين أو المحاسبة.", "غيّر حالة التفعيل حسب صلاحيتك.", "احفظ ثم عد إلى لوحة التحكم لتحديث ظهور عناصر التنقل."]
   },
   {
     "id": "settings.language",

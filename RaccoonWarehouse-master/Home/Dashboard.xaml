@@ -154,13 +154,6 @@
                             </StackPanel>
                         </Button>
 
-                        <Button x:Name="EmployeeNavButton" Style="{StaticResource DashboardNavButtonStyle}" Margin="0,0,0,8" Click="Employees_Click">
-                            <StackPanel Orientation="Horizontal" FlowDirection="{DynamicResource CurrentFlowDirection}">
-                                <fa:ImageAwesome Icon="User" Width="22" Height="22" Foreground="#9ED3FF" Margin="0,0,12,0"/>
-                                <TextBlock Text="الموظفين" Foreground="{StaticResource AppSidebarTextBrush}" FontSize="18" TextWrapping="Wrap"/>
-                            </StackPanel>
-                        </Button>
-
                         <Button x:Name="ChatAssistantButton" Style="{StaticResource DashboardNavButtonStyle}" Margin="0,0,0,8" Click="ChatAssistant_Click">
                             <StackPanel Orientation="Horizontal" FlowDirection="{DynamicResource CurrentFlowDirection}">
                                 <fa:ImageAwesome Icon="Comments" Width="22" Height="22" Foreground="{StaticResource AppAccentBrush}" Margin="0,0,12,0"/>

@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "RaccoonWarehouse (Trusted Development)": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "ROCCOPOS_TRUSTED_DEVELOPMENT": "true"
+      }
+    }
+  }
+}

@@ -29,7 +29,6 @@ namespace RaccoonWarehouse.Navigation.Modules
                             new[]
                             {
                                 new ModuleActionDefinition("Settings.Delegates", "إعدادات نظام المندوبين"),
-                                new ModuleActionDefinition("Settings.Employees", "إعدادات نظام الموظفين"),
                                 new ModuleActionDefinition("Settings.Accounting", "إعدادات نظام المحاسبة"),
                                 new ModuleActionDefinition("Settings.InventoryCosting", UiText.T("طريقة تقييم المخزون", "Inventory Costing")),
                                 new ModuleActionDefinition("Settings.RefundCode", UiText.T("إعدادات رمز المرتجع", "Refund Code Settings")),

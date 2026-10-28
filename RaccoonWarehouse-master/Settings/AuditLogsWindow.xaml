@@ -36,10 +36,10 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,12,6" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource AppMutedTextBrush}" Text="Search action, entity, or error" />
-                <TextBlock Grid.Row="0" Grid.Column="1" Margin="0,0,12,6" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource AppMutedTextBrush}" Text="Employee ID" />
+                <TextBlock Grid.Row="0" Grid.Column="1" Margin="0,0,12,6" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource AppMutedTextBrush}" Text="User ID" />
                 <TextBlock Grid.Row="0" Grid.Column="2" Margin="0,0,12,6" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource AppMutedTextBrush}" Text="Result" />
                 <TextBox x:Name="SearchBox" Grid.Row="1" Grid.Column="0" Margin="0,0,12,0" Height="46" Padding="12,8" FontSize="15" ToolTip="Search action, entity, or error" />
-                <TextBox x:Name="UserIdBox" Grid.Row="1" Grid.Column="1" Margin="0,0,12,0" Height="46" Padding="12,8" FontSize="15" ToolTip="Employee ID" />
+                <TextBox x:Name="UserIdBox" Grid.Row="1" Grid.Column="1" Margin="0,0,12,0" Height="46" Padding="12,8" FontSize="15" ToolTip="User ID" />
                 <ComboBox x:Name="ResultFilterBox" Grid.Row="1" Grid.Column="2" Margin="0,0,12,0" Height="46" FontSize="15" SelectedIndex="0">
                     <ComboBoxItem Content="All results" Tag="" />
                     <ComboBoxItem Content="Successful" Tag="true" />
@@ -54,7 +54,7 @@
             <DataGrid x:Name="AuditGrid" Style="{StaticResource AppModernDataGridStyle}" AutoGenerateColumns="False" IsReadOnly="True" FontSize="14" RowHeight="42" ColumnHeaderHeight="46">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Time" Binding="{Binding CreatedDate, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}" Width="170" />
-                    <DataGridTextColumn Header="Employee" Binding="{Binding UserName}" Width="1.5*" />
+                    <DataGridTextColumn Header="User" Binding="{Binding UserName}" Width="1.5*" />
                     <DataGridTextColumn Header="User ID" Binding="{Binding UserId}" Width="80" />
                     <DataGridTextColumn Header="Role" Binding="{Binding Role}" Width="100" />
                     <DataGridTextColumn Header="Action" Binding="{Binding Action}" Width="1.3*" />

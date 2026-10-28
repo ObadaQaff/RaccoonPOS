@@ -14,7 +14,6 @@ using RaccoonWarehouse.Application.Service.CustomerRequests;
 using RaccoonWarehouse.Application.Service.Categories;
 using RaccoonWarehouse.Application.Service.Checks;
 using RaccoonWarehouse.Application.Service.Delegates;
-using RaccoonWarehouse.Application.Service.Employees;
 using RaccoonWarehouse.Application.Service.FinancialTransactions;
 using RaccoonWarehouse.Application.Service.InvoiceLines;
 using RaccoonWarehouse.Application.Service.Invoices;
@@ -47,7 +46,6 @@ using RaccoonWarehouse.Core.Interface;
 using RaccoonWarehouse.Data;
 using RaccoonWarehouse.Data.Repository;
 using RaccoonWarehouse.Delegates;
-using RaccoonWarehouse.Employees;
 using RaccoonWarehouse.Domain.InvoiceLines;
 using RaccoonWarehouse.FinancialTransactions;
 using RaccoonWarehouse.FinancialTransactions.Reports;
@@ -442,14 +440,12 @@ namespace RaccoonWarehouse
                 await db.Database.CanConnectAsync();
                 await EnsureAppSettingsTableAsync(db);
                 await EnsureDelegateSchemaAsync(db);
-                await EnsureEmployeeSchemaAsync(db);
                 await EnsureCheckSchemaAsync(db);
                 await EnsureAccountingOperationsSchemaAsync(db);
                 await CurrencySeeder.SeedBaseCurrencyAsync(db);
                 await scope.ServiceProvider.GetRequiredService<IWarehouseService>().EnsureDefaultWarehousesAsync();
                 await scope.ServiceProvider.GetRequiredService<ILanguageSettingsService>().EnsureDefaultsAsync();
                 await scope.ServiceProvider.GetRequiredService<IDelegateFeatureService>().EnsureDefaultsAsync();
-                await scope.ServiceProvider.GetRequiredService<IEmployeeFeatureService>().EnsureDefaultsAsync();
                 await scope.ServiceProvider.GetRequiredService<IAccountingFeatureService>().EnsureDefaultsAsync();
                 await scope.ServiceProvider.GetRequiredService<IAccountingService>().EnsureDefaultAccountsAsync();
                 await FiscalYearSeeder.SeedLegacyAsync(db);
@@ -627,116 +623,6 @@ BEGIN
     ALTER TABLE [dbo].[Invoice]
         ADD CONSTRAINT [FK_Invoice_Delegate_DelegateId]
         FOREIGN KEY ([DelegateId]) REFERENCES [dbo].[Delegate]([Id]);
-END;";
-
-            await db.Database.ExecuteSqlRawAsync(sql);
-        }
-
-        private static async Task EnsureEmployeeSchemaAsync(ApplicationDbContext db)
-        {
-            const string sql = @"
-IF OBJECT_ID(N'dbo.Employee', N'U') IS NULL
-BEGIN
-    CREATE TABLE [dbo].[Employee]
-    (
-        [Id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-        [UserId] INT NULL,
-        [Code] NVARCHAR(50) NOT NULL,
-        [FullName] NVARCHAR(200) NOT NULL,
-        [PhoneNumber] NVARCHAR(50) NULL,
-        [AlternatePhoneNumber] NVARCHAR(50) NULL,
-        [Email] NVARCHAR(200) NULL,
-        [NationalId] NVARCHAR(100) NULL,
-        [HireDate] DATETIME2 NULL,
-        [TerminationDate] DATETIME2 NULL,
-        [Status] INT NOT NULL DEFAULT(1),
-        [Gender] INT NULL,
-        [JobTitle] NVARCHAR(150) NULL,
-        [DepartmentId] INT NULL,
-        [BranchId] INT NULL,
-        [ManagerId] INT NULL,
-        [BasicSalary] DECIMAL(18,2) NULL,
-        [Notes] NVARCHAR(1000) NULL,
-        [Address] NVARCHAR(500) NULL,
-        [DateOfBirth] DATETIME2 NULL,
-        [CreatedBy] INT NULL,
-        [ModifiedBy] INT NULL,
-        [IsDeleted] BIT NOT NULL DEFAULT(0),
-        [CreatedDate] DATETIME2 NOT NULL,
-        [UpdatedDate] DATETIME2 NOT NULL
-    );
-END;
-
-IF NOT EXISTS
-(
-    SELECT 1 FROM sys.indexes
-    WHERE name = N'IX_Employee_Code'
-      AND object_id = OBJECT_ID(N'dbo.Employee')
-)
-BEGIN
-    CREATE UNIQUE INDEX [IX_Employee_Code] ON [dbo].[Employee]([Code]);
-END;
-
-IF NOT EXISTS
-(
-    SELECT 1 FROM sys.indexes
-    WHERE name = N'IX_Employee_UserId'
-      AND object_id = OBJECT_ID(N'dbo.Employee')
-)
-BEGIN
-    CREATE UNIQUE INDEX [IX_Employee_UserId]
-        ON [dbo].[Employee]([UserId])
-        WHERE [UserId] IS NOT NULL;
-END;
-
-IF NOT EXISTS
-(
-    SELECT 1 FROM sys.indexes
-    WHERE name = N'IX_Employee_BranchId'
-      AND object_id = OBJECT_ID(N'dbo.Employee')
-)
-BEGIN
-    CREATE INDEX [IX_Employee_BranchId] ON [dbo].[Employee]([BranchId]);
-END;
-
-IF NOT EXISTS
-(
-    SELECT 1 FROM sys.indexes
-    WHERE name = N'IX_Employee_DepartmentId'
-      AND object_id = OBJECT_ID(N'dbo.Employee')
-)
-BEGIN
-    CREATE INDEX [IX_Employee_DepartmentId] ON [dbo].[Employee]([DepartmentId]);
-END;
-
-IF NOT EXISTS
-(
-    SELECT 1 FROM sys.indexes
-    WHERE name = N'IX_Employee_Status'
-      AND object_id = OBJECT_ID(N'dbo.Employee')
-)
-BEGIN
-    CREATE INDEX [IX_Employee_Status] ON [dbo].[Employee]([Status]);
-END;
-
-IF NOT EXISTS
-(
-    SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_Employee_User_UserId'
-)
-BEGIN
-    ALTER TABLE [dbo].[Employee]
-        ADD CONSTRAINT [FK_Employee_User_UserId]
-        FOREIGN KEY ([UserId]) REFERENCES [dbo].[User]([Id]);
-END;
-
-IF NOT EXISTS
-(
-    SELECT 1 FROM sys.foreign_keys WHERE name = N'FK_Employee_Employee_ManagerId'
-)
-BEGIN
-    ALTER TABLE [dbo].[Employee]
-        ADD CONSTRAINT [FK_Employee_Employee_ManagerId]
-        FOREIGN KEY ([ManagerId]) REFERENCES [dbo].[Employee]([Id]);
 END;";
 
             await db.Database.ExecuteSqlRawAsync(sql);
@@ -1013,14 +899,6 @@ END;";
             services.AddScoped<IJordanEInvoiceSettingsService, JordanEInvoiceSettingsService>();
             services.AddScoped<IDelegateService, DelegateService>();
             services.AddScoped<IDelegateFeatureService, DelegateFeatureService>();
-            services.AddScoped<IEmployeeService, EmployeeService>();
-            services.AddScoped<RaccoonWarehouse.Application.Service.Payroll.IPayrollSensitiveDataProtector, RaccoonWarehouse.Application.Service.Payroll.PayrollSensitiveDataProtector>();
-            services.AddSingleton<RaccoonWarehouse.Application.Service.Payroll.PayrollCalculator>();
-            services.AddScoped<RaccoonWarehouse.Application.Service.Payroll.EmployeePayrollService>();
-            services.AddTransient<RaccoonWarehouse.Employees.Payroll.EmployeePayrollWorkspaceWindow>();
-            services.AddTransient<RaccoonWarehouse.Employees.Payroll.PayrollMonthWindow>();
-            services.AddTransient<RaccoonWarehouse.Employees.Payroll.PayrollPolicyWindow>();
-            services.AddScoped<IEmployeeFeatureService, EmployeeFeatureService>();
             services.AddSingleton<ILoadingService, LoadingService>();
             services.AddScoped<ICashierSessionService, CashierSessionService>();
             services.AddScoped<ICashierSessionSettlementService, CashierSessionSettlementService>();
@@ -1086,12 +964,6 @@ END;";
             services.AddTransient<UpdateDelegate>();
             services.AddTransient<DelegateDetails>();
             services.AddTransient<DelegateFeatureSettingsWindow>();
-            services.AddTransient<EmployeesTable>();
-            services.AddTransient<CreateEmployee>();
-            services.AddTransient<UpdateEmployee>();
-            services.AddTransient<EmployeeDetails>();
-            services.AddTransient<EmployeeProfileSummaryWindow>();
-            services.AddTransient<EmployeeFeatureSettingsWindow>();
 
             services.AddTransient<CategoriesTable>();
             services.AddTransient<CreateCategory>();
