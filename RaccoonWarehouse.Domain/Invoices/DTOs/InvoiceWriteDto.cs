@@ -68,6 +68,7 @@ namespace RaccoonWarehouse.Domain.Invoices.DTOs
         public decimal GrossProfit { get; set; }        // (SubTotal - Discount) - TotalCOGS
         public decimal NetSales { get; set; }
         public bool DeferAccountingPosting { get; set; }
+        public bool AllowMissingPurchaseExpiry { get; set; }
         public JordanEInvoiceStatus JordanEInvoiceStatus { get; set; }
         public string? JordanEInvoiceReference { get; set; }
         public string? JordanEInvoiceUuid { get; set; }

@@ -5,8 +5,12 @@ using RaccoonWarehouse.Domain.Products;
 using RaccoonWarehouse.Domain.Products.DTOs;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Reports.Stocks.Filters;
+using RaccoonWarehouse.Domain.Stock.DTOs;
 using RaccoonWarehouse.Helpers.Localization;
 using RaccoonWarehouse.Helpers;
+using RaccoonWarehouse.Helpers.Pdf;
+using ClosedXML.Excel;
+using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -30,6 +34,7 @@ namespace RaccoonWarehouse.Stocks.Reports
         private readonly List<ProductReadDto> _defaultProductItems = new();
         private readonly List<ProductReadDto> _productSearchResults = new();
         private readonly SemaphoreSlim _productSearchLock = new(1, 1);
+        private List<InventoryMovementSummaryRowDto> _currentRows = new();
 
         private TextBox? _productSearchTextBox;
         private int _productSearchVersion;
@@ -144,7 +149,8 @@ namespace RaccoonWarehouse.Stocks.Reports
                     : StockMovementSource.All;
 
                 var rows = await _stockReportService.GetInventoryMovementSummaryAsync(filter);
-                MovementGrid.ItemsSource = rows;
+                _currentRows = rows ?? new List<InventoryMovementSummaryRowDto>();
+                MovementGrid.ItemsSource = _currentRows;
             }
             catch (Exception ex)
             {
@@ -153,6 +159,109 @@ namespace RaccoonWarehouse.Stocks.Reports
                     UiText.T("خطأ", "Error"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
+            }
+        }
+
+        private void ExportExcel_Click(object sender, RoutedEventArgs e)
+        {
+            if (_currentRows.Count == 0)
+            {
+                MessageBox.Show(
+                    UiText.T("اعرض التقرير أولاً قبل التصدير.", "Show the report first before exporting."),
+                    UiText.T("تنبيه", "Notice"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            try
+            {
+                var dialog = new SaveFileDialog
+                {
+                    Filter = "Excel Workbook (*.xlsx)|*.xlsx",
+                    DefaultExt = ".xlsx",
+                    AddExtension = true,
+                    FileName = $"InventoryMovementSummary_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx"
+                };
+                if (dialog.ShowDialog(this) != true)
+                    return;
+
+                using var workbook = new XLWorkbook();
+                var sheet = workbook.Worksheets.Add(UiText.T("حركة الأصناف", "Inventory Movement"));
+                sheet.RightToLeft = !UiText.IsEnglish;
+                sheet.Cell(1, 1).Value = UiText.T("ملخص حركة الأصناف", "Inventory Movement Summary");
+                sheet.Cell(2, 1).Value = UiText.T("من تاريخ", "From date");
+                sheet.Cell(2, 2).Value = FromDatePicker.SelectedDate;
+                sheet.Cell(3, 1).Value = UiText.T("إلى تاريخ", "To date");
+                sheet.Cell(3, 2).Value = ToDatePicker.SelectedDate;
+                sheet.Cell(4, 1).Value = UiText.T("تاريخ التصدير", "Exported at");
+                sheet.Cell(4, 2).Value = DateTime.Now;
+
+                var headers = new[]
+                {
+                    UiText.T("الكود", "Code"), UiText.T("الصنف", "Product"),
+                    UiText.T("المورد", "Supplier"), UiText.T("الوحدة", "Unit"),
+                    UiText.T("داخل", "In"), UiText.T("خارج", "Out"),
+                    UiText.T("صافي", "Net"), UiText.T("الحد الأدنى", "Minimum"),
+                    UiText.T("الحالة", "Status")
+                };
+
+                for (var index = 0; index < headers.Length; index++)
+                {
+                    var cell = sheet.Cell(6, index + 1);
+                    cell.Value = headers[index];
+                    cell.Style.Font.Bold = true;
+                }
+
+                var rowNumber = 7;
+                foreach (var row in _currentRows)
+                {
+                    sheet.Cell(rowNumber, 1).Style.NumberFormat.Format = "@";
+                    sheet.Cell(rowNumber, 1).Value = row.ITEMCODE ?? string.Empty;
+                    sheet.Cell(rowNumber, 2).Value = row.ProductName ?? string.Empty;
+                    sheet.Cell(rowNumber, 3).Value = row.SupplierName ?? string.Empty;
+                    sheet.Cell(rowNumber, 4).Value = row.UnitName ?? string.Empty;
+                    sheet.Cell(rowNumber, 5).Value = row.InQty;
+                    sheet.Cell(rowNumber, 6).Value = row.OutQty;
+                    sheet.Cell(rowNumber, 7).Value = row.NetQty;
+                    sheet.Cell(rowNumber, 8).Value = row.MinimumQuantity;
+                    sheet.Cell(rowNumber, 9).Value = row.StatusText ?? string.Empty;
+                    rowNumber++;
+                }
+
+                sheet.Columns().AdjustToContents();
+                workbook.SaveAs(dialog.FileName);
+                MessageBox.Show(
+                    UiText.T("تم تصدير التقرير بنجاح.", "The report was exported successfully."),
+                    UiText.T("نجاح", "Success"), MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"{UiText.T("تعذر تصدير التقرير", "Could not export the report")}: {ex.Message}",
+                    UiText.T("خطأ", "Error"), MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void ExportPdf_Click(object sender, RoutedEventArgs e)
+        {
+            if (_currentRows.Count == 0)
+            {
+                MessageBox.Show(
+                    UiText.T("اعرض التقرير أولاً قبل التصدير.", "Show the report first before exporting."),
+                    UiText.T("تنبيه", "Notice"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            try
+            {
+                ReportPrintService.ExportPdf(
+                    new InventoryMovementSummaryPdfDocument(_currentRows, FromDatePicker.SelectedDate, ToDatePicker.SelectedDate),
+                    this);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"{UiText.T("تعذر تصدير التقرير", "Could not export the report")}: {ex.Message}",
+                    UiText.T("خطأ", "Error"), MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -393,5 +502,47 @@ namespace RaccoonWarehouse.Stocks.Reports
         }
 
         private void BackBtn_Click(object sender, RoutedEventArgs e) => Close();
+
+        private sealed class InventoryMovementSummaryPdfDocument : BaseReportDocument
+        {
+            private readonly IReadOnlyCollection<InventoryMovementSummaryRowDto> _rows;
+            private readonly DateTime? _from;
+            private readonly DateTime? _to;
+
+            public InventoryMovementSummaryPdfDocument(IEnumerable<InventoryMovementSummaryRowDto> rows, DateTime? from, DateTime? to)
+            {
+                _rows = rows.ToList();
+                _from = from;
+                _to = to;
+            }
+
+            public override string ArabicTitle => "ملخص حركة الأصناف";
+            public override string EnglishTitle => "Inventory Movement Summary";
+
+            public override Dictionary<string, string> InfoFields => new()
+            {
+                { "من تاريخ", _from?.ToString("yyyy/MM/dd") ?? "-" },
+                { "إلى تاريخ", _to?.ToString("yyyy/MM/dd") ?? "-" },
+                { "عدد الأصناف", _rows.Count.ToString() }
+            };
+
+            public override List<string> TableHeaders => new()
+            {
+                "الكود", "الصنف", "المورد", "الوحدة", "داخل", "خارج", "صافي", "الحد الأدنى", "الحالة"
+            };
+
+            public override List<List<string>> TableRows => _rows.Select(row => new List<string>
+            {
+                row.ITEMCODE ?? "-",
+                row.ProductName ?? "-",
+                row.SupplierName ?? "-",
+                row.UnitName ?? "-",
+                row.InQty.ToString("N5"),
+                row.OutQty.ToString("N5"),
+                row.NetQty.ToString("N5"),
+                row.MinimumQuantity.ToString("N5"),
+                row.StatusText ?? "-"
+            }).ToList();
+        }
     }
 }

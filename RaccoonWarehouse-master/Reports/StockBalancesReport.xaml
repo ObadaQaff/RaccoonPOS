@@ -126,20 +126,42 @@
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="220"/>
+                    <ColumnDefinition Width="220"/>
+                    <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
 
                     <TextBlock Grid.Column="0" VerticalAlignment="Center" Foreground="#6A7C8E" FontSize="14" Text="هذا التقرير يبين الفارق بين الرصيد الحالي وحد إعادة الطلب الأدنى، وهو مناسب لمراجعة النقص والفائض التشغيلي."/>
 
-                    <Button Grid.Column="1" Width="130" Margin="12,0,0,0" Style="{StaticResource PrimaryButtonStyle}" Click="GenerateReportBtn_Click">
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0">
+                        <TextBox x:Name="SearchTextBox" Width="210" Height="34" ToolTip="البحث باسم الصنف أو الباركود" TextChanged="Filter_Changed"/>
+                    </StackPanel>
+
+                    <ComboBox x:Name="SupplierFilter" Grid.Column="2" Width="210" Height="34" Margin="8,0" DisplayMemberPath="Name" SelectedValuePath="Id" SelectionChanged="Filter_Changed" ToolTip="المورد"/>
+
+                    <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0">
+                        <TextBox x:Name="QuantityFilterText" Width="80" Height="34" ToolTip="قيمة الكمية" TextChanged="Filter_Changed"/>
+                        <ComboBox x:Name="QuantityComparison" Width="120" Height="34" Margin="6,0,0,0" SelectionChanged="Filter_Changed">
+                            <ComboBoxItem Content="الكل" Tag="all" IsSelected="True"/>
+                            <ComboBoxItem Content="أكبر من" Tag="gt"/>
+                            <ComboBoxItem Content="أقل من" Tag="lt"/>
+                            <ComboBoxItem Content="يساوي" Tag="eq"/>
+                        </ComboBox>
+                    </StackPanel>
+
+                    <Button Grid.Column="4" Width="130" Margin="12,0,0,0" Style="{StaticResource PrimaryButtonStyle}" Click="GenerateReportBtn_Click">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                             <fa:ImageAwesome Icon="Refresh" Width="15" Height="15"/>
                             <TextBlock Text=" تحديث" Margin="8,0,0,0"/>
                         </StackPanel>
                     </Button>
 
-                    <Button Grid.Column="2" Width="110" Style="{StaticResource SecondaryButtonStyle}" Click="BackBtn_Click">
+                    <Button Grid.Column="5" Width="170" Margin="8,0,0,0" Style="{StaticResource SecondaryButtonStyle}" Click="ExportExcel_Click" Content="تصدير Excel / Export Excel"/>
+
+                    <Button Grid.Column="6" Width="110" Style="{StaticResource SecondaryButtonStyle}" Click="BackBtn_Click">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                             <fa:ImageAwesome Icon="ArrowLeft" Width="15" Height="15"/>
                             <TextBlock Text=" رجوع" Margin="8,0,0,0"/>

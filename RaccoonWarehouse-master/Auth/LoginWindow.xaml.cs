@@ -4,6 +4,7 @@ using RaccoonWarehouse.Application.Service.Audit;
 using RaccoonWarehouse.Application.Service.Cashers;
 using RaccoonWarehouse.Application.Service.FinancialTransactions;
 using RaccoonWarehouse.Application.Service.Users;
+using RaccoonWarehouse.Core.Permissions;
 using RaccoonWarehouse.Domain.Cashiers.DTOs;
 using System;
 using System.Windows;
@@ -20,6 +21,7 @@ namespace RaccoonWarehouse.Auth
         private readonly IUserSession _userSession;
         private readonly IAuthService _authService;
         private readonly RaccoonWarehouse.Core.Audit.IAuditLogService _auditLogService;
+        private readonly IPermissionService _permissionService;
         private bool _loginInProgress;
 
         public LoginWindow(
@@ -28,7 +30,8 @@ namespace RaccoonWarehouse.Auth
             IUserSession userSession,
             IAuthService authService,
             IFinancialTransactionService financialTransactionService,
-            RaccoonWarehouse.Core.Audit.IAuditLogService auditLogService)
+            RaccoonWarehouse.Core.Audit.IAuditLogService auditLogService,
+            IPermissionService permissionService)
         {
             InitializeComponent();
             _serviceProvider = serviceProvider;
@@ -36,6 +39,7 @@ namespace RaccoonWarehouse.Auth
             _userSession = userSession;
             _authService = authService;
             _auditLogService = auditLogService;
+            _permissionService = permissionService;
         }
 
         private void Window_Loaded(object sender, RoutedEventArgs e)
@@ -124,6 +128,7 @@ namespace RaccoonWarehouse.Auth
                 }
 
                 _userSession.SetCurrentUser(user);
+                await _permissionService.LoadForUserAsync(user.Id);
                 await _auditLogService.WriteAsync(new RaccoonWarehouse.Core.Audit.AuditEvent("Login"));
 
                 var openSession = await _cashierSessionService.GetOpenSessionByCashierAsync(user.Id);
@@ -140,6 +145,7 @@ namespace RaccoonWarehouse.Auth
                     if (ok != true)
                     {
                         _userSession.EndSession();
+                        _permissionService.Clear();
                         ShowError("Cashier session start was canceled.");
                         return;
                     }
@@ -159,6 +165,7 @@ namespace RaccoonWarehouse.Auth
             catch (Exception ex)
             {
                 _userSession.EndSession();
+                _permissionService.Clear();
                 MessageBox.Show(
                     $"An unexpected error occurred.\n{ex.Message}",
                     "Error",

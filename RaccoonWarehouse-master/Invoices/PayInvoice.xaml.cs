@@ -147,16 +147,16 @@ namespace RaccoonWarehouse.Invoices
             EffectiveCostColumn.Visibility = Visibility.Collapsed;
             SalePriceInputPanel.Visibility = Visibility.Collapsed;
             SalePriceColumn.Visibility = Visibility.Collapsed;
-            var purchaseOrderTitle = UiText.T("المشتريات", "Purchases");
+            var purchaseOrderTitle = UiText.T("أمر شراء", "Purchase Order");
             Title = purchaseOrderTitle;
             if (HeaderBorder.Child is TextBlock headerText)
                 headerText.Text = purchaseOrderTitle;
-            InvoiceNumberLabel.Text = UiText.T("رقم المشتريات", "Purchase number");
+            InvoiceNumberLabel.Text = UiText.T("رقم أمر الشراء", "PO number");
 
-            Title = UiText.T("المشتريات", "Purchases");
-            SaveReceiptBtn.ToolTip = UiText.T("حفظ المشتريات", "Save purchases");
+            Title = purchaseOrderTitle;
+            SaveReceiptBtn.ToolTip = UiText.T("حفظ أمر الشراء", "Save Purchase Order");
             if (SaveReceiptBtn.Content is Panel savePanel && savePanel.Children.OfType<TextBlock>().FirstOrDefault() is TextBlock saveText)
-                saveText.Text = UiText.T("حفظ المشتريات", "Save purchases");
+                saveText.Text = UiText.T("حفظ أمر الشراء", "Save Purchase Order");
             if (FalconInvoiceNumberTextBox.Parent is Panel falconPanel)
                 falconPanel.Visibility = Visibility.Collapsed;
             ChecksBtn.Visibility = Visibility.Collapsed;
@@ -565,6 +565,9 @@ namespace RaccoonWarehouse.Invoices
 
         private async void AddSupplierBtn_Click(object sender, RoutedEventArgs e)
         {
+            if (_currentInvoiceId.HasValue)
+                return;
+
             try
             {
                 WindowManager.ShowDialog<CreateUser>(WindowSizeType.MediumRectangle, window => window.InitializeForSupplierQuickCreate(SupplierComboBox.Text));
@@ -806,6 +809,9 @@ namespace RaccoonWarehouse.Invoices
         }        // ===================== ADD PRODUCT LINE =====================
         private void AddProduct_Click(object sender, RoutedEventArgs e)
         {
+            if (_currentInvoiceId.HasValue)
+                return;
+
             if (ProductBox.SelectedItem is not ProductReadDto product)
             {
                 MessageBox.Show(UiText.T("يرجى اختيار منتج.", "Please choose a product."), UiText.T("تنبيه", "Notice"));
@@ -863,6 +869,9 @@ namespace RaccoonWarehouse.Invoices
 
         private void ProductsGrid_CellEditEnding(object sender, DataGridCellEditEndingEventArgs e)
         {
+            if (_currentInvoiceId.HasValue)
+                return;
+
             if (e.EditAction != DataGridEditAction.Commit || e.Row.Item is not InvoiceLineWriteDto line)
                 return;
 
@@ -960,6 +969,9 @@ namespace RaccoonWarehouse.Invoices
 
         private void ProductsGrid_PreviewKeyDown(object sender, KeyEventArgs e)
         {
+            if (_currentInvoiceId.HasValue)
+                return;
+
             if (e.KeyboardDevice.Modifiers == ModifierKeys.None
                 && e.Key is Key.Up or Key.Down
                 && ProductsGrid.CurrentItem is InvoiceLineWriteDto currentLine
@@ -1097,6 +1109,9 @@ namespace RaccoonWarehouse.Invoices
 
         private void ApplyBonusPercentage_Click(object sender, RoutedEventArgs e)
         {
+            if (_currentInvoiceId.HasValue)
+                return;
+
             if (sender is not Button { DataContext: InvoiceLineWriteDto line }) return;
             ApplyBonusPercentage(line);
         }
@@ -1126,6 +1141,9 @@ namespace RaccoonWarehouse.Invoices
 
         private void ApplyBonusPercentage(InvoiceLineWriteDto line, string? input = null, bool showMessage = true)
         {
+            if (_currentInvoiceId.HasValue)
+                return;
+
             // The bonus editor is hosted in the cell template, so the row model
             // can still contain the previous value while focus is changing.
             // Always apply the text currently displayed by the editor first.
@@ -1147,6 +1165,9 @@ namespace RaccoonWarehouse.Invoices
 
         private void ApplyBonus_Click(object sender, RoutedEventArgs e)
         {
+            if (_currentInvoiceId.HasValue)
+                return;
+
             if (sender is not Button { DataContext: InvoiceLineWriteDto line }) return;
             ProductsGrid.CommitEdit(DataGridEditingUnit.Cell, true);
             ProductsGrid.CommitEdit(DataGridEditingUnit.Row, true);
@@ -1161,6 +1182,9 @@ namespace RaccoonWarehouse.Invoices
 
         private void DeleteProduct_Click(object sender, RoutedEventArgs e)
         {
+            if (_currentInvoiceId.HasValue)
+                return;
+
             if (sender is Button btn && btn.DataContext is InvoiceLineWriteDto line)
             {
                 InvoiceLines.Remove(line);
@@ -1327,10 +1351,10 @@ namespace RaccoonWarehouse.Invoices
             if (!line.BonusPercentage.HasValue || line.Quantity <= 0m)
                 return lineTotal;
 
-            var costQuantity = PurchaseBonusPercentage.CalculateCostQuantity(line.Quantity, line.BonusPercentage.Value);
-            return costQuantity > 0m
-                ? Math.Round(lineTotal * line.Quantity / costQuantity, 3, MidpointRounding.AwayFromZero)
-                : lineTotal;
+            return Math.Round(
+                PurchaseBonusPercentage.CalculateEquivalentNetTotal(lineTotal, line.BonusPercentage.Value),
+                3,
+                MidpointRounding.AwayFromZero);
         }
 
         private bool ValidateInvoiceDiscountInput()
@@ -1694,6 +1718,7 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
                     FalconInvoiceNumber = FalconInvoiceNumberTextBox.Text.Trim(),
                     SupplierId = supplier?.Id,
                     InvoiceType = InvoiceType.Purchase, // مهم
+                    Status = InvoiceStatus.Completed,
                     PaymentType = selectedPaymentType,
                     Checks = selectedPaymentType == PaymentType.Check ? _currentChecks : null,
                     TotalAmount = totalAmount,
@@ -1786,6 +1811,11 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
                         return;
                     }
 
+                    // Supplier/date-only edits do not change stock or payment data.
+                    // Keep the legacy reversal/repost block reachable only for a
+                    // future create-path reuse; this branch is always an update.
+                    if (!isUpdate)
+                    {
                     // Validate original allocated lots before any reversal; stock service also enforces exact source quantities.
                     // 0) Void old financial transactions
                     var voidResult = await _financialService.VoidBySourceAsync(
@@ -1880,7 +1910,7 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
                             return;
                         }
                     }
-
+                    }
 
                 }
 
@@ -2241,6 +2271,26 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
 
             PrintBtn.Visibility = Visibility.Visible;
             NewInvoiceBtn.Visibility = Visibility.Visible;
+            ApplyPurchaseEditRestrictions();
+        }
+
+        private void ApplyPurchaseEditRestrictions()
+        {
+            var isEditingExistingInvoice = _currentInvoiceId.HasValue;
+
+            // Existing purchase invoices allow only supplier and document-date changes.
+            InvoiceNumberTextBox.IsReadOnly = isEditingExistingInvoice;
+            FalconInvoiceNumberTextBox.IsReadOnly = isEditingExistingInvoice;
+            SupplierComboBox.IsEnabled = true;
+            InvoiceDatePicker.IsEnabled = true;
+            AddSupplierButton.IsEnabled = !isEditingExistingInvoice;
+
+            PaymentMethodComboBox.IsEnabled = !isEditingExistingInvoice;
+            DiscountTextBox.IsReadOnly = isEditingExistingInvoice;
+            CostPriceIncludesTaxCheckBox.IsEnabled = !isEditingExistingInvoice;
+            SearchProductButton.IsEnabled = !isEditingExistingInvoice;
+            ProductsGrid.IsReadOnly = isEditingExistingInvoice;
+            ChecksBtn.IsEnabled = !isEditingExistingInvoice;
         }
 
         private void NewInvoiceBtn_Click(object sender, RoutedEventArgs e)
@@ -2268,6 +2318,7 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
             TotalAmountTextBox.Text = "0";
             DiscountTextBox.Text = "0";
             CostPriceIncludesTaxCheckBox.IsChecked = false;
+            ApplyPurchaseEditRestrictions();
             ProductBox.Text = "";
             ClearProductInputs();
             PrintBtn.Visibility = Visibility.Collapsed;
@@ -2312,6 +2363,9 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
 
         private async void SearchProductBtn_Click(object sender, RoutedEventArgs e)
         {
+            if (_currentInvoiceId.HasValue)
+                return;
+
             try
             {
                 var searchWindow = new PurchaseProductSearchWindow(

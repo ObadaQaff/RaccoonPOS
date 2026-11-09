@@ -24,6 +24,7 @@ namespace RaccoonWarehouse.Navigation.Modules
                 "Vouchers.Payment" or
                 "Invoices.Sales" or
                 "Invoices.Purchase" or
+                "Invoices.PurchaseReturn" or
                 "PurchaseOrders.Create" or
                 "PurchaseOrders.List" or
                 "PurchaseRequests.List" or
@@ -60,6 +61,9 @@ namespace RaccoonWarehouse.Navigation.Modules
                     break;
                 case "Invoices.Purchase":
                     WindowManager.Show<PayInvoice>();
+                    break;
+                case "Invoices.PurchaseReturn":
+                    WindowManager.Show<PurchaseReturnWindow>(WindowSizeType.LargeRectangle);
                     break;
                 case "PurchaseOrders.Create":
                     WindowManager.Show<PayInvoice>(WindowSizeType.FullScreen, window => window.ConfigureAsPurchaseOrder());

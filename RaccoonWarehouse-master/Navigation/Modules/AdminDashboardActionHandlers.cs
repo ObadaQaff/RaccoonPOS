@@ -8,6 +8,8 @@ using RaccoonWarehouse.Employees;
 using RaccoonWarehouse.Helpers.Localization;
 using RaccoonWarehouse.Navigation;
 using RaccoonWarehouse.Settings;
+using RaccoonWarehouse.Employees;
+using RaccoonWarehouse.Permissions;
 using RaccoonWarehouse.Units;
 using RaccoonWarehouse.Warehouses;
 using System.Windows;
@@ -70,6 +72,9 @@ namespace RaccoonWarehouse.Navigation.Modules
                 "Settings.Delegates" or
                 "Settings.Employees" or
                 "Settings.Accounting" or
+                "Settings.Employees" or
+                "Settings.Hr" or
+                "Settings.Permissions" or
                 "Settings.Language" or
                 "Settings.InventoryCosting" or
                 "Settings.RefundCode" or
@@ -97,6 +102,12 @@ namespace RaccoonWarehouse.Navigation.Modules
                     return;
                 case "Settings.Accounting":WindowManager.ShowDialog<AccountingFeatureSettingsWindow>(WindowSizeType.SmallSquare);
                     await context.RefreshAccountingNavigationAsync();
+                    return;
+                case "Settings.Hr":WindowManager.ShowDialog<HrFeatureSettingsWindow>(WindowSizeType.SmallSquare);
+                    await context.RefreshHrNavigationAsync();
+                    return;
+                case "Settings.Permissions":
+                    WindowManager.Show<PermissionGroupsWindow>(WindowSizeType.LargeRectangle);
                     return;
                 case "Settings.InventoryCosting":WindowManager.ShowDialog<InventoryCostingSettingsWindow>(WindowSizeType.SmallSquare);
                     return;

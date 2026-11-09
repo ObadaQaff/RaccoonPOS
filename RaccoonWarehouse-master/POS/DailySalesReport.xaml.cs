@@ -440,7 +440,7 @@ namespace RaccoonWarehouse.POS
                 ReferenceText = referenceText,
                 DirectionText = isReturn ? "صادر" : "وارد",
                 MethodText = FormatInvoicePaymentMethod(invoice),
-                Amount = invoice.TotalAmount,
+                Amount = GetInvoiceDashboardAmount(invoice),
                 TaxAmount = invoice.TotalTax,
                 CashierName = invoice.User?.Name ?? cashierName,
                 Notes = null,
@@ -488,7 +488,7 @@ namespace RaccoonWarehouse.POS
                         .Sum(payment => payment.Amount);
 
                     if (allocatedCash == 0m && invoice.PaymentType == PaymentType.Cash)
-                        allocatedCash = Math.Abs(invoice.TotalAmount);
+                        allocatedCash = Math.Abs(GetInvoiceDashboardAmount(invoice));
 
                     return invoice.InvoiceType is InvoiceType.Return or InvoiceType.Purchase
                         ? -allocatedCash
@@ -685,13 +685,16 @@ namespace RaccoonWarehouse.POS
             // Older invoices may not have InvoicePayments rows. Preserve their
             // original single payment method as a safe fallback.
             if (allocations <= 0m && invoice.PaymentType == paymentType)
-                allocations = Math.Abs(invoice.TotalAmount);
+                allocations = Math.Abs(GetInvoiceDashboardAmount(invoice));
 
             if (invoice.InvoiceType is InvoiceType.Return or InvoiceType.Purchase)
                 return -allocations;
 
             return allocations;
         }
+
+        private static decimal GetInvoiceDashboardAmount(InvoiceReadDto invoice)
+            => invoice.NetTotal ?? invoice.TotalAmount;
 
         private static string FormatPaymentTotal(
             IEnumerable<InvoiceReadDto> invoices,

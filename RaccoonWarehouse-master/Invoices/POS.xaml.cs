@@ -372,6 +372,7 @@ namespace RaccoonWarehouse.Invoices
         private bool _suppressUnitSelectionChanged;
         private bool _isLoadingHeldInvoice;
         private bool _isLoadingReturnInvoice;
+        private string? _configuredPurchaseReturnInvoiceNumber;
         private bool _returnPasswordConfirmed;
         private bool _invoiceDiscountIsPercentage;
         private decimal _invoiceDiscountPercent;
@@ -435,6 +436,13 @@ namespace RaccoonWarehouse.Invoices
         }
 
         #endregion
+
+        public void ConfigureAsPurchaseReturn(string invoiceNumber)
+        {
+            _configuredPurchaseReturnInvoiceNumber = string.IsNullOrWhiteSpace(invoiceNumber)
+                ? null
+                : invoiceNumber.Trim();
+        }
         #endregion
 
 
@@ -490,6 +498,8 @@ namespace RaccoonWarehouse.Invoices
                 var catalogLoadTask = WarmProductCatalogInBackgroundAsync();
                 await Task.WhenAll(customerLoadTask, catalogLoadTask);
                 await LoadCustomerRequestSaleAsync(CustomerRequestSaleContext.Take());
+                if (!string.IsNullOrWhiteSpace(_configuredPurchaseReturnInvoiceNumber))
+                    await Dispatcher.InvokeAsync(() => ReturnItemBtn_Click(this, new RoutedEventArgs()));
                 _loading.UpdateProgress(
                     100,
                     UiText.T("اكتمل تحميل كتالوج المنتجات", "Product catalog loaded"),
@@ -2306,39 +2316,14 @@ namespace RaccoonWarehouse.Invoices
                         ?? ProductUnitSelector.GetDefaultSaleUnit(product.ProductUnits ?? Array.Empty<ProductUnitReadDto>())?.Id
                         ?? product.ProductUnits?.FirstOrDefault()?.Id;
 
-                    if (IsEmptyBarcodeLine(targetLine) &&
-                        selectedUnitId.HasValue &&
-                        _invoiceLines.Any(line =>
-                            !ReferenceEquals(line, targetLine) &&
-                            line.ProductId == product.Id &&
-                            line.ProductUnitId == selectedUnitId.Value))
-                    {
-                        return await AddProductToInvoiceCoreAsync(
-                            product,
-                            moveFocusToQuantity: false,
-                            preferredUnitId: selectedUnitId.Value);
-                    }
-
-                    targetLine.Quantity = 1m;
-                    if (!await ApplyLinePricingFromProductAsync(targetLine, product, preferredUnitId))
-                        return false;
-
-                    var availableQuantity = await GetAvailableQuantityForProductUnitAsync(
-                        targetLine.ProductId,
-                        targetLine.ProductUnitId);
-                    if (availableQuantity <= 0m)
-                    {
-                        RemoveUnavailableBarcodeLine(targetLine);
-                        return false;
-                    }
-
-                    targetLine.AvailableQuantitySnapshot = Math.Max(
-                        availableQuantity - Math.Abs(targetLine.Quantity),
-                        0m);
-                    targetLine.RefreshCalculatedProperties();
-                    RefreshInvoiceGridAfterEdit();
-                    RecalculateTotals();
-                    return true;
+                    // Use the normal invoice insertion path so barcode-cell entry
+                    // follows the same FEFO and multi-lot selection flow as the
+                    // product browser. The empty barcode row is reused by the
+                    // core method when no matching line already exists.
+                    return await AddProductToInvoiceCoreAsync(
+                        product,
+                        moveFocusToQuantity: false,
+                        preferredUnitId: selectedUnitId);
                 }
 
                 return await AddProductToInvoiceCoreAsync(
@@ -2663,6 +2648,7 @@ namespace RaccoonWarehouse.Invoices
             var insertIndex = _invoiceLines.IndexOf(templateLine);
             var totalQuantity = matchingLines.Sum(l => l.Quantity);
             var selectedLots = await SelectLotsForQuantityAsync(productId, productUnitId, totalQuantity);
+            var useSelectedLotSalePrice = selectedLots != null;
 
             var allocationResult = await AllocateInvoiceLinesAsync(productId, productUnitId, totalQuantity, selectedLots);
 
@@ -2687,11 +2673,11 @@ namespace RaccoonWarehouse.Invoices
                     QuantityPerUnitSnapshot = allocation.QuantityPerUnitSnapshot,
                     BaseQuantity = allocation.BaseQuantity,
                     PartialSaleResolved = templateLine.PartialSaleResolved,
-                    UnitPrice = templateLine.PartialSaleResolved
-                        ? templateLine.UnitPrice
-                        : allocation.SalePrice > 0m
-                            ? allocation.SalePrice
-                            : templateLine.UnitPrice,
+                    // A manually selected lot supplies the lot-specific sale
+                    // price. Automatic FEFO keeps the existing transaction price.
+                    UnitPrice = useSelectedLotSalePrice && allocation.SalePrice > 0m
+                        ? allocation.SalePrice
+                        : templateLine.UnitPrice,
                     UnitCost = allocation.PurchasePrice,
                         PurchaseAcquisitionCost = allocation.HasAllocatedPurchaseCost
                             ? Math.Round(allocation.Quantity * allocation.PurchasePrice, 6) : null,
@@ -2762,7 +2748,12 @@ namespace RaccoonWarehouse.Invoices
                                 $"The requested quantity for {sourceLine.ProductName} is not available. The quantity was adjusted to the maximum available: {availableQuantity:0.000}"),
                             UiText.T("تنبيه", "Notice"));
 
-                        return ReplaceInvoiceLinesFromAllocations(matchingLines, templateLine, insertIndex, adjustedResult.Data);
+                        return ReplaceInvoiceLinesFromAllocations(
+                            matchingLines,
+                            templateLine,
+                            insertIndex,
+                            adjustedResult.Data,
+                            useSelectedLotSalePrice: adjustedLots != null);
                     }
                 }
 
@@ -2778,7 +2769,12 @@ namespace RaccoonWarehouse.Invoices
                 return null;
             }
 
-            return ReplaceInvoiceLinesFromAllocations(matchingLines, templateLine, insertIndex, allocationResult.Data);
+            return ReplaceInvoiceLinesFromAllocations(
+                matchingLines,
+                templateLine,
+                insertIndex,
+                allocationResult.Data,
+                useSelectedLotSalePrice: selectedLots != null);
         }
 
         private async Task<Result<List<StockLotAllocationDto>>> AllocateInvoiceLinesAsync(
@@ -2898,7 +2894,8 @@ namespace RaccoonWarehouse.Invoices
             IEnumerable<InvoiceLineWriteDto> matchingLines,
             InvoiceLineWriteDto templateLine,
             int insertIndex,
-            IEnumerable<StockLotAllocationDto> allocations)
+            IEnumerable<StockLotAllocationDto> allocations,
+            bool useSelectedLotSalePrice = false)
         {
             foreach (var line in matchingLines)
                 _invoiceLines.Remove(line);
@@ -2919,11 +2916,11 @@ namespace RaccoonWarehouse.Invoices
                     BaseQuantity = allocation.BaseQuantity,
                     PartialSaleResolved = templateLine.PartialSaleResolved,
                     ProductUnit = templateLine.ProductUnit,
-                    UnitPrice = templateLine.PartialSaleResolved
-                        ? templateLine.UnitPrice
-                        : allocation.SalePrice > 0m
-                            ? allocation.SalePrice
-                            : templateLine.UnitPrice,
+                    // Preserve the transaction price while FEFO selects the
+                    // stock lot and cost.
+                    UnitPrice = useSelectedLotSalePrice && allocation.SalePrice > 0m
+                        ? allocation.SalePrice
+                        : templateLine.UnitPrice,
                     UnitCost = allocation.PurchasePrice,
                         PurchaseAcquisitionCost = allocation.HasAllocatedPurchaseCost
                             ? Math.Round(allocation.Quantity * allocation.PurchasePrice, 6) : null,
@@ -3172,11 +3169,9 @@ namespace RaccoonWarehouse.Invoices
                         QuantityPerUnitSnapshot = allocation.QuantityPerUnitSnapshot,
                         BaseQuantity = allocation.BaseQuantity,
                         PartialSaleResolved = sourceLine.PartialSaleResolved,
-                        UnitPrice = sourceLine.PartialSaleResolved
-                            ? sourceLine.UnitPrice
-                            : allocation.SalePrice > 0m
-                                ? allocation.SalePrice
-                                : sourceLine.UnitPrice,
+                        // Preserve the price already shown in the POS invoice.
+                        // FEFO must select stock lots, not rewrite the sale price.
+                        UnitPrice = sourceLine.UnitPrice,
                         LineDiscountAmount = allocatedInvoiceDiscounts.TryGetValue(index, out var distributedAmounts)
                             ? distributedAmounts[allocationIndex]
                             : sourceLine.Quantity == 0m
@@ -3987,8 +3982,8 @@ namespace RaccoonWarehouse.Invoices
                             true,
                             row.SelectedUnit?.Id,
                             row.Quantity,
-                            row.SalePrice,
-                            knownUnitPurchasePrice);
+                            unitPriceOverride: row.SalePrice,
+                            knownUnitPurchasePrice: knownUnitPurchasePrice);
                         return added;
                     },
                     disabledKeys,
@@ -4880,7 +4875,9 @@ namespace RaccoonWarehouse.Invoices
                     _invoiceService,
                     _userSession,
                     _serviceProvider.GetRequiredService<RaccoonWarehouse.Application.Service.AuthService.IAuthService>(),
-                    _productService);
+                    _productService,
+                    _configuredPurchaseReturnInvoiceNumber);
+                _configuredPurchaseReturnInvoiceNumber = null;
                 if (win.ShowDialog() != true)
                     return;
 

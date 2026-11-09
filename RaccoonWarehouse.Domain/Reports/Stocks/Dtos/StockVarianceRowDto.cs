@@ -5,6 +5,8 @@ namespace RaccoonWarehouse.Domain.Reports.Stocks.Dtos
         public int ProductId { get; set; }
         public string ITEMCODE { get; set; } = string.Empty;
         public string? ProductName { get; set; }
+        public int? SupplierId { get; set; }
+        public string? SupplierName { get; set; }
         public string? UnitName { get; set; }
         public decimal CurrentQuantity { get; set; }
         public decimal MinimumQuantity { get; set; }

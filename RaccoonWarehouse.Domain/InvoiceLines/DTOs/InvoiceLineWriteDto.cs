@@ -180,9 +180,14 @@ namespace RaccoonWarehouse.Domain.InvoiceLines.DTOs
             get => _bonusPercentage;
             set
             {
-                if (_bonusPercentage != value)
+                var normalizedValue = value.HasValue
+                    && PurchaseBonusPercentage.TryNormalize(value.Value, out var normalized)
+                    ? normalized
+                    : value;
+
+                if (_bonusPercentage != normalizedValue)
                 {
-                    _bonusPercentage = value;
+                    _bonusPercentage = normalizedValue;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(BonusPercentageInput));
                     OnPropertyChanged(nameof(BonusNeedsApply));
@@ -297,10 +302,10 @@ namespace RaccoonWarehouse.Domain.InvoiceLines.DTOs
                 if (!BonusPercentage.HasValue || Quantity <= 0m)
                     return lineTotal;
 
-                var costQuantity = PurchaseBonusPercentage.CalculateCostQuantity(Quantity, BonusPercentage.Value);
-                return costQuantity > 0m
-                    ? Math.Round(lineTotal * Quantity / costQuantity, 3, MidpointRounding.AwayFromZero)
-                    : lineTotal;
+                return Math.Round(
+                    PurchaseBonusPercentage.CalculateEquivalentNetTotal(lineTotal, BonusPercentage.Value),
+                    3,
+                    MidpointRounding.AwayFromZero);
             }
         }
         // UI-only POS row presentation. It is never persisted with the invoice.

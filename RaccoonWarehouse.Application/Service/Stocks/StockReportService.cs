@@ -641,6 +641,8 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                 .Include(s => s.Product)
                     .ThenInclude(p => p.ProductUnits)
                         .ThenInclude(pu => pu.Unit)
+                .Include(s => s.Product)
+                    .ThenInclude(p => p.Supplier)
                 .Include(s => s.ProductUnit)
                     .ThenInclude(pu => pu.Unit)
                 .Where(s => !supplierId.HasValue || supplierId.Value <= 0 || s.Product.SupplierId == supplierId.Value)
@@ -741,6 +743,8 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                         ProductId = group.Key,
                         ITEMCODE = sample.Product?.ITEMCODE.ToString() ?? string.Empty,
                         ProductName = sample.Product?.Name,
+                        SupplierId = sample.Product?.SupplierId,
+                        SupplierName = sample.Product?.Supplier?.Name,
                         UnitName = baseUnit?.Unit?.Name ?? sample.ProductUnit?.Unit?.Name,
                         CurrentQuantity = currentQty,
                         MinimumQuantity = minQty,

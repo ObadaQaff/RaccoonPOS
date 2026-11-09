@@ -279,7 +279,7 @@
                         <Grid>
                             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="38"/></Grid.ColumnDefinitions>
                             <ComboBox x:Name="SupplierComboBox" Grid.Column="0" Style="{StaticResource ComboBoxStyleModern}" IsEditable="True" IsTextSearchEnabled="False" StaysOpenOnEdit="True" Loaded="SupplierComboBox_Loaded" PreviewTextInput="SupplierComboBox_PreviewTextInput" KeyUp="SupplierComboBox_KeyUp"/>
-                            <Button Grid.Column="1" Content="+" Margin="4,0,0,0" Click="AddSupplierBtn_Click" ToolTip="إضافة مورد"/>
+                            <Button x:Name="AddSupplierButton" Grid.Column="1" Content="+" Margin="4,0,0,0" Click="AddSupplierBtn_Click" ToolTip="إضافة مورد"/>
                         </Grid>
                     </StackPanel>
                 </Grid>
@@ -481,7 +481,7 @@
                     </Grid>
                 </StackPanel>
 
-                <Button Content="إضافة منتج / Add Product"
+                <Button x:Name="SearchProductButton" Content="إضافة منتج / Add Product"
                         Style="{StaticResource PrimaryButtonStyle}"
                         Width="180"
                         HorizontalAlignment="Center"
@@ -570,7 +570,7 @@
                                                 Width="80"/>
 
                             <DataGridTextColumn x:Name="SalePriceColumn" Header="سعر البيع"
-                                          Binding="{Binding SalePrice, StringFormat=0.000, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                          Binding="{Binding SalePrice, StringFormat=0.000, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                                                 Width="80"/>
 
                             <DataGridTemplateColumn Header="الانتهاء" Width="100">

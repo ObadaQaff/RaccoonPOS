@@ -6,6 +6,9 @@ using PdfSharpCore.Fonts;
 using PdfSharpCore.Utils;
 using QuestPDF.Infrastructure;
 using RaccoonWarehouse.Application.Service.Accounting;
+using RaccoonWarehouse.Application.Service.Employees;
+using RaccoonWarehouse.Application.Service.HR;
+using RaccoonWarehouse.Application.Service.Modules;
 using RaccoonWarehouse.Application.Service.Audit;
 using RaccoonWarehouse.Application.Service.AuthService;
 using RaccoonWarehouse.Application.Service.Brands;
@@ -48,6 +51,7 @@ using RaccoonWarehouse.Data;
 using RaccoonWarehouse.Data.Repository;
 using RaccoonWarehouse.Delegates;
 using RaccoonWarehouse.Employees;
+using RaccoonWarehouse.Permissions;
 using RaccoonWarehouse.Domain.InvoiceLines;
 using RaccoonWarehouse.FinancialTransactions;
 using RaccoonWarehouse.FinancialTransactions.Reports;
@@ -109,16 +113,6 @@ namespace RaccoonWarehouse
         protected override async void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
-            if (!IsTrustedDevelopmentEnvironment())
-            {
-                MessageBox.Show(
-                    "Authorization is being rebuilt. Set ROCCOPOS_TRUSTED_DEVELOPMENT=true before running this application in a controlled development environment.",
-                    "Controlled Environment Required",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
-                Shutdown(-1);
-                return;
-            }
             DispatcherUnhandledException += App_DispatcherUnhandledException;
             AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
             TaskScheduler.UnobservedTaskException += TaskScheduler_UnobservedTaskException;
@@ -276,12 +270,6 @@ namespace RaccoonWarehouse
             MessageBox.Show("حدث خطأ غير متوقع وتم تسجيله. الرجاء إعادة المحاولة أو التواصل مع الدعم إذا تكرر الخطأ.", "خطأ", MessageBoxButton.OK, MessageBoxImage.Error);
             e.Handled = true;
         }
-
-        private static bool IsTrustedDevelopmentEnvironment()
-            => string.Equals(
-                Environment.GetEnvironmentVariable("ROCCOPOS_TRUSTED_DEVELOPMENT"),
-                "true",
-                StringComparison.OrdinalIgnoreCase);
 
         private void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
         {
@@ -441,6 +429,7 @@ namespace RaccoonWarehouse
                 var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
                 await db.Database.CanConnectAsync();
                 await EnsureAppSettingsTableAsync(db);
+                await scope.ServiceProvider.GetRequiredService<IModuleStateStore>().LoadAsync();
                 await EnsureDelegateSchemaAsync(db);
                 await EnsureEmployeeSchemaAsync(db);
                 await EnsureCheckSchemaAsync(db);
@@ -917,6 +906,9 @@ END;";
             #region Services
             // Services
             services.AddScoped<IUserService, UserService>();
+            services.AddSingleton<RaccoonWarehouse.Core.Permissions.IPermissionService, RaccoonWarehouse.Application.Service.Permissions.PermissionService>();
+            services.AddSingleton<RaccoonWarehouse.Core.Permissions.IPermissionActionResolver, RaccoonWarehouse.Application.Service.Permissions.PermissionActionResolver>();
+            services.AddScoped<RaccoonWarehouse.Core.Permissions.IPermissionManagementService, RaccoonWarehouse.Application.Service.Permissions.PermissionManagementService>();
             services.AddScoped<ICategoryService, CategoryService>();
             services.AddScoped<ISubCategoryService, SubCategoryService>();
             services.AddScoped<IPosProductCatalogService, PosProductCatalogService>();
@@ -1021,6 +1013,10 @@ END;";
             services.AddTransient<RaccoonWarehouse.Employees.Payroll.PayrollMonthWindow>();
             services.AddTransient<RaccoonWarehouse.Employees.Payroll.PayrollPolicyWindow>();
             services.AddScoped<IEmployeeFeatureService, EmployeeFeatureService>();
+            services.AddSingleton<IModuleStateStore, ModuleStateStore>();
+            services.AddSingleton<IModuleConfiguration>(sp => sp.GetRequiredService<IModuleStateStore>());
+            services.AddScoped<IShiftService, ShiftService>();
+            services.AddScoped<IHrService, HrService>();
             services.AddSingleton<ILoadingService, LoadingService>();
             services.AddScoped<ICashierSessionService, CashierSessionService>();
             services.AddScoped<ICashierSessionSettlementService, CashierSessionSettlementService>();
@@ -1039,10 +1035,11 @@ END;";
             services.AddTransient<IModuleDefinitionProvider, BrandsDashboardModule>();
             services.AddTransient<IModuleDefinitionProvider, SettingsDashboardModule>();
             services.AddTransient<IModuleDefinitionProvider, UsersDashboardModule>();
+            services.AddTransient<IModuleDefinitionProvider, EmployeesDashboardModule>();
+            services.AddTransient<IModuleDefinitionProvider, HrDashboardModule>();
             services.AddTransient<IModuleDefinitionProvider, CustomersDashboardModule>();
             services.AddTransient<IModuleDefinitionProvider, InsuranceDashboardModule>();
             services.AddTransient<IModuleDefinitionProvider, AccountingDashboardModule>();
-            services.AddSingleton<IModuleConfiguration, ModuleConfiguration>();
             services.AddTransient<DashboardModuleRegistry>();
             services.AddTransient<IDashboardActionHandler, ProductsDashboardActionHandler>();
             services.AddTransient<IDashboardActionHandler, LotsDashboardActionHandler>();
@@ -1052,6 +1049,8 @@ END;";
             services.AddTransient<IDashboardActionHandler, BrandsDashboardActionHandler>();
             services.AddTransient<IDashboardActionHandler, SettingsDashboardActionHandler>();
             services.AddTransient<IDashboardActionHandler, UsersDashboardActionHandler>();
+            services.AddTransient<IDashboardActionHandler, EmployeesDashboardActionHandler>();
+            services.AddTransient<IDashboardActionHandler, HrDashboardActionHandler>();
             services.AddTransient<IDashboardActionHandler, CustomersDashboardActionHandler>();
             services.AddTransient<IDashboardActionHandler, InsuranceDashboardActionHandler>();
             services.AddTransient<IDashboardActionHandler, AccountingDashboardActionHandler>();
@@ -1092,6 +1091,11 @@ END;";
             services.AddTransient<EmployeeDetails>();
             services.AddTransient<EmployeeProfileSummaryWindow>();
             services.AddTransient<EmployeeFeatureSettingsWindow>();
+            services.AddTransient<EmployeeProfileWindow>();
+            services.AddTransient<ShiftManagementWindow>();
+            services.AddTransient<HrDashboardWindow>();
+            services.AddTransient<HrFeatureSettingsWindow>();
+            services.AddTransient<PermissionGroupsWindow>();
 
             services.AddTransient<CategoriesTable>();
             services.AddTransient<CreateCategory>();
@@ -1125,6 +1129,7 @@ END;";
             services.AddTransient<SupplierJoFotaraReferenceWindow>();
 
             services.AddTransient<PayInvoice>();
+            services.AddTransient<PurchaseReturnWindow>();
             services.AddTransient<PurchaseOrdersWindow>();
             services.AddTransient<RaccoonWarehouse.PurchaseRequests.PurchaseRequestsWindow>();
             services.AddTransient<RaccoonWarehouse.PurchaseRequests.PurchaseRequestEditorWindow>();

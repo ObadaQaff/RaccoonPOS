@@ -34,7 +34,8 @@ namespace RaccoonWarehouse.POS
             IInvoiceService invoiceService,
             IUserSession userSession,
             IAuthService authService,
-            IProductService productService)
+            IProductService productService,
+            string? initialInvoiceNumber = null)
         {
 
             InitializeComponent();
@@ -47,6 +48,12 @@ namespace RaccoonWarehouse.POS
             _productSuggestionTimer.Tick += ProductSuggestionTimer_Tick;
             Loaded += async (_, _) =>
             {
+                if (!string.IsNullOrWhiteSpace(initialInvoiceNumber))
+                {
+                    OriginalInvoiceId = initialInvoiceNumber.Trim();
+                    DialogResult = true;
+                    return;
+                }
                 await LoadProductNameCatalogAsync();
                 await SearchAsync();
             };

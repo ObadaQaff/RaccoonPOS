@@ -1037,17 +1037,19 @@ namespace RaccoonWarehouse.Application.Service.Stocks
             if (maxResults <= 0 || (terms.Length == 0 && string.IsNullOrWhiteSpace(normalizedBarcode) && (!supplierId.HasValue || supplierId.Value <= 0)))
                 return Result<List<PosProductSearchResultDto>>.Ok(new List<PosProductSearchResultDto>());
 
-            if (!string.IsNullOrWhiteSpace(normalizedBarcode) &&
-                !supplierId.HasValue &&
-                _posProductCatalogService != null)
+            try
             {
-                var catalogRows = await _posProductCatalogService.SearchByBarcodeAsync(
-                    normalizedBarcode,
-                    cancellationToken);
-                if (catalogRows.Count > 0)
-                    return Result<List<PosProductSearchResultDto>>.Ok(
-                        catalogRows.Select(MapCatalogEntry).ToList());
-            }
+                if (!string.IsNullOrWhiteSpace(normalizedBarcode) &&
+                    !supplierId.HasValue &&
+                    _posProductCatalogService != null)
+                {
+                    var catalogRows = await _posProductCatalogService.SearchByBarcodeAsync(
+                        normalizedBarcode,
+                        cancellationToken);
+                    if (catalogRows.Count > 0)
+                        return Result<List<PosProductSearchResultDto>>.Ok(
+                            catalogRows.Select(MapCatalogEntry).ToList());
+                }
 
             // Search the product catalog first, not the stock table. A product with
             // zero stock (or no stock record yet) must still be visible in POS so
@@ -1186,11 +1188,19 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                     }))
                 .ToList();
 
-            return Result<List<PosProductSearchResultDto>>.Ok(
-                rows.GroupBy(row => row.ProductId)
-                    .OrderBy(group => group.First().ProductName)
-                    .SelectMany(group => group)
-                    .ToList());
+                return Result<List<PosProductSearchResultDto>>.Ok(
+                    rows.GroupBy(row => row.ProductId)
+                        .OrderBy(group => group.First().ProductName)
+                        .SelectMany(group => group)
+                        .ToList());
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                // Typing or deleting search text supersedes the previous query.
+                // Return an empty result instead of leaking expected EF cancellation
+                // through the POS search workflow.
+                return Result<List<PosProductSearchResultDto>>.Ok(new List<PosProductSearchResultDto>());
+            }
         }
 
         private static decimal ToTaxInclusiveCost(decimal cost, bool? taxExempt, decimal? taxRate)

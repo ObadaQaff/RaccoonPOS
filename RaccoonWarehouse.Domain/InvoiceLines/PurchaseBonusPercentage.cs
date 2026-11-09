@@ -4,10 +4,8 @@ namespace RaccoonWarehouse.Domain.InvoiceLines;
 
 /// <summary>
 /// Parses the purchase bonus percentage used by purchase invoices.
-/// A value from 0 to 100 is the bonus percentage; a value above 100 is
-/// interpreted as total received percentage (110% becomes a 10% bonus).
-/// The percentage is applied to the paid quantity for cost allocation. This
-/// percentage mode is cost-only and does not create free stock quantity.
+/// The percentage is applied to the line amount using the equivalent-bonus
+/// formula. It is cost-only and does not create free stock quantity.
 /// </summary>
 public static class PurchaseBonusPercentage
 {
@@ -25,21 +23,39 @@ public static class PurchaseBonusPercentage
             && !decimal.TryParse(value, NumberStyles.Number, CultureInfo.CurrentCulture, out parsed))
             return false;
 
-        if (parsed < 0m || parsed > 1000m)
+        return TryNormalize(parsed, out normalizedPercentage);
+    }
+
+    /// <summary>
+    /// Validates a nonnegative percentage without imposing an arbitrary upper
+    /// bound or changing its meaning.
+    /// </summary>
+    public static bool TryNormalize(decimal input, out decimal normalizedPercentage)
+    {
+        normalizedPercentage = 0m;
+        if (input < 0m)
             return false;
 
-        normalizedPercentage = parsed > 100m ? parsed - 100m : parsed;
-        normalizedPercentage = Math.Round(normalizedPercentage, 6, MidpointRounding.AwayFromZero);
+        normalizedPercentage = input;
         return true;
     }
 
-    public static decimal CalculateFreeQuantity(decimal paidQuantity, decimal normalizedPercentage)
-        => paidQuantity > 0m
-            ? Math.Round(paidQuantity * Math.Max(0m, normalizedPercentage) / 100m, 6, MidpointRounding.AwayFromZero)
-            : 0m;
+    /// <summary>
+    /// Calculates the equivalent amount using:
+    /// GrossTotal * 100 / (100 + BonusPercentage).
+    /// The algebraically equivalent division form avoids overflowing when
+    /// multiplying a valid monetary amount by 100.
+    /// </summary>
+    public static decimal CalculateEquivalentNetTotal(decimal grossTotal, decimal bonusPercentage)
+    {
+        if (grossTotal < 0m)
+            throw new ArgumentOutOfRangeException(nameof(grossTotal), "Gross total must be nonnegative.");
+        if (!TryNormalize(bonusPercentage, out var validatedPercentage))
+            throw new ArgumentOutOfRangeException(nameof(bonusPercentage), "Bonus percentage must be nonnegative.");
+        if (grossTotal == 0m)
+            return 0m;
 
-    public static decimal CalculateCostQuantity(decimal paidQuantity, decimal normalizedPercentage)
-        => paidQuantity > 0m
-            ? paidQuantity + CalculateFreeQuantity(paidQuantity, normalizedPercentage)
-            : paidQuantity;
+        var divisor = 1m + validatedPercentage / 100m;
+        return grossTotal / divisor;
+    }
 }

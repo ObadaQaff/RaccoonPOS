@@ -67,6 +67,7 @@
                                 <TextBlock Text="عرض التقرير" Margin="8,0,0,0" FontWeight="SemiBold"/>
                             </StackPanel>
                         </Button>
+                        <Button Width="180" Height="42" Margin="0,0,12,0" Click="ExportExcel_Click" Background="#E9EEF3" Foreground="#2B4A67" BorderBrush="Transparent" Cursor="Hand" Content="تصدير Excel / Export Excel"/>
                         <Button x:Name="BackBtn" Width="140" Height="42" Click="BackBtn_Click" Background="#E9EEF3" Foreground="#2B4A67" BorderBrush="Transparent" Cursor="Hand">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                 <fa:ImageAwesome Icon="ArrowLeft" Width="16" Height="16" Foreground="#2B4A67"/>

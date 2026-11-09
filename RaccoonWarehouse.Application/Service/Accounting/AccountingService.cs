@@ -144,7 +144,7 @@ namespace RaccoonWarehouse.Application.Service.Accounting
 
             var totalDebit = effectiveLines.Sum(x => x.Debit);
             var totalCredit = effectiveLines.Sum(x => x.Credit);
-            if (totalDebit <= 0 || totalCredit <= 0 || totalDebit != totalCredit)
+            if (totalDebit <= 0 || totalCredit <= 0 || Math.Round(totalDebit, 2) != Math.Round(totalCredit, 2))
             {
                 return Result<JournalEntryReadDto>.Fail("Journal entry is not balanced.");
             }
@@ -226,6 +226,7 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                 entry.Lines.Add(new JournalEntryLine
                 {
                     AccountId = line.AccountId,
+                    LineNumber = entry.Lines.Count + 1,
                     PartyUserId = line.PartyUserId,
                     CustomerId = line.CustomerId,
                     SupplierId = line.SupplierId,
@@ -256,6 +257,7 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                         entry.Lines.Add(new JournalEntryLine
                         {
                             AccountId = taxRate.TaxAccountId,
+                            LineNumber = entry.Lines.Count + 1,
                             Debit = debit > 0 ? taxAmount : 0m,
                             Credit = credit > 0 ? taxAmount : 0m,
                             CostCenterId = line.CostCenterId,
@@ -602,7 +604,10 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                         AddCredit(lines, inputTaxId, purchaseReturnTax, $"Purchase return #{invoice.InvoiceNumber} input tax reversal");
                     var allocatedReturn = invoice.InvoiceLines?.Any(x => x.SourcePurchaseLineId.HasValue) == true;
                     var inventoryReversal = allocatedReturn
-                        ? invoice.InvoiceLines!.Sum(x => x.PurchaseAcquisitionCost ?? 0m) : purchaseReturnNetSales;
+                        ? invoice.InvoiceLines!.Sum(x => x.SourcePurchaseLineId.HasValue
+                            ? x.PurchaseAcquisitionCost ?? 0m
+                            : Math.Abs(x.LineSubTotal))
+                        : purchaseReturnNetSales;
                     AddCredit(lines, inventoryId, inventoryReversal, $"Purchase return #{invoice.InvoiceNumber} inventory reversal");
                     // Paid units refund original net purchase price; free units refund nothing.
                     // The difference reverses bonus cost allocation, never supplier liability.

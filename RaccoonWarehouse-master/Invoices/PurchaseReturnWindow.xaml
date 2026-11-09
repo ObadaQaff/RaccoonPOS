@@ -1,0 +1,72 @@
+<Window x:Class="RaccoonWarehouse.Invoices.PurchaseReturnWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Purchase Return / مرتجع مشتريات"
+        Width="1350" Height="760" MinWidth="1050" MinHeight="580"
+        WindowStartupLocation="CenterScreen" Background="#F5F6FA">
+    <Grid Margin="18" FlowDirection="RightToLeft">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Border Background="#1F4E66" CornerRadius="10" Padding="16">
+            <StackPanel>
+                <TextBlock Text="Purchase Return / مرتجع مشتريات" Foreground="White" FontSize="23" FontWeight="Bold" HorizontalAlignment="Center"/>
+                <TextBlock Text="Select a purchase invoice, then enter the quantities to return / اختر فاتورة الشراء ثم أدخل الكميات المراد إرجاعها" Foreground="#DCEAF0" HorizontalAlignment="Center" Margin="0,6,0,0"/>
+            </StackPanel>
+        </Border>
+
+        <Border Grid.Row="1" Background="White" CornerRadius="8" Padding="12" Margin="0,12" BorderBrush="#D8E1E6" BorderThickness="1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/><ColumnDefinition Width="260"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="220"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="Invoice number / رقم الفاتورة" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <TextBox x:Name="SearchTextBox" Grid.Column="1" Height="34" Padding="8" KeyDown="SearchTextBox_KeyDown"/>
+                <Button Grid.Column="2" Content="Search / بحث" Width="130" Height="34" Margin="10,0" Style="{StaticResource PrimaryButtonStyle}" Click="Search_Click"/>
+                <TextBlock Grid.Column="3" x:Name="SelectedInvoiceText" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                <TextBlock Grid.Column="4" x:Name="PaymentMethodText" VerticalAlignment="Center" Margin="18,0,8,0"/>
+                <TextBlock Grid.Column="5" x:Name="SupplierText" VerticalAlignment="Center"/>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="2">
+            <Grid.RowDefinitions><RowDefinition Height="2*"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+            <Border Background="White" CornerRadius="8" Padding="8" BorderBrush="#D8E1E6" BorderThickness="1">
+                <DataGrid x:Name="InvoicesGrid" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single" MouseDoubleClick="SelectInvoice_Click">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Invoice / الفاتورة" Binding="{Binding InvoiceNumber}" Width="170"/>
+                        <DataGridTextColumn Header="Date / التاريخ" Binding="{Binding CreatedDate, StringFormat=yyyy-MM-dd HH:mm}" Width="180"/>
+                        <DataGridTextColumn Header="Supplier / المورد" Binding="{Binding SupplierName}" Width="*"/>
+                        <DataGridTextColumn Header="Payment / الدفع" Binding="{Binding PaymentType}" Width="140"/>
+                        <DataGridTextColumn Header="Total / الإجمالي" Binding="{Binding TotalAmount, StringFormat=N3}" Width="140"/>
+                        <DataGridTextColumn Header="Status / الحالة" Binding="{Binding Status}" Width="120"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Border>
+            <Border Grid.Row="1" Background="White" CornerRadius="8" Padding="8" Margin="0,12,0,0" BorderBrush="#D8E1E6" BorderThickness="1">
+                <DataGrid x:Name="LinesGrid" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="False" SelectionMode="Single">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Product / الصنف" Binding="{Binding ProductName}" IsReadOnly="True" Width="2*"/>
+                        <DataGridTextColumn Header="Original paid / المدفوع الأصلي" Binding="{Binding OriginalPaid}" IsReadOnly="True" Width="150"/>
+                        <DataGridTextColumn Header="Remaining paid / المدفوع المتبقي" Binding="{Binding RemainingPaid}" IsReadOnly="True" Width="160"/>
+                        <DataGridTextColumn Header="Returned paid / المدفوع المرتجع" Binding="{Binding ReturnedPaid, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}" Width="160"/>
+                        <DataGridTextColumn Header="Original free / المجاني الأصلي" Binding="{Binding OriginalFree}" IsReadOnly="True" Width="145"/>
+                        <DataGridTextColumn Header="Remaining free / المجاني المتبقي" Binding="{Binding RemainingFree}" IsReadOnly="True" Width="155"/>
+                        <DataGridTextColumn Header="Returned free / المجاني المرتجع" Binding="{Binding ReturnedFree, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}" Width="155"/>
+                        <DataGridTextColumn Header="Expiry / الانتهاء" Binding="{Binding ExpiryDate, StringFormat=yyyy-MM-dd}" IsReadOnly="True" Width="125"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Border>
+        </Grid>
+
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,12,0,0">
+            <Button Content="Load Products / تحميل المنتجات" Width="180" Height="38" Margin="6" Style="{StaticResource SecondaryButtonStyle}" Click="SelectInvoice_Click"/>
+            <Button Content="Save Purchase Return / حفظ مرتجع المشتريات" Width="235" Height="38" Margin="6" Style="{StaticResource PrimaryButtonStyle}" Click="Save_Click"/>
+            <Button Content="Close / إغلاق" Width="140" Height="38" Margin="6" Style="{StaticResource CancelButtonStyle}" Click="Close_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

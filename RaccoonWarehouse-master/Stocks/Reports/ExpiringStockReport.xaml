@@ -17,8 +17,9 @@
                     <TextBlock Text="Days ahead" VerticalAlignment="Center" Margin="0,0,8,0"/>
                     <ComboBox x:Name="DaysComboBox" Width="120" SelectedIndex="2" Margin="0,0,16,0"><ComboBoxItem Content="Expired" Tag="0"/><ComboBoxItem Content="30 days" Tag="30"/><ComboBoxItem Content="90 days" Tag="90"/><ComboBoxItem Content="180 days" Tag="180"/></ComboBox>
                     <TextBlock Text="Supplier" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                    <ComboBox x:Name="SupplierComboBox" Width="280" DisplayMemberPath="Name" SelectedValuePath="Id" IsEditable="True" IsTextSearchEnabled="False" StaysOpenOnEdit="True"/>
+                    <ComboBox x:Name="SupplierComboBox" Width="280" DisplayMemberPath="Name" SelectedValuePath="Id" IsEditable="True" IsTextSearchEnabled="False" StaysOpenOnEdit="True" SelectionChanged="SupplierComboBox_SelectionChanged"/>
                     <Button Content="Refresh" Width="110" Margin="16,0,0,0" Click="Refresh_Click"/>
+                    <Button Content="تصدير Excel / Export Excel" Width="180" Margin="12,0,0,0" Click="ExportExcel_Click"/>
                 </StackPanel>
             </Border>
             <DataGrid Grid.Row="1" x:Name="ResultsGrid" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" Background="White">

@@ -220,7 +220,8 @@
                                Margin="18,0,0,0"
                                Text="يمكنك ترك الصنف فارغاً لعرض جميع المواد أو اختيار صنف واحد لتحليل صافي الحركة فقط."/>
 
-                    <Button x:Name="GenerateBtn" Grid.Column="6"
+                    <StackPanel Grid.Column="6" Orientation="Horizontal" HorizontalAlignment="Center">
+                    <Button x:Name="GenerateBtn"
                             Width="150"
                             Margin="12,0,0,0"
                             Style="{StaticResource PrimaryButtonStyle}"
@@ -230,6 +231,21 @@
                             <TextBlock Text=" عرض التقرير" Margin="8,0,0,0"/>
                         </StackPanel>
                     </Button>
+
+                    <Button Width="150"
+                            Margin="8,0,0,0"
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            Click="ExportExcel_Click">
+                        <TextBlock Text="تصدير Excel / Export Excel" TextWrapping="Wrap" TextAlignment="Center"/>
+                    </Button>
+
+                    <Button Width="130"
+                            Margin="8,0,0,0"
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            Click="ExportPdf_Click">
+                        <TextBlock Text="تصدير PDF / Export PDF" TextWrapping="Wrap" TextAlignment="Center"/>
+                    </Button>
+                    </StackPanel>
 
                     <Button Grid.Column="7"
                             Width="110"

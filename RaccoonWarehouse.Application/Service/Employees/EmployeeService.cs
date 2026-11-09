@@ -9,6 +9,9 @@ using RaccoonWarehouse.Core.Common;
 using RaccoonWarehouse.Core.Interface;
 using RaccoonWarehouse.Data;
 using RaccoonWarehouse.Domain.Employees.DTOs;
+using RaccoonWarehouse.Domain.Employees;
+using RaccoonWarehouse.Domain.Branches;
+using RaccoonWarehouse.Domain.Users;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Reports.Employees.Dtos;
 using RaccoonWarehouse.Domain.Reports.Employees.Filters;
@@ -29,6 +32,13 @@ namespace RaccoonWarehouse.Application.Service.Employees
         Task<Result<EmployeeAnalyticsDto>> GetAnalyticsAsync();
         Task<Result<List<EmployeeReportRowDto>>> GetReportAsync(EmployeeReportFilterDto filter);
         Task<Result<bool>> SoftDeleteAsync(int employeeId);
+        Task<List<Branch>> GetBranchesAsync();
+        Task<List<User>> GetUsersAsync();
+        Task<EmployeeDetailsDto?> GetAsync(int id);
+        Task<Result<EmployeeEditDto>> SaveAsync(EmployeeEditDto dto);
+        Task<Result<bool>> DeactivateAsync(int employeeId);
+        Task<Result<int>> CreateBranchAsync(string code, string name);
+        Task<Result> SaveBranchAssignmentAsync(EmployeeBranchAssignmentEditDto dto);
     }
 
     public class EmployeeService : IEmployeeService
@@ -50,6 +60,45 @@ namespace RaccoonWarehouse.Application.Service.Employees
             _mapper = mapper;
             _featureService = featureService;
 _session=session; _protector=protector??new PayrollSensitiveDataProtector();
+        }
+
+        public Task<List<Branch>> GetBranchesAsync() => _dbContext.Set<Branch>().AsNoTracking().Where(x => x.IsActive).OrderBy(x => x.Name).ToListAsync();
+        public Task<List<User>> GetUsersAsync() => _dbContext.Set<User>().AsNoTracking().OrderBy(x => x.Name).ToListAsync();
+
+        public async Task<EmployeeDetailsDto?> GetAsync(int id)
+        {
+            var employee = await _dbContext.Set<EmployeeEntity>().AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
+            if (employee == null) return null;
+            var dto = new EmployeeEditDto { Id = employee.Id, FullName = employee.FullName, PhoneNumber = employee.PhoneNumber ?? string.Empty, NationalId = employee.NationalId, Address = employee.Address, Email = employee.Email, JobTitle = employee.JobTitle, MonthlyBasicSalary = employee.BasicSalary ?? 0m, EmploymentDate = employee.HireDate, Status = employee.Status, PrimaryBranchId = employee.PrimaryBranchId, UserId = employee.UserId, ContractStartDate = employee.HireDate ?? DateTime.Today };
+            var branches = await _dbContext.EmployeeBranchAssignments.AsNoTracking().Where(x => x.EmployeeId == id).Include(x => x.Branch).Select(x => new EmployeeBranchDto(x.Id, x.BranchId, x.Branch!.Name, x.StartDate, x.EndDate, x.IsActive)).ToListAsync();
+            var shifts = await _dbContext.EmployeeShiftAssignments.AsNoTracking().Where(x => x.EmployeeId == id).Include(x => x.ShiftTemplate).Select(x => new EmployeeShiftDto(x.Id, x.ShiftTemplateId, x.ShiftTemplate!.Name, x.DayOfWeek, x.ShiftTemplate.StartTime, x.ShiftTemplate.EndTime, x.ShiftTemplate.IsOvernight, x.StartDate, x.EndDate, x.IsActive)).ToListAsync();
+            return new EmployeeDetailsDto(dto, branches, shifts);
+        }
+
+        public async Task<Result<EmployeeEditDto>> SaveAsync(EmployeeEditDto dto)
+        {
+            var entity = dto.Id == 0 ? new EmployeeEntity { CreatedDate = DateTime.Now } : await _dbContext.Set<EmployeeEntity>().FirstOrDefaultAsync(x => x.Id == dto.Id);
+            if (entity == null) return Result<EmployeeEditDto>.Fail("Employee not found.");
+            entity.FullName = dto.FullName.Trim(); entity.PhoneNumber = dto.PhoneNumber; entity.NationalId = dto.NationalId; entity.Address = dto.Address; entity.Email = dto.Email; entity.JobTitle = dto.JobTitle; entity.BasicSalary = dto.MonthlyBasicSalary; entity.HireDate = dto.EmploymentDate; entity.Status = dto.Status; entity.PrimaryBranchId = dto.PrimaryBranchId; entity.UserId = dto.UserId; entity.UpdatedDate = DateTime.Now;
+            if (dto.Id == 0) { entity.Code = $"EMP-{DateTime.Now:yyyyMMddHHmmssfff}"; _dbContext.Add(entity); }
+            await _dbContext.SaveChangesAsync(); dto.Id = entity.Id; return Result<EmployeeEditDto>.Ok(dto, "Employee saved.");
+        }
+
+        public async Task<Result<bool>> DeactivateAsync(int employeeId) => await SetStatusAsync(employeeId, EmployeeStatus.Inactive);
+
+        public async Task<Result<int>> CreateBranchAsync(string code, string name)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return Result<int>.Fail("Branch name is required.");
+            var branch = new Branch { Code = string.IsNullOrWhiteSpace(code) ? name.Trim().ToUpperInvariant() : code.Trim(), Name = name.Trim(), CreatedDate = DateTime.Now, UpdatedDate = DateTime.Now };
+            _dbContext.Branches.Add(branch); await _dbContext.SaveChangesAsync(); return Result<int>.Ok(branch.Id, "Branch created.");
+        }
+
+        public async Task<Result> SaveBranchAssignmentAsync(EmployeeBranchAssignmentEditDto dto)
+        {
+            var assignment = dto.Id == 0 ? new EmployeeBranchAssignment { EmployeeId = dto.EmployeeId, CreatedDate = DateTime.Now } : await _dbContext.EmployeeBranchAssignments.FindAsync(dto.Id);
+            if (assignment == null) return Result.Fail("Branch assignment was not found.");
+            assignment.EmployeeId = dto.EmployeeId; assignment.BranchId = dto.BranchId; assignment.StartDate = dto.StartDate; assignment.EndDate = dto.EndDate; assignment.IsActive = dto.IsActive; assignment.UpdatedDate = DateTime.Now;
+            if (dto.Id == 0) _dbContext.EmployeeBranchAssignments.Add(assignment); await _dbContext.SaveChangesAsync(); return Result.Ok("Branch assignment saved.");
         }
 
         public async Task<Result<EmployeeCreateDto>> CreateAsync(EmployeeCreateDto dto)

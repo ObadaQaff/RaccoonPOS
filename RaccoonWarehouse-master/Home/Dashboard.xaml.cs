@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore.Storage.Json;
 using Microsoft.Extensions.DependencyInjection;
 using RaccoonWarehouse.Application.Service.Settings;
+using RaccoonWarehouse.Application.Service.Modules;
 using RaccoonWarehouse.Application.Service.Notifications;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Accounting;
@@ -37,6 +38,7 @@ using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Core.Modules;
 using RaccoonWarehouse.Navigation.Modules;
 using RaccoonWarehouse.Domain.Enums;
+using RaccoonWarehouse.Core.Permissions;
 using RaccoonWarehouse.Domain.Notifications;
 using RaccoonWarehouse.Application.Service.Orders;
 using RaccoonWarehouse.Application.Service.Stocks;
@@ -64,6 +66,7 @@ namespace RaccoonWarehouse
         private readonly DashboardModuleRegistry _dashboardModules;
         private readonly DashboardActionRegistry _dashboardActions;
         private readonly IStockService _stockService;
+        private readonly IModuleStateStore _moduleState;
         private bool _expiredLotsAlertShown;
         private bool _isLoadingReports;
         private bool _isOpeningReport;
@@ -91,7 +94,8 @@ namespace RaccoonWarehouse
                 ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<ILoadingService>(),
                 ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<DashboardModuleRegistry>(),
                 ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<DashboardActionRegistry>(),
-                ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<IStockService>())
+                ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<IStockService>(),
+                ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<IModuleStateStore>())
         {
         }
 
@@ -106,7 +110,8 @@ namespace RaccoonWarehouse
             ILoadingService loadingService,
             DashboardModuleRegistry dashboardModules,
             DashboardActionRegistry dashboardActions,
-            IStockService stockService)
+            IStockService stockService,
+            IModuleStateStore moduleState)
         {
 
             InitializeComponent();
@@ -121,6 +126,7 @@ namespace RaccoonWarehouse
             _dashboardModules = dashboardModules;
             _dashboardActions = dashboardActions ?? throw new ArgumentNullException(nameof(dashboardActions));
             _stockService = stockService ?? throw new ArgumentNullException(nameof(stockService));
+            _moduleState = moduleState ?? throw new ArgumentNullException(nameof(moduleState));
             _pendingOrdersTimer.Tick += PendingOrdersTimer_Tick;
             Closed += Dashboard_Closed;
             Loaded += Dashboard_Loaded;
@@ -138,6 +144,8 @@ namespace RaccoonWarehouse
                 AccountingNavButton.Visibility = await _accountingFeatureService.IsEnabledAsync()
                     ? Visibility.Visible
                     : Visibility.Collapsed;
+                await RefreshEmployeesNavigationAsync();
+                await RefreshHrNavigationAsync();
 
                 EmployeeNavButton.Visibility = await _employeeFeatureService.IsEnabledAsync()
                     ? Visibility.Visible
@@ -590,6 +598,9 @@ namespace RaccoonWarehouse
                     or "Products.ProfitReport"
                     or "Products.InactiveReport"
                     or "Stocks.BalancesReport"
+                    or "Stocks.StockMovementsReport"
+                    or "Stocks.StockBalanceByDateReport"
+                    or "Stocks.InventoryMovementSummary"
                     or "Stocks.LowStockReport"
                     or "Stocks.ExpiringStockReport"
                     or "Stocks.MaterialMovementsReport"
@@ -610,6 +621,9 @@ namespace RaccoonWarehouse
                 "Products.ProfitReport" => "product-profit",
                 "Products.InactiveReport" => "inactive-products",
                 "Stocks.BalancesReport" => "stock-balances",
+                "Stocks.StockMovementsReport" => "stock-movements",
+                "Stocks.StockBalanceByDateReport" => "stock-balance-by-date",
+                "Stocks.InventoryMovementSummary" => "inventory-movement-summary",
                 "Stocks.LowStockReport" => "below-min-stock",
                 "Stocks.ExpiringStockReport" => "expiring-stock",
                 "Stocks.MaterialMovementsReport" => "material-movements",
@@ -648,11 +662,17 @@ namespace RaccoonWarehouse
                 : Visibility.Collapsed;
         }
 
-        private async Task RefreshEmployeeNavigationAsync()
+        private async Task RefreshEmployeesNavigationAsync()
         {
-            EmployeeNavButton.Visibility = await _employeeFeatureService.IsEnabledAsync()
+            EmployeeNavButton.Visibility = await _employeeFeatureService.IsEnabledAsync() && _moduleState.IsEnabled(EmployeesDashboardModule.Key)
                 ? Visibility.Visible
                 : Visibility.Collapsed;
+        }
+
+        private Task RefreshHrNavigationAsync()
+        {
+            HrNavButton.Visibility = _moduleState.IsEnabled(HrDashboardModule.Key) && _moduleState.IsEnabled(EmployeesDashboardModule.Key) ? Visibility.Visible : Visibility.Collapsed;
+            return Task.CompletedTask;
         }
 
         private DashboardActionContext CreateDashboardActionContext()
@@ -660,7 +680,9 @@ namespace RaccoonWarehouse
             return new DashboardActionContext
             {
                 OpenReportWindow = OpenReportWindow,
-                RefreshAccountingNavigationAsync = RefreshAccountingNavigationAsync
+                RefreshAccountingNavigationAsync = RefreshAccountingNavigationAsync,
+                RefreshEmployeesNavigationAsync = RefreshEmployeesNavigationAsync
+                ,RefreshHrNavigationAsync = RefreshHrNavigationAsync
             };
         }
 
@@ -785,6 +807,12 @@ namespace RaccoonWarehouse
         private async void POSBtn_Click(object sender, RoutedEventArgs e) =>
             await RunSidebarNavigationAsync(() =>
             {
+                var permissions = ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<IPermissionService>();
+                if (!permissions.HasPermission("Sales.PointOfSale", PermissionLevel.Manage))
+                {
+                    MessageBox.Show(UiText.T("لا تملك صلاحية تشغيل نقطة البيع.", "You do not have permission to use the point of sale."));
+                    return Task.CompletedTask;
+                }
                 WindowManager.Show<RaccoonWarehouse.Invoices.POS>(WindowSizeType.FullScreen);
                 return Task.CompletedTask;
             });
@@ -874,6 +902,9 @@ namespace RaccoonWarehouse
                 WindowManager.Show<EmployeesTable>();
             });
         }
+
+        private async void Hr_Click(object sender, RoutedEventArgs e) =>
+            await RunSidebarNavigationAsync(() => ShowDashboardModuleAsync(HrDashboardModule.Key, DashboardActionButton_Click));
 
         private async void NotificationTest_Click(object sender, RoutedEventArgs e)
         {

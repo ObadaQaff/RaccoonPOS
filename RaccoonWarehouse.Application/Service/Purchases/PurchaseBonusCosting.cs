@@ -23,9 +23,8 @@ public static class PurchaseBonusCosting
 
             if (line.BonusPercentage.HasValue)
             {
-                var normalized = line.BonusPercentage.Value;
-                if (normalized < 0m || normalized > 1000m)
-                    throw new ArgumentException("Bonus percentage must be between 0% and 1000%.");
+                if (!PurchaseBonusPercentage.TryNormalize(line.BonusPercentage.Value, out _))
+                    throw new ArgumentException("Bonus percentage must be nonnegative.");
 
                 // Percentage bonus is cost-only. Do not let a stale legacy free quantity
                 // create additional stock for a percentage-based purchase line.
@@ -80,9 +79,9 @@ public static class PurchaseBonusCosting
         if (!line.BonusPercentage.HasValue || line.Quantity <= 0m)
             return amount;
 
-        var costQuantity = PurchaseBonusPercentage.CalculateCostQuantity(line.Quantity, line.BonusPercentage.Value);
-        return costQuantity > 0m
-            ? Math.Round(amount * line.Quantity / costQuantity, 6, MidpointRounding.AwayFromZero)
-            : amount;
+        return Math.Round(
+            PurchaseBonusPercentage.CalculateEquivalentNetTotal(amount, line.BonusPercentage.Value),
+            6,
+            MidpointRounding.AwayFromZero);
     }
 }

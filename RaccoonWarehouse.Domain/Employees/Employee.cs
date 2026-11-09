@@ -1,7 +1,9 @@
 using RaccoonWarehouse.Domain.Base;
+using RaccoonWarehouse.Domain.Branches;
 using RaccoonWarehouse.Domain.EntityAndDtoStructure;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Users;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace RaccoonWarehouse.Domain.Employees
 {
@@ -22,12 +24,22 @@ namespace RaccoonWarehouse.Domain.Employees
         public string? JobTitle { get; set; }
         public int? DepartmentId { get; set; }
         public int? BranchId { get; set; }
+        public int PrimaryBranchId { get; set; }
+        public Branch? PrimaryBranch { get; set; }
+        public ICollection<EmployeeBranchAssignment> BranchAssignments { get; set; } = new List<EmployeeBranchAssignment>();
+        public ICollection<EmployeeShiftAssignment> ShiftAssignments { get; set; } = new List<EmployeeShiftAssignment>();
         public int? ManagerId { get; set; }
         public Employee? Manager { get; set; }
         public ICollection<Employee> DirectReports { get; set; } = new List<Employee>();
         public RaccoonWarehouse.Domain.Payroll.EmploymentType? EmploymentType { get; set; }
         public string? SocialSecurityNumberEncrypted { get; set; }
         public decimal? BasicSalary { get; set; }
+        [NotMapped]
+        public decimal MonthlyBasicSalary
+        {
+            get => BasicSalary ?? 0m;
+            set => BasicSalary = value;
+        }
         public string? Notes { get; set; }
         public string? Address { get; set; }
         public DateTime? DateOfBirth { get; set; }

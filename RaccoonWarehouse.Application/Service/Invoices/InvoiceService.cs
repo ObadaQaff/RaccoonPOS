@@ -97,7 +97,7 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 if (dto.InvoiceType == InvoiceType.PurchaseReturn
                     && !dto.InvoiceLines.Any(line => line.ProductId > 0 && line.ProductUnitId > 0 && (line.Quantity < 0 || line.FreeQuantity > 0)))
                     return Result<InvoiceWriteDto>.Fail("Purchase return must contain at least one returned quantity.");
-                if (dto.InvoiceType == InvoiceType.Purchase && dto.InvoiceLines.Any(line => line.ExpiryDate == default))
+                if (dto.InvoiceType == InvoiceType.Purchase && !dto.AllowMissingPurchaseExpiry && dto.InvoiceLines.Any(line => line.ExpiryDate == default))
                     return Result<InvoiceWriteDto>.Fail("Expiry date is required for every purchase invoice line.");
                 var partyValidation = ValidateCreditParty(dto);
                 if (partyValidation != null)
@@ -298,7 +298,7 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 if (dto.InvoiceType == InvoiceType.PurchaseReturn
                     && !dto.InvoiceLines.Any(line => line.ProductId > 0 && line.ProductUnitId > 0 && (line.Quantity < 0 || line.FreeQuantity > 0)))
                     return Result<InvoiceWriteDto>.Fail("Purchase return must contain at least one returned quantity.");
-                if (dto.InvoiceType == InvoiceType.Purchase && dto.InvoiceLines.Any(line => line.ExpiryDate == default))
+                if (dto.InvoiceType == InvoiceType.Purchase && !dto.AllowMissingPurchaseExpiry && dto.InvoiceLines.Any(line => line.ExpiryDate == default))
                     return Result<InvoiceWriteDto>.Fail("Expiry date is required for every purchase invoice line.");
                 var partyValidation = ValidateCreditParty(dto);
                 if (partyValidation != null)
@@ -320,6 +320,13 @@ namespace RaccoonWarehouse.Application.Service.Invoices
 
                 if (existingInvoice == null)
                     return Result<InvoiceWriteDto>.Fail("Invoice not found.");
+
+                if (existingInvoice.InvoiceType == InvoiceType.Purchase &&
+                    !PurchaseEditOnlyChangesAreAllowed(dto, existingInvoice))
+                {
+                    return Result<InvoiceWriteDto>.Fail(
+                        "Only the supplier and document date can be changed for an existing purchase invoice. / يمكن تعديل المورد وتاريخ المستند فقط في فاتورة شراء موجودة.");
+                }
 
                 if (string.IsNullOrWhiteSpace(dto.InvoiceNumber))
                     return Result<InvoiceWriteDto>.Fail(dto.InvoiceType == InvoiceType.Purchase
@@ -655,10 +662,11 @@ namespace RaccoonWarehouse.Application.Service.Invoices
 
             if (dto.InvoiceType is InvoiceType.Return or InvoiceType.PurchaseReturn)
             {
+                var originalAllowsSupplierCredit = originalPayments.ContainsKey(PaymentType.Credit)
+                    && dto.InvoiceType == InvoiceType.PurchaseReturn
+                    && dto.SupplierId == original.SupplierId;
                 if (requestedPayments.Any(payment => payment.PaymentType == PaymentType.Credit)
-                    && !(dto.InvoiceType == InvoiceType.PurchaseReturn
-                        && dto.InvoiceLines?.All(x => x.SourcePurchaseLineId.HasValue) == true
-                        && original.PaymentType == PaymentType.Credit))
+                    && !originalAllowsSupplierCredit)
                     return "Credit payment is not allowed for returns.";
 
                 var originalTotal = Math.Abs(original.TotalAmount);
@@ -702,6 +710,76 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 return "The total check amount must equal the invoice total.";
 
             return null;
+        }
+
+        private static bool PurchaseEditOnlyChangesAreAllowed(InvoiceWriteDto dto, Invoice existingInvoice)
+        {
+            if (!string.Equals(dto.InvoiceNumber?.Trim(), existingInvoice.InvoiceNumber?.Trim(), StringComparison.Ordinal))
+                return false;
+
+            if (!string.Equals(dto.FalconInvoiceNumber?.Trim(), existingInvoice.FalconInvoiceNumber?.Trim(), StringComparison.Ordinal))
+                return false;
+
+            if (dto.InvoiceType != existingInvoice.InvoiceType ||
+                dto.PaymentType != existingInvoice.PaymentType ||
+                dto.CostPriceIncludesTax != existingInvoice.CostPriceIncludesTax ||
+                (dto.DiscountAmount ?? 0m) != (existingInvoice.DiscountAmount ?? 0m))
+            {
+                return false;
+            }
+
+            var incomingLines = dto.InvoiceLines?.OrderBy(line => line.Id).ToList() ?? new List<InvoiceLineWriteDto>();
+            var existingLines = existingInvoice.InvoiceLines?.OrderBy(line => line.Id).ToList() ?? new List<InvoiceLine>();
+            if (incomingLines.Count != existingLines.Count)
+                return false;
+
+            for (var index = 0; index < existingLines.Count; index++)
+            {
+                var incoming = incomingLines[index];
+                var existing = existingLines[index];
+                if (incoming.Id != existing.Id ||
+                    incoming.ProductId != existing.ProductId ||
+                    incoming.ProductUnitId != existing.ProductUnitId ||
+                    incoming.Quantity != existing.Quantity ||
+                    incoming.LineDiscountAmount != existing.LineDiscountAmount ||
+                    incoming.FreeQuantity != existing.FreeQuantity ||
+                    !string.Equals(incoming.BonusRatio, existing.BonusRatio, StringComparison.Ordinal) ||
+                    incoming.BonusPercentage != existing.BonusPercentage ||
+                    incoming.PurchaseAcquisitionCost != existing.PurchaseAcquisitionCost ||
+                    incoming.SourcePurchaseLineId != existing.SourcePurchaseLineId ||
+                    incoming.QuantityPerUnitSnapshot != existing.QuantityPerUnitSnapshot ||
+                    incoming.UnitPrice != existing.UnitPrice ||
+                    incoming.ExpiryDate != existing.ExpiryDate ||
+                    incoming.UnitCost != existing.UnitCost ||
+                    incoming.TaxExempt != existing.TaxExempt ||
+                    incoming.TaxRate != existing.TaxRate)
+                {
+                    return false;
+                }
+            }
+
+            var incomingChecks = dto.Checks?.OrderBy(check => check.Id).ToList() ?? new List<Domain.Checks.DTOs.CheckWriteDto>();
+            var existingChecks = existingInvoice.Checks?.OrderBy(check => check.Id).ToList() ?? new List<Check>();
+            if (incomingChecks.Count != existingChecks.Count)
+                return false;
+
+            for (var index = 0; index < existingChecks.Count; index++)
+            {
+                var incoming = incomingChecks[index];
+                var existing = existingChecks[index];
+                if (incoming.Id != existing.Id ||
+                    !string.Equals(incoming.CheckNumber, existing.CheckNumber, StringComparison.Ordinal) ||
+                    !string.Equals(incoming.BankName, existing.BankName, StringComparison.Ordinal) ||
+                    incoming.DueDate != existing.DueDate ||
+                    incoming.Amount != existing.Amount ||
+                    incoming.Status != existing.Status ||
+                    !string.Equals(incoming.Notes, existing.Notes, StringComparison.Ordinal))
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         private async Task NormalizeInvoiceLinesAsync(IEnumerable<InvoiceLineWriteDto> lines)
@@ -1321,6 +1399,7 @@ namespace RaccoonWarehouse.Application.Service.Invoices
 
             // Sales reports must contain only finalized invoices.
             invoicesQ = invoicesQ.Where(x =>
+                x.Status == null ||
                 x.Status == InvoiceStatus.Completed ||
                 x.Status == InvoiceStatus.Posted);
 
