@@ -431,7 +431,6 @@ namespace RaccoonWarehouse
                 await EnsureAppSettingsTableAsync(db);
                 await scope.ServiceProvider.GetRequiredService<IModuleStateStore>().LoadAsync();
                 await EnsureDelegateSchemaAsync(db);
-                await EnsureEmployeeSchemaAsync(db);
                 await EnsureCheckSchemaAsync(db);
                 await EnsureAccountingOperationsSchemaAsync(db);
                 await CurrencySeeder.SeedBaseCurrencyAsync(db);
