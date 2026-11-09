@@ -16,7 +16,7 @@ namespace RaccoonWarehouse.Accounting
         {
             _viewModel = viewModel;
             _loadingService = loadingService;
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
             InitializeComponent();
             UiText.ApplyWindow(this);
             DataContext = _viewModel;

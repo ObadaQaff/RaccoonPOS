@@ -30,7 +30,7 @@ public partial class PurchaseRequestApprovalWindow : Window
         _service = service;
         _purchaseOrderService = purchaseOrderService;
         _loading = loading;
-        RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+        
         InitializeComponent();
         LinesGrid.ItemsSource = _lines;
         UiText.ApplyWindow(this);

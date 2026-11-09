@@ -101,7 +101,7 @@ namespace RaccoonWarehouse.Invoices
             int? supplierId = null)
         {
             _productService = productService; _stockService = stockService; _onSelectProduct = onSelectProduct; _onCreateProduct = onCreateProduct; _supplierId = supplierId;
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
             InitializeComponent(); UiText.ApplyWindow(this); ProductsGrid.ItemsSource = Products;
             SupplierFilter.ItemsSource = SupplierOptions;
             _searchDebounceTimer.Tick += SearchDebounceTimer_Tick;

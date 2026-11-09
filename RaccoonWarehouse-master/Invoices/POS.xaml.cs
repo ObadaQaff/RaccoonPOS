@@ -1,6 +1,9 @@
 #region Usings
 using Microsoft.Extensions.DependencyInjection;
 using RaccoonWarehouse.Application.Service.Cashers;
+using RaccoonWarehouse.Application.Service.CustomerRequests;
+using RaccoonWarehouse.CustomerRequests;
+using RaccoonWarehouse.LostCustomers;
 using RaccoonWarehouse.Application.Service.FinancialTransactions;
 using RaccoonWarehouse.Application.Service.Accounting;
 using RaccoonWarehouse.Application.Service.Invoices;
@@ -181,6 +184,8 @@ namespace RaccoonWarehouse.Invoices
         private readonly IRefundAuthorizationCodeService _refundAuthorizationCodeService;
         private readonly IJordanEInvoiceService _jordanEInvoiceService;
         private readonly IJordanEInvoiceSettingsService _jordanEInvoiceSettingsService;
+        private readonly ICustomerRequestService _customerRequestService;
+        private CustomerRequestSaleDraft? _activeCustomerRequestSale;
         private bool _isProcessingPayment;
         private bool _isHoldingInvoice;
 
@@ -394,7 +399,8 @@ namespace RaccoonWarehouse.Invoices
                    IPosRowColorRuleService rowColorRuleService,
                    IRefundAuthorizationCodeService refundAuthorizationCodeService,
                     IJordanEInvoiceService jordanEInvoiceService,
-                    IJordanEInvoiceSettingsService jordanEInvoiceSettingsService
+                    IJordanEInvoiceSettingsService jordanEInvoiceSettingsService,
+                    ICustomerRequestService customerRequestService
             )
         {
             #region Dependency initialization
@@ -415,8 +421,9 @@ namespace RaccoonWarehouse.Invoices
             _refundAuthorizationCodeService = refundAuthorizationCodeService;
             _jordanEInvoiceService = jordanEInvoiceService;
             _jordanEInvoiceSettingsService = jordanEInvoiceSettingsService;
+            _customerRequestService = customerRequestService;
 
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+            
             InitializeComponent();
             this.DataContext = this;
             UiText.ApplyWindow(this);
@@ -482,6 +489,7 @@ namespace RaccoonWarehouse.Invoices
                     UiText.T("تجهيز ألوان المنتجات", "Preparing product colors"));
                 var catalogLoadTask = WarmProductCatalogInBackgroundAsync();
                 await Task.WhenAll(customerLoadTask, catalogLoadTask);
+                await LoadCustomerRequestSaleAsync(CustomerRequestSaleContext.Take());
                 _loading.UpdateProgress(
                     100,
                     UiText.T("اكتمل تحميل كتالوج المنتجات", "Product catalog loaded"),
@@ -582,6 +590,29 @@ namespace RaccoonWarehouse.Invoices
         {
             try { await OpenPosInsuranceDetailsAsync(); }
             catch (Exception ex) { MessageBox.Show(ex.Message, UiText.T("خطأ", "Error")); }
+        }
+
+        private void CreateCustomerRequestBtn_Click(object sender, RoutedEventArgs e)
+        { var window = _serviceProvider.GetRequiredService<CustomerRequestCreateWindow>(); window.Owner = this; window.ShowDialog(); }
+
+        private void ManageCustomerRequestsBtn_Click(object sender, RoutedEventArgs e)
+        { var window = _serviceProvider.GetRequiredService<CustomerRequestsWindow>(); window.Owner = this; window.ShowDialog(); }
+
+        private void LostCustomerBtn_Click(object sender, RoutedEventArgs e)
+        { var window = _serviceProvider.GetRequiredService<LostCustomerCreateWindow>(); window.Owner = this; window.ShowDialog(); }
+
+        private async Task LoadCustomerRequestSaleAsync(CustomerRequestSaleDraft? draft)
+        {
+            if (draft == null) return;
+            _activeCustomerRequestSale = draft;
+            await LoadCustomersAsync(draft.CustomerId);
+            foreach (var item in draft.Lines)
+            {
+                var productResult = await _productService.GetByIdWithUnitsAsync(item.ProductId);
+                if (productResult.Success && productResult.Data != null)
+                    await AddProductToInvoiceAsync(productResult.Data, false, item.ProductUnitId, item.Quantity, item.UnitPrice);
+            }
+            MessageBox.Show("تم نقل الكميات المتاحة إلى نقطة البيع. أكمل البيع من خلال إجراءات POS المعتادة.", "طلب عميل");
         }
 
         private async Task LoadCustomersAsync(int? selectCustomerId = null)
@@ -6725,7 +6756,7 @@ namespace RaccoonWarehouse.Invoices
             cancel.Click += (_, _) => prompt.DialogResult = false;
             prompt.Loaded += (_, _) => code.Focus();
 
-            var accepted = RaccoonWarehouse.Security.PermissionWindowGuard.ShowDialog(prompt, "POS.View") == true;
+            var accepted = prompt.ShowDialog() == true;
             if (!accepted)
             {
                 MessageBox.Show(
@@ -6958,6 +6989,15 @@ namespace RaccoonWarehouse.Invoices
                     HideLoadingForDialog();
                     MessageBox.Show(checkoutResult.Message ?? UiText.T("فشل حفظ الفاتورة", "Failed to save the invoice."), UiText.T("خطأ", "Error"));
                     return;
+                }
+
+                if (_activeCustomerRequestSale != null)
+                {
+                    var soldQuantities = _activeCustomerRequestSale.Lines
+                        .GroupBy(x => x.RequestLineId)
+                        .ToDictionary(x => x.Key, x => x.Sum(y => y.Quantity));
+                    await _customerRequestService.MarkSoldAsync(_activeCustomerRequestSale.RequestId, soldQuantities);
+                    _activeCustomerRequestSale = null;
                 }
 
                 _lastSavedInvoice = null;

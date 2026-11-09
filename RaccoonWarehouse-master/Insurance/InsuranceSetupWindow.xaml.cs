@@ -1,4 +1,3 @@
-using RaccoonWarehouse.Application.Service.Permissions;
 using RaccoonWarehouse.Application.Service.Insurance;
 using RaccoonWarehouse.Application.Service.Products;
 using RaccoonWarehouse.Application.Service.Stocks;
@@ -15,7 +14,6 @@ namespace RaccoonWarehouse.Insurance;
 
 public partial class InsuranceSetupWindow : Window
 {
-    private readonly IPermissionService _permissions;
     private readonly IInsuranceManagementService _service;
     private readonly ILoadingService _loading;
     private readonly IProductService _productService;
@@ -26,15 +24,14 @@ public partial class InsuranceSetupWindow : Window
     private readonly ObservableCollection<InsuranceMemberPolicyDto> _members = new();
     private readonly ObservableCollection<InsuranceCoverageRuleDto> _rules = new();
 
-    public InsuranceSetupWindow(IInsuranceManagementService service, ILoadingService loading, IProductService productService, IStockService stockService, IUserService userService, IPermissionService permissions)
+    public InsuranceSetupWindow(IInsuranceManagementService service, ILoadingService loading, IProductService productService, IStockService stockService, IUserService userService)
     {
-        _permissions = permissions;
         _service = service;
         _loading = loading;
         _productService = productService;
         _stockService = stockService;
         _userService = userService;
-        RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
         InitializeComponent();
         ContractsGrid.ItemsSource = _contracts;
         PlansGrid.ItemsSource = _plans;
@@ -51,13 +48,13 @@ public partial class InsuranceSetupWindow : Window
         try
         {
             _contracts.Clear(); _members.Clear();
-            if (await _permissions.HasCurrentUserPermissionAsync("InsuranceContracts.View"))
+            if (true)
             {
                 var contracts = await _service.GetContractsAsync();
                 if (contracts.Success) foreach (var row in contracts.Data ?? new()) _contracts.Add(row);
                 else MessageBox.Show(contracts.Message, UiText.T("خطأ", "Error"));
             }
-            if (await _permissions.HasCurrentUserPermissionAsync("InsurancePolicies.View"))
+            if (true)
             {
                 var members = await _service.GetMemberPoliciesAsync();
                 if (members.Success) foreach (var row in members.Data ?? new()) _members.Add(row);

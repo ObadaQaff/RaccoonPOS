@@ -131,8 +131,8 @@ public sealed class GeminiChatAssistantService : IChatAssistantService
     private static ChatMessageDto BuildGreetingResponse(bool isArabic) => new()
     {
         Text = isArabic
-            ? "أهلاً بك! يمكنني مساعدتك في استخدام ROCCOPOS، والبحث في بيانات النظام عند توفر الصلاحية."
-            : "Hello! I can help you use ROCCOPOS and search system data when you have permission."
+            ? "أهلاً بك! يمكنني مساعدتك في استخدام ROCCOPOS، والبحث في بيانات النظام المتاحة لك."
+            : "Hello! I can help you use ROCCOPOS and search the system data available to you."
     };
 
     private static ChatMessageDto BuildUnknownResponse(bool isArabic) => new()

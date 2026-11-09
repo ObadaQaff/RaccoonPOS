@@ -1,4 +1,4 @@
-<Window xmlns:security="clr-namespace:RaccoonWarehouse.Security" x:Class="RaccoonWarehouse.UsersTable"
+<Window x:Class="RaccoonWarehouse.UsersTable"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -38,15 +38,9 @@
                         Background="#1FFFFFFF"
                         VerticalAlignment="Center">
                     <StackPanel>
-                        <TextBlock Text="صلاحية الإنشاء"
+                        <TextBlock Text="إنشاء المستخدم"
                                    FontSize="12"
                                    Foreground="#CFE8E3"
-                                   HorizontalAlignment="Center"/>
-                        <TextBlock x:Name="CreatePermissionText"
-                                   Margin="0,4,0,0"
-                                   FontSize="18"
-                                   FontWeight="Bold"
-                                   Foreground="White"
                                    HorizontalAlignment="Center"/>
                     </StackPanel>
                 </Border>
@@ -150,7 +144,7 @@
                                     Width="150"
                                     Margin="0,0,12,0"
                                     Style="{StaticResource AppSecondaryButtonStyle}"
-                                    Click="ViewStatement_Click" security:PermissionWindowGuard.Keys="PartyStatement.View">
+                                    Click="ViewStatement_Click">
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                     <fa:ImageAwesome Icon="Book" Width="16" Height="16"
                                                      Margin="0,0,8,0"
@@ -163,7 +157,7 @@
                                     Width="150"
                                     Margin="0,0,12,0"
                                     Style="{StaticResource AppHeroButtonStyle}"
-                                    Click="CreateUserBtn_Click" security:PermissionWindowGuard.Keys="Users.Create">
+                                    Click="CreateUserBtn_Click">
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                                     <fa:ImageAwesome Icon="Plus" Width="16" Height="16"
                                                      Margin="0,0,8,0"
@@ -185,11 +179,6 @@
                             </Button>
                         </StackPanel>
                     </Grid>
-
-                    <TextBlock x:Name="AdminHintText"
-                               Margin="2,16,0,0"
-                               FontSize="13"
-                               Foreground="{StaticResource AppMutedTextBrush}"/>
                 </StackPanel>
             </Border>
 
@@ -203,7 +192,7 @@
                           SelectionUnit="FullRow"
                           MouseDoubleClick="UsersTable1_MouseDoubleClick">
                     <DataGrid.Columns>
-                        <DataGridTextColumn Header="المعرف" Binding="{Binding Id}" Width="90"/>
+                        <DataGridTextColumn Header="رقم المستخدم" Binding="{Binding UserNumber}" Width="110"/>
                         <DataGridTextColumn Header="الاسم" Binding="{Binding Name}" Width="2*"/>
                         <DataGridTextColumn Header="الهاتف" Binding="{Binding PhoneNumber}" Width="1.6*"/>
                         <DataGridTextColumn Header="الدور" Binding="{Binding Role}" Width="1.1*"/>
@@ -211,9 +200,9 @@
                     </DataGrid.Columns>
                     <DataGrid.ContextMenu>
                         <ContextMenu>
-                            <MenuItem Style="{StaticResource AppMenuItemStyle}" Header="كشف الحساب" Click="ViewStatement_Click" security:PermissionWindowGuard.Keys="PartyStatement.View"/>
-                            <MenuItem Style="{StaticResource AppMenuItemStyle}" Header="تعديل" Click="Update_User" security:PermissionWindowGuard.Keys="Users.Edit"/>
-                            <MenuItem Style="{StaticResource AppMenuItemStyle}" Header="حذف" Click="Delete_User" security:PermissionWindowGuard.Keys="Users.Delete"/>
+                            <MenuItem Style="{StaticResource AppMenuItemStyle}" Header="كشف الحساب" Click="ViewStatement_Click"/>
+                            <MenuItem Style="{StaticResource AppMenuItemStyle}" Header="تعديل" Click="Update_User"/>
+                            <MenuItem Style="{StaticResource AppMenuItemStyle}" Header="حذف" Click="Delete_User"/>
                         </ContextMenu>
                     </DataGrid.ContextMenu>
                 </DataGrid>

@@ -30,7 +30,7 @@ namespace RaccoonWarehouse.FinancialTransactions.Reports
             SourceDocumentNavigationService sourceDocumentNavigationService,
             IUserService userService)
         {
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
             InitializeComponent();
             _service = service;
             _loadingService = loadingService;

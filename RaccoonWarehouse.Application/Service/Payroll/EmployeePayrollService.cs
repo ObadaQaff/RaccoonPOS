@@ -3,7 +3,6 @@ using System.Text.Json;
 using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using RaccoonWarehouse.Application.Service.Employees;
-using RaccoonWarehouse.Application.Service.Permissions;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Core.Audit;
 using RaccoonWarehouse.Data;
@@ -18,17 +17,15 @@ public sealed class EmployeePayrollService
 {
     private readonly ApplicationDbContext _db;
     private readonly IEmployeeService _employees;
-    private readonly IPermissionService _permissions;
     private readonly IUserSession _session;
     private readonly IPayrollSensitiveDataProtector _protector;
     private readonly PayrollCalculator _calculator;
     private readonly IMapper _mapper;
     private readonly IAuditLogService? _audit;
     private int? Actor=>_session.CurrentUser?.Id;
-    public EmployeePayrollService(ApplicationDbContext db,IEmployeeService employees,IPermissionService permissions,IUserSession session,
+    public EmployeePayrollService(ApplicationDbContext db,IEmployeeService employees,IUserSession session,
         IPayrollSensitiveDataProtector protector,PayrollCalculator calculator,IMapper mapper,IAuditLogService? audit=null)
-        =>(_db,_employees,_permissions,_session,_protector,_calculator,_mapper,_audit)=(db,employees,permissions,session,protector,calculator,mapper,audit);
-    public async Task Require(string key){if(!await _permissions.HasCurrentUserPermissionAsync(key))throw new UnauthorizedAccessException("ليس لديك الصلاحية المطلوبة لهذه العملية.");}
+        =>(_db,_employees,_session,_protector,_calculator,_mapper,_audit)=(db,employees,session,protector,calculator,mapper,audit);
     private async Task<T> Atomic<T>(Func<Task<T>> work)
     {
         await using var transaction=_db.Database.IsRelational()&&_db.Database.CurrentTransaction==null
@@ -36,16 +33,16 @@ public sealed class EmployeePayrollService
         try{var value=await work();await _db.SaveChangesAsync();if(transaction!=null)await transaction.CommitAsync();return value;}
         catch{if(transaction!=null)await transaction.RollbackAsync();_db.ChangeTracker.Clear();throw;}
     }
-    private async Task Audit(string action,string permission,int? id)
-    {if(_audit!=null)await _audit.WriteAsync(new AuditEvent(action,PermissionKey:permission,EntityType:"EmployeePayroll",EntityId:id));}
+    private async Task Audit(string action,int? id)
+    {if(_audit!=null)await _audit.WriteAsync(new AuditEvent(action,EntityType:"EmployeePayroll",EntityId:id));}
     public async Task<List<RaccoonWarehouse.Domain.Branches.Branch>> BranchesAsync()
-    {await Require("Employees.View");return await _db.Set<RaccoonWarehouse.Domain.Branches.Branch>().AsNoTracking().OrderBy(x=>x.Name).ToListAsync();}
+    {return await _db.Set<RaccoonWarehouse.Domain.Branches.Branch>().AsNoTracking().OrderBy(x=>x.Name).ToListAsync();}
     public EmployeeSalaryVersion SalaryTemplate(decimal basic,PayrollPolicy policy)=>new()
     {EffectiveFrom=new DateTime(DateTime.Today.Year,DateTime.Today.Month,1),BasicMonthlySalary=basic,StandardDailyHours=policy.DefaultDailyHours,
         WorkingDaysPerWeek=policy.DefaultWorkingDaysPerWeek,StandardMonthlyHours=policy.DefaultMonthlyHours,HourlyRateMethod=HourlyRateMethod.DailyWage,
         OvertimeMode=OvertimeMode.Manual,NormalOvertimeMultiplier=policy.MinimumNormalMultiplier,HolidayOvertimeMultiplier=policy.MinimumHolidayMultiplier,
         ContributionCategory=policy.Category,ChangeReason="إعداد الراتب الأولي"};
-    public async Task<List<PayrollPolicy>> PoliciesAsync(){await Require("Payroll.View");return await _db.Set<PayrollPolicy>().AsNoTracking().OrderByDescending(x=>x.EffectiveFrom).ToListAsync();}
+    public async Task<List<PayrollPolicy>> PoliciesAsync(){return await _db.Set<PayrollPolicy>().AsNoTracking().OrderByDescending(x=>x.EffectiveFrom).ToListAsync();}
     public async Task<PayrollPolicy> PolicyAsync(string category,DateTime period)
     {
         var end=period.AddMonths(1).AddDays(-1);
@@ -54,7 +51,7 @@ public sealed class EmployeePayrollService
     }
     public async Task<int> AddPolicyAsync(PayrollPolicy policy)
     {
-        await Require("Payroll.Configure");PayrollCalculator.ValidatePolicy(policy);
+PayrollCalculator.ValidatePolicy(policy);
         return await Atomic(async()=>{
             var safeguard=await _db.Set<PayrollPolicy>().AsNoTracking().OrderByDescending(x=>x.Category=="JO-PRIVATE-GENERAL").ThenByDescending(x=>x.EffectiveFrom).FirstOrDefaultAsync();
             if(safeguard==null || policy.LegalDailyHours>safeguard.LegalDailyHours || policy.LegalWeeklyHours>safeguard.LegalWeeklyHours
@@ -64,27 +61,26 @@ public sealed class EmployeePayrollService
             if(policy.EffectiveFrom.Day!=1||policy.EffectiveTo.Date!=new DateTime(policy.EffectiveTo.Year,policy.EffectiveTo.Month,DateTime.DaysInMonth(policy.EffectiveTo.Year,policy.EffectiveTo.Month)))throw new ArgumentException("السياسة تبدأ بأول الشهر وتنتهي بآخر شهر.");
             if(await _db.Set<PayrollPolicy>().AnyAsync(x=>x.Category==policy.Category&&x.EffectiveFrom==policy.EffectiveFrom))throw new ArgumentException("توجد سياسة لهذه الفئة وتاريخ السريان. أضف إصداراً بتاريخ آخر.");
             policy.Id=0;policy.IsLegallyReviewed=false;policy.ReviewedBy=null;policy.CreatedDate=policy.UpdatedDate=DateTime.Now;
-            _db.Add(policy);await _db.SaveChangesAsync();await Audit("Payroll.PolicyCreated","Payroll.Configure",policy.Id);return policy.Id;
+            _db.Add(policy);await _db.SaveChangesAsync();await Audit("Payroll.PolicyCreated", policy.Id);return policy.Id;
         });
     }
     public async Task ReviewPolicyAsync(int id,string reason)
     {
-        await Require("Payroll.Configure");if(string.IsNullOrWhiteSpace(reason))throw new ArgumentException("مرجع وسبب المراجعة القانونية مطلوبان.");
+if(string.IsNullOrWhiteSpace(reason))throw new ArgumentException("مرجع وسبب المراجعة القانونية مطلوبان.");
         await Atomic(async()=>{var policy=await _db.Set<PayrollPolicy>().FirstAsync(x=>x.Id==id);
             if(policy.IsLegallyReviewed)throw new ArgumentException("السياسة مراجعة مسبقاً؛ لا تعدل إصداراً تاريخياً.");
-            policy.IsLegallyReviewed=true;policy.ReviewedBy=Actor;policy.ReviewReason=reason.Trim();policy.UpdatedDate=DateTime.Now;await Audit("Payroll.PolicyReviewed","Payroll.Configure",id);return true;});
+            policy.IsLegallyReviewed=true;policy.ReviewedBy=Actor;policy.ReviewReason=reason.Trim();policy.UpdatedDate=DateTime.Now;await Audit("Payroll.PolicyReviewed", id);return true;});
     }
     public async Task<EmployeeSalaryVersion?> SalaryAsync(int employeeId,DateTime period)
     {
-        await Require("Payroll.View");return await _db.Set<EmployeeSalaryVersion>().AsNoTracking().Where(x=>x.EmployeeId==employeeId&&x.EffectiveFrom<=period)
+return await _db.Set<EmployeeSalaryVersion>().AsNoTracking().Where(x=>x.EmployeeId==employeeId&&x.EffectiveFrom<=period)
             .OrderByDescending(x=>x.EffectiveFrom).FirstOrDefaultAsync();
     }
     public async Task<List<EmployeeSalaryVersion>> SalaryHistoryAsync(int employeeId)
-    {await Require("Payroll.View");return await _db.Set<EmployeeSalaryVersion>().AsNoTracking().Where(x=>x.EmployeeId==employeeId).OrderByDescending(x=>x.EffectiveFrom).ToListAsync();}
+    {return await _db.Set<EmployeeSalaryVersion>().AsNoTracking().Where(x=>x.EmployeeId==employeeId).OrderByDescending(x=>x.EffectiveFrom).ToListAsync();}
     public async Task<int> AddSalaryAsync(EmployeeSalaryVersion salary)
     {
-        await Require("Payroll.Configure");
-        return await Atomic(async()=>{
+return await Atomic(async()=>{
             if(salary.EffectiveFrom.Day!=1)throw new ArgumentException("سريان إعداد الراتب يبدأ بأول الشهر؛ يحسب التعيين أو انتهاء الخدمة داخل الشهر كنسبة مستقلة.");
             if(string.IsNullOrWhiteSpace(salary.ChangeReason))throw new ArgumentException("سبب إصدار إعداد الراتب مطلوب.");
             if(!await _db.Set<Employee>().AnyAsync(x=>x.Id==salary.EmployeeId))throw new ArgumentException("الموظف غير موجود.");
@@ -92,7 +88,7 @@ public sealed class EmployeePayrollService
             if(await _db.Set<EmployeeSalaryVersion>().AnyAsync(x=>x.EmployeeId==salary.EmployeeId&&x.EffectiveFrom==salary.EffectiveFrom))
                 throw new ArgumentException("توجد إعدادات راتب لهذا الموظف وتاريخ السريان؛ أضف إصداراً لشهر جديد دون تغيير التاريخ السابق.");
             salary.Id=0;salary.Employee=null!;salary.ChangedBy=Actor;salary.CreatedDate=salary.UpdatedDate=DateTime.Now;
-            _db.Add(salary);await _db.SaveChangesAsync();await Audit("Payroll.SalaryVersionCreated","Payroll.Configure",salary.EmployeeId);return salary.Id;
+            _db.Add(salary);await _db.SaveChangesAsync();await Audit("Payroll.SalaryVersionCreated", salary.EmployeeId);return salary.Id;
         });
     }
     public async Task<int> SaveProfileAsync(EmployeeCreateDto dto,EmployeeSalaryVersion? salary)
@@ -106,25 +102,23 @@ public sealed class EmployeePayrollService
     }
     public async Task<string?> RevealSocialSecurityNumberAsync(int employeeId)
     {
-        await Require("Employees.SensitiveView");var value=await _db.Set<Employee>().Where(x=>x.Id==employeeId).Select(x=>x.SocialSecurityNumberEncrypted).FirstOrDefaultAsync();
-        await Audit("Employee.SensitiveNumberViewed","Employees.SensitiveView",employeeId);return value==null?null:_protector.Unprotect(value);
+var value=await _db.Set<Employee>().Where(x=>x.Id==employeeId).Select(x=>x.SocialSecurityNumberEncrypted).FirstOrDefaultAsync();
+        await Audit("Employee.SensitiveNumberViewed", employeeId);return value==null?null:_protector.Unprotect(value);
     }
     public async Task<List<EmployeeReadDto>> EligibleAsync(int year,int month)
     {
-        await Require("Payroll.View");var start=new DateTime(year,month,1);var end=start.AddMonths(1).AddDays(-1);
+var start=new DateTime(year,month,1);var end=start.AddMonths(1).AddDays(-1);
         var result=await _employees.GetListAsync();if(!result.Success)throw new ArgumentException(result.Message);
         return result.Data.Where(x=>(x.Status==EmployeeStatus.Active || (x.Status==EmployeeStatus.Terminated&&x.TerminationDate>=start))
             &&(!x.HireDate.HasValue||x.HireDate<=end)&&(!x.TerminationDate.HasValue||x.TerminationDate>=start)).ToList();
     }
     public async Task<(Employee Employee,EmployeeSalaryVersion Salary,PayrollPolicy Policy,PayrollCalculation Result)> PreviewAsync(int employeeId,int year,int month,PayrollInputs input)
     {
-        await Require("Payroll.View");var period=new DateTime(year,month,1);
+var period=new DateTime(year,month,1);
         var employee=await _db.Set<Employee>().FirstOrDefaultAsync(x=>x.Id==employeeId)??throw new ArgumentException("الموظف غير موجود.");
         var salary=await SalaryAsync(employeeId,period)??throw new ArgumentException("يلزم إعداد راتب مؤرخ لهذا الموظف قبل احتساب الرواتب.");
         var policy=await PolicyAsync(salary.ContributionCategory,period);
-        if(input.NormalOvertimeOverride.HasValue||input.InsurableWageOverride.HasValue||input.Adjustments.Any(x=>x.Kind is PayrollAdjustmentKind.Deduction or PayrollAdjustmentKind.StatutoryDeduction))
-            await Require("Payroll.Adjust");
-        var result=_calculator.Calculate(employee,salary,policy,year,month,input);
+var result=_calculator.Calculate(employee,salary,policy,year,month,input);
         result.EmployeeName=employee.FullName;result.EmployeeCode=employee.Code;
         result.PolicySourceReference=policy.SourceReference;result.InsurableWageCeiling=policy.InsurableWageCeiling;
         result.NormalMultiplier=salary.NormalOvertimeMultiplier;result.HolidayMultiplier=salary.HolidayOvertimeMultiplier;
@@ -133,7 +127,7 @@ public sealed class EmployeePayrollService
     }
     public async Task<List<PayrollRecord>> RecordsAsync(int year,int month,int? employeeId=null)
     {
-        await Require("Payroll.View");var rows=await _db.Set<EmployeePayroll>().IgnoreQueryFilters().AsNoTracking().Include(x=>x.Employee)
+var rows=await _db.Set<EmployeePayroll>().IgnoreQueryFilters().AsNoTracking().Include(x=>x.Employee)
             .Where(x=>x.Year==year&&x.Month==month&&(!employeeId.HasValue||x.EmployeeId==employeeId)).ToListAsync();
         return rows.Select(ToRecord).ToList();
     }
@@ -145,7 +139,7 @@ public sealed class EmployeePayrollService
     }
     public async Task<PayrollRecord> SaveDraftAsync(int employeeId,int year,int month,PayrollInputs input,int id=0,Guid? revision=null)
     {
-        await Require("Payroll.Calculate");return await Atomic(async()=>{
+return await Atomic(async()=>{
             var preview=await PreviewAsync(employeeId,year,month,input);
             EmployeePayroll row;
             if(id==0)
@@ -164,12 +158,12 @@ public sealed class EmployeePayrollService
             row.InputsJson=JsonSerializer.Serialize(input);row.SnapshotJson=JsonSerializer.Serialize(preview.Result);
             row.Revision=Guid.NewGuid();row.ModifiedBy=Actor;row.UpdatedDate=DateTime.Now;
             foreach(var x in input.Adjustments.Where(x=>x.Amount!=0m))row.Adjustments.Add(new PayrollAdjustment {Kind=x.Kind,Amount=x.Amount,DeductionBasis=x.DeductionBasis,Reason=x.Reason,LegalReference=x.LegalReference,Notes=x.Notes,AuthorizedBy=Actor,CreatedDate=DateTime.Now,UpdatedDate=DateTime.Now});
-            await _db.SaveChangesAsync();await Audit("Payroll.DraftSaved","Payroll.Calculate",row.Id);return ToRecord(row);
+            await _db.SaveChangesAsync();await Audit("Payroll.DraftSaved", row.Id);return ToRecord(row);
         });
     }
     public async Task ApproveAsync(int id,Guid revision)
     {
-        await Require("Payroll.Approve");await Atomic(async()=>{
+await Atomic(async()=>{
             var row=await _db.Set<EmployeePayroll>().Include(x=>x.Policy).FirstAsync(x=>x.Id==id);
             if(row.State!=PayrollState.Draft||row.Revision!=revision)throw new ArgumentException("الكشف ليس مسودة حالية؛ أعد تحميله.");
             var input=JsonSerializer.Deserialize<PayrollInputs>(row.InputsJson)!;
@@ -181,12 +175,12 @@ public sealed class EmployeePayrollService
             if(preview.Salary.SocialSecurityCovered&&(!input.InsurableWageReviewed||string.IsNullOrWhiteSpace(preview.Employee.SocialSecurityNumberEncrypted)))
                 throw new ArgumentException("راجع الأجر الخاضع للضمان وأكمل رقم الضمان المشفر قبل الاعتماد.");
             row.State=PayrollState.Approved;row.ApprovedAt=DateTime.Now;row.ApprovedBy=Actor;row.Revision=Guid.NewGuid();row.UpdatedDate=DateTime.Now;
-            await Audit("Payroll.Approved","Payroll.Approve",id);return true;
+            await Audit("Payroll.Approved", id);return true;
         });
     }
     public async Task CorrectAsync(int id,Guid revision,string reason)
     {
-        await Require("Payroll.Correct");if(string.IsNullOrWhiteSpace(reason))throw new ArgumentException("سبب تصحيح الكشف المعتمد مطلوب.");
+if(string.IsNullOrWhiteSpace(reason))throw new ArgumentException("سبب تصحيح الكشف المعتمد مطلوب.");
         await Atomic(async()=>{
             var row=await _db.Set<EmployeePayroll>().Include(x=>x.Adjustments).FirstAsync(x=>x.Id==id);
             if(row.State!=PayrollState.Approved||row.Revision!=revision)throw new ArgumentException("الكشف ليس نسخة معتمدة حالية.");
@@ -195,9 +189,9 @@ public sealed class EmployeePayrollService
                 Reason=reason.Trim(),CorrectedBy=Actor,CreatedDate=DateTime.Now,UpdatedDate=DateTime.Now});
             var draftInputs=JsonSerializer.Deserialize<PayrollInputs>(row.InputsJson)!;draftInputs.AssumptionsReviewed=false;draftInputs.InsurableWageReviewed=false;row.InputsJson=JsonSerializer.Serialize(draftInputs);
             row.State=PayrollState.Draft;row.ApprovedAt=null;row.ApprovedBy=null;row.ModifiedBy=Actor;row.Revision=Guid.NewGuid();row.UpdatedDate=DateTime.Now;
-            await Audit("Payroll.CorrectionOpened","Payroll.Correct",id);return true;
+            await Audit("Payroll.CorrectionOpened", id);return true;
         });
     }
-    public async Task<List<PayrollCorrection>> CorrectionsAsync(int id){await Require("Payroll.View");return await _db.Set<PayrollCorrection>().AsNoTracking().Where(x=>x.EmployeePayrollId==id).OrderByDescending(x=>x.CreatedDate).ToListAsync();}
-    public async Task<List<EmployeeEmploymentHistory>> EmploymentHistoryAsync(int id){await Require("Employees.View");return await _db.Set<EmployeeEmploymentHistory>().AsNoTracking().Where(x=>x.EmployeeId==id).OrderByDescending(x=>x.CreatedDate).ToListAsync();}
+    public async Task<List<PayrollCorrection>> CorrectionsAsync(int id){return await _db.Set<PayrollCorrection>().AsNoTracking().Where(x=>x.EmployeePayrollId==id).OrderByDescending(x=>x.CreatedDate).ToListAsync();}
+    public async Task<List<EmployeeEmploymentHistory>> EmploymentHistoryAsync(int id){return await _db.Set<EmployeeEmploymentHistory>().AsNoTracking().Where(x=>x.EmployeeId==id).OrderByDescending(x=>x.CreatedDate).ToListAsync();}
 }

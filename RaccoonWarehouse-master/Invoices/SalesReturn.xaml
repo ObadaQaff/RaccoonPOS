@@ -1,4 +1,4 @@
-﻿<Window xmlns:security="clr-namespace:RaccoonWarehouse.Security" x:Class="RaccoonWarehouse.Invoices.SalesReturn"
+<Window x:Class="RaccoonWarehouse.Invoices.SalesReturn"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:fa="http://schemas.fontawesome.io/icons/"
@@ -132,7 +132,7 @@
                     <Button x:Name="SaveReturnBtn"
                             Style="{StaticResource PrimaryButtonStyle}"
                             Width="200"
-                            Click="SaveReturnBtn_Click" security:PermissionWindowGuard.Keys="SalesInvoice.Create|SalesInvoice.Edit">
+                            Click="SaveReturnBtn_Click">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                             <fa:ImageAwesome Icon="Undo" Width="18" Height="18"
                                              Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>

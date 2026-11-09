@@ -1,5 +1,4 @@
 using AutoMapper;
-using RaccoonWarehouse.Application.Service.Permissions;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Domain.Enums;
@@ -16,7 +15,6 @@ namespace RaccoonWarehouse
         private UserWriteDto _user;
         private readonly IUserService _userService;
         private readonly IUserSession _userSession;
-        private readonly IPermissionService _permissionService;
         private readonly ILoadingService _loadingService;
 
         public int UserId { get; private set; }
@@ -25,15 +23,13 @@ namespace RaccoonWarehouse
             IUserService userService,
             IMapper mapper,
             IUserSession userSession,
-            IPermissionService permissionService,
             ILoadingService loadingService)
         {
             _userService = userService;
             _userSession = userSession;
-            _permissionService = permissionService;
             _loadingService = loadingService;
 
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
             InitializeComponent();
             UiText.ApplyWindow(this);
             _user = new UserWriteDto();
@@ -80,14 +76,6 @@ namespace RaccoonWarehouse
                 CreditStatus.SelectedItem = _user.CreditStatus;
                 Role.ItemsSource = Enum.GetValues(typeof(UserRole));
                 Role.SelectedItem = _user.Role;
-
-                var currentUser = _userSession.CurrentUser;
-                var canEditUserPermission = currentUser?.Role == UserRole.Admin;
-                CanApprovePurchaseOrders.IsEnabled = canEditUserPermission &&
-                    (_user.Role == UserRole.Admin || _user.Role == UserRole.Casher);
-                var explicitPermission = await _permissionService.GetUserPermissionAsync(
-                    userId, "PurchaseOrder.Approve");
-                CanApprovePurchaseOrders.IsChecked = explicitPermission ?? false;
             }
             finally
             {
@@ -99,15 +87,7 @@ namespace RaccoonWarehouse
         {
             _loadingService.Show();
             try
-            {
-                var currentRole = _userSession.CurrentUser?.Role;
-                if (!currentRole.HasValue || !await _permissionService.HasPermissionAsync(currentRole.Value, "Users.Edit"))
-                {
-                    MessageBox.Show(UiText.T("You do not have permission to edit users.", "You do not have permission to edit users."));
-                    return;
-                }
-
-                if (string.IsNullOrWhiteSpace(FullName.Text) || string.IsNullOrWhiteSpace(Password.Text))
+            {if (string.IsNullOrWhiteSpace(FullName.Text) || string.IsNullOrWhiteSpace(Password.Text))
                 {
                     MessageBox.Show(UiText.T("Please fill in at least the name and password.", "Please fill in at least the name and password."));
                     return;
@@ -149,20 +129,6 @@ namespace RaccoonWarehouse
                     _loadingService.Hide();
                     MessageBox.Show(result.Message);
                     return;
-                }
-
-                if (CanApprovePurchaseOrders.IsEnabled &&
-                    (_user.Role == UserRole.Admin || _user.Role == UserRole.Casher))
-                {
-                    var permissionResult = await _permissionService.SaveUserPermissionAsync(
-                        UserId,
-                        "PurchaseOrder.Approve",
-                        CanApprovePurchaseOrders.IsChecked == true);
-                    if (!permissionResult.Success)
-                    {
-                        MessageBox.Show(permissionResult.Message);
-                        return;
-                    }
                 }
 
                 _loadingService.Hide();

@@ -26,6 +26,8 @@ namespace RaccoonWarehouse.Settings
             new("sales-report", "تقرير المبيعات", "Sales report", "التقارير المالية", "Financial reports"),
             new("product-sales-average", "متوسط مبيعات الأصناف", "Product Sales Average", "الأصناف والمخزون", "Inventory"),
             new("purchase-report", "تقرير المشتريات", "Purchase report", "التقارير المالية", "Financial reports"),
+            new("customer-requests-report", "تقرير طلبات العملاء", "Customer Requests", "متنوعة", "Miscellaneous"),
+            new("lost-customers-report", "تقرير العملاء المفقودين", "Lost Customers Report", "متنوعة", "Miscellaneous"),
             new("invoices-profit", "تحليل ربحية الفواتير", "Invoice profitability", "التقارير المالية", "Financial reports"),
             new("product-profit", "أرباح الأصناف", "Product profit", "التقارير المالية", "Financial reports"),
             new("cash-flow", "التحصيل والدفع", "Cash flow", "التقارير المالية", "Financial reports"),

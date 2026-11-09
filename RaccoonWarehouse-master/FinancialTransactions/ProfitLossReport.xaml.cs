@@ -12,7 +12,7 @@ namespace RaccoonWarehouse.FinancialTransactions
 
         public ProfitLossReport(IFinancialTransactionService service)
         {
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
             InitializeComponent();
             _service = service;
 

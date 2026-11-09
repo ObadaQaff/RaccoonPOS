@@ -68,7 +68,6 @@ public sealed class PandaOrderSyncService : IPandaOrderSyncService
 
     private async Task ProcessEventAsync(Guid eventId, CancellationToken cancellationToken)
     {
-        using var authorizedWorker = RaccoonWarehouse.Application.Service.Permissions.ApplicationPermissionBoundary.EnterSystemWorkflow();
         try
         {
             using var response = await _httpClient.GetAsync($"api/integration/orders/{eventId}", cancellationToken);

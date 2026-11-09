@@ -1,6 +1,5 @@
 using RaccoonWarehouse.Application.Service.Accounting;
 using RaccoonWarehouse.Application.Service.Invoices;
-using RaccoonWarehouse.Application.Service.Permissions;
 using RaccoonWarehouse.Application.Service.Products;
 using RaccoonWarehouse.Application.Service.Stocks;
 using RaccoonWarehouse.Application.Service.Users;
@@ -20,7 +19,6 @@ public sealed class ChatAssistantDataService : IChatAssistantDataService
     private readonly IUserService _users;
     private readonly IInvoiceService _invoices;
     private readonly UserStatementService _statements;
-    private readonly IPermissionService _permissions;
     private readonly IUserSession _userSession;
 
     public ChatAssistantDataService(
@@ -29,7 +27,6 @@ public sealed class ChatAssistantDataService : IChatAssistantDataService
         IUserService users,
         IInvoiceService invoices,
         UserStatementService statements,
-        IPermissionService permissions,
         IUserSession userSession)
     {
         _products = products;
@@ -37,7 +34,6 @@ public sealed class ChatAssistantDataService : IChatAssistantDataService
         _users = users;
         _invoices = invoices;
         _statements = statements;
-        _permissions = permissions;
         _userSession = userSession;
     }
 
@@ -58,9 +54,7 @@ public sealed class ChatAssistantDataService : IChatAssistantDataService
     {
         var role = _userSession.CurrentRole ?? UserRole.Customer;
         var isOwnBalance = role == UserRole.Customer;
-        if (!isOwnBalance && !await _permissions.HasPermissionAsync(role, "Customers.List")) return null;
-
-        var userId = _userSession.CurrentUserId;
+var userId = _userSession.CurrentUserId;
         if (!isOwnBalance)
         {
             var name = ExtractSearchTerm(question);
@@ -81,9 +75,7 @@ public sealed class ChatAssistantDataService : IChatAssistantDataService
     {
         var role = _userSession.CurrentRole ?? UserRole.Customer;
         var isOwn = role == UserRole.Customer;
-        if (!isOwn && !await _permissions.HasPermissionAsync(role, "Invoices.Sales")) return null;
-
-        var term = ExtractSearchTerm(question);
+var term = ExtractSearchTerm(question);
         var invoiceNumber = term.All(char.IsDigit) ? term : null;
         var customerName = isOwn ? _userSession.CurrentUser?.Name : invoiceNumber == null ? term : null;
         var result = await _invoices.SearchSalesInvoicesAsync(invoiceNumber, customerName, null, null, true, null, null);
@@ -103,8 +95,7 @@ public sealed class ChatAssistantDataService : IChatAssistantDataService
     private async Task<ChatAssistantDataResultDto?> FindSalesSummaryAsync(string question, CancellationToken cancellationToken)
     {
         var role = _userSession.CurrentRole ?? UserRole.Customer;
-        if (!await _permissions.HasPermissionAsync(role, "Reports.Sales")) return null;
-        var (from, to) = GetDateRange(question);
+var (from, to) = GetDateRange(question);
         var result = await _invoices.GetSalesReportAsync(new FinancialSummaryFilterDto { From = from, To = to, IncludeReturns = true });
         if (!result.Success) return Empty("sales summary", question, "sales-report", "Open sales report", "فتح تقرير المبيعات");
         var data = new { From = from, To = to, result.Data.summary, InvoiceCount = result.Data.rows.Count };
@@ -114,8 +105,7 @@ public sealed class ChatAssistantDataService : IChatAssistantDataService
     private async Task<ChatAssistantDataResultDto?> FindProductsAsync(string question, CancellationToken cancellationToken)
     {
         var role = _userSession.CurrentRole ?? UserRole.Customer;
-        if (!await _permissions.HasPermissionAsync(role, "Products.List")) return null;
-        var result = await _products.GetAllAsync();
+var result = await _products.GetAllAsync();
         var search = ExtractSearchTerm(question);
         var products = result.Data?.Where(x => !x.IsDeleted && (string.IsNullOrWhiteSpace(search) ||
                 (x.Name?.Contains(search, StringComparison.OrdinalIgnoreCase) ?? false) ||
@@ -127,8 +117,7 @@ public sealed class ChatAssistantDataService : IChatAssistantDataService
     private async Task<ChatAssistantDataResultDto?> FindStockAsync(string question, CancellationToken cancellationToken)
     {
         var role = _userSession.CurrentRole ?? UserRole.Customer;
-        if (!await _permissions.HasPermissionAsync(role, "current-stock")) return null;
-        var search = ExtractSearchTerm(question);
+var search = ExtractSearchTerm(question);
         var rows = await _stockReports.GetCurrentStockAsync(string.IsNullOrWhiteSpace(search) ? null : search);
         var stock = rows.Take(25).Select(x => new { x.ProductId, x.ProductName, x.ITEMCODE, x.UnitName, x.Quantity, x.MinimumQuantity, x.SalePrice, x.IsLowStock, x.NearestExpiryDate }).Cast<object>().ToList();
         return Result("stock", search, stock, "current-stock", "Open current stock", "فتح المخزون الحالي");

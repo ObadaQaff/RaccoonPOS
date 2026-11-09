@@ -1,7 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
-using RaccoonWarehouse.Application.Service.Permissions;
 using RaccoonWarehouse.Domain.Employees.DTOs;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Users.DTOs;
@@ -14,7 +13,6 @@ namespace RaccoonWarehouse.Employees;
 
 public sealed class EmployeeProfileSummaryWindow : Window
 {
-    private readonly IPermissionService _permissions;
     private readonly TextBlock _identity = new();
     private readonly TextBlock _employment = new();
     private readonly TextBlock _payroll = new();
@@ -27,10 +25,8 @@ public sealed class EmployeeProfileSummaryWindow : Window
     private UserReadDto? _user;
     private EmployeeReadDto? _employee;
 
-    public EmployeeProfileSummaryWindow(IPermissionService permissions)
+    public EmployeeProfileSummaryWindow()
     {
-        _permissions = permissions;
-        RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
         UiText.ApplyWindow(this);
         Title = UiText.T("ملخص ملف الموظف", "Employee profile summary");
         Width = 1050;
@@ -66,11 +62,11 @@ public sealed class EmployeeProfileSummaryWindow : Window
         cards.Children.Add(Card(UiText.T("بيانات المستخدم", "User information"), _identity));
         cards.Children.Add(Card(UiText.T("بيانات الموظف", "Employee information"), _employment));
         cards.Children.Add(Card(UiText.T("ملخص الرواتب", "Payroll summary"), _payroll));
-        cards.Children.Add(Card(UiText.T("الحالة والصلاحيات", "Status and permissions"), _status));
+        cards.Children.Add(Card(UiText.T("الحالة", "Status"), _status));
         root.Children.Add(cards);
 
         Content = root;
-        Loaded += async (_, _) => await RefreshPermissionsAsync();
+        Loaded += (_, _) => Render();
     }
 
     public void Initialize(UserReadDto user, EmployeeReadDto? employee)
@@ -119,28 +115,18 @@ public sealed class EmployeeProfileSummaryWindow : Window
 
         _payroll.Text = _employee?.BasicSalary.HasValue == true
             ? $"{UiText.T("الراتب الأساسي", "Basic salary")}: {_employee.BasicSalary:0.000}"
-            : UiText.T("بيانات الراتب تظهر حسب صلاحية الرواتب.", "Payroll details depend on payroll permissions.");
+            : UiText.T("بيانات الراتب متاحة في ملف الموظف.", "Payroll details are available in the employee profile.");
         _status.Text = string.Join(Environment.NewLine,
             $"{UiText.T("حالة الملف", "Profile")}: {_employee?.Status.ToString() ?? UiText.T("غير منشأ", "Missing")}",
             $"{UiText.T("نوع المستخدم", "Account role")}: {_user.Role}");
     }
 
-    private async Task RefreshPermissionsAsync()
-    {
-        _editUserButton.Visibility = await HasPermissionAsync("Users.Edit") ? Visibility.Visible : Visibility.Collapsed;
-        _employeeProfileButton.Visibility = _employee != null && await HasPermissionAsync("Employees.View") ? Visibility.Visible : Visibility.Collapsed;
-        _payrollButton.Visibility = await HasPermissionAsync("Payroll.View") ? Visibility.Visible : Visibility.Collapsed;
-        _policyButton.Visibility = await HasPermissionAsync("Payroll.Configure") ? Visibility.Visible : Visibility.Collapsed;
-        _cashierSalesButton.Visibility = _user?.Role is UserRole.Admin or UserRole.Casher && await HasPermissionAsync("Reports.ShiftSummary")
-            ? Visibility.Visible
-            : Visibility.Collapsed;
-    }
 
-    private async Task<bool> HasPermissionAsync(string key) => await _permissions.HasCurrentUserPermissionAsync(key);
+    
 
     private async Task OpenUserAsync()
     {
-        await RequireAsync("Users.Edit");
+        
         if (_user == null)
             return;
         WindowManager.ShowDialog<UpdateUser>(WindowSizeType.SmallSquare, window => window.Initialize(_user.Id));
@@ -148,7 +134,7 @@ public sealed class EmployeeProfileSummaryWindow : Window
 
     private async Task OpenEmployeeProfileAsync()
     {
-        await RequireAsync("Employees.View");
+        
         if (_employee == null)
             return;
         WindowManager.ShowDialog<EmployeeDetails>(WindowSizeType.LargeRectangle, window => window.Initialize(_employee.Id));
@@ -156,27 +142,22 @@ public sealed class EmployeeProfileSummaryWindow : Window
 
     private async Task OpenPayrollAsync()
     {
-        await RequireAsync("Payroll.View");
+        
         WindowManager.ShowDialog<PayrollMonthWindow>(WindowSizeType.LargeRectangle);
     }
 
     private async Task OpenPoliciesAsync()
     {
-        await RequireAsync("Payroll.Configure");
+        
         WindowManager.ShowDialog<PayrollPolicyWindow>(WindowSizeType.LargeRectangle);
     }
 
     private async Task OpenCashierSalesAsync()
     {
-        await RequireAsync("Reports.ShiftSummary");
+        
         if (_user == null || _user.Role is not (UserRole.Admin or UserRole.Casher))
             return;
         WindowManager.Show<DailySalesReport>(WindowSizeType.LargeRectangle, window => window.InitializeForCashier(_user.Id));
     }
 
-    private async Task RequireAsync(string key)
-    {
-        if (!await HasPermissionAsync(key))
-            throw new UnauthorizedAccessException(UiText.T("ليس لديك الصلاحية المطلوبة.", "You do not have the required permission."));
-    }
 }

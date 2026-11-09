@@ -23,7 +23,7 @@ namespace RaccoonWarehouse.FinancialTransactions.Reports
 
         public InvoicePaymentMethodsReport(IInvoiceService invoiceService, ILoadingService loadingService, SourceDocumentNavigationService sourceDocumentNavigationService)
         {
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
             InitializeComponent();
             _invoiceService = invoiceService;
             _loadingService = loadingService;

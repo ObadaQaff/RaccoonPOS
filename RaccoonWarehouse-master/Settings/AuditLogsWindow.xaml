@@ -35,10 +35,10 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,12,6" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource AppMutedTextBrush}" Text="Search action, entity, permission, or error" />
+                <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,12,6" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource AppMutedTextBrush}" Text="Search action, entity, or error" />
                 <TextBlock Grid.Row="0" Grid.Column="1" Margin="0,0,12,6" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource AppMutedTextBrush}" Text="Employee ID" />
                 <TextBlock Grid.Row="0" Grid.Column="2" Margin="0,0,12,6" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource AppMutedTextBrush}" Text="Result" />
-                <TextBox x:Name="SearchBox" Grid.Row="1" Grid.Column="0" Margin="0,0,12,0" Height="46" Padding="12,8" FontSize="15" ToolTip="Search action, entity, permission, or error" />
+                <TextBox x:Name="SearchBox" Grid.Row="1" Grid.Column="0" Margin="0,0,12,0" Height="46" Padding="12,8" FontSize="15" ToolTip="Search action, entity, or error" />
                 <TextBox x:Name="UserIdBox" Grid.Row="1" Grid.Column="1" Margin="0,0,12,0" Height="46" Padding="12,8" FontSize="15" ToolTip="Employee ID" />
                 <ComboBox x:Name="ResultFilterBox" Grid.Row="1" Grid.Column="2" Margin="0,0,12,0" Height="46" FontSize="15" SelectedIndex="0">
                     <ComboBoxItem Content="All results" Tag="" />
@@ -58,7 +58,6 @@
                     <DataGridTextColumn Header="User ID" Binding="{Binding UserId}" Width="80" />
                     <DataGridTextColumn Header="Role" Binding="{Binding Role}" Width="100" />
                     <DataGridTextColumn Header="Action" Binding="{Binding Action}" Width="1.3*" />
-                    <DataGridTextColumn Header="Permission" Binding="{Binding PermissionKey}" Width="1.6*" />
                     <DataGridTextColumn Header="Entity" Binding="{Binding EntityType}" Width="1.2*" />
                     <DataGridTextColumn Header="Result" Binding="{Binding Succeeded}" Width="90" />
                     <DataGridTextColumn Header="Error" Binding="{Binding ErrorMessage}" Width="2*" />

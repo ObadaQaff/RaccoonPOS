@@ -9,7 +9,6 @@ namespace RaccoonWarehouse.Domain.Audit
         public UserRole? Role { get; set; }
         public Guid SessionId { get; set; }
         public string Action { get; set; } = string.Empty;
-        public string? PermissionKey { get; set; }
         public string? EntityType { get; set; }
         public int? EntityId { get; set; }
         public bool Succeeded { get; set; }

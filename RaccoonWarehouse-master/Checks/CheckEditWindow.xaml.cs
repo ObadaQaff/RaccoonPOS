@@ -12,7 +12,7 @@ namespace RaccoonWarehouse.Invoices
 
         public CheckEditWindow(CheckWriteDto check)
         {
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
             InitializeComponent();
             _check = check;
             Loaded += CheckEditWindow_Loaded;

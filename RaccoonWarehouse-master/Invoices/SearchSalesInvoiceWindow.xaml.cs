@@ -38,7 +38,7 @@ namespace RaccoonWarehouse.Invoices
             IStockService stockService,
             IUserService userService)
         {
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
             InitializeComponent();
             UiText.ApplyWindow(this);
             _invoiceService = invoiceService;

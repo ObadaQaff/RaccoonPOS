@@ -13,13 +13,8 @@ public sealed class PayrollMonthWindow : Window
     private readonly DataGrid _grid=new(){AutoGenerateColumns=false,IsReadOnly=true,CanUserAddRows=false};
     private readonly TextBlock _message=new(){TextWrapping=TextWrapping.Wrap,Margin=new Thickness(8)};
     private sealed record Row(int EmployeeId,string EmployeeName,string State,decimal? EmployeeSsc,decimal? EmployerSsc,decimal? NetSalary,decimal? EmployerCost,PayrollRecord? Record);
-    public PayrollMonthWindow(EmployeePayrollService service) : this(service, null, true)
+    public PayrollMonthWindow(EmployeePayrollService service,Func<int,int,int,Task>? openEmployee = null)
     {
-    }
-
-    internal PayrollMonthWindow(EmployeePayrollService service,Func<int,int,int,Task>? openEmployee,bool enforcePermission)
-    {
-        if(enforcePermission)RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
         _service=service;_openEmployee=openEmployee;Title="الرواتب الشهرية — مسودات وكشوف معتمدة";Width=1180;Height=740;MinWidth=850;MinHeight=500;FlowDirection=FlowDirection.RightToLeft;WindowStartupLocation=WindowStartupLocation.CenterScreen;
         var root=new DockPanel{Margin=new Thickness(22)};var top=PayrollUi.Fields();top.Children.Add(new TextBlock{Text=Title,FontSize=24,FontWeight=FontWeights.Bold});PayrollUi.Field(top,"شهر وسنة الرواتب",_period);
         var tools=new WrapPanel();tools.Children.Add(PayrollUi.AsyncButton("تحميل الموظفين والكشوف",LoadAsync));tools.Children.Add(PayrollUi.AsyncButton("إنشاء المسودات الناقصة",GenerateAsync));tools.Children.Add(PayrollUi.AsyncButton("فتح تبويبات الموظف والراتب",OpenAsync));tools.Children.Add(PayrollUi.Button("عرض النسخة المحفوظة",ShowSnapshot));top.Children.Add(tools);top.Children.Add(_message);DockPanel.SetDock(top,Dock.Top);root.Children.Add(top);
@@ -37,7 +32,7 @@ public sealed class PayrollMonthWindow : Window
     }
     private async Task GenerateAsync()
     {
-        await _service.Require("Payroll.Calculate");var(y,m)=Period();var employees=await _service.EligibleAsync(y,m);var existing=await _service.RecordsAsync(y,m);var errors=new List<string>();int created=0;
+        var(y,m)=Period();var employees=await _service.EligibleAsync(y,m);var existing=await _service.RecordsAsync(y,m);var errors=new List<string>();int created=0;
         foreach(var employee in employees.Where(x=>existing.All(r=>r.Calculation.EmployeeId!=x.Id)))
         {
             try{await _service.SaveDraftAsync(employee.Id,y,m,new PayrollInputs());created++;}

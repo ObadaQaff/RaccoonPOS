@@ -27,7 +27,7 @@ public sealed class DocumentBrandingWindow : Window
     private bool _loaded;
     public DocumentBrandingWindow(DocumentBrandingService service,ApplicationDbContext db)
     {
-        RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+        
         (_service,_db)=(service,db);Title=UiText.T("إعدادات الطباعة وهوية الصيدلية","Printing and business identity");
         Width=760;Height=800;WindowStartupLocation=WindowStartupLocation.CenterScreen;FlowDirection=UiText.CurrentFlowDirection;Background=new SolidColorBrush(Color.FromRgb(238,244,248));
         var panel=new StackPanel{Margin=new Thickness(24)};

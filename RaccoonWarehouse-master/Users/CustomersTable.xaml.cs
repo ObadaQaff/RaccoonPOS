@@ -1,4 +1,3 @@
-using RaccoonWarehouse.Application.Service.Permissions;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Domain.Enums;
@@ -28,21 +27,19 @@ namespace RaccoonWarehouse
 
         private readonly IUserService _userService;
         private readonly IUserSession _userSession;
-        private readonly IPermissionService _permissionService;
         private readonly ILoadingService _loadingService;
         private bool _isLoaded;
         private readonly List<UserReadDto> _customers = new();
         private ICollectionView? _customersView;
         private UserReadDto? _selectedCustomer;
 
-        public CustomersTable(IUserService userService, IUserSession userSession, IPermissionService permissionService, ILoadingService loadingService)
+        public CustomersTable(IUserService userService, IUserSession userSession, ILoadingService loadingService)
         {
             _userService = userService;
             _userSession = userSession;
-            _permissionService = permissionService;
             _loadingService = loadingService;
 
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
             InitializeComponent();
             UiText.ApplyWindow(this);
             InitializeFilters();
@@ -53,7 +50,6 @@ namespace RaccoonWarehouse
                     return;
 
                 _isLoaded = true;
-                await ConfigurePermissionsUiAsync();
                 LoadCustomers();
             };
         }
@@ -83,16 +79,6 @@ namespace RaccoonWarehouse
 
             HintText.Text = UiText.T("يمكنك البحث أو التصفية حسب حالة الائتمان أو الرصيد.", "You can search or filter by credit status and balance.");
         }
-
-        private async Task ConfigurePermissionsUiAsync()
-        {
-            var role = _userSession.CurrentUser?.Role;
-            var canCreate = role.HasValue && await _permissionService.HasPermissionAsync(role.Value, "Users.Create");
-
-            CreateCustomerBtn.Visibility = canCreate ? Visibility.Visible : Visibility.Collapsed;
-            CreateSupplierBtn.Visibility = canCreate ? Visibility.Visible : Visibility.Collapsed;
-        }
-
         private async void LoadCustomers()
         {
             try
@@ -100,15 +86,7 @@ namespace RaccoonWarehouse
                 _loadingService.Show();
                 await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Render);
 
-            var role = _userSession.CurrentUser?.Role;
-            if (!role.HasValue || !await _permissionService.HasPermissionAsync(role.Value, "Users.View"))
-            {
-                MessageBox.Show(UiText.T("ليس لديك صلاحية عرض العملاء والموردين.", "You do not have permission to view customers and suppliers."));
-                Close();
-                return;
-            }
-
-            var customers = await _userService.GetAllAsync();
+            var role = _userSession.CurrentUser?.Role;var customers = await _userService.GetAllAsync();
             _customers.Clear();
 
             if (customers.Data != null)
@@ -133,40 +111,19 @@ namespace RaccoonWarehouse
 
         private async void CreateCustomerBtn_Click(object sender, RoutedEventArgs e)
         {
-            var role = _userSession.CurrentUser?.Role;
-            if (!role.HasValue || !await _permissionService.HasPermissionAsync(role.Value, "Users.Create"))
-            {
-                MessageBox.Show(UiText.T("ليس لديك صلاحية إنشاء عميل جديد.", "You do not have permission to create a new customer."));
-                return;
-            }
-
-            WindowManager.ShowDialog<CreateUser>(WindowSizeType.MediumRectangle, window => window.InitializeForCustomerQuickCreate());
+            var role = _userSession.CurrentUser?.Role;WindowManager.ShowDialog<CreateUser>(WindowSizeType.MediumRectangle, window => window.InitializeForCustomerQuickCreate());
             LoadCustomers();
         }
 
         private async void CreateSupplierBtn_Click(object sender, RoutedEventArgs e)
         {
-            var role = _userSession.CurrentUser?.Role;
-            if (!role.HasValue || !await _permissionService.HasPermissionAsync(role.Value, "Users.Create"))
-            {
-                MessageBox.Show(UiText.T("ليس لديك صلاحية إنشاء مورد جديد.", "You do not have permission to create a new supplier."));
-                return;
-            }
-
-            WindowManager.ShowDialog<CreateUser>(WindowSizeType.MediumRectangle, window => window.InitializeForSupplierQuickCreate());
+            var role = _userSession.CurrentUser?.Role;WindowManager.ShowDialog<CreateUser>(WindowSizeType.MediumRectangle, window => window.InitializeForSupplierQuickCreate());
             LoadCustomers();
         }
 
         private async void ViewStatement_Click(object sender, RoutedEventArgs e)
         {
-            var role = _userSession.CurrentUser?.Role;
-            if (!role.HasValue || !await _permissionService.HasPermissionAsync(role.Value, "Users.View"))
-            {
-                MessageBox.Show(UiText.T("ليس لديك صلاحية عرض الحسابات.", "You do not have permission to view statements."));
-                return;
-            }
-
-            if (CustomersGrid.SelectedItem is not UserReadDto selectedCustomer)
+            var role = _userSession.CurrentUser?.Role;if (CustomersGrid.SelectedItem is not UserReadDto selectedCustomer)
             {
                 MessageBox.Show(UiText.T("يجب تحديد عميل أو مورد قبل عرض كشف الحساب.", "You must select a customer or supplier before viewing the statement."));
                 return;
@@ -177,14 +134,7 @@ namespace RaccoonWarehouse
 
         private async void UpdateCustomer_Click(object sender, RoutedEventArgs e)
         {
-            var role = _userSession.CurrentUser?.Role;
-            if (!role.HasValue || !await _permissionService.HasPermissionAsync(role.Value, "Users.Edit"))
-            {
-                MessageBox.Show(UiText.T("ليس لديك صلاحية تعديل العملاء والموردين.", "You do not have permission to edit customers and suppliers."));
-                return;
-            }
-
-            if (CustomersGrid.SelectedItem is not UserReadDto selectedCustomer)
+            var role = _userSession.CurrentUser?.Role;if (CustomersGrid.SelectedItem is not UserReadDto selectedCustomer)
             {
                 MessageBox.Show(UiText.T("يجب تحديد عميل أو مورد قبل التعديل.", "You must select a customer or supplier before editing."));
                 return;
@@ -196,14 +146,7 @@ namespace RaccoonWarehouse
 
         private async void DeleteCustomer_Click(object sender, RoutedEventArgs e)
         {
-            var role = _userSession.CurrentUser?.Role;
-            if (!role.HasValue || !await _permissionService.HasPermissionAsync(role.Value, "Users.Delete"))
-            {
-                MessageBox.Show(UiText.T("ليس لديك صلاحية حذف العملاء والموردين.", "You do not have permission to delete customers and suppliers."));
-                return;
-            }
-
-            if (CustomersGrid.SelectedItem is not UserReadDto selectedCustomer)
+            var role = _userSession.CurrentUser?.Role;if (CustomersGrid.SelectedItem is not UserReadDto selectedCustomer)
             {
                 MessageBox.Show(UiText.T("يجب تحديد عميل أو مورد قبل الحذف.", "You must select a customer or supplier before deleting."));
                 return;

@@ -1,4 +1,3 @@
-using RaccoonWarehouse.Application.Service.Permissions;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
@@ -351,19 +350,12 @@ public sealed class AccountingOperationProcessor
             _runGate.Release();
         }
     }
-
-    private async Task RequireManualProcessingAsync()
-    {
-        using var scope = _scopeFactory.CreateScope();
-        if (!await scope.ServiceProvider.GetRequiredService<IPermissionService>().HasCurrentUserPermissionAsync("Accounting.Operations.Post"))
-            throw new UnauthorizedAccessException("ليس لديك صلاحية معالجة العمليات المحاسبية. / Accounting posting permission required.");
-    }
+    private Task RequireManualProcessingAsync() => Task.CompletedTask;
 
     private async Task<OperationProcessResult?> ProcessDueAsync(
         bool ignoreSchedule,
         HashSet<int>? excludedOperationIds)
     {
-        using var authorizedWorker = ApplicationPermissionBoundary.EnterSystemWorkflow();
         using var scope = _scopeFactory.CreateScope();
         var uow = scope.ServiceProvider.GetRequiredService<IUOW>();
          var operation = await uow.GetRepository<AccountingOperation>()
@@ -425,7 +417,6 @@ public sealed class AccountingOperationProcessor
 
     private async Task UpdateOperationStatusAsync(int operationId, bool completed, string? errorMessage)
     {
-        using var authorizedWorker = ApplicationPermissionBoundary.EnterSystemWorkflow();
         using var scope = _scopeFactory.CreateScope();
         var uow = scope.ServiceProvider.GetRequiredService<IUOW>();
         var operation = await uow.GetRepository<AccountingOperation>()

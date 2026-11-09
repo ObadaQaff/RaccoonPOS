@@ -18,7 +18,7 @@ namespace RaccoonWarehouse.Navigation.Modules
 
         private static IReadOnlyDictionary<string, bool> LoadEnabledModules()
         {
-            var path = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
+            var path = Path.Combine(AppContext.BaseDirectory);
             if (!File.Exists(path))
                 return new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
 

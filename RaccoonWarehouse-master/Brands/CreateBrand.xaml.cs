@@ -22,7 +22,7 @@ namespace RaccoonWarehouse.Brands
             _brandService = brandService;
             _mapper = mapper;
             _loadingService = loadingService;
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
             InitializeComponent();
             UiText.ApplyWindow(this);
         }

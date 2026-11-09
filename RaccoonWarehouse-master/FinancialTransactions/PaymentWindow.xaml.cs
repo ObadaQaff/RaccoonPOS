@@ -43,7 +43,7 @@ namespace RaccoonWarehouse.FinancialTransactions
                 UpdatedDate = DateTime.Now,
             };
 
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
             InitializeComponent();
 
             DataContext = this;

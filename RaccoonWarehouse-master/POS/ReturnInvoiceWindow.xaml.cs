@@ -36,7 +36,7 @@ namespace RaccoonWarehouse.POS
             IAuthService authService,
             IProductService productService)
         {
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
             InitializeComponent();
             UiText.ApplyWindow(this);
             _invoiceService = invoiceService;
@@ -120,7 +120,7 @@ namespace RaccoonWarehouse.POS
             cancel.Click += (_, _) => prompt.DialogResult = false;
             prompt.Loaded += (_, _) => password.Focus();
 
-            var accepted = RaccoonWarehouse.Security.PermissionWindowGuard.ShowDialog(prompt, "SalesInvoice.View") == true;
+            var accepted = prompt.ShowDialog() == true;
             if (!accepted)
                 MessageBox.Show(
                     UiText.T("كلمة المرور غير صحيحة أو تم إلغاء العملية.", "The password is incorrect or the operation was cancelled."),

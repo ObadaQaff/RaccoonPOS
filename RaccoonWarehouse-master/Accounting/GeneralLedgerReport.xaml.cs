@@ -39,7 +39,7 @@ namespace RaccoonWarehouse.Accounting
             _featureService = featureService;
             _loadingService = loadingService;
             _sourceDocumentNavigationService = sourceDocumentNavigationService;
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
             InitializeComponent();
             UiText.ApplyWindow(this);
             Loaded += GeneralLedgerReport_Loaded;

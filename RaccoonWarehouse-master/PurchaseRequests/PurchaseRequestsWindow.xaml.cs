@@ -1,5 +1,4 @@
 using RaccoonWarehouse.Application.Service.PurchaseOrders;
-using RaccoonWarehouse.Application.Service.Permissions;
 using RaccoonWarehouse.Application.Service.PurchaseRequests;
 using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Core.Common;
@@ -25,7 +24,6 @@ public partial class PurchaseRequestsWindow : Window
     private readonly IPurchaseRequestService _service;
     private readonly ILoadingService _loading;
     private readonly IPurchaseOrderService _purchaseOrderService;
-    private readonly IPermissionService _permissionService;
     private readonly IUserSession _userSession;
     private readonly ObservableCollection<PurchaseRequestReadDto> _requests = new();
     private readonly ICollectionView _requestsView;
@@ -44,15 +42,13 @@ public partial class PurchaseRequestsWindow : Window
         IPurchaseRequestService service,
         ILoadingService loading,
         IPurchaseOrderService purchaseOrderService,
-        IPermissionService permissionService,
         IUserSession userSession)
     {
         _service = service;
         _loading = loading;
         _purchaseOrderService = purchaseOrderService;
-        _permissionService = permissionService;
         _userSession = userSession;
-        RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+        
         InitializeComponent();
         RequestsGrid.ItemsSource = _requests;
         _requestsView = CollectionViewSource.GetDefaultView(_requests);
@@ -94,11 +90,11 @@ public partial class PurchaseRequestsWindow : Window
             foreach (var request in result.Data ?? new())
                 _requests.Add(request);
 
-            _canEdit = await _permissionService.HasCurrentUserPermissionAsync("PurchaseRequest.Edit");
-            _canSubmit = await _permissionService.HasCurrentUserPermissionAsync("PurchaseRequest.Submit");
-            _canApprove = await _permissionService.HasCurrentUserPermissionAsync("PurchaseRequest.Approve");
-            _canReject = await _permissionService.HasCurrentUserPermissionAsync("PurchaseRequest.Reject");
-            _canCreatePo = await _permissionService.HasCurrentUserPermissionAsync("PurchaseOrder.Create");
+            _canEdit = true;
+            _canSubmit = true;
+            _canApprove = true;
+            _canReject = true;
+            _canCreatePo = true;
             _isAdmin = _userSession.CurrentRole == UserRole.Admin;
             ReloadSupplierSuggestions();
             _requestsView?.Refresh();
@@ -468,7 +464,7 @@ public partial class PurchaseRequestsWindow : Window
 
         dialog.Content = grid;
         dialog.Loaded += (_, _) => reasonTextBox.Focus();
-        return RaccoonWarehouse.Security.PermissionWindowGuard.ShowDialog(dialog, "PurchaseRequest.View") == true ? reasonTextBox.Text.Trim() : null;
+        return dialog.ShowDialog() == true ? reasonTextBox.Text.Trim() : null;
     }
 
     private async void CreatePo_Click(object sender, RoutedEventArgs e)

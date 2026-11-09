@@ -1,5 +1,4 @@
 using AutoMapper;
-using RaccoonWarehouse.Application.Service.Permissions;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Domain.Users.DTOs;
 using RaccoonWarehouse.Helpers.Localization;
@@ -20,17 +19,14 @@ namespace RaccoonWarehouse
     {
         private readonly IUserService _userService;
         private readonly IUserSession _userSession;
-        private readonly IPermissionService _permissionService;
         private bool _isLoaded;
         private readonly List<UserReadDto> _users = new();
         private ICollectionView? _usersView;
 
-        public UsersTable(IUserService userService, IMapper mapper, IUserSession userSession, IPermissionService permissionService)
+        public UsersTable(IUserService userService, IMapper mapper, IUserSession userSession)
         {
             _userService = userService;
             _userSession = userSession;
-            _permissionService = permissionService;
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
             UiText.ApplyWindow(this);
 
@@ -40,34 +36,12 @@ namespace RaccoonWarehouse
                     return;
 
                 _isLoaded = true;
-                await ConfigurePermissionsUiAsync();
                 LoadUsers();
             };
         }
-
-        private async Task ConfigurePermissionsUiAsync()
-        {
-            var role = _userSession.CurrentUser?.Role;
-            var canCreate = role.HasValue && await _permissionService.HasPermissionAsync(role.Value, "Users.Create");
-
-            CreateUserBtn.Visibility = canCreate ? Visibility.Visible : Visibility.Collapsed;
-            CreatePermissionText.Text = canCreate ? UiText.T("مفعل", "Enabled") : UiText.T("مغلق", "Locked");
-            AdminHintText.Text = canCreate
-                ? UiText.T("يمكنك إنشاء الحسابات وإدارتها من هذا القسم.", "You can create and manage user accounts from this section.")
-                : UiText.T("إنشاء الحسابات أو حذفها يتطلب صلاحية مخصصة.", "Creating or deleting user accounts requires a dedicated permission.");
-        }
-
         private async void LoadUsers()
         {
-            var role = _userSession.CurrentUser?.Role;
-            if (!role.HasValue || !await _permissionService.HasPermissionAsync(role.Value, "Users.View"))
-            {
-                MessageBox.Show(UiText.T("ليس لديك صلاحية عرض المستخدمين.", "You do not have permission to view users."));
-                Close();
-                return;
-            }
-
-            var users = await _userService.GetAllAsync();
+            var role = _userSession.CurrentUser?.Role;var users = await _userService.GetAllAsync();
             _users.Clear();
 
             if (users.Data != null)
@@ -81,26 +55,12 @@ namespace RaccoonWarehouse
 
         private async void CreateUserBtn_Click(object sender, RoutedEventArgs e)
         {
-            var role = _userSession.CurrentUser?.Role;
-            if (!role.HasValue || !await _permissionService.HasPermissionAsync(role.Value, "Users.Create"))
-            {
-                MessageBox.Show(UiText.T("ليس لديك صلاحية إنشاء مستخدم جديد.", "You do not have permission to create a new user."));
-                return;
-            }
-
-            WindowManager.Show<CreateUser>();
+            var role = _userSession.CurrentUser?.Role;WindowManager.Show<CreateUser>();
         }
 
         private async void ViewStatement_Click(object sender, RoutedEventArgs e)
         {
-            var role = _userSession.CurrentUser?.Role;
-            if (!role.HasValue || !await _permissionService.HasPermissionAsync(role.Value, "Users.View"))
-            {
-                MessageBox.Show(UiText.T("ليس لديك صلاحية عرض الحسابات.", "You do not have permission to view accounts."));
-                return;
-            }
-
-            if (UsersTable1.SelectedItem is not UserReadDto selectedUser)
+            var role = _userSession.CurrentUser?.Role;if (UsersTable1.SelectedItem is not UserReadDto selectedUser)
             {
                 MessageBox.Show(UiText.T("يجب تحديد مستخدم قبل عرض الكشف.", "You must select a user before viewing the statement."));
                 return;
@@ -116,14 +76,7 @@ namespace RaccoonWarehouse
 
         private async void Update_User(object sender, RoutedEventArgs e)
         {
-            var role = _userSession.CurrentUser?.Role;
-            if (!role.HasValue || !await _permissionService.HasPermissionAsync(role.Value, "Users.Edit"))
-            {
-                MessageBox.Show(UiText.T("ليس لديك صلاحية تعديل الحسابات.", "You do not have permission to edit accounts."));
-                return;
-            }
-
-            if (UsersTable1.SelectedItem is not UserReadDto selectedUser)
+            var role = _userSession.CurrentUser?.Role;if (UsersTable1.SelectedItem is not UserReadDto selectedUser)
             {
                 MessageBox.Show(UiText.T("يجب تحديد مستخدم قبل التعديل.", "You must select a user before editing."));
                 return;
@@ -136,14 +89,7 @@ namespace RaccoonWarehouse
 
         private async void Delete_User(object sender, RoutedEventArgs e)
         {
-            var role = _userSession.CurrentUser?.Role;
-            if (!role.HasValue || !await _permissionService.HasPermissionAsync(role.Value, "Users.Delete"))
-            {
-                MessageBox.Show(UiText.T("ليس لديك صلاحية حذف المستخدمين.", "You do not have permission to delete users."));
-                return;
-            }
-
-            if (UsersTable1.SelectedItem is not UserReadDto selectedUser)
+            var role = _userSession.CurrentUser?.Role;if (UsersTable1.SelectedItem is not UserReadDto selectedUser)
             {
                 MessageBox.Show(UiText.T("يجب تحديد مستخدم قبل الحذف.", "You must select a user before deleting."));
                 return;

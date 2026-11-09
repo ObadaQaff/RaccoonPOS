@@ -204,7 +204,6 @@ namespace RaccoonWarehouse.Application.Service.Sales
                 PosPerformanceLogger.Write("checkout total", timing.ElapsedMilliseconds, timing.ElapsedMilliseconds);
                 await _auditLogService.WriteAsync(new AuditEvent(
                     "Invoice.Checkout",
-                    PermissionKey: "SalesInvoice.Create",
                     EntityType: "Invoice",
                     EntityId: savedInvoiceId));
 

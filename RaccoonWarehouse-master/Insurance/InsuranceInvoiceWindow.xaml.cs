@@ -69,7 +69,7 @@ public partial class InsuranceInvoiceWindow : Window
         _userService = userService;
         _loading = loading;
         _db = db;
-        RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
         InitializeComponent();
         LinesGrid.ItemsSource = _lines;
         InvoiceNumberTextBox.Text = (DateTime.Now.Ticks % 100000).ToString("00000", CultureInfo.InvariantCulture);
@@ -161,7 +161,6 @@ public partial class InsuranceInvoiceWindow : Window
 
     private async void Save_Click(object sender, RoutedEventArgs e)
     {
-        RaccoonWarehouse.Security.PermissionWindowGuard.DemandRule("InsuranceClaims.Create;SalesInvoice.Post");
         if (!await CalculateAsync(true) || _calculation == null || !TryParseIds(out var customerId, out var policyId, out var companyId, out var contractId, out var planId, out var versionId))
             return;
         if (_userSession.CurrentCashierSession is not CashierSessionReadDto session)

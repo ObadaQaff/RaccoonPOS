@@ -27,7 +27,7 @@ public partial class AccountingOperationsBrowser : Window
         _operationProcessor = operationProcessor;
         _loadingService = loadingService;
         _scopeFactory = scopeFactory;
-        RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
         InitializeComponent();
         UiText.ApplyWindow(this);
         OperationsGrid.ItemsSource = Operations;

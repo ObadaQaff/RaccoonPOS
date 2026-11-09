@@ -23,7 +23,7 @@ namespace RaccoonWarehouse.Products.Reports
 
         public ProductProfitReport(IStockReportService reportsService, IProductService productService, IUserService userService)
         {
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
             InitializeComponent();
             SupplierComboBoxSearch.Attach(SupplierComboBox);
             _reportsService = reportsService;

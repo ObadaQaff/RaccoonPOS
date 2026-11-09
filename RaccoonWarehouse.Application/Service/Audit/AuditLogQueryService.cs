@@ -27,7 +27,6 @@ public sealed class AuditLogReadModel
     public UserRole? Role { get; init; }
     public Guid SessionId { get; init; }
     public string Action { get; init; } = string.Empty;
-    public string? PermissionKey { get; init; }
     public string? EntityType { get; init; }
     public int? EntityId { get; init; }
     public bool Succeeded { get; init; }
@@ -70,7 +69,6 @@ public sealed class AuditLogQueryService : IAuditLogQueryService
         {
             var search = filter.Search.Trim();
             query = query.Where(x => x.Action.Contains(search)
-                || (x.PermissionKey != null && x.PermissionKey.Contains(search))
                 || (x.EntityType != null && x.EntityType.Contains(search))
                 || (x.ErrorMessage != null && x.ErrorMessage.Contains(search)));
         }
@@ -93,7 +91,6 @@ public sealed class AuditLogQueryService : IAuditLogQueryService
                 Role = x.Role,
                 SessionId = x.SessionId,
                 Action = x.Action,
-                PermissionKey = x.PermissionKey,
                 EntityType = x.EntityType,
                 EntityId = x.EntityId,
                 Succeeded = x.Succeeded,

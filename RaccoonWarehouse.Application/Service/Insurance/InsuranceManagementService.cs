@@ -1,6 +1,5 @@
 using RaccoonWarehouse.Application.Service.Accounting;
 using Microsoft.EntityFrameworkCore;
-using RaccoonWarehouse.Application.Service.Permissions;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Core.Audit;
 using RaccoonWarehouse.Core.Common;
@@ -41,9 +40,6 @@ public sealed class InsuranceManagementService : IInsuranceManagementService
 {
     public async Task<Result<int>> SaveInvoiceCoverageAsync(InsuranceInvoiceCoverage coverage, IReadOnlyList<InsuranceInvoiceCoverageLine> lines)
     {
-        if (_permissions == null || !await _permissions.HasCurrentUserPermissionAsync("InsuranceClaims.Create") ||
-            !await _permissions.HasCurrentUserPermissionAsync("SalesInvoice.Post"))
-            return Result<int>.Fail("ليس لديك صلاحية حفظ تغطية التأمين. / Insurance coverage permission denied.");
         if (coverage.Id != 0 || coverage.InvoiceId <= 0 || lines.Any(line => line.Id != 0))
             return Result<int>.Fail("Invalid new invoice coverage.");
         var invoiceLineIds = await _db.Set<RaccoonWarehouse.Domain.InvoiceLines.InvoiceLine>().AsNoTracking().Where(line => line.InvoiceId == coverage.InvoiceId)
@@ -62,20 +58,17 @@ public sealed class InsuranceManagementService : IInsuranceManagementService
 
     private readonly ApplicationDbContext _db;
     private readonly IAccountingService? _accounting;
-    private readonly IPermissionService? _permissions;
     private readonly IUserSession? _userSession;
     private readonly IAuditLogService? _audit;
 
     public InsuranceManagementService(
-        ApplicationDbContext db,
-        IPermissionService? permissions = null,
+        ApplicationDbContext db = null,
         IUserSession? userSession = null,
         IAuditLogService? audit = null,
         IAccountingService? accounting = null)
     {
         _db = db;
         _accounting = accounting;
-        _permissions = permissions;
         _userSession = userSession;
         _audit = audit;
     }
@@ -113,10 +106,7 @@ public sealed class InsuranceManagementService : IInsuranceManagementService
 
     public async Task<Result<InsuranceCompanyDto>> SaveCompanyAsync(InsuranceCompanyWriteDto dto)
     {
-        var permission = dto.Id > 0 ? "InsuranceCompanies.Edit" : "InsuranceCompanies.Create";
-        if (_permissions != null && !await _permissions.HasCurrentUserPermissionAsync(permission))
-            return Result<InsuranceCompanyDto>.Fail("You do not have permission to save insurance companies.");
-        if (string.IsNullOrWhiteSpace(dto.Code) || string.IsNullOrWhiteSpace(dto.Name))
+if (string.IsNullOrWhiteSpace(dto.Code) || string.IsNullOrWhiteSpace(dto.Name))
             return Result<InsuranceCompanyDto>.Fail("Insurance company code and name are required.");
 
         if (dto.ContractualDiscountPercent is < 0m or > 100m)
@@ -194,9 +184,7 @@ public sealed class InsuranceManagementService : IInsuranceManagementService
 
     public async Task<Result<InsuranceCompanyWriteDto>> GetCompanyForEditAsync(int id)
     {
-        if (_permissions != null && !await _permissions.HasCurrentUserPermissionAsync("InsuranceCompanies.Edit"))
-            return Result<InsuranceCompanyWriteDto>.Fail("You do not have permission to edit insurance companies.");
-        var company = await _db.InsuranceCompanies.AsNoTracking().Where(x => x.Id == id)
+var company = await _db.InsuranceCompanies.AsNoTracking().Where(x => x.Id == id)
             .Select(x => new InsuranceCompanyWriteDto
             {
                 Id = x.Id, Code = x.Code, Name = x.Name, NameEnglish = x.NameEnglish,
@@ -213,10 +201,7 @@ public sealed class InsuranceManagementService : IInsuranceManagementService
 
     public async Task<Result<bool>> DeleteCompanyAsync(int id)
     {
-        if (_permissions != null && !await _permissions.HasCurrentUserPermissionAsync("InsuranceCompanies.Delete"))
-            return Result<bool>.Fail("You do not have permission to delete insurance companies.");
-
-        // Serializable protects the reference checks from concurrent inserts in SQL Server.
+// Serializable protects the reference checks from concurrent inserts in SQL Server.
         await using var transaction = _db.Database.IsRelational()
             ? await _db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable) : null;
         var company = await _db.InsuranceCompanies.FirstOrDefaultAsync(x => x.Id == id);
@@ -641,12 +626,6 @@ public sealed class InsuranceManagementService : IInsuranceManagementService
 
     public async Task<Result<InsuranceClaimSummaryDto>> ReviewClaimAsync(InsuranceClaimReviewDto dto)
     {
-        var decisionPermission = dto.Status == InsuranceClaimStatus.Rejected
-            ? "InsuranceClaims.Reject"
-            : "InsuranceClaims.Approve";
-        if (!await HasCurrentUserPermissionAsync(decisionPermission))
-            return Result<InsuranceClaimSummaryDto>.Fail("You do not have permission to review insurance claims.");
-
         await using var reviewTransaction = _db.Database.IsRelational()
             ? await _db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable) : null;
         try
@@ -702,7 +681,7 @@ public sealed class InsuranceManagementService : IInsuranceManagementService
                 adjustment.IsAccountingPosted = true;
             }
             await _db.SaveChangesAsync();
-            await WriteAuditAsync("Insurance claim reviewed", decisionPermission, claim.Id, true);
+            await WriteAuditAsync("Insurance claim reviewed", claim.Id, true);
             if (reviewTransaction != null) await reviewTransaction.CommitAsync();
             return Result<InsuranceClaimSummaryDto>.Ok(ToSummary(claim));
         }
@@ -800,8 +779,6 @@ public sealed class InsuranceManagementService : IInsuranceManagementService
 
     public async Task<Result<InsuranceClaimPayment>> RecordPaymentAsync(InsuranceClaimPaymentWriteDto dto)
     {
-        if (!await HasCurrentUserPermissionAsync("InsurancePayments.Create"))
-            return Result<InsuranceClaimPayment>.Fail("You do not have permission to record insurance payments.");
         if (_accounting == null)
             return Result<InsuranceClaimPayment>.Fail("Accounting is required to record an insurance receipt.");
         if (dto.Amount <= 0)
@@ -912,7 +889,7 @@ public sealed class InsuranceManagementService : IInsuranceManagementService
                     dto.InsuranceCompanyId, dto.Amount, "InsuranceClaimPayment", payment.Id,
                     payment.ReceiptNumber, payment.PaymentDate, receipt: true);
             }
-            await WriteAuditAsync("Insurance payment recorded", "InsurancePayments.Create", payment.Id, true);
+            await WriteAuditAsync("Insurance payment recorded", payment.Id, true);
             if (transaction != null) await transaction.CommitAsync();
             return Result<InsuranceClaimPayment>.Ok(payment);
         }
@@ -924,15 +901,8 @@ public sealed class InsuranceManagementService : IInsuranceManagementService
         }
     }
 
-    private async Task<bool> HasCurrentUserPermissionAsync(string permissionKey)
-    {
-        if (_permissions == null || _userSession == null)
-            return true;
-        return await _permissions.HasCurrentUserPermissionAsync(permissionKey);
-    }
-
-    private Task WriteAuditAsync(string action, string permissionKey, int entityId, bool succeeded, string? error = null)
-        => _audit?.WriteAsync(new AuditEvent(action, permissionKey, "Insurance", entityId, succeeded, error)) ?? Task.CompletedTask;
+    private Task WriteAuditAsync(string action, int entityId, bool succeeded, string? error = null)
+        => _audit?.WriteAsync(new AuditEvent(action, EntityType: "Insurance", EntityId: entityId, Succeeded: succeeded, ErrorMessage: error)) ?? Task.CompletedTask;
 
     private static InsuranceClaimSummaryDto ToSummary(InsuranceClaim claim) => new()
     {

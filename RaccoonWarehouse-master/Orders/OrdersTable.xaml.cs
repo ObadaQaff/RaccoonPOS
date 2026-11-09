@@ -31,7 +31,7 @@ namespace RaccoonWarehouse.Orders
             IPandaOrderSyncService orderSyncService,
             ILoadingService loadingService)
         {
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
             InitializeComponent();
             _context = context;
             _orderSyncService = orderSyncService;

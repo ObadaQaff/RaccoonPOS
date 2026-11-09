@@ -10,6 +10,8 @@ using RaccoonWarehouse.PurchaseOrders;
 using RaccoonWarehouse.PurchaseRequests;
 using RaccoonWarehouse.PurchaseControl;
 using RaccoonWarehouse.GoodsReceipts;
+using RaccoonWarehouse.LostCustomers;
+using RaccoonWarehouse.CustomerRequests;
 
 namespace RaccoonWarehouse.Navigation.Modules
 {
@@ -25,6 +27,8 @@ namespace RaccoonWarehouse.Navigation.Modules
                 "PurchaseOrders.Create" or
                 "PurchaseOrders.List" or
                 "PurchaseRequests.List" or
+                "CustomerRequests.List" or
+                "LostCustomers.List" or
                 "PurchaseControl.Dashboard" or
                 "PurchaseControl.List" or
                 "GoodsReceipts.List" or
@@ -65,6 +69,12 @@ namespace RaccoonWarehouse.Navigation.Modules
                     break;
                 case "PurchaseRequests.List":
                     WindowManager.Show<PurchaseRequestsWindow>(WindowSizeType.LargeRectangle);
+                    break;
+                case "CustomerRequests.List":
+                    WindowManager.Show<CustomerRequestsWindow>(WindowSizeType.LargeRectangle);
+                    break;
+                case "LostCustomers.List":
+                    WindowManager.Show<LostCustomersWindow>(WindowSizeType.LargeRectangle);
                     break;
                 case "PurchaseControl.Dashboard":
                     WindowManager.Show<PurchaseControlDashboardWindow>(WindowSizeType.LargeRectangle);

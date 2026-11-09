@@ -64,7 +64,7 @@ namespace RaccoonWarehouse.Products
             _loadingService = loadingService;
             _userService = userService;
 
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
             InitializeComponent();
             SupplierComboBoxSearch.Attach(SupplierFilterComboBox);
             UiText.ApplyWindow(this);

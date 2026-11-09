@@ -21,7 +21,7 @@ namespace RaccoonWarehouse.Delegates
         {
             _delegateService = delegateService;
             _userService = userService;
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
             InitializeComponent();
             UiText.ApplyWindow(this);
         }

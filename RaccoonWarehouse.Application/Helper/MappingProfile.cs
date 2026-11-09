@@ -9,6 +9,8 @@ using RaccoonWarehouse.Domain.Cashiers;
 using RaccoonWarehouse.Domain.Cashiers.DTOs;
 using RaccoonWarehouse.Domain.Categories;
 using RaccoonWarehouse.Domain.Categories.DTOs;
+using RaccoonWarehouse.Domain.CustomerRequests;
+using RaccoonWarehouse.Domain.LostCustomers;
 using RaccoonWarehouse.Domain.Checks;
 using RaccoonWarehouse.Domain.Checks.DTOs;
 using RaccoonWarehouse.Domain.Delegates.DTOs;
@@ -20,8 +22,6 @@ using RaccoonWarehouse.Domain.InvoiceLines;
 using RaccoonWarehouse.Domain.InvoiceLines.DTOs;
 using RaccoonWarehouse.Domain.Invoices;
 using RaccoonWarehouse.Domain.Invoices.DTOs;
-using RaccoonWarehouse.Domain.Permissions;
-using RaccoonWarehouse.Domain.Permissions.DTOs;
 using RaccoonWarehouse.Domain.Products;
 using RaccoonWarehouse.Domain.Products.DTOs;
 using RaccoonWarehouse.Domain.PurchaseOrders;
@@ -187,10 +187,6 @@ namespace RaccoonWarehouse.Application.Helper
                 .ForMember(dest => dest.AccountName, opt => opt.MapFrom(src => src.Account.Name))
                 .ReverseMap();
 
-            CreateMap<ReportPermissionWriteDto, ReportPermission>().ReverseMap();
-            CreateMap<ReportPermission, ReportPermissionReadDto>().ReverseMap();
-            CreateMap<RolePermissionWriteDto, RolePermission>().ReverseMap();
-            CreateMap<RolePermission, RolePermissionReadDto>().ReverseMap();
             CreateMap<PurchaseOrderWriteDto, PurchaseOrder>()
                 .ForMember(d => d.Lines, opt => opt.Ignore())
                 .ForMember(d => d.Supplier, opt => opt.Ignore());
@@ -212,6 +208,12 @@ namespace RaccoonWarehouse.Application.Helper
                 .ForMember(d => d.PurchaseRequest, opt => opt.Ignore())
                 .ForMember(d => d.PurchaseRequestId, opt => opt.Ignore());
             CreateMap<PurchaseRequestLine, PurchaseRequestLineWriteDto>();
+            CreateMap<CustomerRequestWriteDto, CustomerRequest>().ForMember(d => d.Lines, opt => opt.Ignore());
+            CreateMap<CustomerRequest, CustomerRequestDto>();
+            CreateMap<CustomerRequestLineDto, CustomerRequestLine>().ForMember(d => d.CustomerRequest, opt => opt.Ignore());
+            CreateMap<CustomerRequestLine, CustomerRequestLineDto>();
+            CreateMap<LostCustomerWriteDto, LostCustomer>();
+            CreateMap<LostCustomer, LostCustomerDto>();
             CreateMap<GoodsReceiptWriteDto, GoodsReceipt>()
                 .ForMember(d => d.Lines, opt => opt.Ignore());
             CreateMap<GoodsReceipt, GoodsReceiptWriteDto>();

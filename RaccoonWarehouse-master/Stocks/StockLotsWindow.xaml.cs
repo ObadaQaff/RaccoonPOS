@@ -43,7 +43,7 @@ public partial class StockLotsWindow : Window
 
     public StockLotsWindow(IStockService stockService, ILoadingService loadingService)
     {
-        RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
         InitializeComponent();
         _stockService = stockService;
         _loadingService = loadingService;

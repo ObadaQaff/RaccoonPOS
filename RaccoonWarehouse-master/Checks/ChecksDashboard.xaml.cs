@@ -187,7 +187,7 @@ namespace RaccoonWarehouse
             _sourceDocumentNavigationService = sourceDocumentNavigationService;
             _loadingService = loadingService;
 
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
             InitializeComponent();
             PartyFilter.AddHandler(TextBox.TextChangedEvent, new TextChangedEventHandler(PartyFilter_TextChanged));
             UiText.ApplyWindow(this);

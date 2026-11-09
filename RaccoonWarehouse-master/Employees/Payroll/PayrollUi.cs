@@ -13,12 +13,12 @@ internal static class PayrollUi
     public static TextBox Output()=>new(){IsReadOnly=true,Background=ReadOnlyBrush,Padding=new Thickness(7),Margin=new Thickness(0,3,0,6),MinWidth=130,FlowDirection=FlowDirection.LeftToRight};
     public static StackPanel Fields()=>new(){Margin=new Thickness(18)};
     public static void Field(Panel panel,string label,FrameworkElement input){panel.Children.Add(new TextBlock{Text=label,FontWeight=FontWeights.SemiBold,Margin=new Thickness(0,5,0,0)});panel.Children.Add(input);}
-    public static Button Button(string label,Action action,[System.Runtime.CompilerServices.CallerArgumentExpression("action")] string expression="",[System.Runtime.CompilerServices.CallerFilePath] string file=""){var b=new Button{Content=label,Padding=new Thickness(14,7,14,7),Margin=new Thickness(5)};if(System.Windows.Application.Current.TryFindResource("AppSecondaryButtonStyle") is Style style)b.Style=style;var rule=RaccoonWarehouse.Security.PermissionWindowGuard.PayrollActionRule(expression,file);if(rule!=null)RaccoonWarehouse.Security.PermissionWindowGuard.SetKeys(b,rule);b.Click+=(_,_)=>action();return b;}
+    public static Button Button(string label,Action action,[System.Runtime.CompilerServices.CallerArgumentExpression("action")] string expression="",[System.Runtime.CompilerServices.CallerFilePath] string file=""){var b=new Button{Content=label,Padding=new Thickness(14,7,14,7),Margin=new Thickness(5)};if(System.Windows.Application.Current.TryFindResource("AppSecondaryButtonStyle") is Style style)b.Style=style;b.Click+=(_,_)=>action();return b;}
     public static Button AsyncButton(string label,Func<Task> action,[System.Runtime.CompilerServices.CallerArgumentExpression("action")] string expression="",[System.Runtime.CompilerServices.CallerFilePath] string file=""){var b=Button(label,()=>{},expression,file);bool busy=false;b.Click+=async(_,_)=>{if(busy||!b.IsEnabled)return;busy=true;var owner=Window.GetWindow(b);if(owner!=null)owner.IsEnabled=false;try{await action();}catch(Exception e){Error(e);}finally{busy=false;if(owner!=null)owner.IsEnabled=true;}};return b;}
     public static void Error(Exception ex)
     {
         var message=EmployeeError(ex is Microsoft.EntityFrameworkCore.DbUpdateException?"تعذر حفظ البيانات. قد تكون مكررة أو تغيرت من مستخدم آخر؛ أعد التحميل.":ex is OverflowException?"القيمة الرقمية خارج النطاق المسموح.":ex.Message);
-        if(!message.Any(c=>c>='\u0600'&&c<='\u06ff'))message="تعذر تنفيذ العملية. راجع البيانات والصلاحيات وإعداد قاعدة البيانات ثم أعد المحاولة.";
+        if(!message.Any(c=>c>='\u0600'&&c<='\u06ff'))message="تعذر تنفيذ العملية. راجع البيانات وإعداد قاعدة البيانات ثم أعد المحاولة.";
         MessageBox.Show(message,"تنبيه",MessageBoxButton.OK,MessageBoxImage.Warning);
     }
     public static string EmployeeError(string message)=>message switch {
@@ -42,7 +42,7 @@ internal static class PayrollUi
     public static void ShowSnapshot(PayrollCalculation r)
     {
         var w=new Window{Title=$"كشف الراتب المحفوظ — {r.EmployeeName} — {r.Year}/{r.Month}",Width=650,Height=760,FlowDirection=FlowDirection.RightToLeft,WindowStartupLocation=WindowStartupLocation.CenterScreen};var panel=Fields();
-        foreach(var item in new Dictionary<string,decimal>{{"الراتب الأساسي",r.BasicSalary},{"البدلات الثابتة",r.FixedAllowances},{"الإضافي العادي",r.NormalOvertime},{"إضافي العطل",r.HolidayOvertime},{"المكافآت",r.Bonuses},{"البدلات الإضافية",r.AdditionalAllowances},{"إجمالي المستحقات",r.GrossEarnings},{"خصم الإجازة",r.UnpaidLeaveDeduction},{"الخصومات الأخرى",r.AdditionalDeductions},{"الأجر الخاضع للضمان",r.InsurableWage},{"اقتطاع الموظف",r.EmployeeSsc},{"حصة الشركة",r.EmployerSsc},{"صافي الراتب",r.NetSalary},{"تكلفة صاحب العمل",r.EmployerCost}}){var box=Output();box.Text=Money(item.Value);Field(panel,item.Key,box);}panel.Children.Add(new TextBlock{Text=r.CalculationAssumptions,TextWrapping=TextWrapping.Wrap});w.Content=Scroll(panel);RaccoonWarehouse.Security.PermissionWindowGuard.ShowDialog(w, "Payroll.View");
+        foreach(var item in new Dictionary<string,decimal>{{"الراتب الأساسي",r.BasicSalary},{"البدلات الثابتة",r.FixedAllowances},{"الإضافي العادي",r.NormalOvertime},{"إضافي العطل",r.HolidayOvertime},{"المكافآت",r.Bonuses},{"البدلات الإضافية",r.AdditionalAllowances},{"إجمالي المستحقات",r.GrossEarnings},{"خصم الإجازة",r.UnpaidLeaveDeduction},{"الخصومات الأخرى",r.AdditionalDeductions},{"الأجر الخاضع للضمان",r.InsurableWage},{"اقتطاع الموظف",r.EmployeeSsc},{"حصة الشركة",r.EmployerSsc},{"صافي الراتب",r.NetSalary},{"تكلفة صاحب العمل",r.EmployerCost}}){var box=Output();box.Text=Money(item.Value);Field(panel,item.Key,box);}panel.Children.Add(new TextBlock{Text=r.CalculationAssumptions,TextWrapping=TextWrapping.Wrap});w.Content=Scroll(panel);w.ShowDialog();
     }
     public static string EmploymentText(string json)
     {
@@ -55,6 +55,6 @@ internal static class PayrollUi
     {
         var w=new Window{Title=title,Width=540,Height=260,WindowStartupLocation=WindowStartupLocation.CenterScreen,FlowDirection=FlowDirection.RightToLeft};
         var p=Fields();var box=Number();box.AcceptsReturn=true;box.Height=80;Field(p,"السبب والمرجع",box);
-        var save=Button("تأكيد",()=>{if(string.IsNullOrWhiteSpace(box.Text)){MessageBox.Show("السبب مطلوب.");return;}w.DialogResult=true;});p.Children.Add(save);w.Content=p;return RaccoonWarehouse.Security.PermissionWindowGuard.ShowDialog(w, "Payroll.View")==true?box.Text.Trim():null;
+        var save=Button("تأكيد",()=>{if(string.IsNullOrWhiteSpace(box.Text)){MessageBox.Show("السبب مطلوب.");return;}w.DialogResult=true;});p.Children.Add(save);w.Content=p;return w.ShowDialog()==true?box.Text.Trim():null;
     }
 }

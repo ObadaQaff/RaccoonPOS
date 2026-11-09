@@ -2,8 +2,7 @@ namespace RaccoonWarehouse.Core.Modules
 {
     public sealed record ModuleActionDefinition(
         string Key,
-        string DisplayLabel,
-        string? PermissionKey = null);
+        string DisplayLabel);
 
     public sealed record ModuleGroupDefinition(
         string Title,

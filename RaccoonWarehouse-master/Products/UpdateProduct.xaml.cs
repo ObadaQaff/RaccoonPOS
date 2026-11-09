@@ -72,7 +72,7 @@ namespace RaccoonWarehouse.Products
             IStockService stockService,
             IUserService userService)
         {
-            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
+
             InitializeComponent();
 
             _productService = productService;
