@@ -51,6 +51,12 @@ namespace RaccoonWarehouse.Navigation.Modules
                             new[]
                             {
                                 new ModuleActionDefinition("Settings.SwitchDatabase", UiText.T("تبديل قاعدة البيانات", "Switch Database"))
+                            }),
+                        new ModuleGroupDefinition(
+                            "Dashboard Appearance",
+                            new[]
+                            {
+                                new ModuleActionDefinition("Settings.DashboardAppearance", "Dashboard appearance / تخصيص لوحة التحكم")
                             })
                     }));
         }

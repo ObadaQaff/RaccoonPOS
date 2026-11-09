@@ -35,8 +35,10 @@
                         Background="#16FFFFFF"
                         CornerRadius="22">
                     <StackPanel>
+                        <Image x:Name="SidebarLogo" Height="58" Margin="0,0,0,8" Stretch="Uniform" Visibility="Collapsed"/>
                         <TextBlock Text="مدير المستودع"
                                    Foreground="White"
+                                   x:Name="SidebarTitleText"
                                    FontSize="28"
                                    FontWeight="Bold"
                                    TextAlignment="Center"/>

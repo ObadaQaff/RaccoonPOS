@@ -76,6 +76,7 @@ namespace RaccoonWarehouse.Navigation.Modules
                 "Settings.InventoryCosting" or
                 "Settings.RefundCode" or
                 "Settings.DocumentBranding" or
+                "Settings.DashboardAppearance" or
                 "Settings.JoFotara" or
                 "Settings.PosRowColors" or
                 "Settings.SwitchDatabase";
@@ -110,6 +111,9 @@ namespace RaccoonWarehouse.Navigation.Modules
                     return;
                 case "Settings.DocumentBranding":
                     WindowManager.ShowDialog<RaccoonWarehouse.Settings.DocumentBrandingWindow>(WindowSizeType.LargeRectangle);
+                    return;
+                case "Settings.DashboardAppearance":
+                    WindowManager.ShowDialog<RaccoonWarehouse.Settings.DashboardAppearanceWindow>(WindowSizeType.LargeRectangle);
                     return;
                 case "Settings.JoFotara":
                     WindowManager.ShowDialog<JordanEInvoiceSettingsWindow>(WindowSizeType.MediumRectangle);

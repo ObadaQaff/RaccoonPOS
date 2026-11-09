@@ -38,11 +38,13 @@ using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Core.Modules;
 using RaccoonWarehouse.Navigation.Modules;
 using RaccoonWarehouse.Domain.Enums;
+using RaccoonWarehouse.Domain.Settings;
 using RaccoonWarehouse.Core.Permissions;
 using RaccoonWarehouse.Domain.Notifications;
 using RaccoonWarehouse.Application.Service.Orders;
 using RaccoonWarehouse.Application.Service.Stocks;
 using System.Windows.Threading;
+using System.IO;
 
 
 
@@ -66,6 +68,7 @@ namespace RaccoonWarehouse
         private readonly DashboardActionRegistry _dashboardActions;
         private readonly IStockService _stockService;
         private readonly IModuleStateStore _moduleState;
+        private readonly DashboardAppearanceService _appearanceService;
         private bool _expiredLotsAlertShown;
         private bool _isLoadingReports;
         private bool _isOpeningReport;
@@ -93,7 +96,8 @@ namespace RaccoonWarehouse
                 ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<DashboardModuleRegistry>(),
                 ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<DashboardActionRegistry>(),
                 ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<IStockService>(),
-                ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<IModuleStateStore>())
+                ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<IModuleStateStore>(),
+                ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<DashboardAppearanceService>())
         {
         }
 
@@ -108,7 +112,8 @@ namespace RaccoonWarehouse
             DashboardModuleRegistry dashboardModules,
             DashboardActionRegistry dashboardActions,
             IStockService stockService,
-            IModuleStateStore moduleState)
+            IModuleStateStore moduleState,
+            DashboardAppearanceService appearanceService)
         {
 
             InitializeComponent();
@@ -123,6 +128,7 @@ namespace RaccoonWarehouse
             _dashboardActions = dashboardActions ?? throw new ArgumentNullException(nameof(dashboardActions));
             _stockService = stockService ?? throw new ArgumentNullException(nameof(stockService));
             _moduleState = moduleState ?? throw new ArgumentNullException(nameof(moduleState));
+            _appearanceService = appearanceService ?? throw new ArgumentNullException(nameof(appearanceService));
             _pendingOrdersTimer.Tick += PendingOrdersTimer_Tick;
             Closed += Dashboard_Closed;
             Loaded += Dashboard_Loaded;
@@ -134,6 +140,7 @@ namespace RaccoonWarehouse
             {
                 _loadingService.Show();
                 UiText.ApplyWindow(this);
+                ApplyAppearance(await _appearanceService.GetAsync());
                 PurchaseManagementText.Text = UiText.T("إدارة المشتريات", "Purchase Management");
                 await Task.Yield();
 
@@ -161,6 +168,42 @@ namespace RaccoonWarehouse
             {
                 _pendingOrdersTimer.Start();
                 await PollPendingOrdersAsync();
+            }
+        }
+
+        public void ApplyAppearance(DashboardAppearance value)
+        {
+            DashboardAppearanceService.NormalizeAndValidate(value);
+            SetBrushColor("AppSidebarBrush", value.SidebarColor);
+            SetBrushColor("AppSidebarHoverBrush", value.SidebarHoverColor);
+            SetBrushColor("AppSidebarPressedBrush", value.SidebarPressedColor);
+            SetBrushColor("AppPrimaryBrush", value.PrimaryButtonColor);
+            SetBrushColor("AppPrimaryDarkBrush", value.PrimaryButtonHoverColor);
+            SetGradient("AppDashboardHeroBrush", value.HeaderStartColor, value.HeaderMiddleColor, value.HeaderEndColor);
+            SidebarTitleText.Text = value.SidebarTitle;
+            SidebarLogo.Source = null;
+            SidebarLogo.Visibility = Visibility.Collapsed;
+            if (string.IsNullOrWhiteSpace(value.LogoBase64)) return;
+            using var stream = new MemoryStream(Convert.FromBase64String(value.LogoBase64));
+            var image = new System.Windows.Media.Imaging.BitmapImage();
+            image.BeginInit(); image.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad; image.StreamSource = stream; image.EndInit(); image.Freeze();
+            SidebarLogo.Source = image;
+            SidebarLogo.Visibility = Visibility.Visible;
+        }
+
+        private static void SetBrushColor(string key, string value)
+        {
+            if (System.Windows.Application.Current.Resources[key] is SolidColorBrush brush)
+                brush.Color = (Color)ColorConverter.ConvertFromString(value)!;
+        }
+
+        private static void SetGradient(string key, string start, string middle, string end)
+        {
+            if (System.Windows.Application.Current.Resources[key] is LinearGradientBrush gradient && gradient.GradientStops.Count >= 3)
+            {
+                gradient.GradientStops[0].Color = (Color)ColorConverter.ConvertFromString(start)!;
+                gradient.GradientStops[1].Color = (Color)ColorConverter.ConvertFromString(middle)!;
+                gradient.GradientStops[2].Color = (Color)ColorConverter.ConvertFromString(end)!;
             }
         }
 
