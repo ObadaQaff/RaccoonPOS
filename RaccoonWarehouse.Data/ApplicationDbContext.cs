@@ -15,6 +15,7 @@ using RaccoonWarehouse.Domain.Categories;
 using RaccoonWarehouse.Domain.CustomerRequests;
 using RaccoonWarehouse.Domain.CostCenters;
 using RaccoonWarehouse.Domain.Currencies;
+using RaccoonWarehouse.Domain.Employees;
 using RaccoonWarehouse.Domain.EntityAndDtoStructure;
 using RaccoonWarehouse.Domain.FinancialTransactions;
 using RaccoonWarehouse.Domain.InvoiceLines;
@@ -45,6 +46,7 @@ using RaccoonWarehouse.Domain.Users;
 using RaccoonWarehouse.Domain.Vouchers;
 using System.Linq.Expressions;
 using DelegateEntity = RaccoonWarehouse.Domain.Delegates.Delegate;
+using EmployeeEntity = RaccoonWarehouse.Domain.Employees.Employee;
 
 namespace RaccoonWarehouse.Data
 {
@@ -482,6 +484,27 @@ namespace RaccoonWarehouse.Data
                 .IsUnique()
                 .HasFilter("[UserId] IS NOT NULL");
 
+            modelBuilder.ApplyConfiguration(new RaccoonWarehouse.Data.Configurations.PayrollModelConfiguration());
+            RaccoonWarehouse.Data.Configurations.PayrollModelConfiguration.ConfigurePayroll(modelBuilder);
+
+            modelBuilder.Entity<EmployeeEntity>()
+                .HasIndex(x => x.Code)
+                .IsUnique();
+
+            modelBuilder.Entity<EmployeeEntity>()
+                .HasIndex(x => x.UserId)
+                .IsUnique()
+                .HasFilter("[UserId] IS NOT NULL");
+
+            modelBuilder.Entity<EmployeeEntity>()
+                .HasIndex(x => x.BranchId);
+
+            modelBuilder.Entity<EmployeeEntity>()
+                .HasIndex(x => x.DepartmentId);
+
+            modelBuilder.Entity<EmployeeEntity>()
+                .HasIndex(x => x.Status);
+
             modelBuilder.Entity<Invoice>()
                 .HasIndex(x => x.DelegateId);
 
@@ -517,6 +540,18 @@ namespace RaccoonWarehouse.Data
                 .HasOne(d => d.User)
                 .WithOne(u => u.DelegateProfile)
                 .HasForeignKey<DelegateEntity>(d => d.UserId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<EmployeeEntity>()
+                .HasOne(e => e.User)
+                .WithOne(u => u.EmployeeProfile)
+                .HasForeignKey<EmployeeEntity>(e => e.UserId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<EmployeeEntity>()
+                .HasOne(e => e.Manager)
+                .WithMany(e => e.DirectReports)
+                .HasForeignKey(e => e.ManagerId)
                 .OnDelete(DeleteBehavior.NoAction);
 
             modelBuilder.Entity<Invoice>()

@@ -14,6 +14,7 @@ using RaccoonWarehouse.Domain.LostCustomers;
 using RaccoonWarehouse.Domain.Checks;
 using RaccoonWarehouse.Domain.Checks.DTOs;
 using RaccoonWarehouse.Domain.Delegates.DTOs;
+using RaccoonWarehouse.Domain.Employees.DTOs;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.FinancialTransactions;
 using RaccoonWarehouse.Domain.FinancialTransactions.DTOs;
@@ -56,6 +57,7 @@ using RaccoonWarehouse.Domain.Vouchers.DTOs;
 using RaccoonWarehouse.Domain.Warehouses;
 using RaccoonWarehouse.Domain.Warehouses.DTOs;
 using DelegateEntity = RaccoonWarehouse.Domain.Delegates.Delegate;
+using EmployeeEntity = RaccoonWarehouse.Domain.Employees.Employee;
 
 namespace RaccoonWarehouse.Application.Helper
 {
@@ -72,6 +74,15 @@ namespace RaccoonWarehouse.Application.Helper
                 .ForMember(dest => dest.UserName, opt => opt.MapFrom(src => src.User != null ? src.User.Name : null))
                 .ForMember(dest => dest.InvoiceCount, opt => opt.MapFrom(src => src.Invoices.Count))
                 .ForMember(dest => dest.TotalSales, opt => opt.MapFrom(src => src.Invoices.Sum(i => i.TotalAmount)))
+                .ReverseMap();
+
+            CreateMap<EmployeeCreateDto, EmployeeEntity>().ForMember(x => x.SocialSecurityNumberEncrypted, o => o.Ignore()).ReverseMap();
+            CreateMap<EmployeeUpdateDto, EmployeeEntity>().ForMember(x => x.SocialSecurityNumberEncrypted, o => o.Ignore()).ReverseMap();
+            CreateMap<EmployeeCreateDto, EmployeeUpdateDto>();
+            CreateMap<EmployeeEntity, EmployeeReadDto>()
+                .ForMember(x => x.HasSocialSecurityNumber, o => o.MapFrom(x => x.SocialSecurityNumberEncrypted != null))
+                .ForMember(dest => dest.UserName, opt => opt.MapFrom(src => src.User != null ? src.User.Name : null))
+                .ForMember(dest => dest.ManagerName, opt => opt.MapFrom(src => src.Manager != null ? src.Manager.FullName : null))
                 .ReverseMap();
 
             CreateMap<CategoryWriteDto, Category>().ReverseMap();
