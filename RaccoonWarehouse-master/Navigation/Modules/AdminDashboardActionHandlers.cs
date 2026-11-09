@@ -72,7 +72,6 @@ namespace RaccoonWarehouse.Navigation.Modules
                 "Settings.Delegates" or
                 "Settings.Employees" or
                 "Settings.Accounting" or
-                "Settings.Employees" or
                 "Settings.Hr" or
                 "Settings.Permissions" or
                 "Settings.Language" or

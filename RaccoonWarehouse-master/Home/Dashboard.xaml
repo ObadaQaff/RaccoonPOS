@@ -161,13 +161,6 @@
                                 <TextBlock Text="الموظفين" Foreground="{StaticResource AppSidebarTextBrush}" FontSize="18" TextWrapping="Wrap"/>
                             </StackPanel>
                         </Button>
-<!-- MERGE STASHED EMPLOYEE BLOCK -->
-                        <Button x:Name="EmployeesNavButton" Visibility="Collapsed" Style="{StaticResource DashboardNavButtonStyle}" Margin="0,0,0,8" Click="Employees_Click">
-                            <StackPanel Orientation="Horizontal" FlowDirection="{DynamicResource CurrentFlowDirection}">
-                                <fa:ImageAwesome Icon="User" Width="22" Height="22" Foreground="#A9E5BB" Margin="0,0,12,0"/>
-                                <TextBlock Text="الموظفون" Foreground="{StaticResource AppSidebarTextBrush}" FontSize="18" TextWrapping="Wrap"/>
-                            </StackPanel>
-                        </Button>
                         <Button x:Name="HrNavButton" Style="{StaticResource DashboardNavButtonStyle}" Margin="0,0,0,8" Click="Hr_Click">
                             <StackPanel Orientation="Horizontal" FlowDirection="{DynamicResource CurrentFlowDirection}">
                                 <fa:ImageAwesome Icon="Briefcase" Width="22" Height="22" Foreground="#A9E5BB" Margin="0,0,12,0"/>

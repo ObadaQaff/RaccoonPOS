@@ -96,8 +96,10 @@ public sealed class ModuleStateStore : IModuleStateStore
 
         lock (_gate)
         {
-            _snapshot[EmployeesModuleKey] = enabled;
-            if (string.Equals(moduleKey, HrModuleKey, StringComparison.OrdinalIgnoreCase)) _snapshot[HrModuleKey] = enabled;
+            if (string.Equals(moduleKey, HrModuleKey, StringComparison.OrdinalIgnoreCase))
+                _snapshot[HrModuleKey] = enabled;
+            else
+                _snapshot[EmployeesModuleKey] = enabled;
         }
         return enabled;
     }

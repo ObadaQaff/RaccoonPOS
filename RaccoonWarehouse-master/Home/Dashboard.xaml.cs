@@ -147,10 +147,6 @@ namespace RaccoonWarehouse
                 await RefreshEmployeesNavigationAsync();
                 await RefreshHrNavigationAsync();
 
-                EmployeeNavButton.Visibility = await _employeeFeatureService.IsEnabledAsync()
-                    ? Visibility.Visible
-                    : Visibility.Collapsed;
-
                 _knownPendingCartIds.Clear();
                 _unreadPendingCartIds.Clear();
                 _pendingSnapshotInitialized = false;
