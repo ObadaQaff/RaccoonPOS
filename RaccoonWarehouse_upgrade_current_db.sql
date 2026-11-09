@@ -6188,14 +6188,4 @@ END;
 COMMIT;
 GO
 
--- Compatibility repair for existing databases created before Employee.IsDeleted
--- was included in the soft-delete model. This block is safe to run repeatedly.
-IF OBJECT_ID(N'[dbo].[Employee]', N'U') IS NOT NULL
-   AND COL_LENGTH(N'[dbo].[Employee]', N'IsDeleted') IS NULL
-BEGIN
-    ALTER TABLE [dbo].[Employee]
-        ADD [IsDeleted] bit NOT NULL
-            CONSTRAINT [DF_Employee_IsDeleted] DEFAULT (0) WITH VALUES;
-END;
-GO
 

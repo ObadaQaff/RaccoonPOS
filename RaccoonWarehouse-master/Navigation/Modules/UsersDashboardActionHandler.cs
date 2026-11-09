@@ -1,9 +1,6 @@
 using RaccoonWarehouse.Application.Service.Settings;
 using RaccoonWarehouse.Application.Service.Users;
-using RaccoonWarehouse.Core.Permissions;
-using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Delegates;
-using RaccoonWarehouse.Employees;
 using RaccoonWarehouse.Helpers.Localization;
 using RaccoonWarehouse.Navigation;
 using System.Windows;
@@ -13,37 +10,26 @@ namespace RaccoonWarehouse.Navigation.Modules
     public sealed class UsersDashboardActionHandler : IDashboardActionHandler
     {
         private readonly IDelegateFeatureService _delegateFeatureService;
-        private readonly IEmployeeFeatureService _employeeFeatureService;
-        private readonly IPermissionService _permissions;
 
         public UsersDashboardActionHandler(
             IUserSession userSession,
-            IDelegateFeatureService delegateFeatureService,
-            IEmployeeFeatureService employeeFeatureService,
-            IPermissionService permissions)
+            IDelegateFeatureService delegateFeatureService)
         {
             _delegateFeatureService = delegateFeatureService;
-            _employeeFeatureService = employeeFeatureService;
-            _permissions = permissions;
         }
 
         public bool CanHandle(string actionKey)
-        {
-            return actionKey is "Users.Create" or "Users.List" or "Delegates.List" or "Employees.List";
-        }
+            => actionKey is "Users.Create" or "Users.List" or "Delegates.List";
 
         public async Task ExecuteAsync(string actionKey, DashboardActionContext context)
         {
-            if (!_permissions.HasPermission("Users", PermissionLevel.Admin))
-            {
-                MessageBox.Show(UiText.T("Ù„Ø§ ØªÙ…Ù„Ùƒ ØµÙ„Ø§Ø­ÙŠØ© Ø¥Ø¯Ø§Ø±Ø© Ø§Ù„Ù…Ø³ØªØ®Ø¯Ù…ÙŠÙ†.", "You do not have permission to manage users."));
-                return;
-            }
             switch (actionKey)
             {
-                case "Users.Create":WindowManager.Show<CreateUser>();
+                case "Users.Create":
+                    WindowManager.Show<CreateUser>();
                     return;
-                case "Users.List":WindowManager.Show<UsersTable>();
+                case "Users.List":
+                    WindowManager.Show<UsersTable>();
                     return;
                 case "Delegates.List":
                     if (!await _delegateFeatureService.IsEnabledAsync())
@@ -54,15 +40,7 @@ namespace RaccoonWarehouse.Navigation.Modules
 
                     WindowManager.Show<DelegatesTable>();
                     return;
-                case "Employees.List":
-                    if (!await _employeeFeatureService.IsEnabledAsync())
-                    {
-                        MessageBox.Show(UiText.T("نظام الموظفين غير مفعل حالياً.", "The module is currently disabled."));
-                        return;
-                    }
-
-                    WindowManager.Show<EmployeesTable>();
-                    return;
             }
-        }}
+        }
+    }
 }

@@ -1,399 +1,195 @@
-using System.Text.Json;
-using RaccoonWarehouse.Application.Service.Payroll;
-using RaccoonWarehouse.Application.Service.Users;
-using RaccoonWarehouse.Domain.Payroll;
-using AutoMapper;
 using Microsoft.EntityFrameworkCore;
-using RaccoonWarehouse.Application.Service.Settings;
 using RaccoonWarehouse.Core.Common;
-using RaccoonWarehouse.Core.Interface;
+using RaccoonWarehouse.Core.Modules;
+using RaccoonWarehouse.Core.Permissions;
 using RaccoonWarehouse.Data;
-using RaccoonWarehouse.Domain.Employees.DTOs;
 using RaccoonWarehouse.Domain.Employees;
+using RaccoonWarehouse.Domain.Employees.DTOs;
+using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Branches;
 using RaccoonWarehouse.Domain.Users;
-using RaccoonWarehouse.Domain.Enums;
-using RaccoonWarehouse.Domain.Reports.Employees.Dtos;
-using RaccoonWarehouse.Domain.Reports.Employees.Filters;
-using EmployeeEntity = RaccoonWarehouse.Domain.Employees.Employee;
+using RaccoonWarehouse.Application.Service.Modules;
 
-namespace RaccoonWarehouse.Application.Service.Employees
+namespace RaccoonWarehouse.Application.Service.Employees;
+
+public interface IEmployeeService
 {
-    public interface IEmployeeService
+    Task<IReadOnlyList<EmployeeListItemDto>> SearchAsync(string? search, bool includeInactive = false, CancellationToken cancellationToken = default);
+    Task<EmployeeDetailsDto?> GetAsync(int id, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<EmployeeLookupDto>> GetBranchesAsync(CancellationToken cancellationToken = default);
+    Task<Result<int>> CreateBranchAsync(string code, string name, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<EmployeeLookupDto>> GetUsersAsync(CancellationToken cancellationToken = default);
+    Task<Result<int>> SaveBranchAssignmentAsync(EmployeeBranchAssignmentEditDto model, CancellationToken cancellationToken = default);
+    Task<Result> DeactivateBranchAssignmentAsync(int id, CancellationToken cancellationToken = default);
+    Task<Result<int>> SaveAsync(EmployeeEditDto model, CancellationToken cancellationToken = default);
+    Task<Result> DeactivateAsync(int id, CancellationToken cancellationToken = default);
+}
+
+public sealed class EmployeeService : IEmployeeService
+{
+    private readonly ApplicationDbContext _db;
+    private readonly IModuleStateStore _modules;
+    private readonly IPermissionService? _permissions;
+
+    public EmployeeService(ApplicationDbContext db, IModuleStateStore modules, IPermissionService? permissions = null)
     {
-        Task<Result<EmployeeCreateDto>> CreateAsync(EmployeeCreateDto dto);
-        Task<Result<EmployeeUpdateDto>> UpdateAsync(EmployeeUpdateDto dto);
-        Task<Result<bool>> SetStatusAsync(int employeeId, EmployeeStatus status);
-        Task<Result<List<EmployeeReadDto>>> GetListAsync(EmployeeListFilterDto? filter = null);
-        Task<Result<EmployeeReadDto>> GetByIdAsync(int id);
-        Task<Result<List<EmployeeReadDto>>> GetActiveEmployeesAsync();
-        Task<Result<bool>> LinkUserAsync(int employeeId, int userId);
-        Task<Result<bool>> UnlinkUserAsync(int employeeId);
-        Task<Result<EmployeeAnalyticsDto>> GetAnalyticsAsync();
-        Task<Result<List<EmployeeReportRowDto>>> GetReportAsync(EmployeeReportFilterDto filter);
-        Task<Result<bool>> SoftDeleteAsync(int employeeId);
-        Task<List<Branch>> GetBranchesAsync();
-        Task<List<User>> GetUsersAsync();
-        Task<EmployeeDetailsDto?> GetAsync(int id);
-        Task<Result<EmployeeEditDto>> SaveAsync(EmployeeEditDto dto);
-        Task<Result<bool>> DeactivateAsync(int employeeId);
-        Task<Result<int>> CreateBranchAsync(string code, string name);
-        Task<Result> SaveBranchAssignmentAsync(EmployeeBranchAssignmentEditDto dto);
+        _db = db;
+        _modules = modules;
+        _permissions = permissions;
     }
 
-    public class EmployeeService : IEmployeeService
+    private void RequireEnabled()
     {
-        private readonly ApplicationDbContext _dbContext;
-        private readonly IUOW _uow;
-        private readonly IMapper _mapper;
-        private readonly IEmployeeFeatureService _featureService;
-        private readonly IUserSession? _session;
-        private readonly IPayrollSensitiveDataProtector _protector;
-        private static string EmploymentSnapshot(EmployeeEntity e) => JsonSerializer.Serialize(new {e.Code,e.JobTitle,e.HireDate,e.TerminationDate,e.BranchId,e.DepartmentId,e.ManagerId,e.Status,e.EmploymentType});
-        private void History(EmployeeEntity e,string before,string reason) => _dbContext.Set<EmployeeEmploymentHistory>().Add(new EmployeeEmploymentHistory {Employee=e,BeforeJson=before,AfterJson=EmploymentSnapshot(e),Reason=reason,ChangedBy=_session?.CurrentUser?.Id,CreatedDate=DateTime.Now,UpdatedDate=DateTime.Now});
-        private static string? Dates(DateTime? birth,DateTime? hire,DateTime? termination,decimal? salary)
-            => birth?.Date>DateTime.Today?"تاريخ الميلاد لا يجوز أن يكون في المستقبل.":termination.HasValue&&hire.HasValue&&termination.Value.Date<hire.Value.Date?"تاريخ انتهاء العمل يسبق تاريخ التعيين.":salary<0m?"الراتب لا يجوز أن يكون سالباً.":null;
-        private static string? National(string? value) => string.IsNullOrWhiteSpace(value)?null:new string(value.Trim().Select(c=>char.IsDigit(c)?(char)('0'+(int)char.GetNumericValue(c)):c).ToArray());        public EmployeeService(ApplicationDbContext dbContext, IUOW uow, IMapper mapper, IEmployeeFeatureService featureService = null, IUserSession? session = null, IPayrollSensitiveDataProtector? protector = null)
-        {
-            _dbContext = dbContext;
-            _uow = uow;
-            _mapper = mapper;
-            _featureService = featureService;
-_session=session; _protector=protector??new PayrollSensitiveDataProtector();
-        }
-
-        public Task<List<Branch>> GetBranchesAsync() => _dbContext.Set<Branch>().AsNoTracking().Where(x => x.IsActive).OrderBy(x => x.Name).ToListAsync();
-        public Task<List<User>> GetUsersAsync() => _dbContext.Set<User>().AsNoTracking().OrderBy(x => x.Name).ToListAsync();
-
-        public async Task<EmployeeDetailsDto?> GetAsync(int id)
-        {
-            var employee = await _dbContext.Set<EmployeeEntity>().AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
-            if (employee == null) return null;
-            var dto = new EmployeeEditDto { Id = employee.Id, FullName = employee.FullName, PhoneNumber = employee.PhoneNumber ?? string.Empty, NationalId = employee.NationalId, Address = employee.Address, Email = employee.Email, JobTitle = employee.JobTitle, MonthlyBasicSalary = employee.BasicSalary ?? 0m, EmploymentDate = employee.HireDate, Status = employee.Status, PrimaryBranchId = employee.PrimaryBranchId, UserId = employee.UserId, ContractStartDate = employee.HireDate ?? DateTime.Today };
-            var branches = await _dbContext.EmployeeBranchAssignments.AsNoTracking().Where(x => x.EmployeeId == id).Include(x => x.Branch).Select(x => new EmployeeBranchDto(x.Id, x.BranchId, x.Branch!.Name, x.StartDate, x.EndDate, x.IsActive)).ToListAsync();
-            var shifts = await _dbContext.EmployeeShiftAssignments.AsNoTracking().Where(x => x.EmployeeId == id).Include(x => x.ShiftTemplate).Select(x => new EmployeeShiftDto(x.Id, x.ShiftTemplateId, x.ShiftTemplate!.Name, x.DayOfWeek, x.ShiftTemplate.StartTime, x.ShiftTemplate.EndTime, x.ShiftTemplate.IsOvernight, x.StartDate, x.EndDate, x.IsActive)).ToListAsync();
-            return new EmployeeDetailsDto(dto, branches, shifts);
-        }
-
-        public async Task<Result<EmployeeEditDto>> SaveAsync(EmployeeEditDto dto)
-        {
-            var entity = dto.Id == 0 ? new EmployeeEntity { CreatedDate = DateTime.Now } : await _dbContext.Set<EmployeeEntity>().FirstOrDefaultAsync(x => x.Id == dto.Id);
-            if (entity == null) return Result<EmployeeEditDto>.Fail("Employee not found.");
-            entity.FullName = dto.FullName.Trim(); entity.PhoneNumber = dto.PhoneNumber; entity.NationalId = dto.NationalId; entity.Address = dto.Address; entity.Email = dto.Email; entity.JobTitle = dto.JobTitle; entity.BasicSalary = dto.MonthlyBasicSalary; entity.HireDate = dto.EmploymentDate; entity.Status = dto.Status; entity.PrimaryBranchId = dto.PrimaryBranchId; entity.UserId = dto.UserId; entity.UpdatedDate = DateTime.Now;
-            if (dto.Id == 0) { entity.Code = $"EMP-{DateTime.Now:yyyyMMddHHmmssfff}"; _dbContext.Add(entity); }
-            await _dbContext.SaveChangesAsync(); dto.Id = entity.Id; return Result<EmployeeEditDto>.Ok(dto, "Employee saved.");
-        }
-
-        public async Task<Result<bool>> DeactivateAsync(int employeeId) => await SetStatusAsync(employeeId, EmployeeStatus.Inactive);
-
-        public async Task<Result<int>> CreateBranchAsync(string code, string name)
-        {
-            if (string.IsNullOrWhiteSpace(name)) return Result<int>.Fail("Branch name is required.");
-            var branch = new Branch { Code = string.IsNullOrWhiteSpace(code) ? name.Trim().ToUpperInvariant() : code.Trim(), Name = name.Trim(), CreatedDate = DateTime.Now, UpdatedDate = DateTime.Now };
-            _dbContext.Branches.Add(branch); await _dbContext.SaveChangesAsync(); return Result<int>.Ok(branch.Id, "Branch created.");
-        }
-
-        public async Task<Result> SaveBranchAssignmentAsync(EmployeeBranchAssignmentEditDto dto)
-        {
-            var assignment = dto.Id == 0 ? new EmployeeBranchAssignment { EmployeeId = dto.EmployeeId, CreatedDate = DateTime.Now } : await _dbContext.EmployeeBranchAssignments.FindAsync(dto.Id);
-            if (assignment == null) return Result.Fail("Branch assignment was not found.");
-            assignment.EmployeeId = dto.EmployeeId; assignment.BranchId = dto.BranchId; assignment.StartDate = dto.StartDate; assignment.EndDate = dto.EndDate; assignment.IsActive = dto.IsActive; assignment.UpdatedDate = DateTime.Now;
-            if (dto.Id == 0) _dbContext.EmployeeBranchAssignments.Add(assignment); await _dbContext.SaveChangesAsync(); return Result.Ok("Branch assignment saved.");
-        }
-
-        public async Task<Result<EmployeeCreateDto>> CreateAsync(EmployeeCreateDto dto)
-        {
-            dto.Code=(dto.Code??"").Trim();dto.FullName=(dto.FullName??"").Trim();dto.NationalId=National(dto.NationalId);
-            var dates=Dates(dto.DateOfBirth,dto.HireDate,dto.TerminationDate,dto.BasicSalary);
-            if(dates!=null)return Result<EmployeeCreateDto>.Fail(dates);
-            if(!string.IsNullOrEmpty(dto.NationalId)&&(dto.NationalId.Length!=10||dto.NationalId.Any(c=>c<'0'||c>'9')))
-                return Result<EmployeeCreateDto>.Fail("الرقم الوطني الأردني يتكون من عشرة أرقام؛ اتركه فارغاً عند عدم انطباقه.");
-            if(!Enum.IsDefined(dto.Status)||(dto.EmploymentType.HasValue&&!Enum.IsDefined(dto.EmploymentType.Value)))return Result<EmployeeCreateDto>.Fail("نوع التوظيف غير صالح.");
-            string? encrypted=null;
-            if(!string.IsNullOrWhiteSpace(dto.SocialSecurityNumber))
-            {
-                try{if(dto.SocialSecurityNumber.Trim().Length>64||dto.SocialSecurityNumber.Any(char.IsControl))throw new ArgumentException("رقم الضمان غير صالح أو طويل جداً.");encrypted=_protector.Protect(dto.SocialSecurityNumber.Trim());}catch(Exception ex){return Result<EmployeeCreateDto>.Fail(ex.Message);}
-            }
-            var validation = await ValidateAsync(dto.Id, dto.Code, dto.FullName, dto.PhoneNumber, dto.Email, dto.NationalId, dto.UserId);
-            if (!validation.Success)
-                return Result<EmployeeCreateDto>.Fail(validation.Message);
-
-            var entity = _mapper.Map<EmployeeEntity>(dto);
-            entity.SocialSecurityNumberEncrypted=encrypted;
-            entity.CreatedBy=_session?.CurrentUser?.Id??dto.CreatedBy;
-            History(entity,"","إنشاء ملف الموظف");
-            entity.CreatedDate = DateTime.Now;
-            entity.UpdatedDate = DateTime.Now;
-
-            await _uow.GetRepository<EmployeeEntity>().AddAsync(entity);
-            await _uow.CommitAsync();
-
-            dto.SocialSecurityNumber=null;
-            dto.Id = entity.Id;
-            return Result<EmployeeCreateDto>.Ok(dto, "Employee created successfully.");
-        }
-
-        public async Task<Result<EmployeeUpdateDto>> UpdateAsync(EmployeeUpdateDto dto)
-        {
-            var entity = await _dbContext.Set<EmployeeEntity>().FirstOrDefaultAsync(x => x.Id == dto.Id);
-            if (entity == null)
-                return Result<EmployeeUpdateDto>.Fail("Employee not found.");
-            dto.Code=(dto.Code??"").Trim();dto.FullName=(dto.FullName??"").Trim();dto.NationalId=National(dto.NationalId);
-            var dates=Dates(dto.DateOfBirth,dto.HireDate,dto.TerminationDate,dto.BasicSalary);
-            if(dates!=null)return Result<EmployeeUpdateDto>.Fail(dates);
-            if(dto.NationalId!=entity.NationalId&&!string.IsNullOrEmpty(dto.NationalId)&&(dto.NationalId.Length!=10||dto.NationalId.Any(c=>c<'0'||c>'9')))
-                return Result<EmployeeUpdateDto>.Fail("الرقم الوطني الأردني يتكون من عشرة أرقام.");
-            if(!Enum.IsDefined(dto.Status)||(dto.EmploymentType.HasValue&&!Enum.IsDefined(dto.EmploymentType.Value)))return Result<EmployeeUpdateDto>.Fail("نوع التوظيف غير صالح.");
-            var encrypted=entity.SocialSecurityNumberEncrypted;
-            if(!string.IsNullOrWhiteSpace(dto.SocialSecurityNumber)||dto.ClearSocialSecurityNumber)
-            {
-                try{if(!dto.ClearSocialSecurityNumber&&(dto.SocialSecurityNumber!.Trim().Length>64||dto.SocialSecurityNumber.Any(char.IsControl)))throw new ArgumentException("رقم الضمان غير صالح أو طويل جداً.");encrypted=dto.ClearSocialSecurityNumber?null:_protector.Protect(dto.SocialSecurityNumber!.Trim());}catch(Exception ex){return Result<EmployeeUpdateDto>.Fail(ex.Message);}
-            }
-            var validation = await ValidateAsync(dto.Id, dto.Code, dto.FullName, dto.PhoneNumber, dto.Email, dto.NationalId, dto.UserId);
-            if (!validation.Success)
-                return Result<EmployeeUpdateDto>.Fail(validation.Message);
-
-            var before=EmploymentSnapshot(entity);
-            var createdDate = entity.CreatedDate;
-            var createdBy=entity.CreatedBy;
-            _mapper.Map(dto, entity);
-            entity.SocialSecurityNumberEncrypted=encrypted;
-            entity.CreatedBy=createdBy;
-            entity.ModifiedBy=_session?.CurrentUser?.Id??entity.ModifiedBy;
-            if(before!=EmploymentSnapshot(entity))History(entity,before,dto.EmploymentChangeReason??"تعديل بيانات العمل");
-            entity.CreatedDate = createdDate;
-            entity.UpdatedDate = DateTime.Now;
-
-            await _uow.GetRepository<EmployeeEntity>().UpdateAsync(entity);
-            await _uow.CommitAsync();
-            dto.SocialSecurityNumber=null;
-            return Result<EmployeeUpdateDto>.Ok(dto, "Employee updated successfully.");
-        }
-
-        public async Task<Result<bool>> SetStatusAsync(int employeeId, EmployeeStatus status)
-        {
-            var entity = await _dbContext.Set<EmployeeEntity>().FirstOrDefaultAsync(x => x.Id == employeeId);
-            if (entity == null)
-                return Result<bool>.Fail("Employee not found.");
-            if(!Enum.IsDefined(status))return Result<bool>.Fail("حالة الموظف غير صالحة.");
-            var before=EmploymentSnapshot(entity);
-            entity.Status = status;
-            History(entity,before,"تغيير حالة الموظف");
-            entity.UpdatedDate = DateTime.Now;
-            await _dbContext.SaveChangesAsync();
-            return Result<bool>.Ok(true, "Employee status updated.");
-        }
-
-        public async Task<Result<List<EmployeeReadDto>>> GetListAsync(EmployeeListFilterDto? filter = null)
-        {
-            var query = _dbContext.Set<EmployeeEntity>()
-                .Include(x => x.User)
-                .Include(x => x.Manager)
-                .AsNoTracking()
-                .AsQueryable();
-
-            if (filter != null)
-            {
-                if (!string.IsNullOrWhiteSpace(filter.SearchText))
-                {
-                    var search = filter.SearchText.Trim();
-                    query = query.Where(x =>
-                        x.FullName.Contains(search) ||
-                        x.Code.Contains(search) ||
-                        (x.PhoneNumber != null && x.PhoneNumber.Contains(search)) ||
-                        (x.Email != null && x.Email.Contains(search)));
-                }
-
-                if (filter.Status.HasValue)
-                    query = query.Where(x => x.Status == filter.Status.Value);
-
-                if (filter.BranchId.HasValue)
-                    query = query.Where(x => x.BranchId == filter.BranchId.Value);
-
-                if (filter.DepartmentId.HasValue)
-                    query = query.Where(x => x.DepartmentId == filter.DepartmentId.Value);
-
-                if (!string.IsNullOrWhiteSpace(filter.JobTitle))
-                    query = query.Where(x => x.JobTitle != null && x.JobTitle.Contains(filter.JobTitle));
-
-                if (filter.OnlyActive)
-                    query = query.Where(x => x.Status == EmployeeStatus.Active);
-            }
-
-            var employees = await query.OrderBy(x => x.FullName).ToListAsync();
-            var values=_mapper.Map<List<EmployeeReadDto>>(employees);
-            
-            return Result<List<EmployeeReadDto>>.Ok(values);
-        }
-
-        public async Task<Result<EmployeeReadDto>> GetByIdAsync(int id)
-        {
-            var entity = await _dbContext.Set<EmployeeEntity>()
-                .Include(x => x.User)
-                .Include(x => x.Manager)
-                .AsNoTracking()
-                .FirstOrDefaultAsync(x => x.Id == id);
-
-            if (entity == null)
-                return Result<EmployeeReadDto>.Fail("Employee not found.");
-
-            var value=_mapper.Map<EmployeeReadDto>(entity);
-            return Result<EmployeeReadDto>.Ok(value);
-        }
-
-        public async Task<Result<List<EmployeeReadDto>>> GetActiveEmployeesAsync()
-        {
-            if (!await _featureService.IsEnabledAsync())
-                return Result<List<EmployeeReadDto>>.Ok(new List<EmployeeReadDto>());
-
-            return await GetListAsync(new EmployeeListFilterDto { OnlyActive = true });
-        }
-
-        public async Task<Result<bool>> LinkUserAsync(int employeeId, int userId)
-        {
-            var entity = await _dbContext.Set<EmployeeEntity>().FirstOrDefaultAsync(x => x.Id == employeeId);
-            if (entity == null)
-                return Result<bool>.Fail("Employee not found.");
-
-            var conflict = await _dbContext.Set<EmployeeEntity>()
-                .AnyAsync(x => x.Id != employeeId && x.UserId == userId);
-
-            if (conflict)
-                return Result<bool>.Fail("This user is already linked to another employee.");
-
-            entity.UserId = userId;
-            entity.UpdatedDate = DateTime.Now;
-            await _dbContext.SaveChangesAsync();
-            return Result<bool>.Ok(true, "User linked successfully.");
-        }
-
-        public async Task<Result<bool>> UnlinkUserAsync(int employeeId)
-        {
-            var entity = await _dbContext.Set<EmployeeEntity>().FirstOrDefaultAsync(x => x.Id == employeeId);
-            if (entity == null)
-                return Result<bool>.Fail("Employee not found.");
-
-            entity.UserId = null;
-            entity.UpdatedDate = DateTime.Now;
-            await _dbContext.SaveChangesAsync();
-            return Result<bool>.Ok(true, "User unlinked successfully.");
-        }
-
-        public async Task<Result<EmployeeAnalyticsDto>> GetAnalyticsAsync()
-        {
-            var employees = await _dbContext.Set<EmployeeEntity>().AsNoTracking().ToListAsync();
-
-            var dto = new EmployeeAnalyticsDto
-            {
-                TotalEmployees = employees.Count,
-                ActiveEmployees = employees.Count(x => x.Status == EmployeeStatus.Active),
-                InactiveEmployees = employees.Count(x => x.Status == EmployeeStatus.Inactive),
-                SuspendedEmployees = employees.Count(x => x.Status == EmployeeStatus.Suspended),
-                TerminatedEmployees = employees.Count(x => x.Status == EmployeeStatus.Terminated),
-                CountByBranch = employees.Where(x => x.BranchId.HasValue).GroupBy(x => x.BranchId!.Value).ToDictionary(x => x.Key, x => x.Count()),
-                CountByDepartment = employees.Where(x => x.DepartmentId.HasValue).GroupBy(x => x.DepartmentId!.Value).ToDictionary(x => x.Key, x => x.Count()),
-                CountByJobTitle = employees.Where(x => !string.IsNullOrWhiteSpace(x.JobTitle)).GroupBy(x => x.JobTitle!).ToDictionary(x => x.Key, x => x.Count()),
-                RecentlyHiredEmployees = employees.Where(x => x.HireDate.HasValue).OrderByDescending(x => x.HireDate).Take(5).Select(x => x.FullName).ToList(),
-                LastActivityDate = employees.OrderByDescending(x => x.UpdatedDate).Select(x => (DateTime?)x.UpdatedDate).FirstOrDefault()
-            };
-
-            return Result<EmployeeAnalyticsDto>.Ok(dto);
-        }
-
-        public async Task<Result<List<EmployeeReportRowDto>>> GetReportAsync(EmployeeReportFilterDto filter)
-        {
-            var query = _dbContext.Set<EmployeeEntity>()
-                .Include(x => x.User)
-                .AsNoTracking()
-                .AsQueryable();
-
-            if (filter.EmployeeId.HasValue)
-                query = query.Where(x => x.Id == filter.EmployeeId.Value);
-
-            if (filter.BranchId.HasValue)
-                query = query.Where(x => x.BranchId == filter.BranchId.Value);
-
-            if (filter.DepartmentId.HasValue)
-                query = query.Where(x => x.DepartmentId == filter.DepartmentId.Value);
-
-            if (filter.Status.HasValue)
-                query = query.Where(x => x.Status == filter.Status.Value);
-
-            if (filter.FromDate.HasValue)
-                query = query.Where(x => x.HireDate >= filter.FromDate.Value);
-
-            if (filter.ToDate.HasValue)
-                query = query.Where(x => x.HireDate <= filter.ToDate.Value);
-
-            var rows = await query
-                .OrderBy(x => x.FullName)
-                .Select(x => new EmployeeReportRowDto
-                {
-                    EmployeeId = x.Id,
-                    EmployeeName = x.FullName,
-                    EmployeeCode = x.Code,
-                    Status = x.Status,
-                    BranchId = x.BranchId,
-                    DepartmentId = x.DepartmentId,
-                    JobTitle = x.JobTitle,
-                    HireDate = x.HireDate,
-                    LinkedUserName = x.User != null ? x.User.Name : null
-                })
-                .ToListAsync();
-
-            return Result<List<EmployeeReportRowDto>>.Ok(rows);
-        }
-
-        public async Task<Result<bool>> SoftDeleteAsync(int employeeId)
-        {
-            var entity = await _dbContext.Set<EmployeeEntity>().FirstOrDefaultAsync(x => x.Id == employeeId);
-            if (entity == null)
-                return Result<bool>.Fail("Employee not found.");
-
-            entity.IsDeleted = true;
-            entity.Status = entity.Status == EmployeeStatus.Terminated ? EmployeeStatus.Terminated : EmployeeStatus.Inactive;
-            entity.UpdatedDate = DateTime.Now;
-            await _dbContext.SaveChangesAsync();
-            return Result<bool>.Ok(true, "Employee deleted successfully.");
-        }
-
-        private async Task<Result<bool>> ValidateAsync(int id, string code, string fullName, string? phoneNumber, string? email, string? nationalId, int? userId)
-        {
-            if (string.IsNullOrWhiteSpace(fullName))
-                return Result<bool>.Fail("Full name is required.");
-
-            if (string.IsNullOrWhiteSpace(code))
-                return Result<bool>.Fail("Code is required.");
-
-            if (!string.IsNullOrWhiteSpace(phoneNumber))
-            {
-                var digits = new string(phoneNumber.Where(char.IsDigit).ToArray());
-                if (digits.Length < 7)
-                    return Result<bool>.Fail("Phone number format is not valid.");
-            }
-
-            if (!string.IsNullOrWhiteSpace(email) && !email.Contains('@'))
-                return Result<bool>.Fail("Email format is not valid.");
-
-            var duplicateCode = await _dbContext.Set<EmployeeEntity>().AnyAsync(x => x.Id != id && x.Code == code);
-            if (duplicateCode)
-                return Result<bool>.Fail("Employee code must be unique.");
-
-            if (!string.IsNullOrWhiteSpace(nationalId))
-            {
-                var duplicateNationalId = await _dbContext.Set<EmployeeEntity>().IgnoreQueryFilters().AnyAsync(x => x.Id != id && x.NationalId == nationalId);
-                if (duplicateNationalId)
-                    return Result<bool>.Fail("Identity number must be unique.");
-            }
-
-            if (userId.HasValue)
-            {
-                var duplicateUser = await _dbContext.Set<EmployeeEntity>().AnyAsync(x => x.Id != id && x.UserId == userId.Value);
-                if (duplicateUser)
-                    return Result<bool>.Fail("The selected user is already linked to another employee.");
-            }
-
-            return Result<bool>.Ok(true);
-        }
+        if (!_modules.IsEnabled(ModuleStateStore.EmployeesModuleKey))
+            throw new InvalidOperationException("Employees module is disabled.");
     }
+    private void Require(PermissionLevel level) { if (_permissions != null && !_permissions.HasPermission("Employees", level)) throw new UnauthorizedAccessException("Employees permission denied."); }
+
+    public async Task<IReadOnlyList<EmployeeListItemDto>> SearchAsync(string? search, bool includeInactive = false, CancellationToken cancellationToken = default)
+    {
+        RequireEnabled();
+        Require(PermissionLevel.View);
+        var query = _db.Employees.AsNoTracking().AsQueryable();
+        if (!includeInactive)
+            query = query.Where(x => x.Status == EmployeeStatus.Active);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            search = search.Trim();
+            query = query.Where(x => x.FullName.Contains(search) || x.PhoneNumber.Contains(search) || (x.NationalId != null && x.NationalId.Contains(search)));
+        }
+
+        var rows = await query.OrderBy(x => x.FullName).Take(200).ToListAsync(cancellationToken);
+        var branchIds = rows.Select(x => x.PrimaryBranchId).Distinct().ToList();
+        var branchNames = await _db.Branches.AsNoTracking().Where(x => branchIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Name, cancellationToken);
+        return rows.Select(x => new EmployeeListItemDto(x.Id, x.FullName, x.PhoneNumber, x.NationalId, x.JobTitle, x.Status, branchNames.TryGetValue(x.PrimaryBranchId, out var branchName) ? branchName : null)).ToList();
+    }
+
+    public async Task<EmployeeDetailsDto?> GetAsync(int id, CancellationToken cancellationToken = default)
+    {
+        RequireEnabled();
+        Require(PermissionLevel.View);
+        var employee = await _db.Employees.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+        if (employee == null) return null;
+
+        var branches = await _db.EmployeeBranchAssignments.AsNoTracking().Include(x => x.Branch)
+            .Where(x => x.EmployeeId == id).OrderByDescending(x => x.IsActive).ThenBy(x => x.StartDate)
+            .Select(x => new EmployeeBranchDto(x.Id, x.BranchId, x.Branch!.Name, x.StartDate, x.EndDate, x.IsActive)).ToListAsync(cancellationToken);
+        var shifts = await _db.EmployeeShiftAssignments.AsNoTracking().Include(x => x.ShiftTemplate)
+            .Where(x => x.EmployeeId == id).OrderBy(x => x.DayOfWeek).ThenByDescending(x => x.IsActive)
+            .Select(x => new EmployeeShiftDto(x.Id, x.ShiftTemplateId, x.ShiftTemplate!.Name, x.DayOfWeek, x.ShiftTemplate.StartTime, x.ShiftTemplate.EndTime, x.ShiftTemplate.IsOvernight, x.StartDate, x.EndDate, x.IsActive)).ToListAsync(cancellationToken);
+        return new EmployeeDetailsDto(ToEditDto(employee), branches, shifts);
+    }
+
+    public async Task<IReadOnlyList<EmployeeLookupDto>> GetBranchesAsync(CancellationToken cancellationToken = default)
+    {
+        RequireEnabled();
+        Require(PermissionLevel.View);
+        return await _db.Branches.AsNoTracking().Where(x => x.IsActive).OrderBy(x => x.Name).Select(x => new EmployeeLookupDto(x.Id, x.Name)).ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<EmployeeLookupDto>> GetUsersAsync(CancellationToken cancellationToken = default)
+    {
+        RequireEnabled();
+        Require(PermissionLevel.View);
+        return await _db.Set<User>().AsNoTracking().OrderBy(x => x.Name).Select(x => new EmployeeLookupDto(x.Id, x.Name)).ToListAsync(cancellationToken);
+    }
+
+    public async Task<Result<int>> CreateBranchAsync(string code, string name, CancellationToken cancellationToken = default)
+    {
+        RequireEnabled();
+        Require(PermissionLevel.Manage);
+
+        code = code.Trim();
+        name = name.Trim();
+        if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(name))
+            return Result<int>.ValidationFail(new List<string> { "Branch code and name are required." });
+
+        if (await _db.Branches.AsNoTracking().AnyAsync(x => x.Code == code, cancellationToken))
+            return Result<int>.ValidationFail(new List<string> { "A branch with this code already exists." });
+
+        var branch = new Branch
+        {
+            Code = code,
+            Name = name,
+            IsActive = true,
+            CreatedDate = DateTime.Now,
+            UpdatedDate = DateTime.Now
+        };
+        _db.Branches.Add(branch);
+        await _db.SaveChangesAsync(cancellationToken);
+        return Result<int>.Ok(branch.Id, "Branch created.");
+    }
+
+    public async Task<Result<int>> SaveBranchAssignmentAsync(EmployeeBranchAssignmentEditDto model, CancellationToken cancellationToken = default)
+    {
+        RequireEnabled();
+        Require(PermissionLevel.Manage);
+        if (model.EndDate.HasValue && model.EndDate < model.StartDate)
+            return Result<int>.ValidationFail(new List<string> { "Branch assignment end date cannot be before its start date." });
+        var entity = model.Id == 0 ? new EmployeeBranchAssignment { CreatedDate = DateTime.Now } : await _db.EmployeeBranchAssignments.FindAsync(new object[] { model.Id }, cancellationToken) ?? throw new InvalidOperationException("Branch assignment was not found.");
+        if (model.Id == 0) _db.EmployeeBranchAssignments.Add(entity);
+        entity.EmployeeId = model.EmployeeId; entity.BranchId = model.BranchId; entity.StartDate = model.StartDate; entity.EndDate = model.EndDate; entity.IsActive = model.IsActive; entity.UpdatedDate = DateTime.Now;
+        await _db.SaveChangesAsync(cancellationToken);
+        return Result<int>.Ok(entity.Id, "Branch assignment saved.");
+    }
+
+    public async Task<Result> DeactivateBranchAssignmentAsync(int id, CancellationToken cancellationToken = default)
+    {
+        RequireEnabled(); Require(PermissionLevel.Manage); var entity = await _db.EmployeeBranchAssignments.FindAsync(new object[] { id }, cancellationToken); if (entity == null) return Result.Fail("Branch assignment was not found."); entity.IsActive = false; entity.UpdatedDate = DateTime.Now; await _db.SaveChangesAsync(cancellationToken); return Result.Ok("Branch assignment deactivated.");
+    }
+
+    public async Task<Result<int>> SaveAsync(EmployeeEditDto model, CancellationToken cancellationToken = default)
+    {
+        RequireEnabled();
+        Require(PermissionLevel.Manage);
+        if (string.IsNullOrWhiteSpace(model.FullName) || string.IsNullOrWhiteSpace(model.PhoneNumber))
+            return Result<int>.ValidationFail(new List<string> { "Full name and phone number are required." });
+        if (model.ContractEndDate.HasValue && model.ContractEndDate.Value.Date < model.ContractStartDate.Date)
+            return Result<int>.ValidationFail(new List<string> { "Contract end date cannot be before the start date." });
+        if (model.PrimaryBranchId <= 0 || !await _db.Branches.AsNoTracking().AnyAsync(x => x.Id == model.PrimaryBranchId, cancellationToken))
+            return Result<int>.ValidationFail(new List<string> { "A valid primary branch is required." });
+
+        Employee entity;
+        if (model.Id == 0)
+        {
+            entity = new Employee { CreatedDate = DateTime.Now };
+            _db.Employees.Add(entity);
+        }
+        else
+        {
+            entity = await _db.Employees.FirstOrDefaultAsync(x => x.Id == model.Id, cancellationToken)
+                ?? throw new InvalidOperationException("Employee was not found.");
+        }
+
+        entity.FullName = model.FullName.Trim();
+        entity.PhoneNumber = model.PhoneNumber.Trim();
+        entity.NationalId = string.IsNullOrWhiteSpace(model.NationalId) ? null : model.NationalId.Trim();
+        entity.Address = model.Address?.Trim(); entity.Email = model.Email?.Trim(); entity.EmploymentDate = model.EmploymentDate;
+        entity.Status = model.Status; entity.JobTitle = model.JobTitle?.Trim(); entity.MonthlyBasicSalary = model.MonthlyBasicSalary;
+        entity.SocialSecurityEnrolled = model.SocialSecurityEnrolled; entity.SocialSecurityNumber = model.SocialSecurityNumber?.Trim(); entity.SocialSecurityEnrollmentDate = model.SocialSecurityEnrollmentDate;
+        entity.ContractType = model.ContractType; entity.ContractStartDate = model.ContractStartDate; entity.ContractEndDate = model.ContractEndDate;
+        entity.PrimaryBranchId = model.PrimaryBranchId; entity.UserId = model.UserId; entity.UpdatedDate = DateTime.Now;
+        await _db.SaveChangesAsync(cancellationToken);
+        return Result<int>.Ok(entity.Id, "Employee saved.");
+    }
+
+    public async Task<Result> DeactivateAsync(int id, CancellationToken cancellationToken = default)
+    {
+        RequireEnabled();
+        Require(PermissionLevel.Manage);
+        var employee = await _db.Employees.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+        if (employee == null) return Result.Fail("Employee was not found.");
+        employee.Status = EmployeeStatus.Inactive; employee.UpdatedDate = DateTime.Now;
+        await _db.SaveChangesAsync(cancellationToken);
+        return Result.Ok("Employee deactivated.");
+    }
+
+    private static EmployeeEditDto ToEditDto(Employee x) => new()
+    {
+        Id = x.Id, FullName = x.FullName, PhoneNumber = x.PhoneNumber, NationalId = x.NationalId, Address = x.Address, Email = x.Email,
+        EmploymentDate = x.EmploymentDate, Status = x.Status, JobTitle = x.JobTitle, MonthlyBasicSalary = x.MonthlyBasicSalary,
+        SocialSecurityEnrolled = x.SocialSecurityEnrolled, SocialSecurityNumber = x.SocialSecurityNumber, SocialSecurityEnrollmentDate = x.SocialSecurityEnrollmentDate,
+        ContractType = x.ContractType, ContractStartDate = x.ContractStartDate, ContractEndDate = x.ContractEndDate, PrimaryBranchId = x.PrimaryBranchId, UserId = x.UserId
+    };
 }

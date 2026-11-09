@@ -4,7 +4,6 @@ using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Brands;
 using RaccoonWarehouse.Data;
 using RaccoonWarehouse.Delegates;
-using RaccoonWarehouse.Employees;
 using RaccoonWarehouse.Helpers.Localization;
 using RaccoonWarehouse.Navigation;
 using RaccoonWarehouse.Settings;
@@ -70,7 +69,6 @@ namespace RaccoonWarehouse.Navigation.Modules
                 "Units.List" or
                 "Settings.AuditLogs" or
                 "Settings.Delegates" or
-                "Settings.Employees" or
                 "Settings.Accounting" or
                 "Settings.Hr" or
                 "Settings.Permissions" or
@@ -96,8 +94,6 @@ namespace RaccoonWarehouse.Navigation.Modules
                 case "Settings.AuditLogs":WindowManager.Show<AuditLogsWindow>(WindowSizeType.LargeRectangle);
                     return;
                 case "Settings.Delegates":WindowManager.ShowDialog<DelegateFeatureSettingsWindow>(WindowSizeType.SmallSquare);
-                    return;
-                case "Settings.Employees":WindowManager.ShowDialog<EmployeeFeatureSettingsWindow>(WindowSizeType.SmallSquare);
                     return;
                 case "Settings.Accounting":WindowManager.ShowDialog<AccountingFeatureSettingsWindow>(WindowSizeType.SmallSquare);
                     await context.RefreshAccountingNavigationAsync();

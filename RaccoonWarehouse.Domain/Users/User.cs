@@ -1,7 +1,6 @@
 ﻿using RaccoonWarehouse.Domain.Base;
 using RaccoonWarehouse.Domain.Enums;
 using DelegateEntity = RaccoonWarehouse.Domain.Delegates.Delegate;
-using EmployeeEntity = RaccoonWarehouse.Domain.Employees.Employee;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -28,6 +27,5 @@ namespace RaccoonWarehouse.Domain.Users
         public DateTime? LastPaymentDate { get; set; }
         public CreditStatus CreditStatus { get; set; } = CreditStatus.Active;
         public DelegateEntity? DelegateProfile { get; set; }
-        public EmployeeEntity? EmployeeProfile { get; set; }
     }
 }

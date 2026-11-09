@@ -15,7 +15,6 @@ using RaccoonWarehouse.Domain.Categories;
 using RaccoonWarehouse.Domain.CustomerRequests;
 using RaccoonWarehouse.Domain.CostCenters;
 using RaccoonWarehouse.Domain.Currencies;
-using RaccoonWarehouse.Domain.Employees;
 using RaccoonWarehouse.Domain.EntityAndDtoStructure;
 using RaccoonWarehouse.Domain.Employees;
 using RaccoonWarehouse.Domain.FinancialTransactions;
@@ -49,7 +48,6 @@ using RaccoonWarehouse.Domain.Users;
 using RaccoonWarehouse.Domain.Vouchers;
 using System.Linq.Expressions;
 using DelegateEntity = RaccoonWarehouse.Domain.Delegates.Delegate;
-using EmployeeEntity = RaccoonWarehouse.Domain.Employees.Employee;
 
 namespace RaccoonWarehouse.Data
 {
@@ -203,24 +201,17 @@ namespace RaccoonWarehouse.Data
             modelBuilder.Entity<LeaveBalance>().ToTable("LeaveBalances");
             modelBuilder.Entity<HrAdjustment>().ToTable("HrAdjustments");
             modelBuilder.Entity<SocialSecurityRule>().ToTable("SocialSecurityRules");
-            modelBuilder.Entity<PayrollPeriod>().ToTable("PayrollPeriods");
-            modelBuilder.Entity<EmployeePayroll>().ToTable("EmployeePayrolls");
-            modelBuilder.Entity<EmployeePayrollLine>().ToTable("EmployeePayrollLines");
             modelBuilder.Entity<AttendanceRecord>().HasIndex(x => new { x.EmployeeId, x.WorkDate }).IsUnique();
             modelBuilder.Entity<LeaveRequest>().HasIndex(x => new { x.EmployeeId, x.StartDate, x.EndDate });
             modelBuilder.Entity<LeaveBalance>().HasIndex(x => new { x.EmployeeId, x.LeaveTypeId, x.Year }).IsUnique();
             modelBuilder.Entity<HrAdjustment>().HasIndex(x => new { x.EmployeeId, x.PeriodMonth, x.Type });
             modelBuilder.Entity<SocialSecurityRule>().HasIndex(x => new { x.EffectiveFrom, x.EffectiveTo });
-            modelBuilder.Entity<PayrollPeriod>().HasIndex(x => x.PeriodMonth).IsUnique();
-            modelBuilder.Entity<EmployeePayroll>().HasIndex(x => new { x.PayrollPeriodId, x.EmployeeId }).IsUnique();
-            modelBuilder.Entity<EmployeePayrollLine>().HasOne(x => x.EmployeePayroll).WithMany(x => x.Lines).HasForeignKey(x => x.EmployeePayrollId).OnDelete(DeleteBehavior.Cascade);
             modelBuilder.Entity<AttendanceRecord>().HasOne(x => x.Employee).WithMany().HasForeignKey(x => x.EmployeeId).OnDelete(DeleteBehavior.Cascade);
             modelBuilder.Entity<LeaveRequest>().HasOne(x => x.Employee).WithMany().HasForeignKey(x => x.EmployeeId).OnDelete(DeleteBehavior.Cascade);
             modelBuilder.Entity<LeaveRequest>().HasOne(x => x.LeaveType).WithMany().HasForeignKey(x => x.LeaveTypeId).OnDelete(DeleteBehavior.Restrict);
             modelBuilder.Entity<LeaveBalance>().HasOne(x => x.Employee).WithMany().HasForeignKey(x => x.EmployeeId).OnDelete(DeleteBehavior.Cascade);
             modelBuilder.Entity<LeaveBalance>().HasOne(x => x.LeaveType).WithMany().HasForeignKey(x => x.LeaveTypeId).OnDelete(DeleteBehavior.Restrict);
             modelBuilder.Entity<HrAdjustment>().HasOne(x => x.Employee).WithMany().HasForeignKey(x => x.EmployeeId).OnDelete(DeleteBehavior.Cascade);
-            modelBuilder.Entity<EmployeePayroll>().HasOne(x => x.Employee).WithMany().HasForeignKey(x => x.EmployeeId).OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<PermissionGroup>().ToTable("PermissionGroups");
             modelBuilder.Entity<PermissionGroupPermission>().ToTable("PermissionGroupPermissions");
@@ -559,27 +550,6 @@ namespace RaccoonWarehouse.Data
                 .IsUnique()
                 .HasFilter("[UserId] IS NOT NULL");
 
-            modelBuilder.ApplyConfiguration(new RaccoonWarehouse.Data.Configurations.PayrollModelConfiguration());
-            RaccoonWarehouse.Data.Configurations.PayrollModelConfiguration.ConfigurePayroll(modelBuilder);
-
-            modelBuilder.Entity<EmployeeEntity>()
-                .HasIndex(x => x.Code)
-                .IsUnique();
-
-            modelBuilder.Entity<EmployeeEntity>()
-                .HasIndex(x => x.UserId)
-                .IsUnique()
-                .HasFilter("[UserId] IS NOT NULL");
-
-            modelBuilder.Entity<EmployeeEntity>()
-                .HasIndex(x => x.BranchId);
-
-            modelBuilder.Entity<EmployeeEntity>()
-                .HasIndex(x => x.DepartmentId);
-
-            modelBuilder.Entity<EmployeeEntity>()
-                .HasIndex(x => x.Status);
-
             modelBuilder.Entity<Invoice>()
                 .HasIndex(x => x.DelegateId);
 
@@ -615,18 +585,6 @@ namespace RaccoonWarehouse.Data
                 .HasOne(d => d.User)
                 .WithOne(u => u.DelegateProfile)
                 .HasForeignKey<DelegateEntity>(d => d.UserId)
-                .OnDelete(DeleteBehavior.NoAction);
-
-            modelBuilder.Entity<EmployeeEntity>()
-                .HasOne(e => e.User)
-                .WithOne(u => u.EmployeeProfile)
-                .HasForeignKey<EmployeeEntity>(e => e.UserId)
-                .OnDelete(DeleteBehavior.NoAction);
-
-            modelBuilder.Entity<EmployeeEntity>()
-                .HasOne(e => e.Manager)
-                .WithMany(e => e.DirectReports)
-                .HasForeignKey(e => e.ManagerId)
                 .OnDelete(DeleteBehavior.NoAction);
 
             modelBuilder.Entity<Invoice>()

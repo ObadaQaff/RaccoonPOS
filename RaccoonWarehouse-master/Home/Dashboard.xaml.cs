@@ -58,7 +58,6 @@ namespace RaccoonWarehouse
         private readonly IUserSession _userSession;
         private readonly RaccoonWarehouse.Core.Audit.IAuditLogService _auditLogService;
         private readonly IDelegateFeatureService _delegateFeatureService;
-        private readonly IEmployeeFeatureService _employeeFeatureService;
         private readonly IAccountingFeatureService _accountingFeatureService;
         private readonly INotificationService _notificationService;
         private readonly IBoxCartApiService _boxCartApiService;
@@ -87,7 +86,6 @@ namespace RaccoonWarehouse
                 ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<IUserSession>(),
                 ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<RaccoonWarehouse.Core.Audit.IAuditLogService>(),
                 ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<IDelegateFeatureService>(),
-                ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<IEmployeeFeatureService>(),
                 ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<IAccountingFeatureService>(),
                 ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<INotificationService>(),
                 ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<IBoxCartApiService>(),
@@ -103,7 +101,6 @@ namespace RaccoonWarehouse
             IUserSession userSession,
             RaccoonWarehouse.Core.Audit.IAuditLogService auditLogService,
             IDelegateFeatureService delegateFeatureService,
-            IEmployeeFeatureService employeeFeatureService,
             IAccountingFeatureService accountingFeatureService,
             INotificationService notificationService,
             IBoxCartApiService boxCartApiService,
@@ -118,7 +115,6 @@ namespace RaccoonWarehouse
             _userSession = userSession;
             _auditLogService = auditLogService;
             _delegateFeatureService = delegateFeatureService;
-            _employeeFeatureService = employeeFeatureService;
             _accountingFeatureService = accountingFeatureService;
             _notificationService = notificationService;
             _boxCartApiService = boxCartApiService;
@@ -660,7 +656,7 @@ namespace RaccoonWarehouse
 
         private async Task RefreshEmployeesNavigationAsync()
         {
-            EmployeeNavButton.Visibility = await _employeeFeatureService.IsEnabledAsync() && _moduleState.IsEnabled(EmployeesDashboardModule.Key)
+            EmployeeNavButton.Visibility = _moduleState.IsEnabled(EmployeesDashboardModule.Key)
                 ? Visibility.Visible
                 : Visibility.Collapsed;
         }
@@ -889,13 +885,13 @@ namespace RaccoonWarehouse
         {
             await RunSidebarNavigationAsync(async () =>
             {
-                if (!await _employeeFeatureService.IsEnabledAsync())
+                if (!_moduleState.IsEnabled(EmployeesDashboardModule.Key))
                 {
                     MessageBox.Show(UiText.T("نظام الموظفين متوقف حالياً.", "The employees module is currently disabled."));
                     return;
                 }
 
-                WindowManager.Show<EmployeesTable>();
+                await ShowDashboardModuleAsync(EmployeesDashboardModule.Key, DashboardActionButton_Click);
             });
         }
 
