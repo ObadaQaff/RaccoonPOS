@@ -64,7 +64,7 @@
     <!-- ✅ PRIMARY BUTTON STYLE -->
     <Style x:Key="PrimaryButtonStyle" TargetType="Button">
         <Setter Property="Height" Value="52"/>
-        <Setter Property="Background" Value="{StaticResource PrimaryButtonBrush}" />
+        <Setter Property="Background" Value="{DynamicResource AppPrimaryBrush}" />
         <Setter Property="Foreground" Value="White" />
         <Setter Property="BorderBrush" Value="Transparent" />
         <Setter Property="Padding" Value="14,10" />
@@ -88,7 +88,7 @@
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="border"
                                     Property="Background"
-                                    Value="{StaticResource PrimaryButtonHoverBrush}" />
+                                    Value="{DynamicResource AppPrimaryDarkBrush}" />
                         </Trigger>
 
                         <Trigger Property="IsEnabled" Value="False">

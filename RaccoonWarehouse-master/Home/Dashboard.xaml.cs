@@ -193,18 +193,26 @@ namespace RaccoonWarehouse
 
         private static void SetBrushColor(string key, string value)
         {
-            if (System.Windows.Application.Current.Resources[key] is SolidColorBrush brush)
-                brush.Color = (Color)ColorConverter.ConvertFromString(value)!;
+            var color = (Color)ColorConverter.ConvertFromString(value)!;
+            System.Windows.Application.Current.Resources[key] = new SolidColorBrush(color);
         }
 
         private static void SetGradient(string key, string start, string middle, string end)
         {
-            if (System.Windows.Application.Current.Resources[key] is LinearGradientBrush gradient && gradient.GradientStops.Count >= 3)
+            if (System.Windows.Application.Current.Resources[key] is not LinearGradientBrush existing || existing.GradientStops.Count < 3)
+                return;
+
+            var gradient = new LinearGradientBrush
             {
-                gradient.GradientStops[0].Color = (Color)ColorConverter.ConvertFromString(start)!;
-                gradient.GradientStops[1].Color = (Color)ColorConverter.ConvertFromString(middle)!;
-                gradient.GradientStops[2].Color = (Color)ColorConverter.ConvertFromString(end)!;
-            }
+                StartPoint = existing.StartPoint,
+                EndPoint = existing.EndPoint,
+                MappingMode = existing.MappingMode,
+                SpreadMethod = existing.SpreadMethod
+            };
+            gradient.GradientStops.Add(new GradientStop((Color)ColorConverter.ConvertFromString(start)!, existing.GradientStops[0].Offset));
+            gradient.GradientStops.Add(new GradientStop((Color)ColorConverter.ConvertFromString(middle)!, existing.GradientStops[1].Offset));
+            gradient.GradientStops.Add(new GradientStop((Color)ColorConverter.ConvertFromString(end)!, existing.GradientStops[2].Offset));
+            System.Windows.Application.Current.Resources[key] = gradient;
         }
 
         private async Task ShowExpiredLotsAlertAsync()
@@ -311,7 +319,7 @@ namespace RaccoonWarehouse
             {
                 CornerRadius = new CornerRadius(8),
                 Margin = new Thickness(5),
-                Background = new SolidColorBrush(Color.FromRgb(51, 150, 211))
+                Background = (SolidColorBrush)System.Windows.Application.Current.FindResource("AppPrimaryBrush")
             };
         }
 
@@ -324,8 +332,8 @@ namespace RaccoonWarehouse
                 Style = (Style)System.Windows.Application.Current.FindResource("PrimaryButtonStyle")
             };
 
-            button.MouseEnter += (s, ev) => container.Background = new SolidColorBrush(Color.FromRgb(41, 130, 190));
-            button.MouseLeave += (s, ev) => container.Background = new SolidColorBrush(Color.FromRgb(51, 150, 211));
+            button.MouseEnter += (s, ev) => container.Background = (SolidColorBrush)System.Windows.Application.Current.FindResource("AppPrimaryDarkBrush");
+            button.MouseLeave += (s, ev) => container.Background = (SolidColorBrush)System.Windows.Application.Current.FindResource("AppPrimaryBrush");
             button.Click += clickHandler;
 
             return button;

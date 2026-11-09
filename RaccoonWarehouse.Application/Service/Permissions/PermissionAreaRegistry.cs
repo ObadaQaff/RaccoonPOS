@@ -124,7 +124,7 @@ public static class PermissionAreaRegistry
         "Users.Create" or "Users.List" => "Users.UserManagement",
         "Settings.Delegates" => "Settings.SystemConfiguration",
         "Settings.Permissions" => "Settings.PermissionManagement",
-        "Settings.Employees" or "Settings.Hr" or "Settings.Accounting" or "Settings.InventoryCosting" or "Settings.RefundCode" or "Settings.DocumentBranding" or "Settings.JoFotara" or "Settings.PosRowColors" or "Settings.Language" => "Settings.SystemConfiguration",
+        "Settings.Employees" or "Settings.Hr" or "Settings.Accounting" or "Settings.InventoryCosting" or "Settings.RefundCode" or "Settings.DocumentBranding" or "Settings.DashboardAppearance" or "Settings.JoFotara" or "Settings.PosRowColors" or "Settings.Language" => "Settings.SystemConfiguration",
         "Settings.AuditLogs" => "Settings.AuditLogs",
         "Settings.SwitchDatabase" => "Settings.ModuleManagement",
         "Employees.List" => "Employees.EmployeeProfiles",
