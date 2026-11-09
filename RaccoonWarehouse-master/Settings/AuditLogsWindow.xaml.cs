@@ -1,4 +1,5 @@
 using RaccoonWarehouse.Application.Service.Audit;
+using RaccoonWarehouse.Application.Service.Permissions;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Domain.Enums;
@@ -11,6 +12,7 @@ namespace RaccoonWarehouse.Settings;
 public partial class AuditLogsWindow : Window
 {
     private readonly IAuditLogQueryService _queryService;
+    private readonly IPermissionService _permissionService;
     private readonly IUserSession _userSession;
     private readonly ILoadingService _loadingService;
     private int _pageNumber = 1;
@@ -19,13 +21,15 @@ public partial class AuditLogsWindow : Window
 
     public AuditLogsWindow(
         IAuditLogQueryService queryService,
+        IPermissionService permissionService,
         IUserSession userSession,
         ILoadingService loadingService)
     {
         _queryService = queryService;
+        _permissionService = permissionService;
         _userSession = userSession;
         _loadingService = loadingService;
-        
+        RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
         InitializeComponent();
         UiText.ApplyWindow(this);
         Loaded += AuditLogsWindow_Loaded;
@@ -40,9 +44,10 @@ public partial class AuditLogsWindow : Window
 
     private async void AuditLogsWindow_Loaded(object sender, RoutedEventArgs e)
     {
-        if (_userSession.CurrentRole != UserRole.Admin)
+        if (_userSession.CurrentRole != UserRole.Admin
+            || !await _permissionService.HasPermissionAsync(UserRole.Admin, "AuditLogs.View"))
         {
-            MessageBox.Show(UiText.T("يمكن للمسؤولين فقط عرض سجل المراجعة.", "Only administrators can view audit logs."));
+            MessageBox.Show(UiText.T("ليس لديك صلاحية عرض سجل المراجعة.", "You do not have permission to view audit logs."));
             Close();
             return;
         }

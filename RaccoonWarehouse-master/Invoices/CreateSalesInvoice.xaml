@@ -1,4 +1,4 @@
-<Window x:Class="RaccoonWarehouse.Invoices.CreateSalesInvoice"
+<Window xmlns:security="clr-namespace:RaccoonWarehouse.Security" x:Class="RaccoonWarehouse.Invoices.CreateSalesInvoice"
         PreviewKeyDown="CreateSalesInvoice_PreviewKeyDown"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -284,7 +284,7 @@
                                     Margin="4,0,0,0"
                                     VerticalAlignment="Center"
                                     ToolTip="إضافة زبون جديد"
-                                    Click="AddCustomerBtn_Click">
+                                    Click="AddCustomerBtn_Click" security:PermissionWindowGuard.Keys="Users.Create">
                                 <TextBlock Text="+" FontSize="18" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                             </Button>
                         </Grid>
@@ -364,7 +364,7 @@
                                 Style="{StaticResource PrimaryButtonStyle}"
                                 Width="110"
                                 Margin="10,0,0,0"
-                                Click="CreateProductBtn_Click"/>
+                                Click="CreateProductBtn_Click" security:PermissionWindowGuard.Keys="Products.Create"/>
                         <TextBlock Text="إضافة منتج" Style="{StaticResource HeaderText}"/>
                     </DockPanel>
 
@@ -412,7 +412,7 @@
                                        VerticalAlignment="Center"
                                        Background="White"
                                        Cursor="Hand"
-                                       Click="SearchProductBtn_Click">
+                                       Click="SearchProductBtn_Click" security:PermissionWindowGuard.Keys="POS.View|PurchaseInvoice.View|PurchaseOrder.View|Products.View">
                                     <fa:ImageAwesome Icon="Search"
                                     Width="16" Height="14"
                                     Foreground="Black"/>     
@@ -488,7 +488,7 @@
                             <Button Content="إضافة"
                            Style="{StaticResource PrimaryButtonStyle}"
                            Width="70"
-                           Click="AddProduct_Click"/>
+                           Click="AddProduct_Click" security:PermissionWindowGuard.Keys="SalesInvoice.Create|SalesInvoice.Edit"/>
                         </StackPanel>
 
                     </Grid>
@@ -498,7 +498,7 @@
                         Style="{StaticResource PrimaryButtonStyle}"
                         Width="180"
                         HorizontalAlignment="Center"
-                        Click="SearchProductBtn_Click"/>
+                        Click="SearchProductBtn_Click" security:PermissionWindowGuard.Keys="POS.View|PurchaseInvoice.View|PurchaseOrder.View|Products.View"/>
 
 
                 <!-- ==================== PRODUCT GRID ==================== -->
@@ -595,7 +595,7 @@
                                                 FontSize="16"
                                                 Cursor="Hand"
                                                 BorderThickness="0"
-                                                Click="DeleteProduct_Click"/>
+                                                Click="DeleteProduct_Click" security:PermissionWindowGuard.Keys="SalesInvoice.Create|SalesInvoice.Edit"/>
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
@@ -627,7 +627,7 @@
                             Style="{StaticResource PrimaryButtonStyle}"
                             Width="130"
                             Margin="10,0,0,0"
-                            Click="SaveReceiptBtn_Click">
+                            Click="SaveReceiptBtn_Click" security:PermissionWindowGuard.Keys="SalesInvoice.Create|SalesInvoice.Edit">
                         <StackPanel Orientation="Horizontal">
                             <fa:ImageAwesome Icon="Save" Width="18" Height="18"/>
                             <TextBlock Text="حفظ" Margin="8,0,0,0"/>
@@ -647,7 +647,7 @@
                             Style="{StaticResource SecondaryButtonStyle}"
                             Width="150"
                             Margin="10,0,0,0"
-                            Click="SearchInvoiceBtn_Click"> 
+                            Click="SearchInvoiceBtn_Click" security:PermissionWindowGuard.Keys="SalesInvoice.View"> 
                         <StackPanel Orientation="Horizontal">
                             <fa:ImageAwesome Icon="Search" Width="18" Height="18"/>
                             <TextBlock Text="استعلام" Margin="8,0,0,0"/>
@@ -659,7 +659,7 @@
                         Width="150"
                         Margin="10,0,0,0"
                         Visibility="Collapsed"
-                        Click="PrintBtn_Click">
+                        Click="PrintBtn_Click" security:PermissionWindowGuard.Keys="SalesInvoice.Print">
                         <StackPanel Orientation="Horizontal">
                             <fa:ImageAwesome Icon="Print" Width="18" Height="18"/>
                             <TextBlock Text="طباعة" Margin="8,0,0,0"/>

@@ -1,7 +1,8 @@
-using Microsoft.EntityFrameworkCore.Storage.Json;
+﻿using Microsoft.EntityFrameworkCore.Storage.Json;
 using Microsoft.Extensions.DependencyInjection;
 using RaccoonWarehouse.Application.Service.Settings;
 using RaccoonWarehouse.Application.Service.Notifications;
+using RaccoonWarehouse.Application.Service.Permissions;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Accounting;
 using RaccoonWarehouse.Auth;
@@ -32,6 +33,7 @@ using RaccoonWarehouse.Products.Reports;
 using RaccoonWarehouse.FinancialTransactions.Reports;
 using RaccoonWarehouse.FinancialTransactions;
 using RaccoonWarehouse.Settings;
+using RaccoonWarehouse.Domain.Permissions;
 using System.Linq;
 using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Core.Modules;
@@ -54,6 +56,8 @@ namespace RaccoonWarehouse
     public partial class Dashboard : Window
     {
         private readonly IUserSession _userSession;
+        private readonly IReportPermissionService _reportPermissionService;
+        private readonly IPermissionService _permissionService;
         private readonly RaccoonWarehouse.Core.Audit.IAuditLogService _auditLogService;
         private readonly IDelegateFeatureService _delegateFeatureService;
         private readonly IEmployeeFeatureService _employeeFeatureService;
@@ -82,6 +86,8 @@ namespace RaccoonWarehouse
         public Dashboard()
             : this(
                 ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<IUserSession>(),
+                ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<IReportPermissionService>(),
+                ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<IPermissionService>(),
                 ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<RaccoonWarehouse.Core.Audit.IAuditLogService>(),
                 ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<IDelegateFeatureService>(),
                 ((App)System.Windows.Application.Current).ServiceProvider.GetRequiredService<IEmployeeFeatureService>(),
@@ -97,6 +103,8 @@ namespace RaccoonWarehouse
 
         public Dashboard(
             IUserSession userSession,
+            IReportPermissionService reportPermissionService,
+            IPermissionService permissionService,
             RaccoonWarehouse.Core.Audit.IAuditLogService auditLogService,
             IDelegateFeatureService delegateFeatureService,
             IEmployeeFeatureService employeeFeatureService,
@@ -108,9 +116,11 @@ namespace RaccoonWarehouse
             DashboardActionRegistry dashboardActions,
             IStockService stockService)
         {
-
+            RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
             _userSession = userSession;
+            _reportPermissionService = reportPermissionService;
+            _permissionService = permissionService;
             _auditLogService = auditLogService;
             _delegateFeatureService = delegateFeatureService;
             _employeeFeatureService = employeeFeatureService;
@@ -174,6 +184,9 @@ namespace RaccoonWarehouse
             try
             {
                 var role = _userSession.CurrentUser?.Role;
+                if (PermissionCatalog.EnforcementEnabled &&
+                    (!role.HasValue || !await _permissionService.HasPermissionAsync(role.Value, "StockLots.View")))
+                    return;
 
                 if (!await _stockService.HasExpiredStockAsync())
                     return;
@@ -531,7 +544,21 @@ namespace RaccoonWarehouse
 
                     group = new ModuleGroupDefinition(group.Title, nonReportActions);
                 }
-                visibleGroups.Add(group);
+
+                var visibleActions = new List<ModuleActionDefinition>();
+                foreach (var action in group.Actions)
+                {
+                    var permissionKey = ResolveDashboardPermissionKey(action);
+                    var canView = !PermissionCatalog.EnforcementEnabled ||
+                        (!string.IsNullOrWhiteSpace(permissionKey) &&
+                         _userSession.CurrentRole is UserRole role &&
+                         await _permissionService.HasPermissionAsync(role, permissionKey));
+                    if (canView)
+                        visibleActions.Add(action);
+                }
+
+                if (visibleActions.Count > 0)
+                    visibleGroups.Add(new ModuleGroupDefinition(group.Title, visibleActions));
             }
 
             ShowDashboardGroups(visibleGroups, clickHandler, maxColumns);
@@ -573,7 +600,20 @@ namespace RaccoonWarehouse
             var visibleGroups = new List<ModuleGroupDefinition>();
             foreach (var group in deduplicatedGroups)
             {
-                visibleGroups.Add(group);
+                var visibleActions = new List<ModuleActionDefinition>();
+                foreach (var action in group.Actions)
+                {
+                    var permissionKey = ResolveDashboardPermissionKey(action);
+                    var canView = !PermissionCatalog.EnforcementEnabled ||
+                        (!string.IsNullOrWhiteSpace(permissionKey) &&
+                         _userSession.CurrentRole is UserRole role &&
+                         await _permissionService.HasPermissionAsync(role, permissionKey));
+                    if (canView)
+                        visibleActions.Add(action);
+                }
+
+                if (visibleActions.Count > 0)
+                    visibleGroups.Add(new ModuleGroupDefinition(group.Title, visibleActions));
             }
 
             return visibleGroups;
@@ -622,6 +662,58 @@ namespace RaccoonWarehouse
                 _ => actionKey
             };
         }
+
+        private static string? ResolveDashboardPermissionKey(ModuleActionDefinition action)
+        {
+            if (!string.IsNullOrWhiteSpace(action.PermissionKey))
+                return action.PermissionKey;
+
+            return action.Key switch
+            {
+                "Customers.Create" => "Customers.Create",
+                "Customers.CreateSupplier" => "Suppliers.Create",
+                "Customers.List" => "Customers.View",
+                "Users.List" => "Users.View",
+                "PurchaseOrders.Create" => "PurchaseOrder.Create",
+                "PurchaseOrders.List" => "PurchaseOrder.View",
+                "PurchaseRequests.List" => "PurchaseRequest.View",
+                "Insurance.Companies" => "InsuranceCompanies.View",
+                "Insurance.Setup" => "InsuranceContracts.View",
+                "Insurance.Claims" => "InsuranceClaims.View",
+                "Insurance.Settlements" => "InsurancePayments.View",
+                "Settings.AuditLogs" => "AuditLogs.View",
+                "Settings.DocumentBranding" => "Settings.ManageSettings",
+                "Settings.InventoryCosting" => "Settings.ManageSettings",
+                "Settings.PosRowColors" => "Settings.ManageSettings",
+                "Settings.RefundCode" => "Settings.ManageSettings",
+                "Settings.SwitchDatabase" => "Permissions.ManageSettings",
+                "Stocks.ExpiringStockReport" => "ExpiringStockReport.View",
+                "cashier-board" => "CashierReport.View",
+                "product-sales-average" => "SalesReport.View",
+                "below-min-stock" => "BelowMinimumStockReport.View",
+                "Stocks.In" => "StockInVoucher.Create",
+                "Stocks.Out" => "StockOutVoucher.Create",
+                "Stocks.Adjustment" => "StockAdjustment.Create",
+                "Vouchers.Receipt" => "Vouchers.Receipt",
+                "Vouchers.Payment" => "Vouchers.Payment",
+                "Products.ItemCostDetails" => "SensitiveFinancial.ViewCost",
+                "Products.ProfitReport" => "SensitiveFinancial.ViewProfit",
+                "Reports.InvoiceProfit" => "InvoicesProfitReport.View",
+                "Accounting.Checks" => "Accounting.Checks.View",
+                "Accounting.Accounts" => "Accounting.Accounts.View",
+                "Accounting.JournalEntry.Create" => "Accounting.JournalEntry.Create",
+                "Accounting.JournalEntries" => "Accounting.JournalEntries.View",
+                "Accounting.Operations" => "Accounting.Operations.View",
+                "Accounting.TrialBalance" => "Accounting.TrialBalance.View",
+                "Accounting.GeneralLedger" => "Accounting.GeneralLedger.View",
+                "Accounting.BalanceSheet" => "Accounting.BalanceSheet.View",
+                "Accounting.CustomerDebts" => "Accounting.CustomerDebts.View",
+                "Accounting.SupplierPayables" => "Accounting.SupplierPayables.View",
+                "Accounting.PartyBalances" => "Accounting.PartyBalances.View",
+                _ => PermissionCatalog.FindByKey(action.Key)?.Key ?? PermissionCatalog.FindByLegacyReportKey(action.Key)?.Key ?? "Permissions.Unmapped"
+            };
+        }
+
         private async Task RunSidebarNavigationAsync(Func<Task> navigation)
         {
             if (_isSidebarNavigationActive)
@@ -673,6 +765,26 @@ namespace RaccoonWarehouse
 
             try
             {
+                var action = new ModuleActionDefinition(actionKey, actionKey);
+                var permissionKey = ResolveDashboardPermissionKey(action);
+                if (PermissionCatalog.EnforcementEnabled &&
+                    !string.IsNullOrWhiteSpace(permissionKey) &&
+                    !(_userSession.CurrentRole is UserRole role &&
+                      await _permissionService.HasPermissionAsync(role, permissionKey)))
+                {
+                    MessageBox.Show(
+                        UiText.T("لا تملك صلاحية تنفيذ هذا الإجراء.", "You do not have permission to perform this action."),
+                        UiText.T("الصلاحيات", "Permissions"),
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    await _auditLogService.WriteAsync(new RaccoonWarehouse.Core.Audit.AuditEvent(
+                        "AuthorizationDenied",
+                        PermissionKey: permissionKey,
+                        Succeeded: false,
+                        ErrorMessage: actionKey));
+                    return;
+                }
+
                 if (!_dashboardActions.CanHandle(actionKey))
                 {
                     throw new InvalidOperationException($"No dashboard action handler is registered for '{actionKey}'.");

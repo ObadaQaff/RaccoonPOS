@@ -1,4 +1,4 @@
-<Window x:Class="RaccoonWarehouse.Orders.ImportOrder"
+<Window xmlns:security="clr-namespace:RaccoonWarehouse.Security" x:Class="RaccoonWarehouse.Orders.ImportOrder"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:fa="http://schemas.fontawesome.io/icons/"
@@ -54,7 +54,7 @@
                             Style="{StaticResource PrimaryButtonStyle}"
                             MinWidth="150"
                             Height="42"
-                            Click="ImportPending_Click">
+                            Click="ImportPending_Click" security:PermissionWindowGuard.Keys="Orders.Create|Orders.Edit">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                             <fa:ImageAwesome Icon="Download" Width="16" Height="16"
                                              Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
@@ -216,7 +216,7 @@
                     Height="42"
                     Margin="0,0,10,0"
                     Style="{StaticResource PrimaryButtonStyle}"
-                    Click="OpenOrders_Click">
+                    Click="OpenOrders_Click" security:PermissionWindowGuard.Keys="Orders.View">
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                     <fa:ImageAwesome Icon="List" Width="16" Height="16"
                                      Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>

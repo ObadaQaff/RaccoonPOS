@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using RaccoonWarehouse.Application.Service.Permissions;
 using RaccoonWarehouse.Data;
 using RaccoonWarehouse.Domain.Settings;
 
@@ -9,7 +10,8 @@ public sealed class DocumentBrandingService
 {
     public const string Key = "Printing.Branding.v1";
     private readonly ApplicationDbContext _db;
-    public DocumentBrandingService(ApplicationDbContext db) => _db=db;
+    private readonly IPermissionService _permissions;
+    public DocumentBrandingService(ApplicationDbContext db, IPermissionService permissions) => (_db,_permissions)=(db,permissions);
     public static string SettingKey(int? branchId) => branchId is > 0 ? $"{Key}.Branch.{branchId}" : Key;
     public async Task<DocumentBranding> GetAsync(int? branchId = null)
     {
@@ -26,7 +28,8 @@ public sealed class DocumentBrandingService
     }
     public async Task SaveAsync(DocumentBranding value,int? branchId=null)
     {
-Validate(value);
+        if(!await _permissions.HasCurrentUserPermissionAsync("Settings.ManageSettings")) throw new UnauthorizedAccessException("ليس لديك صلاحية تعديل الإعدادات. / Settings permission required.");
+        Validate(value);
         if(branchId is > 0 && !await _db.Branches.AnyAsync(x=>x.Id==branchId)) throw new ArgumentException("الفرع غير موجود. / Branch not found.");
         var key=SettingKey(branchId);var row=await _db.AppSettings.SingleOrDefaultAsync(x=>x.Key==key);
         if(row==null){row=new AppSetting{Key=key,Description="Central document branding",CreatedDate=DateTime.Now};_db.AppSettings.Add(row);}

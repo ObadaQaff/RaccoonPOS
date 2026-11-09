@@ -1,4 +1,4 @@
-<Window x:Class="RaccoonWarehouse.Brands.UpdateBrand"
+<Window xmlns:security="clr-namespace:RaccoonWarehouse.Security" x:Class="RaccoonWarehouse.Brands.UpdateBrand"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -42,13 +42,13 @@
                 <StackPanel>
                     <TextBlock Text="الإجراءات" FontSize="24" FontWeight="Bold" Foreground="{StaticResource AppBlueBrush}"/>
                     <TextBlock Margin="0,12,0,0" FontSize="14" Foreground="{StaticResource AppMutedTextBrush}" Text="احفظ التعديل أو ارجع إلى جدول العلامات التجارية."/>
-                    <Button x:Name="UpdateCategoryBtn" Margin="0,34,0,0" Width="200" Style="{StaticResource AppFormButtonStyle}" Background="{StaticResource AppBlueBrush}" Click="Update_CategoryBtn_Click">
+                    <Button x:Name="UpdateCategoryBtn" Margin="0,34,0,0" Width="200" Style="{StaticResource AppFormButtonStyle}" Background="{StaticResource AppBlueBrush}" Click="Update_CategoryBtn_Click" security:PermissionWindowGuard.Keys="Brands.Edit">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                             <fa:ImageAwesome Icon="Save" Width="16" Height="16" Margin="0,0,8,0" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
                             <TextBlock Text="حفظ"/>
                         </StackPanel>
                     </Button>
-                    <Button x:Name="BackBtn" Margin="0,14,0,0" Width="200" Style="{StaticResource AppSecondaryButtonStyle}" Click="BackBtn_Click">
+                    <Button x:Name="BackBtn" Margin="0,14,0,0" Width="200" Style="{StaticResource AppSecondaryButtonStyle}" Click="BackBtn_Click" security:PermissionWindowGuard.Keys="Brands.View">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                             <fa:ImageAwesome Icon="ArrowRight" Width="16" Height="16" Margin="0,0,8,0" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
                             <TextBlock Text="عودة"/>

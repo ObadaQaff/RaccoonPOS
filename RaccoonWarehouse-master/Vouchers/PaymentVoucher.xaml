@@ -1,4 +1,4 @@
-<Window x:Class="RaccoonWarehouse.Vouchers.PaymentVoucher"
+<Window xmlns:security="clr-namespace:RaccoonWarehouse.Security" x:Class="RaccoonWarehouse.Vouchers.PaymentVoucher"
                                        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -280,7 +280,7 @@
                                       SelectedValuePath="Id"
                                     IsTextSearchEnabled="False"
                                    />
-                            <Button Grid.Column="1" Width="34" Height="32" Margin="5,0,0,0" Content="+" FontSize="18" FontWeight="Bold" Click="AddSupplierBtn_Click"/>
+                            <Button Grid.Column="1" Width="34" Height="32" Margin="5,0,0,0" Content="+" FontSize="18" FontWeight="Bold" Click="AddSupplierBtn_Click" security:PermissionWindowGuard.Keys="Users.Create"/>
                         </Grid>
                     </StackPanel>
                 </Grid>
@@ -392,7 +392,7 @@
                                         Background="Transparent"
                                         BorderThickness="0"
                                         Cursor="Hand"
-                                        Click="DeleteCheck_Click"/>
+                                        Click="DeleteCheck_Click" security:PermissionWindowGuard.Keys="Vouchers.Create|Vouchers.Edit"/>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
@@ -406,7 +406,7 @@
                     Margin="6"
                     Style="{StaticResource PrimaryButtonStyle}"
                     Visibility="Collapsed"
-                    Click="AddCheck_Click"/>
+                    Click="AddCheck_Click" security:PermissionWindowGuard.Keys="Vouchers.Create"/>
                 <!-- الوصف -->
                 <StackPanel Margin="10,10,10,0">
                     <TextBlock Text="الوصف" FontSize="16" FontWeight="SemiBold" Foreground="#333" Margin="0,0,0,5" Width="804"/>
@@ -438,7 +438,7 @@
                             Style="{StaticResource PrimaryButtonStyle}"
                             Width="140"
                             Margin="0,0,15,0"
-                            Click="SaveReceiptBtn_Click">
+                            Click="SaveReceiptBtn_Click" security:PermissionWindowGuard.Keys="Vouchers.Create|Vouchers.Edit;Vouchers.Post">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                             <fa:ImageAwesome Icon="Save" Width="18" Height="18"
                                              Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
@@ -450,7 +450,7 @@
                         Style="{StaticResource SecondaryButtonStyle}"
                         Width="140"
                         Margin="0,0,15,0"
-                        Click="SearchVoucherBtn_Click">
+                        Click="SearchVoucherBtn_Click" security:PermissionWindowGuard.Keys="Vouchers.View">
                         <StackPanel Orientation="Horizontal">
                             <fa:ImageAwesome Icon="Search" Width="18" Height="18"
                                  Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
@@ -464,7 +464,7 @@
                         Width="180"
                         Margin="0,0,15,0"
                         Visibility="Collapsed" 
-                        Click="PrintBtn_Click">
+                        Click="PrintBtn_Click" security:PermissionWindowGuard.Keys="Vouchers.Print">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                             <fa:ImageAwesome Icon="Print" Width="18" Height="18"
                          Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"/>

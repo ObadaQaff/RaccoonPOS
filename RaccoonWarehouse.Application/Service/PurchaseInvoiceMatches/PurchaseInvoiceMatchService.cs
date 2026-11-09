@@ -1,5 +1,6 @@
 using AutoMapper;
 using Microsoft.EntityFrameworkCore;
+using RaccoonWarehouse.Application.Service.Permissions;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Core.Common;
 using RaccoonWarehouse.Data;
@@ -19,18 +20,22 @@ public sealed class PurchaseInvoiceMatchService : IPurchaseInvoiceMatchService
 {
     private readonly ApplicationDbContext _db;
     private readonly IMapper _mapper;
+    private readonly IPermissionService _permissions;
     private readonly IUserSession _session;
 
-    public PurchaseInvoiceMatchService(ApplicationDbContext db, IMapper mapper, IUserSession session)
+    public PurchaseInvoiceMatchService(ApplicationDbContext db, IMapper mapper, IPermissionService permissions, IUserSession session)
     {
         _db = db;
         _mapper = mapper;
+        _permissions = permissions;
         _session = session;
     }
 
     public async Task<Result<PurchaseInvoiceMatchReadDto>> MatchAsync(PurchaseInvoiceMatchWriteDto dto)
     {
-if (dto.Lines == null || dto.Lines.Count == 0)
+        if (!await _permissions.HasCurrentUserPermissionAsync("SupplierInvoice.Match"))
+            return Result<PurchaseInvoiceMatchReadDto>.Fail("You do not have permission to match supplier invoices.");
+        if (dto.Lines == null || dto.Lines.Count == 0)
             return Result<PurchaseInvoiceMatchReadDto>.Fail("At least one invoice-to-order line mapping is required.");
 
         var invoice = await _db.Set<Invoice>().Include(x => x.InvoiceLines).FirstOrDefaultAsync(x => x.Id == dto.InvoiceId);

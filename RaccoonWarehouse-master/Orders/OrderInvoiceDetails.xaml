@@ -1,4 +1,4 @@
-<Window x:Class="RaccoonWarehouse.Orders.OrderInvoiceDetails"
+<Window xmlns:security="clr-namespace:RaccoonWarehouse.Security" x:Class="RaccoonWarehouse.Orders.OrderInvoiceDetails"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:RaccoonWarehouse.Orders"
@@ -116,7 +116,7 @@
                         Height="38"
                         Margin="0,22,10,0"
                         Click="AddReplaceLine_Click"
-                        Content="&#x625;&#x636;&#x627;&#x641;&#x629; / &#x627;&#x633;&#x62A;&#x628;&#x62F;&#x627;&#x644;"/>
+                        Content="&#x625;&#x636;&#x627;&#x641;&#x629; / &#x627;&#x633;&#x62A;&#x628;&#x62F;&#x627;&#x644;" security:PermissionWindowGuard.Keys="Orders.Create"/>
                 <Button Grid.Column="5"
                         x:Name="DeleteLineButton"
                         Style="{StaticResource SecondaryButtonStyle}"
@@ -124,7 +124,7 @@
                         Height="38"
                         Margin="0,22,0,0"
                         Click="DeleteLine_Click"
-                        Content="&#x62D;&#x630;&#x641;"/>
+                        Content="&#x62D;&#x630;&#x641;" security:PermissionWindowGuard.Keys="Orders.Delete"/>
             </Grid>
         </Border>
 
@@ -169,7 +169,7 @@
                         MinWidth="180"
                         Height="42"
                         VerticalAlignment="Center"
-                        Click="ShowJournalEntry_Click"/>
+                        Click="ShowJournalEntry_Click" security:PermissionWindowGuard.Keys="Accounting.JournalEntries.View"/>
             </Grid>
         </Border>
 
@@ -220,27 +220,27 @@
                     Height="42"
                     Margin="0,0,10,0"
                     Click="ExportPdf_Click"
-                    Content="تصدير PDF"/>
+                    Content="تصدير PDF" security:PermissionWindowGuard.Keys="Orders.Export"/>
             <Button x:Name="PrintInvoiceButton"
                     Style="{StaticResource SecondaryButtonStyle}"
                     MinWidth="120"
                     Height="42"
                     Margin="0,0,10,0"
                     Click="PrintInvoice_Click"
-                    Content="طباعة"/>
+                    Content="طباعة" security:PermissionWindowGuard.Keys="Orders.Print"/>
             <Button x:Name="SaveDetailsButton"
                     Style="{StaticResource PrimaryButtonStyle}"
                     MinWidth="170"
                     Height="42"
                     Margin="0,0,10,0"
                     Click="SaveDetails_Click"
-                    Content="&#x62D;&#x641;&#x638; &#x627;&#x644;&#x62A;&#x641;&#x627;&#x635;&#x64A;&#x644;"/>
+                    Content="&#x62D;&#x641;&#x638; &#x627;&#x644;&#x62A;&#x641;&#x627;&#x635;&#x64A;&#x644;" security:PermissionWindowGuard.Keys="Orders.Create|Orders.Edit"/>
             <Button Style="{StaticResource PrimaryButtonStyle}"
                     MinWidth="150"
                     Height="42"
                     Margin="0,0,10,0"
                     Click="SaveStatus_Click"
-                    Content="&#x62D;&#x641;&#x638; &#x627;&#x644;&#x62D;&#x627;&#x644;&#x629;"/>
+                    Content="&#x62D;&#x641;&#x638; &#x627;&#x644;&#x62D;&#x627;&#x644;&#x629;" security:PermissionWindowGuard.Keys="Orders.Create|Orders.Edit"/>
             <Button Style="{StaticResource SecondaryButtonStyle}"
                     MinWidth="120"
                     Height="42"

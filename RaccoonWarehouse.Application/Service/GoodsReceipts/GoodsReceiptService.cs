@@ -1,5 +1,6 @@
 using AutoMapper;
 using Microsoft.EntityFrameworkCore;
+using RaccoonWarehouse.Application.Service.Permissions;
 using RaccoonWarehouse.Application.Service.Stocks;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Core.Common;
@@ -23,19 +24,23 @@ public sealed class GoodsReceiptService : IGoodsReceiptService
     private readonly ApplicationDbContext _db;
     private readonly IMapper _mapper;
     private readonly IStockService _stockService;
+    private readonly IPermissionService _permissionService;
     private readonly IUserSession _userSession;
 
-    public GoodsReceiptService(ApplicationDbContext db, IMapper mapper, IStockService stockService, IUserSession userSession)
+    public GoodsReceiptService(ApplicationDbContext db, IMapper mapper, IStockService stockService, IPermissionService permissionService, IUserSession userSession)
     {
         _db = db;
         _mapper = mapper;
         _stockService = stockService;
+        _permissionService = permissionService;
         _userSession = userSession;
     }
 
     public async Task<Result<GoodsReceiptWriteDto>> CreateAsync(GoodsReceiptWriteDto dto)
     {
-if (dto.Lines == null || dto.Lines.Count == 0)
+        if (!await _permissionService.HasCurrentUserPermissionAsync("GoodsReceipt.Create"))
+            return Result<GoodsReceiptWriteDto>.Fail("You do not have permission to create goods receipts.");
+        if (dto.Lines == null || dto.Lines.Count == 0)
             return Result<GoodsReceiptWriteDto>.Fail("A goods receipt must contain at least one line.");
         if (dto.Lines.Any(x => x.PurchaseOrderLineId <= 0 || x.ProductId <= 0 || x.ProductUnitId <= 0 || x.QuantityReceived <= 0 || x.QuantityAccepted < 0))
             return Result<GoodsReceiptWriteDto>.Fail("Every receipt line must have a positive received quantity and valid references.");
@@ -71,13 +76,17 @@ if (dto.Lines == null || dto.Lines.Count == 0)
 
     public async Task<Result<List<GoodsReceiptReadDto>>> GetAllAsync()
     {
-var receipts = await _db.GoodsReceipts.AsNoTracking().Include(x => x.Lines).OrderByDescending(x => x.ReceiptDate).ToListAsync();
+        if (!await _permissionService.HasCurrentUserPermissionAsync("GoodsReceipt.View"))
+            return Result<List<GoodsReceiptReadDto>>.Fail("You do not have permission to view goods receipts.");
+        var receipts = await _db.GoodsReceipts.AsNoTracking().Include(x => x.Lines).OrderByDescending(x => x.ReceiptDate).ToListAsync();
         return Result<List<GoodsReceiptReadDto>>.Ok(_mapper.Map<List<GoodsReceiptReadDto>>(receipts));
     }
 
     public async Task<Result<GoodsReceiptWriteDto>> ConfirmAsync(int id)
     {
-var receipt = await _db.GoodsReceipts.Include(x => x.Lines).FirstOrDefaultAsync(x => x.Id == id);
+        if (!await _permissionService.HasCurrentUserPermissionAsync("GoodsReceipt.Confirm"))
+            return Result<GoodsReceiptWriteDto>.Fail("You do not have permission to confirm goods receipts.");
+        var receipt = await _db.GoodsReceipts.Include(x => x.Lines).FirstOrDefaultAsync(x => x.Id == id);
         if (receipt == null) return Result<GoodsReceiptWriteDto>.Fail("Goods receipt was not found.");
         if (receipt.Status == GoodsReceiptStatus.Accepted)
             return Result<GoodsReceiptWriteDto>.Ok(_mapper.Map<GoodsReceiptWriteDto>(receipt), "Goods receipt was already confirmed; no duplicate stock movement was created.");

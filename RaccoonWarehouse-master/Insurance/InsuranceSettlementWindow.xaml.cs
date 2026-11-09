@@ -1,4 +1,5 @@
 using RaccoonWarehouse.Application.Service.Insurance;
+using RaccoonWarehouse.Application.Service.Permissions;
 using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Domain.Insurance;
 using RaccoonWarehouse.Helpers.Localization;
@@ -11,14 +12,16 @@ namespace RaccoonWarehouse.Insurance;
 public partial class InsuranceSettlementWindow : Window
 {
     private readonly IInsuranceManagementService _service;
+    private readonly IPermissionService _permissions;
     private readonly ILoadingService _loading;
     private readonly ObservableCollection<InsuranceClaimSummaryDto> _claims = new();
 
-    public InsuranceSettlementWindow(IInsuranceManagementService service, ILoadingService loading)
+    public InsuranceSettlementWindow(IInsuranceManagementService service, IPermissionService permissions, ILoadingService loading)
     {
         _service = service;
+        _permissions = permissions;
         _loading = loading;
-
+        RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
         InitializeComponent();
         ClaimsGrid.ItemsSource = _claims;
         BatchFromDatePicker.SelectedDate = DateTime.Today.AddMonths(-1);
@@ -28,8 +31,8 @@ public partial class InsuranceSettlementWindow : Window
 
     private async void Window_Loaded(object sender, RoutedEventArgs e)
     {
-        var canPay = true;
-        var canBatch = true;
+        var canPay = await _permissions.HasCurrentUserPermissionAsync("InsurancePayments.Create");
+        var canBatch = await _permissions.HasCurrentUserPermissionAsync("InsuranceClaims.Submit");
         PaymentClaimIdTextBox.IsEnabled = canPay;
         ReceiptNumberTextBox.IsEnabled = canPay;
         PaymentAmountTextBox.IsEnabled = canPay;
@@ -70,6 +73,12 @@ public partial class InsuranceSettlementWindow : Window
         await LoadAsync();
         return;
 
+#pragma warning disable CS0162
+        if (!await _permissions.HasCurrentUserPermissionAsync("InsurancePayments.Create"))
+        {
+            MessageBox.Show(UiText.T("لا تملك صلاحية تسجيل الدفعات.", "You do not have permission to record payments."));
+            return;
+        }
         if (!int.TryParse(PaymentClaimIdTextBox.Text, out var claimId)
             || !int.TryParse(PaymentCompanyIdTextBox.Text, out var companyId)
             || !decimal.TryParse(PaymentAmountTextBox.Text, NumberStyles.Number, CultureInfo.CurrentCulture, out var amount)
@@ -99,7 +108,13 @@ public partial class InsuranceSettlementWindow : Window
     }
 
     private async void CreateBatch_Click(object sender, RoutedEventArgs e)
-    {if (!int.TryParse(BatchCompanyIdTextBox.Text, out var companyId)
+    {
+        if (!await _permissions.HasCurrentUserPermissionAsync("InsuranceClaims.Submit"))
+        {
+            MessageBox.Show(UiText.T("لا تملك صلاحية تجميع المطالبات.", "You do not have permission to create claim batches."));
+            return;
+        }
+        if (!int.TryParse(BatchCompanyIdTextBox.Text, out var companyId)
             || BatchFromDatePicker.SelectedDate is not DateTime from
             || BatchToDatePicker.SelectedDate is not DateTime to)
         {
@@ -114,7 +129,14 @@ public partial class InsuranceSettlementWindow : Window
     }
 
     private async void Aging_Click(object sender, RoutedEventArgs e)
-    {var result = await _service.GetReceivableAgingAsync();
+    {
+        if (!await _permissions.HasCurrentUserPermissionAsync("InsuranceReports.View"))
+        {
+            MessageBox.Show(UiText.T("لا تملك صلاحية عرض أعمار الذمم.", "You do not have permission to view receivable aging."));
+            return;
+        }
+
+        var result = await _service.GetReceivableAgingAsync();
         if (!result.Success)
         {
             MessageBox.Show(result.Message, UiText.T("خطأ", "Error"));

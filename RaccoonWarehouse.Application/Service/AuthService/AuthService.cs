@@ -1,7 +1,6 @@
 using RaccoonWarehouse.Core.Interface;
 using RaccoonWarehouse.Domain.Auth;
 using RaccoonWarehouse.Domain.Users.DTOs;
-using RaccoonWarehouse.Domain.Users;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -21,7 +20,10 @@ namespace RaccoonWarehouse.Application.Service.AuthService
             if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
                 return new AuthResponse { Success = false, Message = "Please enter username and password." };
 
-            var user = await FindUserAsync(username);
+            var users = await _uOW.Users
+                .GetAllWithFilteringAndInclude(u => u.PhoneNumber == username || u.Name == username);
+
+            var user = users?.FirstOrDefault();
 
             if (user == null)
                 return new AuthResponse { Success = false, Message = "User not found." };
@@ -36,28 +38,22 @@ namespace RaccoonWarehouse.Application.Service.AuthService
             {
                 Success = true,
                 Message = "Login successful.",
-                User = user
+                User = new UserReadDto
+                {
+                    Id = user.Id,
+                    Name = user.Name,
+                    Role = user.Role,
+                    Password = user.Password,
+                    PhoneNumber = user.PhoneNumber,
+                    CreatedDate = user.CreatedDate,
+                    UpdatedDate = user.UpdatedDate
+                }
             };
-        }
-
-        public async Task<UserReadDto?> FindUserAsync(string identifier)
-        {
-            var value = identifier?.Trim();
-            if (string.IsNullOrWhiteSpace(value)) return null;
-            var users = await _uOW.Users.GetAllWithFilteringAndInclude(u => u.PhoneNumber == value || u.Name == value);
-            if (int.TryParse(value, out var number))
-            {
-                var numbered = await _uOW.Users.GetAllWithFilteringAndInclude(u => u.UserNumber == number);
-                users = users.Concat(numbered).GroupBy(x => x.Id).Select(x => x.First()).ToList();
-            }
-            var user = users?.FirstOrDefault();
-            return user == null ? null : new UserReadDto { Id = user.Id, UserNumber = user.UserNumber, Name = user.Name, Role = user.Role, PhoneNumber = user.PhoneNumber, Password = user.Password, CreatedDate = user.CreatedDate, UpdatedDate = user.UpdatedDate };
         }
     }
 
     public interface IAuthService
     {
         Task<AuthResponse> AuthenticateAsync(string username, string password);
-        Task<UserReadDto?> FindUserAsync(string identifier);
     }
 }

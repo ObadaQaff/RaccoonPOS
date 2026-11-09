@@ -1,4 +1,4 @@
-<Window x:Class="RaccoonWarehouse.Insurance.InsuranceClaimsWindow"
+<Window xmlns:security="clr-namespace:RaccoonWarehouse.Security" x:Class="RaccoonWarehouse.Insurance.InsuranceClaimsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="مطالبات التأمين / Insurance Claims"
@@ -74,7 +74,7 @@
                     <TextBox x:Name="DeductionTextBox" Grid.Column="7" Margin="8,0,0,0" Padding="10,7"/>
                     <TextBlock Text="سبب الرفض / Reason" Grid.Row="1" VerticalAlignment="Center" Margin="0,14,0,0" Foreground="{StaticResource AppTextBrush}"/>
                     <TextBox x:Name="ReasonTextBox" Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="7" Margin="8,14,20,0" Padding="10,7"/>
-                    <Button x:Name="SaveDecisionButton" Content="حفظ القرار / Save decision" Grid.Row="1" Grid.Column="8" Margin="0,14,0,0" Padding="20,10" Style="{StaticResource AppFormButtonStyle}" Click="SaveDecision_Click"/>
+                    <Button x:Name="SaveDecisionButton" Content="حفظ القرار / Save decision" Grid.Row="1" Grid.Column="8" Margin="0,14,0,0" Padding="20,10" Style="{StaticResource AppFormButtonStyle}" Click="SaveDecision_Click" security:PermissionWindowGuard.Keys="InsuranceClaims.Create|InsuranceClaims.Edit"/>
                 </Grid>
             </Grid></ScrollViewer>
         </Border>

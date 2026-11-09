@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using RaccoonWarehouse.Application.Service.Insurance;
+using RaccoonWarehouse.Application.Service.Permissions;
 using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Data;
 using RaccoonWarehouse.Domain.Insurance;
@@ -14,6 +15,7 @@ public partial class InsuranceClaimsWindow : Window
 {
     private readonly IInsuranceManagementService _service;
     private readonly ILoadingService _loading;
+    private readonly IPermissionService _permissions;
     private readonly ApplicationDbContext _db;
     private readonly ObservableCollection<ClaimRow> _claims=new();
     private bool _busy;
@@ -34,9 +36,9 @@ public partial class InsuranceClaimsWindow : Window
         public decimal PaidAmount=>Claim.PaidAmount;
         public decimal OutstandingAmount=>Claim.OutstandingAmount;
     }
-    public InsuranceClaimsWindow(IInsuranceManagementService service,ILoadingService loading,ApplicationDbContext db)
+    public InsuranceClaimsWindow(IInsuranceManagementService service,ILoadingService loading,IPermissionService permissions,ApplicationDbContext db)
     {
-        _service=service;_loading=loading;_db=db;
+        _service=service;_loading=loading;_permissions=permissions;_db=db;RaccoonWarehouse.Security.PermissionWindowGuard.Demand(GetType());
             InitializeComponent();
         ClaimsGrid.ItemsSource=_claims;
         var choices=Enum.GetValues<InsuranceClaimStatus>().Select(x=>new StatusChoice(x,StatusText(x))).ToList();
@@ -67,7 +69,9 @@ public partial class InsuranceClaimsWindow : Window
     {
         try
         {
-            _canReview=true;
+            _canReview=await _permissions.HasCurrentUserPermissionAsync("InsuranceClaims.Approve")
+                ||await _permissions.HasCurrentUserPermissionAsync("InsuranceClaims.Reject");
+            if(!await _permissions.HasCurrentUserPermissionAsync("InsuranceClaims.View")) { Close();return; }
             var companies=await _service.GetCompaniesAsync();
             if(!companies.Success)throw new InvalidOperationException(companies.Message);
             var list=new[]{new InsuranceCompanyDto { Id=0,Name=UiText.T("كل الشركات","All companies") }}.Concat(companies.Data??new()).ToList();
@@ -141,7 +145,8 @@ public partial class InsuranceClaimsWindow : Window
         try
         {
             var key=choice.Value==InsuranceClaimStatus.Rejected?"InsuranceClaims.Reject":"InsuranceClaims.Approve";
-_loading.Show();
+            if(!await _permissions.HasCurrentUserPermissionAsync(key))throw new InvalidOperationException(UiText.T("لا تملك صلاحية تسجيل هذا القرار.","You do not have permission to record this decision."));
+            _loading.Show();
             var result=await _service.ReviewClaimAsync(new InsuranceClaimReviewDto { ClaimId=row.Claim.Id,Status=choice.Value.Value,
                 ApprovedAmount=approved,RejectedAmount=rejected,DeductionAmount=deduction,RejectionReason=ReasonTextBox.Text });
             if(!result.Success)throw new InvalidOperationException(result.Message);

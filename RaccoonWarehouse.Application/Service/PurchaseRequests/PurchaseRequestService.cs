@@ -1,5 +1,6 @@
 using AutoMapper;
 using Microsoft.EntityFrameworkCore;
+using RaccoonWarehouse.Application.Service.Permissions;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Core.Common;
 using RaccoonWarehouse.Core.Interface;
@@ -30,21 +31,26 @@ public sealed class PurchaseRequestService : IPurchaseRequestService
 {
     private readonly ApplicationDbContext _db;
     private readonly IMapper _mapper;
+    private readonly IPermissionService _permissionService;
     private readonly IUserSession _userSession;
 
     public PurchaseRequestService(
         ApplicationDbContext db,
         IMapper mapper,
+        IPermissionService permissionService,
         IUserSession userSession)
     {
         _db = db;
         _mapper = mapper;
+        _permissionService = permissionService;
         _userSession = userSession;
     }
 
     public async Task<Result<PurchaseRequestWriteDto>> CreateAsync(PurchaseRequestWriteDto dto)
     {
-if (dto.Lines == null || dto.Lines.Count == 0)
+        if (!await _permissionService.HasCurrentUserPermissionAsync("PurchaseRequest.Create"))
+            return Result<PurchaseRequestWriteDto>.Fail("You do not have permission to create purchase requests.");
+        if (dto.Lines == null || dto.Lines.Count == 0)
             return Result<PurchaseRequestWriteDto>.Fail("A purchase request must contain at least one line.");
         if (dto.Lines.Any(line => string.IsNullOrWhiteSpace(line.ItemName) || line.RequestedQuantity <= 0 || line.UnitPrice < 0))
             return Result<PurchaseRequestWriteDto>.Fail("Every purchase request line must have an item name and positive quantity.");
@@ -130,7 +136,9 @@ if (dto.Lines == null || dto.Lines.Count == 0)
 
     public async Task<Result<PurchaseRequestWriteDto>> UpdateAsync(PurchaseRequestWriteDto dto)
     {
-if (dto.Id <= 0)
+        if (!await _permissionService.HasCurrentUserPermissionAsync("PurchaseRequest.Edit"))
+            return Result<PurchaseRequestWriteDto>.Fail("You do not have permission to edit purchase requests.");
+        if (dto.Id <= 0)
             return Result<PurchaseRequestWriteDto>.Fail("A valid purchase request is required.");
         if (dto.Lines == null || dto.Lines.Count == 0)
             return Result<PurchaseRequestWriteDto>.Fail("A purchase request must contain at least one line.");
@@ -224,7 +232,10 @@ if (dto.Id <= 0)
 
     public async Task<Result<List<PurchaseRequestReadDto>>> GetAllAsync()
     {
-var requests = await _db.PurchaseRequests
+        if (!await _permissionService.HasCurrentUserPermissionAsync("PurchaseRequest.View"))
+            return Result<List<PurchaseRequestReadDto>>.Fail("You do not have permission to view purchase requests.");
+
+        var requests = await _db.PurchaseRequests
             .AsNoTracking()
             .Include(x => x.Lines)
             .OrderByDescending(x => x.RequestDate)
@@ -234,7 +245,10 @@ var requests = await _db.PurchaseRequests
 
     public async Task<Result<PurchaseRequestReadDto>> GetByIdAsync(int id)
     {
-var request = await _db.PurchaseRequests
+        if (!await _permissionService.HasCurrentUserPermissionAsync("PurchaseRequest.View"))
+            return Result<PurchaseRequestReadDto>.Fail("You do not have permission to view purchase requests.");
+
+        var request = await _db.PurchaseRequests
             .AsNoTracking()
             .Include(x => x.Lines)
             .FirstOrDefaultAsync(x => x.Id == id);
@@ -269,7 +283,10 @@ var request = await _db.PurchaseRequests
 
     public async Task<Result<bool>> DeleteAsync(int id)
     {
-var request = await _db.PurchaseRequests
+        if (!await _permissionService.HasCurrentUserPermissionAsync("PurchaseRequest.Edit"))
+            return Result<bool>.Fail("You do not have permission to delete purchase requests.");
+
+        var request = await _db.PurchaseRequests
             .Include(x => x.Lines)
             .FirstOrDefaultAsync(x => x.Id == id);
         if (request == null)
@@ -285,7 +302,9 @@ var request = await _db.PurchaseRequests
 
     public async Task<Result<PurchaseRequestWriteDto>> SubmitAsync(int id)
     {
-var request = await _db.PurchaseRequests.Include(x => x.Lines).FirstOrDefaultAsync(x => x.Id == id);
+        if (!await _permissionService.HasCurrentUserPermissionAsync("PurchaseRequest.Submit"))
+            return Result<PurchaseRequestWriteDto>.Fail("You do not have permission to submit purchase requests.");
+        var request = await _db.PurchaseRequests.Include(x => x.Lines).FirstOrDefaultAsync(x => x.Id == id);
         if (request == null) return Result<PurchaseRequestWriteDto>.Fail("Purchase request was not found.");
         if (request.Status != PurchaseRequestStatus.Draft)
             return Result<PurchaseRequestWriteDto>.Fail("Only draft purchase requests can be submitted.");
@@ -299,7 +318,9 @@ var request = await _db.PurchaseRequests.Include(x => x.Lines).FirstOrDefaultAsy
 
     public async Task<Result<PurchaseRequestWriteDto>> ApproveAsync(int id)
     {
-var request = await _db.PurchaseRequests.Include(x => x.Lines).FirstOrDefaultAsync(x => x.Id == id);
+        if (!await _permissionService.HasCurrentUserPermissionAsync("PurchaseRequest.Approve"))
+            return Result<PurchaseRequestWriteDto>.Fail("You do not have permission to approve purchase requests.");
+        var request = await _db.PurchaseRequests.Include(x => x.Lines).FirstOrDefaultAsync(x => x.Id == id);
         if (request == null) return Result<PurchaseRequestWriteDto>.Fail("Purchase request was not found.");
         if (request.Status != PurchaseRequestStatus.Submitted)
             return Result<PurchaseRequestWriteDto>.Fail("Only submitted purchase requests can be approved.");
@@ -318,7 +339,9 @@ var request = await _db.PurchaseRequests.Include(x => x.Lines).FirstOrDefaultAsy
 
     public async Task<Result<PurchaseRequestWriteDto>> ReviewAsync(PurchaseRequestApprovalDto dto)
     {
-if (dto.RequestId <= 0)
+        if (!await _permissionService.HasCurrentUserPermissionAsync("PurchaseRequest.Approve"))
+            return Result<PurchaseRequestWriteDto>.Fail("You do not have permission to approve purchase requests.");
+        if (dto.RequestId <= 0)
             return Result<PurchaseRequestWriteDto>.Fail("A valid purchase request is required.");
         if (dto.Lines == null || dto.Lines.Count == 0)
             return Result<PurchaseRequestWriteDto>.Fail("At least one request line is required.");
@@ -395,7 +418,9 @@ if (dto.RequestId <= 0)
     {
         if (_userSession.CurrentRole != UserRole.Admin)
             return Result<PurchaseRequestWriteDto>.Fail("Only administrators can reject purchase requests.");
-if (string.IsNullOrWhiteSpace(reason))
+        if (!await _permissionService.HasCurrentUserPermissionAsync("PurchaseRequest.Reject"))
+            return Result<PurchaseRequestWriteDto>.Fail("You do not have permission to reject purchase requests.");
+        if (string.IsNullOrWhiteSpace(reason))
             return Result<PurchaseRequestWriteDto>.Fail("A rejection reason is required.");
         var request = await _db.PurchaseRequests.FirstOrDefaultAsync(x => x.Id == id);
         if (request == null) return Result<PurchaseRequestWriteDto>.Fail("Purchase request was not found.");

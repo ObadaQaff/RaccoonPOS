@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using RaccoonWarehouse.Application.Service.Permissions;
 using RaccoonWarehouse.Application.Service.Settings;
 using RaccoonWarehouse.Data;
 using RaccoonWarehouse.Domain.Vouchers;
@@ -15,11 +16,13 @@ public sealed class VoucherPrintDataService
 {
     private readonly ApplicationDbContext _db;
     private readonly DocumentBrandingService _branding;
-    public VoucherPrintDataService(ApplicationDbContext db,DocumentBrandingService branding)
-        =>_db=db;
+    private readonly IPermissionService _permissions;
+    public VoucherPrintDataService(ApplicationDbContext db,DocumentBrandingService branding,IPermissionService permissions)
+        =>(_db,_branding,_permissions)=(db,branding,permissions);
     public async Task<VoucherPrintData> LoadAsync(int id,VoucherType expectedType)
     {
-if(id<=0)throw new ArgumentException("احفظ السند قبل الطباعة. / Save the voucher before printing.");
+        if(!await _permissions.HasCurrentUserPermissionAsync("Vouchers.Print"))throw new UnauthorizedAccessException("ليس لديك صلاحية الطباعة. / Print permission required.");
+        if(id<=0)throw new ArgumentException("احفظ السند قبل الطباعة. / Save the voucher before printing.");
         var v=await _db.Set<Voucher>().AsNoTracking().Include(x=>x.Checks).Include(x=>x.CashierSession).SingleOrDefaultAsync(x=>x.Id==id)
             ??throw new InvalidOperationException("السند غير موجود. / Voucher not found.");
         if(v.VoucherType!=expectedType)throw new InvalidOperationException("نوع السند لا يطابق المستند. / Voucher type mismatch.");

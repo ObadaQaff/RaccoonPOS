@@ -1,3 +1,4 @@
+using RaccoonWarehouse.Application.Service.Permissions;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Helpers.Localization;
 using RaccoonWarehouse.Navigation;
@@ -7,10 +8,16 @@ namespace RaccoonWarehouse.Navigation.Modules
 {
     public sealed class CustomersDashboardActionHandler : IDashboardActionHandler
     {
+        private readonly IUserSession _userSession;
+        private readonly IPermissionService _permissionService;
+
         public CustomersDashboardActionHandler(
-            IUserSession userSession)
+            IUserSession userSession,
+            IPermissionService permissionService)
         {
-            }
+            _userSession = userSession;
+            _permissionService = permissionService;
+        }
 
         public bool CanHandle(string actionKey)
         {
@@ -21,14 +28,42 @@ namespace RaccoonWarehouse.Navigation.Modules
         {
             switch (actionKey)
             {
-                case "Customers.Create":WindowManager.ShowDialog<CreateUser>(WindowSizeType.MediumRectangle, window => window.InitializeForCustomerQuickCreate());
+                case "Customers.Create":
+                    if (!await HasPermissionAsync("Customers.Create"))
+                    {
+                        MessageBox.Show(UiText.T("ليس لديك صلاحية إنشاء عميل جديد.", "You do not have permission to create a new customer."));
+                        return;
+                    }
+
+                    WindowManager.ShowDialog<CreateUser>(WindowSizeType.MediumRectangle, window => window.InitializeForCustomerQuickCreate());
                     return;
 
-                case "Customers.CreateSupplier":WindowManager.ShowDialog<CreateUser>(WindowSizeType.MediumRectangle, window => window.InitializeForSupplierQuickCreate());
+                case "Customers.CreateSupplier":
+                    if (!await HasPermissionAsync("Customers.Create"))
+                    {
+                        MessageBox.Show(UiText.T("ليس لديك صلاحية إنشاء مورد جديد.", "You do not have permission to create a new supplier."));
+                        return;
+                    }
+
+                    WindowManager.ShowDialog<CreateUser>(WindowSizeType.MediumRectangle, window => window.InitializeForSupplierQuickCreate());
                     return;
 
-                case "Customers.List":WindowManager.Show<UsersTable>();
+                case "Customers.List":
+                    if (!await HasPermissionAsync("Customers.View"))
+                    {
+                        MessageBox.Show(UiText.T("ليس لديك صلاحية عرض العملاء والموردين.", "You do not have permission to view customers and suppliers."));
+                        return;
+                    }
+
+                    WindowManager.Show<UsersTable>();
                     return;
             }
-        }}
+        }
+
+        private async Task<bool> HasPermissionAsync(string permissionKey)
+        {
+            var role = _userSession.CurrentUser?.Role;
+            return role.HasValue && await _permissionService.HasPermissionAsync(role.Value, permissionKey);
+        }
+    }
 }
