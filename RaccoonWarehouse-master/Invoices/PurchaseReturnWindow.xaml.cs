@@ -21,8 +21,10 @@ public partial class PurchaseReturnWindow : Window
 {
     private readonly IInvoiceService _invoiceService;
     private readonly ISaleCheckoutService _checkoutService;
+    private readonly IUserService _userService;
     private readonly IUserSession _userSession;
     private readonly ObservableCollection<PurchaseReturnRow> _invoices = new();
+    private readonly ObservableCollection<SupplierFilterOption> _supplierOptions = new();
     private readonly ObservableCollection<PurchaseReturnLineRow> _lines = new();
     private InvoiceWriteDto? _sourceInvoice;
     private bool _busy;
@@ -30,20 +32,33 @@ public partial class PurchaseReturnWindow : Window
     public PurchaseReturnWindow(
         IInvoiceService invoiceService,
         ISaleCheckoutService checkoutService,
+        IUserService userService,
         IUserSession userSession)
     {
         InitializeComponent();
         UiText.ApplyWindow(this);
         _invoiceService = invoiceService;
         _checkoutService = checkoutService;
+        _userService = userService;
         _userSession = userSession;
         InvoicesGrid.ItemsSource = _invoices;
+        SupplierFilterComboBox.ItemsSource = _supplierOptions;
         LinesGrid.ItemsSource = _lines;
         LinesGrid.IsEnabled = false;
-        Loaded += async (_, _) => await LoadInvoicesAsync();
+        Loaded += async (_, _) =>
+        {
+            await LoadSuppliersAsync();
+            await LoadInvoicesAsync();
+        };
     }
 
     private async void Search_Click(object sender, RoutedEventArgs e) => await LoadInvoicesAsync();
+
+    private async void SupplierFilterComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (IsLoaded && !_busy)
+            await LoadInvoicesAsync();
+    }
 
     private async void SearchTextBox_KeyDown(object sender, KeyEventArgs e)
     {
@@ -63,15 +78,9 @@ public partial class PurchaseReturnWindow : Window
         {
             _busy = true;
             var number = SearchTextBox.Text?.Trim();
-            var result = await _invoiceService.GetAllWriteDtoWithFilteringAndIncludeAsync(
-                invoice => invoice.InvoiceType == InvoiceType.Purchase
-                    && (invoice.Status == null
-                        || invoice.Status == InvoiceStatus.Completed
-                        || invoice.Status == InvoiceStatus.Posted)
-                    && (string.IsNullOrWhiteSpace(number) || invoice.InvoiceNumber.Contains(number)),
-                invoice => invoice.InvoiceLines,
-                invoice => invoice.Payments,
-                invoice => invoice.Checks);
+            var productSearch = ProductSearchTextBox.Text?.Trim();
+            var supplierId = (SupplierFilterComboBox.SelectedItem as SupplierFilterOption)?.Id;
+            var result = await _invoiceService.SearchPurchaseInvoicesForReturnAsync(number, supplierId, productSearch);
 
             if (!result.Success)
             {
@@ -90,6 +99,29 @@ public partial class PurchaseReturnWindow : Window
         finally
         {
             _busy = false;
+        }
+    }
+
+    private async Task LoadSuppliersAsync()
+    {
+        try
+        {
+            var result = await _userService.GetAllAsync();
+            _supplierOptions.Clear();
+            _supplierOptions.Add(new SupplierFilterOption(null, UiText.T("ÙƒÙ„ Ø§Ù„Ù…ÙˆØ±Ø¯ÙŠÙ†", "All suppliers")));
+
+            foreach (var supplier in (result.Data ?? new List<RaccoonWarehouse.Domain.Users.DTOs.UserReadDto>())
+                .Where(user => user.Role == UserRole.Supplier)
+                .OrderBy(user => user.Name))
+            {
+                _supplierOptions.Add(new SupplierFilterOption(supplier.Id, supplier.Name));
+            }
+
+            SupplierFilterComboBox.SelectedIndex = 0;
+        }
+        catch (Exception ex)
+        {
+            ShowError(UiText.T($"ØªØ¹Ø°Ø± ØªØ­Ù…ÙŠÙ„ Ø§Ù„Ù…ÙˆØ±Ø¯ÙŠÙ†: {ex.Message}", $"Could not load suppliers: {ex.Message}"));
         }
     }
 
@@ -385,12 +417,14 @@ public partial class PurchaseReturnWindow : Window
         public InvoiceWriteDto Invoice { get; }
         public string InvoiceNumber => Invoice.InvoiceNumber;
         public DateTime CreatedDate => Invoice.CreatedDate;
-        public string SupplierName => Invoice.SupplierId?.ToString() ?? "—";
+        public string SupplierName => Invoice.SupplierName ?? "—";
         public string PaymentType => GetPaymentName(Invoice.PaymentType);
         public decimal TotalAmount => Invoice.TotalAmount;
         public string Status => Invoice.Status?.ToString() ?? "Finalized";
         public PurchaseReturnRow(InvoiceWriteDto invoice) => Invoice = invoice;
     }
+
+    public sealed record SupplierFilterOption(int? Id, string Name);
 
     public sealed class PurchaseReturnLineRow : INotifyPropertyChanged
     {

@@ -185,7 +185,9 @@ namespace RaccoonWarehouse.Application.Service.Accounting
             });
         }
         private IQueryable<JournalEntryLine> PostedLines(DateTime cutoff) => _context.Set<JournalEntryLine>()
-            .Where(line => line.JournalEntry.Status == Domain.Accounting.Enums.JournalEntryStatus.Posted && line.JournalEntry.EntryDate < cutoff);
+            .Where(line => line.JournalEntry.Status == Domain.Accounting.Enums.JournalEntryStatus.Posted
+                && line.JournalEntry.ReferenceType != "Reversal"
+                && line.JournalEntry.EntryDate < cutoff);
 
         private async Task<List<PartyMovement>> GetPartyMovementsAsync(
             UserRole role,

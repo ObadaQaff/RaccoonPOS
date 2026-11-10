@@ -88,7 +88,8 @@ namespace RaccoonWarehouse.Application.Service.Accounting
             var baseQuery = _context.Set<JournalEntryLine>()
                 .AsNoTracking()
                 .Include(x => x.JournalEntry)
-                .Where(x => x.JournalEntry.Status == Domain.Accounting.Enums.JournalEntryStatus.Posted);
+                .Where(x => x.JournalEntry.Status == Domain.Accounting.Enums.JournalEntryStatus.Posted
+                    && x.JournalEntry.ReferenceType != "Reversal");
 
             baseQuery = baseQuery.Where(x => filter.IncludeAllPartyRelationships
                 ? x.CustomerId == filter.UserId || x.SupplierId == filter.UserId || x.PartyUserId == filter.UserId ||

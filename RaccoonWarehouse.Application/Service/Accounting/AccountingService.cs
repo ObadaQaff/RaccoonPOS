@@ -1458,9 +1458,10 @@ namespace RaccoonWarehouse.Application.Service.Accounting
                 ReferenceId = entry.Id,
                 CreatedDate = now,
                 UpdatedDate = now,
-                Lines = entry.Lines.Select(line => new JournalEntryLine
+                Lines = entry.Lines.Select((line, index) => new JournalEntryLine
                 {
                     AccountId = line.AccountId,
+                    LineNumber = index + 1,
                     PartyUserId = line.PartyUserId,
                     CustomerId = line.CustomerId,
                     SupplierId = line.SupplierId,
@@ -1571,7 +1572,8 @@ namespace RaccoonWarehouse.Application.Service.Accounting
 
             if (includePostedOnly)
             {
-                query = query.Where(x => x.Status == JournalEntryStatus.Posted);
+                query = query.Where(x => x.Status == JournalEntryStatus.Posted
+                    && x.ReferenceType != "Reversal");
             }
 
             return query;

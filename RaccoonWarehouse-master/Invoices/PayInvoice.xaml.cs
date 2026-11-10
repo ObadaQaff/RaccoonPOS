@@ -565,18 +565,22 @@ namespace RaccoonWarehouse.Invoices
 
         private async void AddSupplierBtn_Click(object sender, RoutedEventArgs e)
         {
-            if (_currentInvoiceId.HasValue)
-                return;
-
             try
             {
-                WindowManager.ShowDialog<CreateUser>(WindowSizeType.MediumRectangle, window => window.InitializeForSupplierQuickCreate(SupplierComboBox.Text));
+                int? createdSupplierId = null;
+                var initialName = SupplierComboBox.Text?.Trim();
+                WindowManager.ShowDialog<CreateUser>(WindowSizeType.MediumRectangle, window =>
+                {
+                    window.InitializeForSupplierQuickCreate(initialName);
+                    window.Closed += (_, __) => createdSupplierId = window.CreatedUserId;
+                });
+
                 var result = await _userService.GetAllAsync();
                 _allSuppliers = new ObservableCollection<UserReadDto>((result?.Data ?? new List<UserReadDto>()).GroupBy(user => user.Id).Select(group => group.First()));
                 SupplierComboBox.ItemsSource = _allSuppliers;
-                SupplierComboBox.SelectedItem = null;
-                SupplierComboBox.SelectedIndex = -1;
-                SupplierComboBox.Text = string.Empty;
+
+                if (createdSupplierId.HasValue)
+                    SupplierComboBox.SelectedValue = createdSupplierId.Value;
             }
             catch (Exception ex)
             {
@@ -1914,7 +1918,7 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
 
                 }
 
-                if (supplier != null)
+                if (supplier != null && !isUpdate)
                 {
                     var supplierResult = await _productService.AssignSupplierToProductsAsync(
                         InvoiceLines.Select(line => line.ProductId),
@@ -2278,12 +2282,12 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
         {
             var isEditingExistingInvoice = _currentInvoiceId.HasValue;
 
-            // Existing purchase invoices allow only supplier and document-date changes.
-            InvoiceNumberTextBox.IsReadOnly = isEditingExistingInvoice;
+            // Existing purchase invoices allow only invoice number, supplier, and document-date changes.
+            InvoiceNumberTextBox.IsReadOnly = false;
             FalconInvoiceNumberTextBox.IsReadOnly = isEditingExistingInvoice;
             SupplierComboBox.IsEnabled = true;
             InvoiceDatePicker.IsEnabled = true;
-            AddSupplierButton.IsEnabled = !isEditingExistingInvoice;
+            AddSupplierButton.IsEnabled = true;
 
             PaymentMethodComboBox.IsEnabled = !isEditingExistingInvoice;
             DiscountTextBox.IsReadOnly = isEditingExistingInvoice;

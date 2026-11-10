@@ -25,6 +25,7 @@ namespace RaccoonWarehouse.Domain.Invoices.DTOs
         public PaymentType? PaymentType { get; set; }
         public int? CasherId { get; set; }
         public int? SupplierId { get; set; }
+        public string? SupplierName { get; set; }
         public int? WarehouseId { get; set; }
         public int? CurrencyId { get; set; }
         public DateTime? DocumentDate { get; set; }

@@ -7,6 +7,8 @@ using RaccoonWarehouse.Application.Service.Sales;
 using RaccoonWarehouse.Core.Common;
 using RaccoonWarehouse.Core.Interface;
 using RaccoonWarehouse.Data;
+using RaccoonWarehouse.Domain.Accounting.Enums;
+using RaccoonWarehouse.Domain.Accounting.JournalEntries;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Checks;
 using RaccoonWarehouse.Domain.InvoiceLines;
@@ -16,6 +18,7 @@ using RaccoonWarehouse.Domain.Invoices.DTOs;
 using RaccoonWarehouse.Domain.ProductUnits;
 using RaccoonWarehouse.Domain.ProductUnits.DTOs;
 using RaccoonWarehouse.Domain.Products;
+using RaccoonWarehouse.Domain.Products.DTOs;
 using RaccoonWarehouse.Domain.Reports.Financial.Dtos;
 using RaccoonWarehouse.Domain.Reports.Financial.Filters;
 using RaccoonWarehouse.Domain.Reports.Sales.Dtos;
@@ -325,7 +328,7 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                     !PurchaseEditOnlyChangesAreAllowed(dto, existingInvoice))
                 {
                     return Result<InvoiceWriteDto>.Fail(
-                        "Only the supplier and document date can be changed for an existing purchase invoice. / يمكن تعديل المورد وتاريخ المستند فقط في فاتورة شراء موجودة.");
+                        "Only the invoice number, supplier, and document date can be changed for an existing purchase invoice. / يمكن تعديل رقم الفاتورة والمورد وتاريخ المستند فقط في فاتورة شراء موجودة.");
                 }
 
                 if (string.IsNullOrWhiteSpace(dto.InvoiceNumber))
@@ -336,6 +339,56 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 if (dto.InvoiceType != InvoiceType.Purchase &&
                     (!int.TryParse(dto.InvoiceNumber, out var invoiceNumber) || invoiceNumber < 100 || invoiceNumber > 99999))
                     return Result<InvoiceWriteDto>.Fail("Invoice number must contain 3 to 5 digits / رقم الفاتورة يجب أن يتكون من 3 إلى 5 أرقام.");
+
+                if (existingInvoice.InvoiceType == InvoiceType.Purchase)
+                {
+                    var purchaseInvoiceNumberUsed = await invoiceRepo.GetAllAsQueryable()
+                        .AnyAsync(invoice => invoice.InvoiceNumber == dto.InvoiceNumber && invoice.Id != dto.Id);
+                    if (purchaseInvoiceNumberUsed)
+                        return Result<InvoiceWriteDto>.Fail("Invoice number already exists.");
+
+                    var accountingMetadataChanged =
+                        existingInvoice.SupplierId != dto.SupplierId
+                        || !string.Equals(existingInvoice.InvoiceNumber?.Trim(), dto.InvoiceNumber?.Trim(), StringComparison.Ordinal)
+                        || existingInvoice.CreatedDate != dto.CreatedDate;
+                    var purchaseHadPostedAccounting = existingInvoice.Status is not InvoiceStatus.OnHold
+                        and not InvoiceStatus.Draft
+                        and not InvoiceStatus.Cancelled
+                        and not InvoiceStatus.Unknown
+                        and not InvoiceStatus.InProcess;
+
+                    existingInvoice.InvoiceNumber = dto.InvoiceNumber;
+                    existingInvoice.SupplierId = dto.SupplierId;
+                    existingInvoice.CreatedDate = dto.CreatedDate;
+                    existingInvoice.UpdatedDate = dto.UpdatedDate;
+
+                    await _uow.CommitAsync();
+
+                    var purchaseAccountingNeedsRepost = _accountingService != null
+
+                        && purchaseHadPostedAccounting
+                        && await PurchaseAccountingNeedsRepostAsync(dto);
+
+                    if (_accountingService != null && purchaseHadPostedAccounting
+                        && (accountingMetadataChanged || purchaseAccountingNeedsRepost))
+                    {
+                        var reverseResult = await _accountingService.ReverseJournalByReferenceAsync(
+                            "Invoice",
+                            existingInvoice.Id,
+                            $"Reclassify purchase invoice #{existingInvoice.InvoiceNumber} after metadata update");
+
+                        if (!reverseResult.Success)
+                            return Result<InvoiceWriteDto>.Fail(
+                                $"Purchase invoice was updated but accounting reversal failed: {reverseResult.Message}");
+
+                        var repostResult = await _accountingService.PostInvoiceEntryAsync(dto);
+                        if (!repostResult.Success)
+                            return Result<InvoiceWriteDto>.Fail(
+                                $"Purchase invoice was updated and the old accounting entry was reversed, but reposting failed: {repostResult.Message}");
+                    }
+
+                    return Result<InvoiceWriteDto>.Ok(dto);
+                }
 
                 // Invoice numbers are global because all invoice types share the Invoice table.
                 // Updating an invoice must not allow it to take another invoice's number.
@@ -712,11 +765,36 @@ namespace RaccoonWarehouse.Application.Service.Invoices
             return null;
         }
 
+        private async Task<bool> PurchaseAccountingNeedsRepostAsync(InvoiceWriteDto dto)
+        {
+            var postedEntry = await _context.Set<JournalEntry>()
+                .AsNoTracking()
+                .Include(entry => entry.Lines)
+                .Where(entry => entry.ReferenceType == "Invoice"
+                    && entry.ReferenceId == dto.Id
+                    && entry.Status == JournalEntryStatus.Posted)
+                .OrderByDescending(entry => entry.Id)
+                .FirstOrDefaultAsync();
+
+            if (postedEntry == null)
+                return true;
+
+            var postedSupplierIds = postedEntry.Lines
+                .Where(line => line.SupplierId.HasValue)
+                .Select(line => line.SupplierId!.Value)
+                .Distinct()
+                .ToList();
+
+            if (dto.PaymentType == PaymentType.Credit)
+                return !dto.SupplierId.HasValue
+                    || postedSupplierIds.Count != 1
+                    || postedSupplierIds[0] != dto.SupplierId.Value;
+
+            return postedSupplierIds.Count > 0;
+        }
+
         private static bool PurchaseEditOnlyChangesAreAllowed(InvoiceWriteDto dto, Invoice existingInvoice)
         {
-            if (!string.Equals(dto.InvoiceNumber?.Trim(), existingInvoice.InvoiceNumber?.Trim(), StringComparison.Ordinal))
-                return false;
-
             if (!string.Equals(dto.FalconInvoiceNumber?.Trim(), existingInvoice.FalconInvoiceNumber?.Trim(), StringComparison.Ordinal))
                 return false;
 
@@ -1563,6 +1641,84 @@ namespace RaccoonWarehouse.Application.Service.Invoices
             return Result<(FinancialSummaryDto, List<SalesReportRowDto>)>.Ok((summary, rows));
         }
 
+        public async Task<Result<List<InvoiceWriteDto>>> SearchPurchaseInvoicesForReturnAsync(
+            string? invoiceNumber = null,
+            int? supplierId = null,
+            string? productSearch = null)
+        {
+            var query = _context.Set<Invoice>()
+                .AsNoTracking()
+                .Include(invoice => invoice.InvoiceLines!)
+                    .ThenInclude(line => line.Product)
+                .Include(invoice => invoice.InvoiceLines!)
+                    .ThenInclude(line => line.ProductUnit)
+                .Where(invoice => invoice.InvoiceType == InvoiceType.Purchase
+                    && (invoice.Status == null
+                        || invoice.Status == InvoiceStatus.Completed
+                        || invoice.Status == InvoiceStatus.Posted));
+
+            if (!string.IsNullOrWhiteSpace(invoiceNumber))
+            {
+                var normalizedInvoiceNumber = invoiceNumber.Trim();
+                query = query.Where(invoice => invoice.InvoiceNumber.Contains(normalizedInvoiceNumber));
+            }
+
+            if (supplierId.HasValue && supplierId.Value > 0)
+                query = query.Where(invoice => invoice.SupplierId == supplierId.Value);
+
+            if (!string.IsNullOrWhiteSpace(productSearch))
+            {
+                var normalizedProductSearch = productSearch.Trim();
+                query = query.Where(invoice => invoice.InvoiceLines!.Any(line =>
+                    (line.Product != null && line.Product.Name.Contains(normalizedProductSearch))
+                    || (line.Product != null && line.Product.ITEMCODE.HasValue
+                        && line.Product.ITEMCODE.Value.ToString().Contains(normalizedProductSearch))
+                    || (line.ProductUnit != null && line.ProductUnit.AlternateBarcode != null
+                        && line.ProductUnit.AlternateBarcode.Contains(normalizedProductSearch))));
+            }
+
+            var invoices = await query
+                .OrderByDescending(invoice => invoice.CreatedDate)
+                .ToListAsync();
+
+            var supplierIds = invoices
+                .Where(invoice => invoice.SupplierId.HasValue)
+                .Select(invoice => invoice.SupplierId!.Value)
+                .Distinct()
+                .ToList();
+            var supplierNames = supplierIds.Count == 0
+                ? new Dictionary<int, string>()
+                : await _context.Set<User>()
+                    .AsNoTracking()
+                    .Where(user => supplierIds.Contains(user.Id))
+                    .ToDictionaryAsync(user => user.Id, user => user.Name);
+
+            var result = invoices.Select(invoice =>
+            {
+                var dto = _mapper.Map<InvoiceWriteDto>(invoice);
+                dto.SupplierName = invoice.SupplierId.HasValue
+                    && supplierNames.TryGetValue(invoice.SupplierId.Value, out var name)
+                    ? name
+                    : null;
+
+                var dtoLines = dto.InvoiceLines?.ToList() ?? new List<InvoiceLineWriteDto>();
+                foreach (var line in invoice.InvoiceLines ?? Array.Empty<InvoiceLine>())
+                {
+                    var dtoLine = dtoLines.FirstOrDefault(candidate => candidate.Id == line.Id);
+                    if (dtoLine == null)
+                        continue;
+
+                    dtoLine.ProductName = line.Product?.Name ?? dtoLine.ProductName;
+                    dtoLine.Product = line.Product == null ? null : _mapper.Map<ProductWriteDto>(line.Product);
+                    dtoLine.ProductUnit = line.ProductUnit == null ? null : _mapper.Map<ProductUnitWriteDto>(line.ProductUnit);
+                }
+
+                return dto;
+            }).ToList();
+
+            return Result<List<InvoiceWriteDto>>.Ok(result);
+        }
+
         public async Task<InvoiceReadDto?> FindPOSInvoiceByFalconNumberAsync(
             string falconInvoiceNumber,
             int? excludeInvoiceId = null)
@@ -1634,6 +1790,11 @@ namespace RaccoonWarehouse.Application.Service.Invoices
             string? customerName = null,
             string? productName = null,
             string? barcode = null);
+
+        Task<Result<List<InvoiceWriteDto>>> SearchPurchaseInvoicesForReturnAsync(
+            string? invoiceNumber = null,
+            int? supplierId = null,
+            string? productSearch = null);
 
         Task<InvoiceReadDto?> FindPOSInvoiceByFalconNumberAsync(
             string falconInvoiceNumber,

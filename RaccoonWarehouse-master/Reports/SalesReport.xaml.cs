@@ -389,13 +389,13 @@ namespace RaccoonWarehouse.Reports
                 var totalPurchaseReturns = purchaseReturns.Sum(x => Math.Abs(x.Total));
                 var totalPurchaseTax = purchases.Sum(x => Math.Abs(x.TotalTax));
                 var totalPurchaseDiscount = purchases.Sum(x => Math.Abs(x.Discount));
-                var totalDisplayedAmount = data.Sum(x => x.Total);
+                var netPurchaseAmount = totalPurchases - totalPurchaseReturns;
 
                 TotalSalesText.Text = totalPurchases.ToString("0.00000");
                 TotalReturnsText.Text = totalPurchaseReturns.ToString("0.00000");
                 TotalTaxText.Text = totalPurchaseTax.ToString("0.00000");
                 TotalDiscountText.Text = totalPurchaseDiscount.ToString("0.00000");
-                TotalDisplayedAmountText.Text = totalDisplayedAmount.ToString("0.00000");
+                TotalDisplayedAmountText.Text = netPurchaseAmount.ToString("0.00000");
                 TotalCogsText.Text = "0";
                 GrossProfitText.Text = "0";
 
