@@ -60,6 +60,7 @@
                                           StaysOpenOnEdit="True"
                                           DisplayMemberPath="DisplayName"
                                           Loaded="BatchComboBox_Loaded"
+                                          DropDownOpened="BatchComboBox_DropDownOpened"
                                           SelectionChanged="BatchComboBox_SelectionChanged"/>
                             </StackPanel>
                         </UniformGrid>

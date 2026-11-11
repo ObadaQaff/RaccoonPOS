@@ -2,6 +2,7 @@ using RaccoonWarehouse.Application.Service.Products;
 using RaccoonWarehouse.Application.Service.Stocks;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Common.Loading;
+using RaccoonWarehouse.Core.Common;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Products;
 using RaccoonWarehouse.Domain.Products.DTOs;
@@ -29,7 +30,6 @@ namespace RaccoonWarehouse.Stocks
         private readonly IProductService _productService;
         private readonly IUserSession _userSession;
         private readonly ILoadingService _loadingService;
-        private List<StockBatchLookupDto> _allBatches = new();
         private readonly List<ProductReadDto> _loadedProducts = new();
         private TextBox? _productSearchTextBox;
         private TextBox? _batchSearchTextBox;
@@ -37,11 +37,19 @@ namespace RaccoonWarehouse.Stocks
         private bool _isUpdatingProductSearch;
         private bool _isUpdatingBatchSearch;
         private bool _isLoadingProducts;
+        private bool _isLoadingBatches;
         private bool _hasMoreProductPages = true;
+        private bool _hasMoreBatchPages;
         private int _nextProductPage = 1;
+        private int _nextBatchPage = 1;
         private string _currentProductSearchText = string.Empty;
+        private string _currentBatchSearchText = string.Empty;
+        private int? _currentBatchProductId;
+        private int _batchSearchVersion;
         private const int ProductPageSize = 80;
+        private const int BatchPageSize = 80;
         private readonly SemaphoreSlim _productLoadLock = new(1, 1);
+        private readonly SemaphoreSlim _batchLoadLock = new(1, 1);
         private readonly SemaphoreSlim _dataQueryLock = new(1, 1);
         private int _productSearchVersion;
         private Task? _initialLoadTask;
@@ -72,36 +80,6 @@ namespace RaccoonWarehouse.Stocks
         private async Task LoadDataAsync()
         {
             _loadingService.Show();
-            await _dataQueryLock.WaitAsync();
-            dynamic? batchResult = null;
-            List<StockBatchLookupDto>? batchData = null;
-            bool batchSuccess = false;
-            string? batchMessage = null;
-            try
-            {
-                batchResult = await _stockService.GetBatchLookupAsync();
-                batchData = batchResult.Data;
-                batchSuccess = batchResult.Success;
-                batchMessage = batchResult.Message;
-            }
-            finally
-            {
-                _dataQueryLock.Release();
-            }
-
-            if (!batchSuccess || batchData == null)
-            {
-                MessageBox.Show(
-                    batchMessage ?? UiText.T("فشل تحميل الدفعات.", "Failed to load batches."),
-                    UiText.T("خطأ", "Error"),
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Error);
-                _loadingService.Hide();
-                Close();
-                return;
-            }
-
-            _allBatches = batchData;
 
             ProductComboBox.ItemsSource = _loadedProducts;
             AdjustmentTypeComboBox.ItemsSource = Enum.GetValues(typeof(StockAdjustmentType))
@@ -126,38 +104,26 @@ namespace RaccoonWarehouse.Stocks
                 if (initialProduct != null)
                     ProductComboBox.SelectedItem = initialProduct;
             }
-            else if (_loadedProducts.Count > 0)
-            {
-                ProductComboBox.SelectedIndex = 0;
-            }
-
             _initialDataLoaded = true;
             _loadingService.Hide();
         }
 
-        private void ProductComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private async void ProductComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (ProductComboBox.SelectedItem is ProductReadDto selectedProduct)
                 SetComboBoxText(ProductComboBox, _productSearchTextBox, selectedProduct.Name);
 
             if (ProductComboBox.SelectedItem is not ProductReadDto product)
             {
+                _currentBatchProductId = null;
+                ++_batchSearchVersion;
                 BatchComboBox.ItemsSource = null;
                 BatchComboBox.SelectedItem = null;
                 BatchSummaryTextBlock.Text = UiText.T("اختر صنفا لعرض الدفعات المتاحة.", "Select a product to view available batches.");
                 return;
             }
 
-            var productBatches = GetProductBatches(product.Id, string.Empty);
-            BatchComboBox.ItemsSource = productBatches;
-            BatchComboBox.SelectedItem = productBatches.FirstOrDefault();
-            BatchComboBox.Items.Refresh();
-
-            if (productBatches.Count == 0)
-            {
-                SetComboBoxText(BatchComboBox, _batchSearchTextBox, string.Empty);
-                BatchSummaryTextBlock.Text = UiText.T("لا توجد دفعات مخزنية لهذا الصنف.", "There are no stock batches for this product.");
-            }
+            await ResetAndLoadBatchesAsync(product.Id, string.Empty);
         }
 
         private void BatchComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -265,6 +231,22 @@ namespace RaccoonWarehouse.Stocks
                 _batchSearchTextBox.TextChanged += BatchSearchTextBox_TextChanged;
         }
 
+        private async void BatchComboBox_DropDownOpened(object sender, EventArgs e)
+        {
+            if (ProductComboBox.SelectedItem is ProductReadDto product && _currentBatchProductId != product.Id)
+                await ResetAndLoadBatchesAsync(product.Id, _batchSearchTextBox?.Text?.Trim() ?? string.Empty);
+
+            Dispatcher.BeginInvoke(() =>
+            {
+                var scrollViewer = FindVisualChild<ScrollViewer>(BatchComboBox);
+                if (scrollViewer != null)
+                {
+                    scrollViewer.ScrollChanged -= BatchDropdownScrollViewer_ScrollChanged;
+                    scrollViewer.ScrollChanged += BatchDropdownScrollViewer_ScrollChanged;
+                }
+            });
+        }
+
         private async void ProductSearchTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
             if (_isUpdatingProductSearch)
@@ -272,23 +254,20 @@ namespace RaccoonWarehouse.Stocks
 
             await EnsureInitialDataLoadedAsync();
             var searchText = _productSearchTextBox?.Text?.Trim() ?? string.Empty;
+            if (ProductComboBox.SelectedItem != null)
+                ProductComboBox.SelectedItem = null;
             await ResetAndLoadProductsAsync(searchText);
             ProductComboBox.IsDropDownOpen = true;
         }
 
-        private void BatchSearchTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        private async void BatchSearchTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
             if (_isUpdatingBatchSearch || ProductComboBox.SelectedItem is not ProductReadDto product)
                 return;
 
             var searchText = _batchSearchTextBox?.Text?.Trim() ?? string.Empty;
-            var filtered = GetProductBatches(product.Id, searchText);
-            BatchComboBox.ItemsSource = filtered;
-            BatchComboBox.Items.Refresh();
+            await ResetAndLoadBatchesAsync(product.Id, searchText);
             BatchComboBox.IsDropDownOpen = true;
-
-            if (filtered.Count == 1)
-                BatchComboBox.SelectedItem = filtered[0];
         }
 
         private void ProductComboBox_PreviewKeyDown(object sender, KeyEventArgs e)
@@ -303,7 +282,7 @@ namespace RaccoonWarehouse.Stocks
             }
 
             if (ProductComboBox.SelectedItem == null)
-                ProductComboBox.SelectedIndex = 0;
+                e.Handled = true;
         }
 
         private void ProductComboBox_LostFocus(object sender, RoutedEventArgs e)
@@ -314,10 +293,6 @@ namespace RaccoonWarehouse.Stocks
                 return;
             }
 
-            var exactMatch = _loadedProducts.FirstOrDefault(x =>
-                string.Equals(x.Name?.Trim(), _productSearchTextBox?.Text?.Trim(), StringComparison.OrdinalIgnoreCase));
-            if (exactMatch != null)
-                ProductComboBox.SelectedItem = exactMatch;
         }
 
         private async void ProductDropdownScrollViewer_ScrollChanged(object sender, ScrollChangedEventArgs e)
@@ -333,22 +308,10 @@ namespace RaccoonWarehouse.Stocks
             await LoadNextProductPageAsync();
         }
 
-        private List<StockBatchLookupDto> GetProductBatches(int productId, string searchText)
+        private async void BatchDropdownScrollViewer_ScrollChanged(object sender, ScrollChangedEventArgs e)
         {
-            var query = _allBatches.Where(x => x.ProductId == productId);
-
-            if (!string.IsNullOrWhiteSpace(searchText))
-            {
-                query = query.Where(x =>
-                    x.DisplayName.Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
-                    x.UnitName.Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
-                    x.StockLotId.ToString().Contains(searchText, StringComparison.OrdinalIgnoreCase));
-            }
-
-            return query
-                .OrderByDescending(x => x.Status == BatchStatus.Active)
-                .ThenByDescending(x => x.StockLotId)
-                .ToList();
+            if (e.VerticalChange > 0 && e.VerticalOffset + e.ViewportHeight >= e.ExtentHeight - 40)
+                await LoadNextBatchPageAsync();
         }
 
         private void SetComboBoxText(ComboBox comboBox, TextBox? textBox, string? text)
@@ -406,6 +369,86 @@ namespace RaccoonWarehouse.Stocks
             ProductComboBox.Items.Refresh();
 
             await LoadNextProductPageAsync(searchVersion, showLoading);
+        }
+
+        private async Task ResetAndLoadBatchesAsync(int productId, string searchText)
+        {
+            var searchVersion = ++_batchSearchVersion;
+            _currentBatchProductId = productId;
+            _currentBatchSearchText = searchText;
+            _nextBatchPage = 1;
+            _hasMoreBatchPages = true;
+            BatchComboBox.ItemsSource = new List<StockBatchLookupDto>();
+            if (string.IsNullOrWhiteSpace(searchText))
+                SetComboBoxText(BatchComboBox, _batchSearchTextBox, string.Empty);
+            BatchSummaryTextBlock.Text = UiText.T("جاري تحميل الدفعات...", "Loading batches...");
+            await LoadNextBatchPageAsync(searchVersion);
+        }
+
+        private async Task LoadNextBatchPageAsync(int? expectedSearchVersion = null)
+        {
+            if (_isLoadingBatches || !_hasMoreBatchPages || !_currentBatchProductId.HasValue)
+                return;
+
+            await _batchLoadLock.WaitAsync();
+            try
+            {
+                if (_isLoadingBatches || !_hasMoreBatchPages || !_currentBatchProductId.HasValue)
+                    return;
+
+                if (expectedSearchVersion.HasValue && expectedSearchVersion.Value != _batchSearchVersion)
+                    return;
+
+                _isLoadingBatches = true;
+                var pageNumber = _nextBatchPage;
+                await _dataQueryLock.WaitAsync();
+                Result<PagedResult<StockBatchLookupDto>> result;
+                try
+                {
+                    result = await _stockService.GetBatchLookupPageAsync(
+                        _currentBatchProductId.Value,
+                        pageNumber,
+                        BatchPageSize,
+                        _currentBatchSearchText);
+                }
+                finally
+                {
+                    _dataQueryLock.Release();
+                }
+
+                if (expectedSearchVersion.HasValue && expectedSearchVersion.Value != _batchSearchVersion)
+                    return;
+
+                if (!result.Success || result.Data == null)
+                {
+                    BatchSummaryTextBlock.Text = result.Message ?? UiText.T("فشل تحميل الدفعات.", "Failed to load batches.");
+                    _hasMoreBatchPages = false;
+                    return;
+                }
+
+                var items = result.Data.Items.ToList();
+                var existing = (BatchComboBox.ItemsSource as IEnumerable<StockBatchLookupDto>)?.ToList()
+                    ?? new List<StockBatchLookupDto>();
+                existing.AddRange(items.Where(x => existing.All(e => e.StockLotId != x.StockLotId)));
+                BatchComboBox.ItemsSource = existing;
+                BatchComboBox.Items.Refresh();
+
+                _nextBatchPage++;
+                _hasMoreBatchPages = pageNumber < result.Data.TotalPages;
+
+                if (pageNumber == 1)
+                {
+                    if (existing.Count == 0)
+                        BatchSummaryTextBlock.Text = UiText.T("لا توجد دفعات مخزنية لهذا الصنف.", "There are no stock batches for this product.");
+                    else
+                        BatchSummaryTextBlock.Text = UiText.T("اختر دفعة لعرض تفاصيلها.", "Select a batch to view its details.");
+                }
+            }
+            finally
+            {
+                _isLoadingBatches = false;
+                _batchLoadLock.Release();
+            }
         }
 
         private async Task LoadNextProductPageAsync(int? expectedSearchVersion = null, bool showLoading = false)
@@ -479,8 +522,6 @@ namespace RaccoonWarehouse.Stocks
                 _nextProductPage++;
                 _hasMoreProductPages = items.Count >= ProductPageSize;
 
-                if (_loadedProducts.Count == 1)
-                    ProductComboBox.SelectedItem = _loadedProducts[0];
             }
             finally
             {

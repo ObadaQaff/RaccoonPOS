@@ -14,6 +14,8 @@ namespace RaccoonWarehouse.Domain.Reports.Stocks.Filters
 
         public int? ProductId { get; set; }   // optional
         public string? ProductSearchText { get; set; } // optional product name or barcode
+        public string? ProductNameSearchText { get; set; } // optional product name filter
+        public string? ProductBarcodeSearchText { get; set; } // optional item or alternate barcode filter
         public int? SupplierId { get; set; }  // optional
         public bool IncludeInvoices { get; set; } = true; // فواتير كمصدر حركة
         public StockMovementSource Source { get; set; } = StockMovementSource.All;

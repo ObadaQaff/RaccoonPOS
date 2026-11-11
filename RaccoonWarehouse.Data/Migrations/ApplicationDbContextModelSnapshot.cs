@@ -22,6 +22,8 @@ namespace RaccoonWarehouse.Data.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.HasSequence<int>("UserNumberSequence", "dbo");
+
             modelBuilder.Entity("RaccoonWarehouse.Domain.Accounting.AccountOpeningBalances.AccountOpeningBalance", b =>
                 {
                     b.Property<int>("Id")
@@ -824,10 +826,6 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Property<string>("ErrorMessage")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("PermissionKey")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
                     b.Property<int?>("Role")
                         .HasColumnType("int");
 
@@ -1264,6 +1262,133 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.ToTable("ExchangeRates");
                 });
 
+            modelBuilder.Entity("RaccoonWarehouse.Domain.CustomerRequests.CustomerRequest", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("ApprovedBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("ApprovedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("CancelledBy")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("CancelledDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("CustomerId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CustomerName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CustomerPhone")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal>("PaidAmount")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<string>("PaymentNote")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("PurchaseRequestId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ReceivingStatus")
+                        .HasColumnType("int");
+
+                    b.Property<string>("RequestNumber")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("SalesStatus")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("TotalAmount")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<DateTime>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("CustomerRequests");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.CustomerRequests.CustomerRequestLine", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("CustomerRequestId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ItemName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("ProductId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ProductUnitId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<decimal>("ReceivedQuantity")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<decimal>("SoldQuantity")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<string>("UnitName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<DateTime>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CustomerRequestId");
+
+                    b.ToTable("CustomerRequestLines");
+                });
+
             modelBuilder.Entity("RaccoonWarehouse.Domain.Delegates.Delegate", b =>
                 {
                     b.Property<int>("Id")
@@ -1345,79 +1470,56 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Property<string>("Address")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("AlternatePhoneNumber")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<DateTime?>("ContractEndDate")
+                        .HasColumnType("datetime2");
 
-                    b.Property<decimal?>("BasicSalary")
-                        .HasPrecision(18, 6)
-                        .HasColumnType("decimal(18,6)");
+                    b.Property<DateTime>("ContractStartDate")
+                        .HasColumnType("datetime2");
 
-                    b.Property<int?>("BranchId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<int?>("CreatedBy")
+                    b.Property<int>("ContractType")
                         .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
 
-                    b.Property<DateTime?>("DateOfBirth")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("DepartmentId")
-                        .HasColumnType("int");
-
                     b.Property<string>("Email")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int?>("EmploymentType")
-                        .HasColumnType("int");
+                    b.Property<DateTime?>("EmploymentDate")
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("FullName")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int?>("Gender")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("HireDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<string>("JobTitle")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int?>("ManagerId")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("ModifiedBy")
-                        .HasColumnType("int");
+                    b.Property<decimal>("MonthlyBasicSalary")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<string>("NationalId")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("Notes")
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<string>("PhoneNumber")
-                        .HasColumnType("nvarchar(max)");
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
 
-                    b.Property<string>("SocialSecurityNumberEncrypted")
-                        .HasMaxLength(512)
-                        .HasColumnType("nvarchar(512)");
+                    b.Property<int>("PrimaryBranchId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("SocialSecurityEnrolled")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("SocialSecurityEnrollmentDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("SocialSecurityNumber")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("Status")
                         .HasColumnType("int");
-
-                    b.Property<DateTime?>("TerminationDate")
-                        .HasColumnType("datetime2");
 
                     b.Property<DateTime>("UpdatedDate")
                         .HasColumnType("datetime2");
@@ -1427,26 +1529,166 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("BranchId");
-
-                    b.HasIndex("Code")
-                        .IsUnique();
-
-                    b.HasIndex("DepartmentId");
-
-                    b.HasIndex("ManagerId");
+                    b.HasIndex("FullName");
 
                     b.HasIndex("NationalId")
                         .IsUnique()
-                        .HasFilter("[NationalId] IS NOT NULL AND [NationalId] <> N''");
+                        .HasFilter("[NationalId] IS NOT NULL");
 
-                    b.HasIndex("Status");
+                    b.HasIndex("PhoneNumber");
+
+                    b.HasIndex("PrimaryBranchId");
 
                     b.HasIndex("UserId")
                         .IsUnique()
                         .HasFilter("[UserId] IS NOT NULL");
 
-                    b.ToTable("Employee");
+                    b.ToTable("Employees", (string)null);
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Employees.EmployeeBranchAssignment", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("BranchId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("EmployeeId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("EndDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("StartDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BranchId");
+
+                    b.HasIndex("EmployeeId", "BranchId", "StartDate");
+
+                    b.ToTable("EmployeeBranchAssignments", (string)null);
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Employees.EmployeeShiftAssignment", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("DayOfWeek")
+                        .HasColumnType("int");
+
+                    b.Property<int>("EmployeeId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("EndDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("ShiftTemplateId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("StartDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ShiftTemplateId");
+
+                    b.HasIndex("EmployeeId", "DayOfWeek", "StartDate");
+
+                    b.ToTable("EmployeeShiftAssignments", (string)null);
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Employees.ShiftTemplate", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<TimeSpan>("EndTime")
+                        .HasColumnType("time");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsOvernight")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<TimeSpan>("StartTime")
+                        .HasColumnType("time");
+
+                    b.Property<DateTime>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("ShiftTemplates", (string)null);
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Employees.ShiftTemplateWorkingDay", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("DayOfWeek")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ShiftTemplateId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ShiftTemplateId", "DayOfWeek")
+                        .IsUnique();
+
+                    b.ToTable("ShiftTemplateWorkingDays", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.FinancialTransactions.FinancialTransaction", b =>
@@ -1666,6 +1908,421 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("GoodsReceiptId", "PurchaseOrderLineId");
 
                     b.ToTable("GoodsReceiptLines");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.HR.AttendanceRecord", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("CheckIn")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("CheckOut")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CorrectionReason")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("EarlyLeaveMinutes")
+                        .HasColumnType("int");
+
+                    b.Property<int>("EmployeeId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("LateMinutes")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("ShiftAssignmentId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("WorkDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("WorkedHours")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ShiftAssignmentId");
+
+                    b.HasIndex("EmployeeId", "WorkDate")
+                        .IsUnique();
+
+                    b.ToTable("AttendanceRecords", (string)null);
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.HR.EmployeePayroll", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Allowances")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<decimal>("BasicSalary")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<decimal>("Bonuses")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<string>("CalculationSnapshotJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("Deductions")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<int>("EmployeeId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("EmployeeNameSnapshot")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal>("EmployeeSocialSecurity")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<decimal>("EmployerSocialSecurity")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<decimal>("GrossAmount")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<decimal>("NetAmount")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<decimal>("Overtime")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<int>("PayrollPeriodId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("UnpaidAbsence")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<DateTime>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmployeeId");
+
+                    b.HasIndex("PayrollPeriodId");
+
+                    b.ToTable("EmployeePayrolls");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.HR.EmployeePayrollLine", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("EmployeePayrollId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmployeePayrollId");
+
+                    b.ToTable("EmployeePayrollLines");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.HR.HrAdjustment", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<bool>("Approved")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("EmployeeId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("Hours")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<DateTime>("PeriodMonth")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmployeeId", "PeriodMonth", "Type");
+
+                    b.ToTable("HrAdjustments", (string)null);
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.HR.LeaveBalance", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("EmployeeId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("EntitledDays")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<int>("LeaveTypeId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("UsedDays")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LeaveTypeId");
+
+                    b.HasIndex("EmployeeId", "LeaveTypeId", "Year")
+                        .IsUnique();
+
+                    b.ToTable("LeaveBalances", (string)null);
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.HR.LeaveRequest", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("Days")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<string>("DecisionReason")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("EmployeeId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("EndDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("LeaveTypeId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Reason")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("StartDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LeaveTypeId");
+
+                    b.HasIndex("EmployeeId", "StartDate", "EndDate");
+
+                    b.ToTable("LeaveRequests", (string)null);
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.HR.LeaveType", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("DefaultAnnualBalance")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsPaid")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("LeaveTypes", (string)null);
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.HR.PayrollPeriod", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ApprovalNote")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("ApprovedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("PaidAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("PeriodMonth")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("PayrollPeriods");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.HR.SocialSecurityRule", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("EffectiveFrom")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("EffectiveTo")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("EmployeeRate")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<decimal>("EmployerRate")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal?>("MaximumBase")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<decimal?>("MinimumBase")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EffectiveFrom", "EffectiveTo");
+
+                    b.ToTable("SocialSecurityRules", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Insurance.InsuranceAttachment", b =>
@@ -3005,6 +3662,9 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Property<DateTime?>("ClosedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<bool>("CostPriceIncludesTax")
+                        .HasColumnType("bit");
+
                     b.Property<int?>("CreatedBy")
                         .HasColumnType("int");
 
@@ -3085,9 +3745,6 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Property<string>("JordanEInvoiceReference")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("JordanEInvoiceUuid")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<string>("JordanEInvoiceResponse")
                         .HasColumnType("nvarchar(max)");
 
@@ -3096,6 +3753,9 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.Property<DateTime?>("JordanEInvoiceSubmittedAtUtc")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("JordanEInvoiceUuid")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<decimal>("NetSales")
                         .HasPrecision(18, 6)
@@ -3215,6 +3875,58 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.HasIndex("InvoiceId");
 
                     b.ToTable("InvoicePayments");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.LostCustomers.LostCustomer", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("CreatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CreatedByName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Message")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("ProductId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ProductName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("ProductUnitId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("Quantity")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<int>("Reason")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("LostCustomers");
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.POS.PosProductCatalogEntry", b =>
@@ -3343,415 +4055,13 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.ToTable("PosProductCatalogEntry");
                 });
 
-            modelBuilder.Entity("RaccoonWarehouse.Domain.Payroll.EmployeeEmploymentHistory", b =>
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Permissions.PermissionGroup", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("AfterJson")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("BeforeJson")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int?>("ChangedBy")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("EmployeeId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Reason")
-                        .IsRequired()
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
-                    b.Property<DateTime>("UpdatedDate")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("EmployeeId");
-
-                    b.ToTable("EmployeeEmploymentHistory", (string)null);
-                });
-
-            modelBuilder.Entity("RaccoonWarehouse.Domain.Payroll.EmployeePayroll", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime?>("ApprovedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("ApprovedBy")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("EmployeeId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("InputsJson")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int?>("ModifiedBy")
-                        .HasColumnType("int");
-
-                    b.Property<int>("Month")
-                        .HasColumnType("int");
-
-                    b.Property<int>("PolicyId")
-                        .HasColumnType("int");
-
-                    b.Property<Guid>("Revision")
-                        .IsConcurrencyToken()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<int>("SalaryVersionId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("SnapshotJson")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("State")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("UpdatedDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("Year")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("PolicyId");
-
-                    b.HasIndex("SalaryVersionId");
-
-                    b.HasIndex("EmployeeId", "Year", "Month")
-                        .IsUnique();
-
-                    b.ToTable("EmployeePayroll", (string)null);
-                });
-
-            modelBuilder.Entity("RaccoonWarehouse.Domain.Payroll.EmployeeSalaryVersion", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<decimal>("BasicMonthlySalary")
-                        .HasPrecision(18, 6)
-                        .HasColumnType("decimal(18,6)");
-
-                    b.Property<string>("ChangeReason")
-                        .IsRequired()
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
-                    b.Property<int?>("ChangedBy")
-                        .HasColumnType("int");
-
-                    b.Property<string>("ContributionCategory")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime>("EffectiveFrom")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("EmployeeId")
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("FixedAllowances")
-                        .HasPrecision(18, 6)
-                        .HasColumnType("decimal(18,6)");
-
-                    b.Property<decimal>("HolidayOvertimeMultiplier")
-                        .HasPrecision(18, 6)
-                        .HasColumnType("decimal(18,6)");
-
-                    b.Property<int>("HourlyRateMethod")
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("NormalOvertimeMultiplier")
-                        .HasPrecision(18, 6)
-                        .HasColumnType("decimal(18,6)");
-
-                    b.Property<int>("OvertimeMode")
-                        .HasColumnType("int");
-
-                    b.Property<bool>("SocialSecurityCovered")
-                        .HasColumnType("bit");
-
-                    b.Property<decimal?>("SocialSecurityEligibleWage")
-                        .HasPrecision(18, 6)
-                        .HasColumnType("decimal(18,6)");
-
-                    b.Property<decimal>("StandardDailyHours")
-                        .HasPrecision(18, 6)
-                        .HasColumnType("decimal(18,6)");
-
-                    b.Property<decimal>("StandardMonthlyHours")
-                        .HasPrecision(18, 6)
-                        .HasColumnType("decimal(18,6)");
-
-                    b.Property<DateTime>("UpdatedDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("WorkingDaysPerWeek")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("EmployeeId", "EffectiveFrom")
-                        .IsUnique();
-
-                    b.ToTable("EmployeeSalaryVersion", (string)null);
-                });
-
-            modelBuilder.Entity("RaccoonWarehouse.Domain.Payroll.PayrollAdjustment", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<decimal>("Amount")
-                        .HasPrecision(18, 6)
-                        .HasColumnType("decimal(18,6)");
-
-                    b.Property<int?>("AuthorizedBy")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("DeductionBasis")
-                        .HasColumnType("int");
-
-                    b.Property<int>("EmployeePayrollId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("Kind")
-                        .HasColumnType("int");
-
-                    b.Property<string>("LegalReference")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
-
-                    b.Property<string>("Reason")
-                        .IsRequired()
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
-                    b.Property<DateTime>("UpdatedDate")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("EmployeePayrollId");
-
-                    b.ToTable("PayrollAdjustment", (string)null);
-                });
-
-            modelBuilder.Entity("RaccoonWarehouse.Domain.Payroll.PayrollCorrection", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int?>("CorrectedBy")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("EmployeePayrollId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("OriginalAdjustmentsJson")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime?>("OriginalApprovedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("OriginalApprovedBy")
-                        .HasColumnType("int");
-
-                    b.Property<string>("OriginalInputsJson")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<Guid>("OriginalRevision")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("OriginalSnapshotJson")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Reason")
-                        .IsRequired()
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
-                    b.Property<DateTime>("UpdatedDate")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("EmployeePayrollId");
-
-                    b.ToTable("PayrollCorrection", (string)null);
-                });
-
-            modelBuilder.Entity("RaccoonWarehouse.Domain.Payroll.PayrollPolicy", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<decimal>("AdvanceDeductionMaximumPercent")
-                        .HasPrecision(18, 6)
-                        .HasColumnType("decimal(18,6)");
-
-                    b.Property<string>("Category")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<decimal>("DefaultDailyHours")
-                        .HasPrecision(18, 6)
-                        .HasColumnType("decimal(18,6)");
-
-                    b.Property<decimal>("DefaultMonthlyHours")
-                        .HasPrecision(18, 6)
-                        .HasColumnType("decimal(18,6)");
-
-                    b.Property<int>("DefaultWorkingDaysPerWeek")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("EffectiveFrom")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime>("EffectiveTo")
-                        .HasColumnType("datetime2");
-
-                    b.Property<decimal>("EmployeeSscPercent")
-                        .HasPrecision(18, 6)
-                        .HasColumnType("decimal(18,6)");
-
-                    b.Property<decimal>("EmployerSscPercent")
-                        .HasPrecision(18, 6)
-                        .HasColumnType("decimal(18,6)");
-
-                    b.Property<bool>("IncludeFixedAllowancesInWageBasis")
-                        .HasColumnType("bit");
-
-                    b.Property<decimal>("InsurableWageCeiling")
-                        .HasPrecision(18, 6)
-                        .HasColumnType("decimal(18,6)");
-
-                    b.Property<bool>("IsLegallyReviewed")
-                        .HasColumnType("bit");
-
-                    b.Property<decimal>("LegalDailyHours")
-                        .HasPrecision(18, 6)
-                        .HasColumnType("decimal(18,6)");
-
-                    b.Property<decimal>("LegalWeeklyHours")
-                        .HasPrecision(18, 6)
-                        .HasColumnType("decimal(18,6)");
-
-                    b.Property<decimal>("MinimumHolidayMultiplier")
-                        .HasPrecision(18, 6)
-                        .HasColumnType("decimal(18,6)");
-
-                    b.Property<decimal>("MinimumNormalMultiplier")
-                        .HasPrecision(18, 6)
-                        .HasColumnType("decimal(18,6)");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("nvarchar(150)");
-
-                    b.Property<int>("ProrationMethod")
-                        .HasColumnType("int");
-
-                    b.Property<string>("ReviewReason")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
-                    b.Property<int?>("ReviewedBy")
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("SalaryDayDivisor")
-                        .HasPrecision(18, 6)
-                        .HasColumnType("decimal(18,6)");
-
-                    b.Property<string>("SourceReference")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
-
-                    b.Property<DateTime>("UpdatedDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("WeekStartsOn")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Category", "EffectiveFrom")
-                        .IsUnique();
-
-                    b.ToTable("PayrollPolicy", (string)null);
-                });
-
-            modelBuilder.Entity("RaccoonWarehouse.Domain.Permissions.PermissionDefinition", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Action")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
@@ -3759,43 +4069,28 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Property<string>("Description")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("DisplayName")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
-                    b.Property<string>("Key")
+                    b.Property<bool>("IsProtectedAdministrator")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
-
-                    b.Property<string>("LegacyReportKey")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Module")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Resource")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("int");
 
                     b.Property<DateTime>("UpdatedDate")
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Key")
+                    b.HasIndex("Name")
                         .IsUnique();
 
-                    b.ToTable("PermissionDefinitions");
+                    b.ToTable("PermissionGroups", (string)null);
                 });
 
-            modelBuilder.Entity("RaccoonWarehouse.Domain.Permissions.ReportPermission", b =>
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Permissions.PermissionGroupPermission", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -3803,17 +4098,17 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<bool>("CanView")
-                        .HasColumnType("bit");
+                    b.Property<string>("AreaKey")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("ReportKey")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(450)");
+                    b.Property<int>("Level")
+                        .HasColumnType("int");
 
-                    b.Property<int>("Role")
+                    b.Property<int>("PermissionGroupId")
                         .HasColumnType("int");
 
                     b.Property<DateTime>("UpdatedDate")
@@ -3821,13 +4116,13 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ReportKey", "Role")
+                    b.HasIndex("PermissionGroupId", "AreaKey")
                         .IsUnique();
 
-                    b.ToTable("ReportPermissions");
+                    b.ToTable("PermissionGroupPermissions", (string)null);
                 });
 
-            modelBuilder.Entity("RaccoonWarehouse.Domain.Permissions.RolePermission", b =>
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Permissions.UserPermissionGroup", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -3838,44 +4133,8 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
 
-                    b.Property<bool>("IsAllowed")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("PermissionKey")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<int>("Role")
+                    b.Property<int>("PermissionGroupId")
                         .HasColumnType("int");
-
-                    b.Property<DateTime>("UpdatedDate")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Role", "PermissionKey")
-                        .IsUnique();
-
-                    b.ToTable("RolePermissions");
-                });
-
-            modelBuilder.Entity("RaccoonWarehouse.Domain.Permissions.UserPermission", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<bool>("IsAllowed")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("PermissionKey")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(450)");
 
                     b.Property<DateTime>("UpdatedDate")
                         .HasColumnType("datetime2");
@@ -3885,10 +4144,12 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UserId", "PermissionKey")
+                    b.HasIndex("PermissionGroupId");
+
+                    b.HasIndex("UserId", "PermissionGroupId")
                         .IsUnique();
 
-                    b.ToTable("UserPermissions");
+                    b.ToTable("UserPermissionGroups", (string)null);
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.ProductUnits.ProductUnit", b =>
@@ -5511,7 +5772,15 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Property<DateTime>("UpdatedDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<int>("UserNumber")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValueSql("NEXT VALUE FOR dbo.UserNumberSequence");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("UserNumber")
+                        .IsUnique();
 
                     b.ToTable("User");
                 });
@@ -5862,6 +6131,17 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Navigation("ToCurrency");
                 });
 
+            modelBuilder.Entity("RaccoonWarehouse.Domain.CustomerRequests.CustomerRequestLine", b =>
+                {
+                    b.HasOne("RaccoonWarehouse.Domain.CustomerRequests.CustomerRequest", "CustomerRequest")
+                        .WithMany("Lines")
+                        .HasForeignKey("CustomerRequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CustomerRequest");
+                });
+
             modelBuilder.Entity("RaccoonWarehouse.Domain.Delegates.Delegate", b =>
                 {
                     b.HasOne("RaccoonWarehouse.Domain.Users.User", "User")
@@ -5874,19 +6154,69 @@ namespace RaccoonWarehouse.Data.Migrations
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Employees.Employee", b =>
                 {
-                    b.HasOne("RaccoonWarehouse.Domain.Employees.Employee", "Manager")
-                        .WithMany("DirectReports")
-                        .HasForeignKey("ManagerId")
-                        .OnDelete(DeleteBehavior.NoAction);
+                    b.HasOne("RaccoonWarehouse.Domain.Branches.Branch", "PrimaryBranch")
+                        .WithMany()
+                        .HasForeignKey("PrimaryBranchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.HasOne("RaccoonWarehouse.Domain.Users.User", "User")
-                        .WithOne("EmployeeProfile")
-                        .HasForeignKey("RaccoonWarehouse.Domain.Employees.Employee", "UserId")
-                        .OnDelete(DeleteBehavior.NoAction);
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.SetNull);
 
-                    b.Navigation("Manager");
+                    b.Navigation("PrimaryBranch");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Employees.EmployeeBranchAssignment", b =>
+                {
+                    b.HasOne("RaccoonWarehouse.Domain.Branches.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("RaccoonWarehouse.Domain.Employees.Employee", "Employee")
+                        .WithMany("BranchAssignments")
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Branch");
+
+                    b.Navigation("Employee");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Employees.EmployeeShiftAssignment", b =>
+                {
+                    b.HasOne("RaccoonWarehouse.Domain.Employees.Employee", "Employee")
+                        .WithMany("ShiftAssignments")
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("RaccoonWarehouse.Domain.Employees.ShiftTemplate", "ShiftTemplate")
+                        .WithMany("Assignments")
+                        .HasForeignKey("ShiftTemplateId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Employee");
+
+                    b.Navigation("ShiftTemplate");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Employees.ShiftTemplateWorkingDay", b =>
+                {
+                    b.HasOne("RaccoonWarehouse.Domain.Employees.ShiftTemplate", "ShiftTemplate")
+                        .WithMany("WorkingDays")
+                        .HasForeignKey("ShiftTemplateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ShiftTemplate");
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.FinancialTransactions.FinancialTransaction", b =>
@@ -5913,6 +6243,102 @@ namespace RaccoonWarehouse.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("GoodsReceipt");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.HR.AttendanceRecord", b =>
+                {
+                    b.HasOne("RaccoonWarehouse.Domain.Employees.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("RaccoonWarehouse.Domain.Employees.EmployeeShiftAssignment", "ShiftAssignment")
+                        .WithMany()
+                        .HasForeignKey("ShiftAssignmentId");
+
+                    b.Navigation("Employee");
+
+                    b.Navigation("ShiftAssignment");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.HR.EmployeePayroll", b =>
+                {
+                    b.HasOne("RaccoonWarehouse.Domain.Employees.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("RaccoonWarehouse.Domain.HR.PayrollPeriod", "PayrollPeriod")
+                        .WithMany("Payrolls")
+                        .HasForeignKey("PayrollPeriodId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Employee");
+
+                    b.Navigation("PayrollPeriod");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.HR.EmployeePayrollLine", b =>
+                {
+                    b.HasOne("RaccoonWarehouse.Domain.HR.EmployeePayroll", "EmployeePayroll")
+                        .WithMany("Lines")
+                        .HasForeignKey("EmployeePayrollId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("EmployeePayroll");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.HR.HrAdjustment", b =>
+                {
+                    b.HasOne("RaccoonWarehouse.Domain.Employees.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Employee");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.HR.LeaveBalance", b =>
+                {
+                    b.HasOne("RaccoonWarehouse.Domain.Employees.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("RaccoonWarehouse.Domain.HR.LeaveType", "LeaveType")
+                        .WithMany()
+                        .HasForeignKey("LeaveTypeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Employee");
+
+                    b.Navigation("LeaveType");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.HR.LeaveRequest", b =>
+                {
+                    b.HasOne("RaccoonWarehouse.Domain.Employees.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("RaccoonWarehouse.Domain.HR.LeaveType", "LeaveType")
+                        .WithMany()
+                        .HasForeignKey("LeaveTypeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Employee");
+
+                    b.Navigation("LeaveType");
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.InvoiceLines.InvoiceLine", b =>
@@ -5981,84 +6407,32 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Navigation("Invoice");
                 });
 
-            modelBuilder.Entity("RaccoonWarehouse.Domain.Payroll.EmployeeEmploymentHistory", b =>
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Permissions.PermissionGroupPermission", b =>
                 {
-                    b.HasOne("RaccoonWarehouse.Domain.Employees.Employee", "Employee")
-                        .WithMany()
-                        .HasForeignKey("EmployeeId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Employee");
-                });
-
-            modelBuilder.Entity("RaccoonWarehouse.Domain.Payroll.EmployeePayroll", b =>
-                {
-                    b.HasOne("RaccoonWarehouse.Domain.Employees.Employee", "Employee")
-                        .WithMany()
-                        .HasForeignKey("EmployeeId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("RaccoonWarehouse.Domain.Payroll.PayrollPolicy", "Policy")
-                        .WithMany()
-                        .HasForeignKey("PolicyId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("RaccoonWarehouse.Domain.Payroll.EmployeeSalaryVersion", "SalaryVersion")
-                        .WithMany()
-                        .HasForeignKey("SalaryVersionId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Employee");
-
-                    b.Navigation("Policy");
-
-                    b.Navigation("SalaryVersion");
-                });
-
-            modelBuilder.Entity("RaccoonWarehouse.Domain.Payroll.EmployeeSalaryVersion", b =>
-                {
-                    b.HasOne("RaccoonWarehouse.Domain.Employees.Employee", "Employee")
-                        .WithMany()
-                        .HasForeignKey("EmployeeId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Employee");
-                });
-
-            modelBuilder.Entity("RaccoonWarehouse.Domain.Payroll.PayrollAdjustment", b =>
-                {
-                    b.HasOne("RaccoonWarehouse.Domain.Payroll.EmployeePayroll", "EmployeePayroll")
-                        .WithMany("Adjustments")
-                        .HasForeignKey("EmployeePayrollId")
+                    b.HasOne("RaccoonWarehouse.Domain.Permissions.PermissionGroup", "PermissionGroup")
+                        .WithMany("Permissions")
+                        .HasForeignKey("PermissionGroupId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("EmployeePayroll");
+                    b.Navigation("PermissionGroup");
                 });
 
-            modelBuilder.Entity("RaccoonWarehouse.Domain.Payroll.PayrollCorrection", b =>
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Permissions.UserPermissionGroup", b =>
                 {
-                    b.HasOne("RaccoonWarehouse.Domain.Payroll.EmployeePayroll", "EmployeePayroll")
-                        .WithMany()
-                        .HasForeignKey("EmployeePayrollId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                    b.HasOne("RaccoonWarehouse.Domain.Permissions.PermissionGroup", "PermissionGroup")
+                        .WithMany("Users")
+                        .HasForeignKey("PermissionGroupId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("EmployeePayroll");
-                });
-
-            modelBuilder.Entity("RaccoonWarehouse.Domain.Permissions.UserPermission", b =>
-                {
                     b.HasOne("RaccoonWarehouse.Domain.Users.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("PermissionGroup");
 
                     b.Navigation("User");
                 });
@@ -6448,6 +6822,11 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Navigation("Children");
                 });
 
+            modelBuilder.Entity("RaccoonWarehouse.Domain.CustomerRequests.CustomerRequest", b =>
+                {
+                    b.Navigation("Lines");
+                });
+
             modelBuilder.Entity("RaccoonWarehouse.Domain.Delegates.Delegate", b =>
                 {
                     b.Navigation("Invoices");
@@ -6455,12 +6834,31 @@ namespace RaccoonWarehouse.Data.Migrations
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Employees.Employee", b =>
                 {
-                    b.Navigation("DirectReports");
+                    b.Navigation("BranchAssignments");
+
+                    b.Navigation("ShiftAssignments");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Employees.ShiftTemplate", b =>
+                {
+                    b.Navigation("Assignments");
+
+                    b.Navigation("WorkingDays");
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.GoodsReceipts.GoodsReceipt", b =>
                 {
                     b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.HR.EmployeePayroll", b =>
+                {
+                    b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("RaccoonWarehouse.Domain.HR.PayrollPeriod", b =>
+                {
+                    b.Navigation("Payrolls");
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Invoices.Invoice", b =>
@@ -6472,9 +6870,11 @@ namespace RaccoonWarehouse.Data.Migrations
                     b.Navigation("Payments");
                 });
 
-            modelBuilder.Entity("RaccoonWarehouse.Domain.Payroll.EmployeePayroll", b =>
+            modelBuilder.Entity("RaccoonWarehouse.Domain.Permissions.PermissionGroup", b =>
                 {
-                    b.Navigation("Adjustments");
+                    b.Navigation("Permissions");
+
+                    b.Navigation("Users");
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Products.Product", b =>
@@ -6531,8 +6931,6 @@ namespace RaccoonWarehouse.Data.Migrations
             modelBuilder.Entity("RaccoonWarehouse.Domain.Users.User", b =>
                 {
                     b.Navigation("DelegateProfile");
-
-                    b.Navigation("EmployeeProfile");
                 });
 
             modelBuilder.Entity("RaccoonWarehouse.Domain.Vouchers.Voucher", b =>

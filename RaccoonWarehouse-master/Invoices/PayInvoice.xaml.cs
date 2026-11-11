@@ -28,6 +28,7 @@ using RaccoonWarehouse.Domain.Stock;
 using RaccoonWarehouse.Domain.Users.DTOs;
 using RaccoonWarehouse.Domain.StockTransactions.DTOs;
 using RaccoonWarehouse.Helpers.Pdf;
+using RaccoonWarehouse.Helpers;
 using RaccoonWarehouse.Helpers.Localization;
 using RaccoonWarehouse.Navigation;
 using RaccoonWarehouse.Products;
@@ -361,13 +362,67 @@ namespace RaccoonWarehouse.Invoices
         private void ExpiryDatePicker_Loaded(object sender, RoutedEventArgs e)
         {
             if (sender is DatePicker datePicker)
+            {
+                AttachDatePickerTextBox(datePicker);
                 QueueDatePickerTextSelection(datePicker, System.Windows.Threading.DispatcherPriority.ContextIdle);
+            }
         }
 
         private void ExpiryDatePicker_GotFocus(object sender, RoutedEventArgs e)
         {
             if (sender is DatePicker datePicker)
+            {
+                AttachDatePickerTextBox(datePicker);
                 QueueDatePickerTextSelection(datePicker, System.Windows.Threading.DispatcherPriority.Input);
+            }
+        }
+
+        private void AttachDatePickerTextBox(DatePicker datePicker)
+        {
+            datePicker.ApplyTemplate();
+            if (datePicker.Template.FindName("PART_TextBox", datePicker) is TextBox textBox)
+            {
+                textBox.PreviewKeyDown -= DatePickerTextBox_PreviewKeyDown;
+                textBox.PreviewKeyDown += DatePickerTextBox_PreviewKeyDown;
+            }
+        }
+
+        private void DatePickerTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key != Key.Enter || sender is not TextBox textBox)
+                return;
+
+            var datePicker = FindVisualParent<DatePicker>(textBox);
+            if (datePicker == null || !TryCommitTypedDate(datePicker))
+                return;
+
+            e.Handled = true;
+        }
+
+        private static bool TryCommitTypedDate(DatePicker datePicker)
+        {
+            datePicker.ApplyTemplate();
+            if (datePicker.Template.FindName("PART_TextBox", datePicker) is not TextBox textBox ||
+                !DateInputParser.TryParse(textBox.Text, out var date))
+                return false;
+
+            datePicker.SelectedDate = date;
+            datePicker.DisplayDate = date;
+            textBox.Text = date.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
+            return true;
+        }
+
+        private void ExpiryDatePicker_LostFocus(object sender, RoutedEventArgs e)
+        {
+            if (sender is not DatePicker datePicker)
+                return;
+
+            datePicker.ApplyTemplate();
+            if (datePicker.Template.FindName("PART_TextBox", datePicker) is TextBox textBox &&
+                DateInputParser.TryParse(textBox.Text, out var date))
+            {
+                datePicker.SelectedDate = date;
+            }
         }
 
         private void QueueDatePickerTextSelection(DatePicker datePicker, System.Windows.Threading.DispatcherPriority priority)
@@ -418,26 +473,6 @@ namespace RaccoonWarehouse.Invoices
                 return line.UnitCost;
 
             return Math.Round(line.UnitCost / (1m + line.TaxRate / 100m), 3);
-        }
-
-        private void PreparePurchasePricesForSave()
-        {
-            if (CostPriceIncludesTax)
-                return;
-
-            foreach (var line in InvoiceLines)
-            {
-                if (line.TaxExempt || line.TaxRate <= 0m)
-                    continue;
-
-                var factor = 1m + line.TaxRate / 100m;
-                line.UnitPrice = Math.Round(line.UnitPrice * factor, 3);
-                line.UnitCost = Math.Round(line.UnitCost * factor, 3);
-                line.LineDiscountAmount = Math.Round(line.LineDiscountAmount * factor, 3);
-            }
-
-            _lastCostPriceIncludesTax = true;
-            CostPriceIncludesTaxCheckBox.IsChecked = true;
         }
 
         private void ConvertPurchasePriceMode(bool fromIncludesTax, bool toIncludesTax)
@@ -975,6 +1010,15 @@ namespace RaccoonWarehouse.Invoices
         {
             if (_currentInvoiceId.HasValue)
                 return;
+
+            if (e.Key == Key.Enter
+                && e.OriginalSource is DependencyObject dateSource
+                && FindVisualParent<DatePicker>(dateSource) is DatePicker expiryDatePicker
+                && TryCommitTypedDate(expiryDatePicker))
+            {
+                e.Handled = true;
+                return;
+            }
 
             if (e.KeyboardDevice.Modifiers == ModifierKeys.None
                 && e.Key is Key.Up or Key.Down
@@ -1656,9 +1700,6 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
                 var supplier = SupplierComboBox.SelectedItem as UserReadDto; // أو UserReadDto للمورد
                 var purchaseTotals = CalculatePurchaseTotals();
                 decimal totalAmount = purchaseTotals.Total;
-                PreparePurchasePricesForSave();
-                purchaseTotals = CalculatePurchaseTotals();
-                totalAmount = purchaseTotals.Total;
 
                 if (_isPurchaseOrderMode)
                 {
@@ -1918,7 +1959,12 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
 
                 }
 
-                if (supplier != null && !isUpdate)
+                // A purchase invoice supplier is also the product's supplier,
+                // but only users explicitly classified as suppliers should be
+                // copied to the product records. Apply this on both create and
+                // supplier-only invoice updates so changing the invoice supplier
+                // keeps product filtering and reporting consistent.
+                if (supplier?.Role == UserRole.Supplier)
                 {
                     var supplierResult = await _productService.AssignSupplierToProductsAsync(
                         InvoiceLines.Select(line => line.ProductId),
@@ -2301,8 +2347,8 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
         {
             _currentInvoiceId = null;
             _originalLines.Clear();
-            _originalCostPriceIncludesTax = false;
-            _lastCostPriceIncludesTax = false;
+            _originalCostPriceIncludesTax = true;
+            _lastCostPriceIncludesTax = true;
 
             InvoiceLines.Clear();
             ProductsGrid.Items.Refresh();
@@ -2321,7 +2367,7 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
             TaxAmountTextBox.Text = "0";
             TotalAmountTextBox.Text = "0";
             DiscountTextBox.Text = "0";
-            CostPriceIncludesTaxCheckBox.IsChecked = false;
+            CostPriceIncludesTaxCheckBox.IsChecked = true;
             ApplyPurchaseEditRestrictions();
             ProductBox.Text = "";
             ClearProductInputs();

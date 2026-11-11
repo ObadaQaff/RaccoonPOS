@@ -6,7 +6,6 @@ using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.InvoiceLines;
 using RaccoonWarehouse.Domain.Users;
 using RaccoonWarehouse.Domain.Vouchers;
-using System.ComponentModel.DataAnnotations.Schema;
 using DelegateEntity = RaccoonWarehouse.Domain.Delegates.Delegate;
 
 namespace RaccoonWarehouse.Domain.Invoices
@@ -57,7 +56,6 @@ namespace RaccoonWarehouse.Domain.Invoices
         public DateTime? ClosedAt { get; set; }
         public string? HeldColor { get; set; }
         public decimal? DiscountAmount { get; set; }
-        [NotMapped]
         public bool CostPriceIncludesTax { get; set; } = true;
         public decimal SubTotal { get; set; }
         public decimal TotalTax { get; set; }

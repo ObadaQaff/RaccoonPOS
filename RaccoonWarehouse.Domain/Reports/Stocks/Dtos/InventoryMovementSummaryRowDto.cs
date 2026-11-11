@@ -21,6 +21,7 @@ namespace RaccoonWarehouse.Domain.Stock.DTOs
         public decimal InQty { get; set; }     // داخل
         public decimal OutQty { get; set; }    // خارج
         public decimal NetQty => InQty - OutQty; // صافي
+        public decimal CurrentQuantity { get; set; }
         public decimal MinimumQuantity { get; set; }
         public string StatusText { get; set; } = "—";
     }

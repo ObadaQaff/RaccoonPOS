@@ -33,6 +33,7 @@ namespace RaccoonWarehouse.Helpers.Pdf.Reports
         public override List<string> TableHeaders =>
             new()
             {
+                "الكمية الحالية / Current quantity",
                 "التاريخ",
                 "رقم المستند",
                 "نوع المستند",
@@ -45,6 +46,7 @@ namespace RaccoonWarehouse.Helpers.Pdf.Reports
         public override List<List<string>> TableRows =>
             _rows.Select(x => new List<string>
             {
+                x.CurrentQuantity.ToString("N5"),
                 x.Date.ToString("yyyy/MM/dd HH:mm"),
                 x.DocumentNumber ?? "-",
                 x.DocumentType ?? "-",

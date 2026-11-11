@@ -468,7 +468,8 @@
                                         Language="en-GB"
                                         SelectedDateFormat="Short"
                                         Loaded="ExpiryDatePicker_Loaded"
-                                        GotFocus="ExpiryDatePicker_GotFocus"/>
+                                        GotFocus="ExpiryDatePicker_GotFocus"
+                                        LostFocus="ExpiryDatePicker_LostFocus"/>
                         </StackPanel>
 
                         <!-- زر إضافة -->
@@ -585,7 +586,8 @@
                                                     Language="en-GB"
                                                     SelectedDateFormat="Short"
                                                     Loaded="ExpiryDatePicker_Loaded"
-                                                    GotFocus="ExpiryDatePicker_GotFocus"/>
+                                                    GotFocus="ExpiryDatePicker_GotFocus"
+                                                    LostFocus="ExpiryDatePicker_LostFocus"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellEditingTemplate>
                             </DataGridTemplateColumn>

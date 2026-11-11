@@ -5,6 +5,7 @@ using RaccoonWarehouse.Domain.Products;
 using RaccoonWarehouse.Domain.Products.DTOs;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Stock.DTOs;
+using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Helpers.Localization;
 using RaccoonWarehouse.Helpers;
 using RaccoonWarehouse.Helpers.Pdf;
@@ -29,6 +30,7 @@ namespace RaccoonWarehouse.Stocks.Reports
         private readonly IStockReportService _stockReportService;
         private readonly IProductService _productService;
         private readonly IUserService _userService;
+        private readonly ILoadingService _loadingService;
         private readonly List<ProductReadDto> _defaultProductItems = new();
         private readonly List<ProductReadDto> _productSearchResults = new();
         private readonly SemaphoreSlim _productSearchLock = new(1, 1);
@@ -41,7 +43,11 @@ namespace RaccoonWarehouse.Stocks.Reports
         private bool _isUpdatingProductCombo;
         private List<RaccoonWarehouse.Domain.Users.DTOs.UserReadDto> _supplierItems = new();
 
-        public StockMovementsReport(IStockReportService stockReportService, IProductService productService, IUserService userService)
+        public StockMovementsReport(
+            IStockReportService stockReportService,
+            IProductService productService,
+            IUserService userService,
+            ILoadingService loadingService)
         {
             
             InitializeComponent();
@@ -49,6 +55,7 @@ namespace RaccoonWarehouse.Stocks.Reports
             _stockReportService = stockReportService;
             _productService = productService;
             _userService = userService;
+            _loadingService = loadingService;
             UiText.ApplyWindow(this);
             Loaded += StockMovementsReport_Loaded;
         }
@@ -59,7 +66,6 @@ namespace RaccoonWarehouse.Stocks.Reports
             ToDatePicker.SelectedDate = DateTime.Today;
             InitializeProductFilter();
             InitializeMovementSourceFilter();
-            SearchText.TextChanged += SearchText_TextChanged;
             AttachProductSearchTextBox();
             await LoadSupplierFilterAsync();
         }
@@ -82,13 +88,26 @@ namespace RaccoonWarehouse.Stocks.Reports
 
         private async Task LoadSupplierFilterAsync()
         {
-            _supplierItems = (await _userService.GetAllAsync()).Data?
-                .Where(user => user.Role == RaccoonWarehouse.Domain.Enums.UserRole.Supplier)
-                .OrderBy(user => user.Name)
-                .ToList() ?? new();
-            _supplierItems.Insert(0, new RaccoonWarehouse.Domain.Users.DTOs.UserReadDto { Id = 0, Name = UiText.T("الكل", "All suppliers") });
-            SupplierComboBoxSearch.SetItems(SupplierComboBox, _supplierItems);
-            SupplierComboBox.SelectedIndex = 0;
+            var loadingShown = false;
+            try
+            {
+                _loadingService.Show();
+                loadingShown = true;
+
+                _supplierItems = (await _userService.GetAllAsync()).Data?
+                    .Where(user => user.Role is RaccoonWarehouse.Domain.Enums.UserRole.Supplier
+                        or RaccoonWarehouse.Domain.Enums.UserRole.PharmaceuticalWarehouse)
+                    .OrderBy(user => user.Name)
+                    .ToList() ?? new();
+                _supplierItems.Insert(0, new RaccoonWarehouse.Domain.Users.DTOs.UserReadDto { Id = 0, Name = UiText.T("كل الموردين والمستودعات", "All suppliers and warehouses") });
+                SupplierComboBoxSearch.SetItems(SupplierComboBox, _supplierItems);
+                SupplierComboBox.SelectedIndex = 0;
+            }
+            finally
+            {
+                if (loadingShown)
+                    _loadingService.Hide();
+            }
         }
 
         private void InitializeProductFilter()
@@ -100,8 +119,12 @@ namespace RaccoonWarehouse.Stocks.Reports
 
         private async void GenerateReportBtn_Click(object sender, RoutedEventArgs e)
         {
+            var loadingShown = false;
             try
             {
+                _loadingService.Show();
+                loadingShown = true;
+
                 DateTime? from = FromDatePicker.SelectedDate?.Date;
                 DateTime? to = ToDatePicker.SelectedDate?.Date.AddDays(1).AddTicks(-1);
                 var supplierId = SupplierComboBox.SelectedValue is int selectedSupplierId && selectedSupplierId > 0
@@ -114,9 +137,10 @@ namespace RaccoonWarehouse.Stocks.Reports
                     from,
                     to,
                     productId: null,
-                    supplierId,
-                    source,
-                    GetSearchText());
+                    supplierId: supplierId,
+                    source: source,
+                    productNameSearchText: GetProductNameSearchText(),
+                    productBarcodeSearchText: GetProductBarcodeSearchText());
                 _currentRows = data ?? new List<StockMovementDto>();
                 MovementsGrid.ItemsSource = _currentRows;
             }
@@ -128,9 +152,22 @@ namespace RaccoonWarehouse.Stocks.Reports
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
             }
+            finally
+            {
+                if (loadingShown)
+                    _loadingService.Hide();
+            }
         }
 
-        private string? GetSearchText() => string.IsNullOrWhiteSpace(SearchText.Text) ? null : SearchText.Text.Trim();
+        private string? GetProductNameSearchText() =>
+            string.IsNullOrWhiteSpace(ProductNameSearchTextBox.Text)
+                ? null
+                : ProductNameSearchTextBox.Text.Trim();
+
+        private string? GetProductBarcodeSearchText() =>
+            string.IsNullOrWhiteSpace(ProductBarcodeSearchTextBox.Text)
+                ? null
+                : ProductBarcodeSearchTextBox.Text.Trim();
 
         private async void SearchText_TextChanged(object sender, TextChangedEventArgs e)
         {
@@ -164,10 +201,14 @@ namespace RaccoonWarehouse.Stocks.Reports
         private async Task LoadMovementReportAsync(int searchVersion)
         {
             await _movementLoadLock.WaitAsync();
+            var loadingShown = false;
             try
             {
                 if (searchVersion != _movementSearchVersion)
                     return;
+
+                _loadingService.Show();
+                loadingShown = true;
 
                 DateTime? from = FromDatePicker.SelectedDate?.Date;
                 DateTime? to = ToDatePicker.SelectedDate?.Date.AddDays(1).AddTicks(-1);
@@ -177,7 +218,14 @@ namespace RaccoonWarehouse.Stocks.Reports
                 var source = (MovementSourceComboBox.SelectedItem as ComboBoxItem)?.Tag is StockMovementSource selectedSource
                     ? selectedSource
                     : StockMovementSource.All;
-                var data = await _stockReportService.GetStockMovementsAsync(from, to, null, supplierId, source, GetSearchText());
+                var data = await _stockReportService.GetStockMovementsAsync(
+                    from,
+                    to,
+                    productId: null,
+                    supplierId: supplierId,
+                    source: source,
+                    productNameSearchText: GetProductNameSearchText(),
+                    productBarcodeSearchText: GetProductBarcodeSearchText());
                 if (searchVersion != _movementSearchVersion)
                     return;
 
@@ -186,6 +234,8 @@ namespace RaccoonWarehouse.Stocks.Reports
             }
             finally
             {
+                if (loadingShown)
+                    _loadingService.Hide();
                 _movementLoadLock.Release();
             }
         }

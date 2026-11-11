@@ -20,6 +20,7 @@ namespace RaccoonWarehouse.Domain.Stock.DTOs
         public string? UnitName { get; set; }
 
         public decimal Quantity { get; set; }
+        public decimal CurrentQuantity { get; set; }
         public decimal? AvailableQuantityAfterMovement { get; set; }
 
         public decimal PurchasePrice { get; set; }

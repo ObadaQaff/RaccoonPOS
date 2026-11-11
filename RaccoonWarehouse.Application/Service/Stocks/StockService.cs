@@ -146,6 +146,98 @@ namespace RaccoonWarehouse.Application.Service.Stocks
             return Result<List<StockBatchLookupDto>>.Ok(result);
         }
 
+        public async Task<Result<PagedResult<StockBatchLookupDto>>> GetBatchLookupPageAsync(
+            int productId,
+            int pageNumber = 1,
+            int pageSize = 80,
+            string? searchText = null)
+        {
+            if (productId <= 0)
+                return Result<PagedResult<StockBatchLookupDto>>.Fail("Product is required.");
+
+            pageNumber = Math.Max(pageNumber, 1);
+            pageSize = Math.Clamp(pageSize, 20, 200);
+
+            var lotQuery = _uow.GetRepository<StockLot>()
+                .GetAllAsQueryable()
+                .AsNoTracking()
+                .Where(x => x.ProductId == productId);
+
+            if (!string.IsNullOrWhiteSpace(searchText))
+            {
+                var term = searchText.Trim();
+                lotQuery = lotQuery.Where(x =>
+                    (x.Product != null && x.Product.Name != null && x.Product.Name.Contains(term)) ||
+                    (x.ProductUnit != null && x.ProductUnit.Unit != null && x.ProductUnit.Unit.Name != null && x.ProductUnit.Unit.Name.Contains(term)) ||
+                    x.Id.ToString().Contains(term));
+            }
+
+            var totalCount = await lotQuery.CountAsync();
+            var rows = await lotQuery
+                .OrderByDescending(x => x.Status == BatchStatus.Active)
+                .ThenByDescending(x => x.Id)
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .Select(x => new StockBatchLookupDto
+                {
+                    StockLotId = x.Id,
+                    ProductId = x.ProductId,
+                    ProductName = x.Product != null ? x.Product.Name ?? $"#{x.ProductId}" : $"#{x.ProductId}",
+                    ProductUnitId = x.ProductUnitId,
+                    UnitName = x.ProductUnit != null && x.ProductUnit.Unit != null
+                        ? x.ProductUnit.Unit.Name ?? $"#{x.ProductUnitId}"
+                        : $"#{x.ProductUnitId}",
+                    OriginalQuantity = x.Quantity,
+                    RemainingQuantity = x.RemainingQuantity,
+                    PurchasePrice = x.PurchasePrice,
+                    SalePrice = x.SalePrice,
+                    CreatedDate = x.CreatedDate,
+                    ExpiryDate = x.ExpiryDate,
+                    Status = x.Status
+                })
+                .ToListAsync();
+
+            var lotIds = rows.Select(x => x.StockLotId).ToList();
+            if (lotIds.Count > 0)
+            {
+                var usedTransactionLotIds = await _uow.GetRepository<StockTransaction>()
+                    .GetAllAsQueryable()
+                    .Where(x => x.StockLotId.HasValue && lotIds.Contains(x.StockLotId.Value) && x.BaseQuantity < 0)
+                    .Select(x => x.StockLotId!.Value)
+                    .Distinct()
+                    .ToListAsync();
+
+                var usedAdjustmentSourceLotIds = await _uow.GetRepository<StockAdjustment>()
+                    .GetAllAsQueryable()
+                    .Where(x => lotIds.Contains(x.StockLotId))
+                    .Select(x => x.StockLotId)
+                    .Distinct()
+                    .ToListAsync();
+
+                var usedAdjustmentNewLotIds = await _uow.GetRepository<StockAdjustment>()
+                    .GetAllAsQueryable()
+                    .Where(x => x.NewStockLotId.HasValue && lotIds.Contains(x.NewStockLotId.Value))
+                    .Select(x => x.NewStockLotId!.Value)
+                    .Distinct()
+                    .ToListAsync();
+
+                var usedLotIds = usedTransactionLotIds
+                    .Concat(usedAdjustmentSourceLotIds)
+                    .Concat(usedAdjustmentNewLotIds)
+                    .ToHashSet();
+
+                foreach (var row in rows)
+                {
+                    row.IsUsed = row.RemainingQuantity != row.OriginalQuantity ||
+                                 row.Status != BatchStatus.Active ||
+                                 usedLotIds.Contains(row.StockLotId);
+                }
+            }
+
+            return Result<PagedResult<StockBatchLookupDto>>.Ok(
+                new PagedResult<StockBatchLookupDto>(rows, totalCount, pageNumber, pageSize));
+        }
+
         public async Task<Result<List<PosStockLotOptionDto>>> GetPosStockLotOptionsAsync(int productId, int productUnitId)
         {
             if (productId <= 0 || productUnitId <= 0)
@@ -371,9 +463,12 @@ namespace RaccoonWarehouse.Application.Service.Stocks
             if (lot.Status != BatchStatus.Active && dto.AdjustmentType is StockAdjustmentType.Increase or StockAdjustmentType.Decrease)
                 return Result<StockAdjustmentWriteDto>.Fail("Only active batches can receive quantity adjustments.");
 
+            if (dto.AdjustmentType is StockAdjustmentType.Increase or StockAdjustmentType.Decrease && dto.QuantityDelta <= 0)
+                return Result<StockAdjustmentWriteDto>.Fail("Quantity must be greater than zero for increase or decrease adjustments.");
+
             var quantityPerUnit = lot.QuantityPerUnitSnapshot > 0 ? lot.QuantityPerUnitSnapshot : 1m;
             var absoluteQty = Math.Abs(dto.QuantityDelta);
-            var effectiveQty = absoluteQty > 0 ? absoluteQty : lot.RemainingQuantity;
+            var effectiveQty = absoluteQty;
             var effectiveBaseQty = effectiveQty * quantityPerUnit;
             var adjustmentDate = dto.AdjustmentDate == default ? now : dto.AdjustmentDate;
 
@@ -517,8 +612,6 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                     await lotRepo.AddAsync(newLot);
 
                     lot.Status = dto.AdjustmentType == StockAdjustmentType.Replace ? BatchStatus.Replaced : BatchStatus.Closed;
-                    lot.ReplacedByStockLot = newLot;
-                    lot.ReplacedByStockLotId = newLot.Id;
                     lot.ClosedDate = now;
                     lot.ClosedReason = dto.Reason;
                     lot.ClosedByUserId = dto.UserId;
@@ -550,12 +643,17 @@ namespace RaccoonWarehouse.Application.Service.Stocks
 
             await _uow.CommitAsync();
 
-            if (newLot != null && lot.ReplacedByStockLotId == null)
+            if (newLot != null)
             {
-                lot.ReplacedByStockLotId = newLot.Id;
                 adjustment.NewStockLotId = newLot.Id;
                 adjustment.UpdatedDate = now;
-                await lotRepo.UpdateAsync(lot);
+
+                if (dto.AdjustmentType is StockAdjustmentType.Replace or StockAdjustmentType.CloseAndRecreate)
+                {
+                    lot.ReplacedByStockLotId = newLot.Id;
+                    await lotRepo.UpdateAsync(lot);
+                }
+
                 await adjustmentRepo.UpdateAsync(adjustment);
                 await _uow.CommitAsync();
             }
@@ -2032,6 +2130,7 @@ namespace RaccoonWarehouse.Application.Service.Stocks
         Task<Result<List<PosProductSearchResultDto>>> GetPosProductStockAsync(IEnumerable<int> productIds, CancellationToken cancellationToken = default);
         Task<Result<List<SubCategoryReadDto>>> GetPosBrowseSubCategoriesAsync();
         Task<Result<List<StockBatchLookupDto>>> GetBatchLookupAsync(int? productId = null);
+        Task<Result<PagedResult<StockBatchLookupDto>>> GetBatchLookupPageAsync(int productId, int pageNumber = 1, int pageSize = 80, string? searchText = null);
         Task<Result<List<PosStockLotOptionDto>>> GetPosStockLotOptionsAsync(int productId, int productUnitId);
         Task<Result<Dictionary<int, decimal>>> GetPurchaseLineSalePricesAsync(IEnumerable<int> sourcePurchaseLineIds);
         Task<bool> HasExpiredStockAsync(DateTime? asOfDate = null);

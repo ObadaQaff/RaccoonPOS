@@ -175,11 +175,18 @@
                     </StackPanel>
 
                     <StackPanel Grid.Column="2" Margin="8,0">
-                        <TextBlock Text="الصنف أو الباركود (اختياري)" FontWeight="SemiBold" Foreground="#27445D" Margin="0,0,0,6"/>
-                        <TextBox x:Name="SearchText"
+                        <TextBlock Text="اسم الصنف / Product name" FontWeight="SemiBold" Foreground="#27445D" Margin="0,0,0,6"/>
+                        <TextBox x:Name="ProductNameSearchTextBox"
                                  Height="42"
                                  FontSize="15"
-                                 ToolTip="Search by product name or barcode"/>
+                                 TextChanged="SearchText_TextChanged"
+                                 ToolTip="Search by product name"/>
+                        <TextBlock Text="الباركود / Barcode" FontWeight="SemiBold" Foreground="#27445D" Margin="0,8,0,6"/>
+                        <TextBox x:Name="ProductBarcodeSearchTextBox"
+                                 Height="42"
+                                 FontSize="15"
+                                 TextChanged="SearchText_TextChanged"
+                                 ToolTip="Search by barcode"/>
                         <ComboBox x:Name="ProductComboBox"
                                   Height="42"
                                   FontSize="15"
@@ -193,7 +200,7 @@
                     </StackPanel>
 
                     <StackPanel Grid.Column="3" Margin="8,0">
-                        <TextBlock Text="المورد / Supplier" FontWeight="SemiBold" Foreground="#27445D" Margin="0,0,0,6"/>
+                        <TextBlock Text="المورد / المستودع - Supplier / Warehouse" FontWeight="SemiBold" Foreground="#27445D" Margin="0,0,0,6"/>
                         <ComboBox x:Name="SupplierComboBox" Height="42" FontSize="15"
                                   DisplayMemberPath="Name" SelectedValuePath="Id"
                                   IsEditable="True" IsTextSearchEnabled="False" StaysOpenOnEdit="True"/>
@@ -273,9 +280,10 @@
                         <DataGridTextColumn Header="نوع المستند" Binding="{Binding DocumentType}" Width="170"/>
                         <DataGridTextColumn Header="كود الصنف" Binding="{Binding ProductId}" Width="120"/>
                         <DataGridTextColumn Header="اسم الصنف" Binding="{Binding ProductName}" ElementStyle="{StaticResource ProductValueTextStyle}" Width="290"/>
-                        <DataGridTextColumn Header="المورد / Supplier" Binding="{Binding SupplierName}" Width="220"/>
+                        <DataGridTextColumn Header="المورد / المستودع - Supplier / Warehouse" Binding="{Binding SupplierName}" Width="220"/>
                         <DataGridTextColumn Header="الوحدة" Binding="{Binding UnitName}" Width="140"/>
                         <DataGridTextColumn Header="الكمية" Binding="{Binding Quantity}" Width="120"/>
+                        <DataGridTextColumn Header="الكمية الحالية / Current quantity" Binding="{Binding CurrentQuantity, StringFormat={}{0:0.000}}" Width="190"/>
                         <DataGridTextColumn Header="المتوفر بعد الحركة / Available after movement" Binding="{Binding AvailableQuantityAfterMovement, StringFormat={}{0:0.000}}" Width="210"/>
                         <DataGridTextColumn Header="سعر الشراء" Binding="{Binding PurchasePrice}" Width="145"/>
                         <DataGridTextColumn Header="سعر البيع" Binding="{Binding SalePrice}" Width="145"/>

@@ -5,6 +5,7 @@ using RaccoonWarehouse.Domain.ProductUnits.DTOs;
 using RaccoonWarehouse.Domain.Products.DTOs;
 using RaccoonWarehouse.Domain.Products;
 using RaccoonWarehouse.Helpers.Localization;
+using RaccoonWarehouse.Helpers;
 using RaccoonWarehouse.Common;
 using RaccoonWarehouse.Navigation;
 using RaccoonWarehouse.Products;
@@ -103,6 +104,7 @@ namespace RaccoonWarehouse.Invoices
             _productService = productService; _stockService = stockService; _onSelectProduct = onSelectProduct; _onCreateProduct = onCreateProduct; _supplierId = supplierId;
 
             InitializeComponent(); UiText.ApplyWindow(this); ProductsGrid.ItemsSource = Products;
+            AddHandler(LostFocusEvent, new RoutedEventHandler(ExpiryDatePicker_LostFocus), true);
             SupplierFilter.ItemsSource = SupplierOptions;
             _searchDebounceTimer.Tick += SearchDebounceTimer_Tick;
             Loaded += (_, _) => FocusSearchBox();
@@ -213,13 +215,67 @@ namespace RaccoonWarehouse.Invoices
         private void ExpiryDatePicker_Loaded(object sender, RoutedEventArgs e)
         {
             if (sender is DatePicker datePicker)
+            {
+                AttachDatePickerTextBox(datePicker);
                 QueueDatePickerTextSelection(datePicker, DispatcherPriority.ContextIdle);
+            }
         }
 
         private void ExpiryDatePicker_GotFocus(object sender, RoutedEventArgs e)
         {
             if (sender is DatePicker datePicker)
+            {
+                AttachDatePickerTextBox(datePicker);
                 QueueDatePickerTextSelection(datePicker, DispatcherPriority.Input);
+            }
+        }
+
+        private void AttachDatePickerTextBox(DatePicker datePicker)
+        {
+            datePicker.ApplyTemplate();
+            if (datePicker.Template.FindName("PART_TextBox", datePicker) is TextBox textBox)
+            {
+                textBox.PreviewKeyDown -= DatePickerTextBox_PreviewKeyDown;
+                textBox.PreviewKeyDown += DatePickerTextBox_PreviewKeyDown;
+            }
+        }
+
+        private void DatePickerTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key != Key.Enter || sender is not TextBox textBox)
+                return;
+
+            var datePicker = FindVisualParent<DatePicker>(textBox);
+            if (datePicker == null || !TryCommitTypedDate(datePicker))
+                return;
+
+            e.Handled = true;
+        }
+
+        private static bool TryCommitTypedDate(DatePicker datePicker)
+        {
+            datePicker.ApplyTemplate();
+            if (datePicker.Template.FindName("PART_TextBox", datePicker) is not TextBox textBox ||
+                !DateInputParser.TryParse(textBox.Text, out var date))
+                return false;
+
+            datePicker.SelectedDate = date;
+            datePicker.DisplayDate = date;
+            textBox.Text = date.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
+            return true;
+        }
+
+        private void ExpiryDatePicker_LostFocus(object sender, RoutedEventArgs e)
+        {
+            if (sender is not DatePicker datePicker)
+                return;
+
+            datePicker.ApplyTemplate();
+            if (datePicker.Template.FindName("PART_TextBox", datePicker) is TextBox textBox &&
+                DateInputParser.TryParse(textBox.Text, out var date))
+            {
+                datePicker.SelectedDate = date;
+            }
         }
 
         private void QueueDatePickerTextSelection(DatePicker datePicker, DispatcherPriority priority)
@@ -464,6 +520,18 @@ namespace RaccoonWarehouse.Invoices
 
         private async void ProductsGrid_PreviewKeyDown(object sender, KeyEventArgs e)
         {
+            if (e.Key == Key.Enter
+                && e.OriginalSource is DependencyObject dateSource
+                && FindVisualParent<DatePicker>(dateSource) is DatePicker expiryDatePicker
+                && TryCommitTypedDate(expiryDatePicker))
+            {
+                if (ProductsGrid.CurrentItem is PurchaseProductSearchRow dateRow)
+                    await MoveToNextProductCellAsync(dateRow);
+
+                e.Handled = true;
+                return;
+            }
+
             if (ProductsGrid.CurrentItem is not PurchaseProductSearchRow row) return;
 
             if (e.KeyboardDevice.Modifiers == ModifierKeys.None
@@ -493,27 +561,32 @@ namespace RaccoonWarehouse.Invoices
 
             if (e.Key == Key.Enter)
             {
-                CommitProductRowEdits(row);
-                var currentColumn = ProductsGrid.CurrentCell.Column;
-                var nextColumn = ProductsGrid.Columns
-                    .Where(column => column.Visibility == Visibility.Visible)
-                    .OrderBy(column => column.DisplayIndex)
-                    .FirstOrDefault(column => column.DisplayIndex > currentColumn.DisplayIndex);
-
-                if (nextColumn == null)
-                {
-                    await SelectProductAsync(row);
-                }
-                else
-                {
-                    ProductsGrid.CurrentCell = new DataGridCellInfo(row, nextColumn);
-                    ProductsGrid.BeginEdit();
-                }
+                await MoveToNextProductCellAsync(row);
 
                 e.Handled = true;
                 return;
             }
             if (e.Key == Key.Up && ProductsGrid.SelectedIndex == 0) { FocusSearchBox(); e.Handled = true; }
+        }
+
+        private async Task MoveToNextProductCellAsync(PurchaseProductSearchRow row)
+        {
+            CommitProductRowEdits(row);
+            var currentColumn = ProductsGrid.CurrentCell.Column;
+            var nextColumn = ProductsGrid.Columns
+                .Where(column => column.Visibility == Visibility.Visible)
+                .OrderBy(column => column.DisplayIndex)
+                .FirstOrDefault(column => currentColumn != null && column.DisplayIndex > currentColumn.DisplayIndex);
+
+            if (nextColumn == null)
+            {
+                await SelectProductAsync(row);
+            }
+            else
+            {
+                ProductsGrid.CurrentCell = new DataGridCellInfo(row, nextColumn);
+                ProductsGrid.BeginEdit();
+            }
         }
 
         private static T? FindVisualParent<T>(DependencyObject? child) where T : DependencyObject

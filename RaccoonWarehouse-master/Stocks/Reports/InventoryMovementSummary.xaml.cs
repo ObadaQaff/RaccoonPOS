@@ -6,6 +6,7 @@ using RaccoonWarehouse.Domain.Products.DTOs;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Reports.Stocks.Filters;
 using RaccoonWarehouse.Domain.Stock.DTOs;
+using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Helpers.Localization;
 using RaccoonWarehouse.Helpers;
 using RaccoonWarehouse.Helpers.Pdf;
@@ -31,6 +32,7 @@ namespace RaccoonWarehouse.Stocks.Reports
         private readonly IStockReportService _stockReportService;
         private readonly IProductService _productService;
         private readonly IUserService _userService;
+        private readonly ILoadingService _loadingService;
         private readonly List<ProductReadDto> _defaultProductItems = new();
         private readonly List<ProductReadDto> _productSearchResults = new();
         private readonly SemaphoreSlim _productSearchLock = new(1, 1);
@@ -39,9 +41,14 @@ namespace RaccoonWarehouse.Stocks.Reports
         private TextBox? _productSearchTextBox;
         private int _productSearchVersion;
         private int _movementSearchVersion;
+        private readonly SemaphoreSlim _movementLoadLock = new(1, 1);
         private bool _isUpdatingProductCombo;
 
-        public InventoryMovementSummary(IStockReportService stockReportService, IProductService productService, IUserService userService)
+        public InventoryMovementSummary(
+            IStockReportService stockReportService,
+            IProductService productService,
+            IUserService userService,
+            ILoadingService loadingService)
         {
             
             InitializeComponent();
@@ -49,6 +56,7 @@ namespace RaccoonWarehouse.Stocks.Reports
             _stockReportService = stockReportService;
             _productService = productService;
             _userService = userService;
+            _loadingService = loadingService;
             UiText.ApplyWindow(this);
 
             Loaded += InventoryMovementSummary_Loaded;
@@ -60,12 +68,19 @@ namespace RaccoonWarehouse.Stocks.Reports
             ToDatePicker.SelectedDate = DateTime.Now.Date;
             InitializeProductFilter();
             InitializeMovementSourceFilter();
-            SearchText.TextChanged += SearchText_TextChanged;
             AttachProductSearchTextBox();
             await LoadSupplierFilterAsync();
         }
 
-        private string? GetSearchText() => string.IsNullOrWhiteSpace(SearchText.Text) ? null : SearchText.Text.Trim();
+        private string? GetProductNameSearchText() =>
+            string.IsNullOrWhiteSpace(ProductNameSearchTextBox.Text)
+                ? null
+                : ProductNameSearchTextBox.Text.Trim();
+
+        private string? GetProductBarcodeSearchText() =>
+            string.IsNullOrWhiteSpace(ProductBarcodeSearchTextBox.Text)
+                ? null
+                : ProductBarcodeSearchTextBox.Text.Trim();
 
         private async void SearchText_TextChanged(object sender, TextChangedEventArgs e)
         {
@@ -76,7 +91,7 @@ namespace RaccoonWarehouse.Stocks.Reports
                 if (searchVersion != _movementSearchVersion)
                     return;
 
-                GenerateBtn_Click(GenerateBtn, new RoutedEventArgs());
+                await LoadSummaryAsync();
             }
             catch
             {
@@ -102,13 +117,26 @@ namespace RaccoonWarehouse.Stocks.Reports
 
         private async Task LoadSupplierFilterAsync()
         {
-            var suppliers = (await _userService.GetAllAsync()).Data?
-                .Where(user => user.Role == RaccoonWarehouse.Domain.Enums.UserRole.Supplier)
-                .OrderBy(user => user.Name)
-                .ToList() ?? new();
-            suppliers.Insert(0, new RaccoonWarehouse.Domain.Users.DTOs.UserReadDto { Id = 0, Name = UiText.T("الكل", "All suppliers") });
-            SupplierComboBoxSearch.SetItems(SupplierComboBox, suppliers);
-            SupplierComboBox.SelectedIndex = 0;
+            var loadingShown = false;
+            try
+            {
+                _loadingService.Show();
+                loadingShown = true;
+
+                var suppliers = (await _userService.GetAllAsync()).Data?
+                    .Where(user => user.Role is RaccoonWarehouse.Domain.Enums.UserRole.Supplier
+                        or RaccoonWarehouse.Domain.Enums.UserRole.PharmaceuticalWarehouse)
+                    .OrderBy(user => user.Name)
+                    .ToList() ?? new();
+                suppliers.Insert(0, new RaccoonWarehouse.Domain.Users.DTOs.UserReadDto { Id = 0, Name = UiText.T("كل الموردين والمستودعات", "All suppliers and warehouses") });
+                SupplierComboBoxSearch.SetItems(SupplierComboBox, suppliers);
+                SupplierComboBox.SelectedIndex = 0;
+            }
+            finally
+            {
+                if (loadingShown)
+                    _loadingService.Hide();
+            }
         }
 
         private void InitializeProductFilter()
@@ -120,6 +148,13 @@ namespace RaccoonWarehouse.Stocks.Reports
 
         private async void GenerateBtn_Click(object sender, RoutedEventArgs e)
         {
+            await LoadSummaryAsync();
+        }
+
+        private async Task LoadSummaryAsync()
+        {
+            await _movementLoadLock.WaitAsync();
+            var loadingShown = false;
             try
             {
                 if (FromDatePicker.SelectedDate == null || ToDatePicker.SelectedDate == null)
@@ -132,6 +167,9 @@ namespace RaccoonWarehouse.Stocks.Reports
                     return;
                 }
 
+                _loadingService.Show();
+                loadingShown = true;
+
                 var filter = new InventoryMovementSummaryFilterDto
                 {
                     From = FromDatePicker.SelectedDate.Value.Date,
@@ -139,7 +177,8 @@ namespace RaccoonWarehouse.Stocks.Reports
                     IncludeInvoices = IncludeInvoicesCheck.IsChecked == true
                 };
 
-                filter.ProductSearchText = GetSearchText();
+                filter.ProductNameSearchText = GetProductNameSearchText();
+                filter.ProductBarcodeSearchText = GetProductBarcodeSearchText();
 
                 if (SupplierComboBox.SelectedValue is int supplierId && supplierId > 0)
                     filter.SupplierId = supplierId;
@@ -159,6 +198,12 @@ namespace RaccoonWarehouse.Stocks.Reports
                     UiText.T("خطأ", "Error"),
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
+            }
+            finally
+            {
+                if (loadingShown)
+                    _loadingService.Hide();
+                _movementLoadLock.Release();
             }
         }
 
@@ -197,6 +242,7 @@ namespace RaccoonWarehouse.Stocks.Reports
 
                 var headers = new[]
                 {
+                    UiText.T("الكمية الحالية", "Current quantity"),
                     UiText.T("الكود", "Code"), UiText.T("الصنف", "Product"),
                     UiText.T("المورد", "Supplier"), UiText.T("الوحدة", "Unit"),
                     UiText.T("داخل", "In"), UiText.T("خارج", "Out"),
@@ -214,16 +260,17 @@ namespace RaccoonWarehouse.Stocks.Reports
                 var rowNumber = 7;
                 foreach (var row in _currentRows)
                 {
-                    sheet.Cell(rowNumber, 1).Style.NumberFormat.Format = "@";
-                    sheet.Cell(rowNumber, 1).Value = row.ITEMCODE ?? string.Empty;
-                    sheet.Cell(rowNumber, 2).Value = row.ProductName ?? string.Empty;
-                    sheet.Cell(rowNumber, 3).Value = row.SupplierName ?? string.Empty;
-                    sheet.Cell(rowNumber, 4).Value = row.UnitName ?? string.Empty;
-                    sheet.Cell(rowNumber, 5).Value = row.InQty;
-                    sheet.Cell(rowNumber, 6).Value = row.OutQty;
-                    sheet.Cell(rowNumber, 7).Value = row.NetQty;
-                    sheet.Cell(rowNumber, 8).Value = row.MinimumQuantity;
-                    sheet.Cell(rowNumber, 9).Value = row.StatusText ?? string.Empty;
+                    sheet.Cell(rowNumber, 1).Value = row.CurrentQuantity;
+                    sheet.Cell(rowNumber, 2).Style.NumberFormat.Format = "@";
+                    sheet.Cell(rowNumber, 2).Value = row.ITEMCODE ?? string.Empty;
+                    sheet.Cell(rowNumber, 3).Value = row.ProductName ?? string.Empty;
+                    sheet.Cell(rowNumber, 4).Value = row.SupplierName ?? string.Empty;
+                    sheet.Cell(rowNumber, 5).Value = row.UnitName ?? string.Empty;
+                    sheet.Cell(rowNumber, 6).Value = row.InQty;
+                    sheet.Cell(rowNumber, 7).Value = row.OutQty;
+                    sheet.Cell(rowNumber, 8).Value = row.NetQty;
+                    sheet.Cell(rowNumber, 9).Value = row.MinimumQuantity;
+                    sheet.Cell(rowNumber, 10).Value = row.StatusText ?? string.Empty;
                     rowNumber++;
                 }
 
@@ -528,11 +575,12 @@ namespace RaccoonWarehouse.Stocks.Reports
 
             public override List<string> TableHeaders => new()
             {
-                "الكود", "الصنف", "المورد", "الوحدة", "داخل", "خارج", "صافي", "الحد الأدنى", "الحالة"
+                "الكمية الحالية / Current quantity", "الكود", "الصنف", "المورد", "الوحدة", "داخل", "خارج", "صافي", "الحد الأدنى", "الحالة"
             };
 
             public override List<List<string>> TableRows => _rows.Select(row => new List<string>
             {
+                row.CurrentQuantity.ToString("N5"),
                 row.ITEMCODE ?? "-",
                 row.ProductName ?? "-",
                 row.SupplierName ?? "-",

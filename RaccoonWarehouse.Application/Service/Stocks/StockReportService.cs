@@ -143,7 +143,7 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                 .ToList();
         }
 
-        public async Task<List<StockMovementDto>> GetStockMovementsAsync(DateTime? from, DateTime? to, int? productId = null, int? supplierId = null, StockMovementSource source = StockMovementSource.All, string? productSearchText = null)
+        public async Task<List<StockMovementDto>> GetStockMovementsAsync(DateTime? from, DateTime? to, int? productId = null, int? supplierId = null, StockMovementSource source = StockMovementSource.All, string? productSearchText = null, string? productNameSearchText = null, string? productBarcodeSearchText = null)
         {
             var transactionRepo = _uow.GetRepository<StockTransaction>();
 
@@ -159,13 +159,37 @@ namespace RaccoonWarehouse.Application.Service.Stocks
             if (productId.HasValue && productId.Value > 0)
                 query = query.Where(x => x.ProductId == productId.Value);
 
-            if (!string.IsNullOrWhiteSpace(productSearchText))
+            if (string.IsNullOrWhiteSpace(productNameSearchText) &&
+                string.IsNullOrWhiteSpace(productBarcodeSearchText) &&
+                !string.IsNullOrWhiteSpace(productSearchText))
             {
-                var normalizedSearch = productSearchText.Trim();
-                var hasBarcode = long.TryParse(normalizedSearch, out var barcodeValue);
-                query = query.Where(x =>
-                    (x.Product.Name != null && x.Product.Name.Contains(normalizedSearch)) ||
-                    (hasBarcode && x.Product.ITEMCODE == barcodeValue));
+                productNameSearchText = productSearchText;
+            }
+
+            if (!string.IsNullOrWhiteSpace(productNameSearchText))
+            {
+                var nameTerms = productNameSearchText
+                    .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+                foreach (var nameTerm in nameTerms)
+                {
+                    query = query.Where(x => x.Product.Name != null && x.Product.Name.Contains(nameTerm));
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(productBarcodeSearchText))
+            {
+                var barcodeTerms = productBarcodeSearchText
+                    .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+                foreach (var barcodeTerm in barcodeTerms)
+                {
+                    var hasBarcode = long.TryParse(barcodeTerm, out var barcodeValue);
+                    query = query.Where(x =>
+                        (hasBarcode && x.Product.ITEMCODE == barcodeValue) ||
+                        x.Product.ITEMCODE.ToString().Contains(barcodeTerm) ||
+                        x.Product.ProductUnits!.Any(unit => unit.AlternateBarcode == barcodeTerm));
+                }
             }
 
             if (supplierId.HasValue && supplierId.Value > 0)
@@ -217,6 +241,7 @@ namespace RaccoonWarehouse.Application.Service.Stocks
             // This gives the balance immediately after every movement, including rows
             // outside the selected report date range.
             var productIds = rows.Select(x => x.ProductId).Distinct().ToList();
+            var currentQuantities = await GetCurrentQuantitiesByProductAsync(productIds);
             var availableAfterMovement = new Dictionary<int, decimal>();
             if (productIds.Count > 0)
             {
@@ -266,6 +291,9 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                     SupplierName = x.SupplierName,
                     UnitName = x.BaseUnitName ?? x.ProductUnitName,
                     Quantity = x.Quantity,
+                    CurrentQuantity = currentQuantities.TryGetValue(x.ProductId, out var currentQuantity)
+                        ? currentQuantity
+                        : 0m,
                     AvailableQuantityAfterMovement = availableAfterMovement.TryGetValue(x.StockItemId, out var available)
                         ? available
                         : null,
@@ -400,13 +428,39 @@ namespace RaccoonWarehouse.Application.Service.Stocks
             if (filter.ProductId.HasValue)
                 transactionsQ = transactionsQ.Where(x => x.ProductId == filter.ProductId.Value);
 
-            if (!string.IsNullOrWhiteSpace(filter.ProductSearchText))
+            var productNameSearchText = filter.ProductNameSearchText;
+            var productBarcodeSearchText = filter.ProductBarcodeSearchText;
+            if (string.IsNullOrWhiteSpace(productNameSearchText) &&
+                string.IsNullOrWhiteSpace(productBarcodeSearchText) &&
+                !string.IsNullOrWhiteSpace(filter.ProductSearchText))
             {
-                var normalizedSearch = filter.ProductSearchText.Trim();
-                var hasBarcode = long.TryParse(normalizedSearch, out var barcodeValue);
-                transactionsQ = transactionsQ.Where(x =>
-                    (x.Product.Name != null && x.Product.Name.Contains(normalizedSearch)) ||
-                    (hasBarcode && x.Product.ITEMCODE == barcodeValue));
+                productNameSearchText = filter.ProductSearchText;
+            }
+
+            if (!string.IsNullOrWhiteSpace(productNameSearchText))
+            {
+                var nameTerms = productNameSearchText
+                    .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+                foreach (var nameTerm in nameTerms)
+                {
+                    transactionsQ = transactionsQ.Where(x => x.Product.Name != null && x.Product.Name.Contains(nameTerm));
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(productBarcodeSearchText))
+            {
+                var barcodeTerms = productBarcodeSearchText
+                    .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+                foreach (var barcodeTerm in barcodeTerms)
+                {
+                    var hasBarcode = long.TryParse(barcodeTerm, out var barcodeValue);
+                    transactionsQ = transactionsQ.Where(x =>
+                        (hasBarcode && x.Product.ITEMCODE == barcodeValue) ||
+                        x.Product.ITEMCODE.ToString().Contains(barcodeTerm) ||
+                        x.Product.ProductUnits!.Any(unit => unit.AlternateBarcode == barcodeTerm));
+                }
             }
 
             if (filter.SupplierId.HasValue && filter.SupplierId.Value > 0)
@@ -467,8 +521,12 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                     row.OutQty += -signed;
             }
 
+            var currentQuantities = await GetCurrentQuantitiesByProductAsync(dict.Keys.ToList());
             foreach (var row in dict.Values)
             {
+                row.CurrentQuantity = currentQuantities.TryGetValue(row.ProductId, out var currentQuantity)
+                    ? currentQuantity
+                    : 0m;
                 row.StatusText = (row.MinimumQuantity > 0 && row.NetQty <= row.MinimumQuantity)
                     ? "قريب/تحت الحد"
                     : "طبيعي";
@@ -478,6 +536,31 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                 .OrderBy(x => x.ProductName)
                 .ThenBy(x => x.UnitName)
                 .ToList();
+        }
+
+        private async Task<Dictionary<int, decimal>> GetCurrentQuantitiesByProductAsync(IReadOnlyCollection<int> productIds)
+        {
+            if (productIds.Count == 0)
+                return new Dictionary<int, decimal>();
+
+            var stockRows = await _uow.GetRepository<Stock>().AsQueryable()
+                .AsNoTracking()
+                .Where(x => productIds.Contains(x.ProductId))
+                .Select(x => new
+                {
+                    x.ProductId,
+                    x.Quantity,
+                    QuantityPerUnit = x.ProductUnit != null && x.ProductUnit.QuantityPerUnit > 0
+                        ? x.ProductUnit.QuantityPerUnit
+                        : 1m
+                })
+                .ToListAsync();
+
+            return stockRows
+                .GroupBy(x => x.ProductId)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group.Sum(x => x.Quantity * x.QuantityPerUnit));
         }
 
         public async Task<List<ProductProfitRowDto>> GetProductProfitAsync(ProductProfitFilterDto filter)
@@ -1039,7 +1122,7 @@ namespace RaccoonWarehouse.Application.Service.Stocks
     public interface IStockReportService
     {
         Task<List<CurrentStockDto>> GetCurrentStockAsync(string? searchText = null, DateTime? asOfDate = null, int? supplierId = null);
-        Task<List<StockMovementDto>> GetStockMovementsAsync(DateTime? from, DateTime? to, int? productId = null, int? supplierId = null, StockMovementSource source = StockMovementSource.All, string? productSearchText = null);
+        Task<List<StockMovementDto>> GetStockMovementsAsync(DateTime? from, DateTime? to, int? productId = null, int? supplierId = null, StockMovementSource source = StockMovementSource.All, string? productSearchText = null, string? productNameSearchText = null, string? productBarcodeSearchText = null);
         Task<List<LowStockDto>> GetLowStockAsync(int? supplierId = null);
         Task<List<StockBalanceByDateDto>> GetStockBalanceByDateAsync(DateTime date, bool includeInvoices = true);
         Task<List<InventoryMovementSummaryRowDto>> GetInventoryMovementSummaryAsync(InventoryMovementSummaryFilterDto filter);
