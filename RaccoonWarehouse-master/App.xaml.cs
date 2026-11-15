@@ -157,7 +157,7 @@ namespace RaccoonWarehouse
             {
                 try
                 {
-                    _ = StartPandaOrderSyncAsync();
+                    // Panda synchronization starts after database initialization.
                 }
                 catch (Exception ex)
                 {
@@ -170,6 +170,11 @@ namespace RaccoonWarehouse
                         MessageBoxImage.Warning);
                 }
 
+                // Complete database/schema initialization before exposing the
+                // dashboard. This prevents invoice searches from competing with
+                // startup metadata/DDL checks on the hosted database.
+                await InitializeAfterLoginAsync();
+
                 var dashboard = ServiceProvider.GetRequiredService<Dashboard>();
                 ApplyRuntimeTitle(dashboard);
 
@@ -178,7 +183,6 @@ namespace RaccoonWarehouse
 
                 loading.Close();   // الآن آمن
                 dashboard.Show();
-                _ = InitializeAfterLoginAsync();
             }
             else
             {
@@ -427,10 +431,10 @@ namespace RaccoonWarehouse
                 using var scope = ServiceProvider.CreateScope();
 
                 var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                db.Database.SetCommandTimeout(120);
                 await db.Database.CanConnectAsync();
                 await EnsureAppSettingsTableAsync(db);
                 await scope.ServiceProvider.GetRequiredService<IModuleStateStore>().LoadAsync();
-                await EnsureDelegateSchemaAsync(db);
                 await EnsureCheckSchemaAsync(db);
                 await EnsureAccountingOperationsSchemaAsync(db);
                 await CurrencySeeder.SeedBaseCurrencyAsync(db);

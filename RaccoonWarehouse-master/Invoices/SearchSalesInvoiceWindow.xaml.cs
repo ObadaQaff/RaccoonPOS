@@ -175,6 +175,33 @@ namespace RaccoonWarehouse.Invoices
 
         private async Task SearchInvoicesAsync()
         {
+            if (_isBusy)
+                return;
+
+            _isBusy = true;
+            _loadingService.Show();
+
+            try
+            {
+                await SearchInvoicesCoreAsync();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    UiText.T($"تعذر تحميل نتائج البحث: {ex.Message}", $"Failed to load search results: {ex.Message}"),
+                    UiText.T("خطأ", "Error"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+            finally
+            {
+                _loadingService.Hide();
+                _isBusy = false;
+            }
+        }
+
+        private async Task SearchInvoicesCoreAsync()
+        {
             DateTime? fromDate = DateFrom.SelectedDate;
             DateTime? toDate = DateTo.SelectedDate;
 
@@ -205,7 +232,9 @@ namespace RaccoonWarehouse.Invoices
                 toDate,
                 _isSal,
                 _isPOS,
-                productBarcode: ItemBarcodeTxt.Text?.Trim()
+                productBarcode: ItemBarcodeTxt.Text?.Trim(),
+                loadDetails: false,
+                maxResults: 200
             );
 
             if (result.Success)

@@ -969,18 +969,38 @@ namespace RaccoonWarehouse.Application.Service.Invoices
             if (invoice.InvoiceLines == null)
                 invoice.InvoiceLines = new List<InvoiceLine>();
 
+            // Historical purchase lines with acquisition-cost snapshots already contain
+            // the corrected net line subtotal and tax. Rebuilding them from UnitCost
+            // would reintroduce the pre-bonus/pre-tax calculation when a report is read.
+            if (invoice.InvoiceType == InvoiceType.Purchase &&
+                invoice.InvoiceLines.Count > 0 &&
+                invoice.InvoiceLines.All(line => line.PurchaseAcquisitionCost.HasValue))
+            {
+                var purchaseDiscount = invoice.DiscountAmount ?? 0m;
+                invoice.SubTotal = invoice.InvoiceLines.Sum(line => line.LineSubTotal);
+                invoice.TotalTax = invoice.InvoiceLines.Sum(line => line.TaxAmount);
+                invoice.NetSales = invoice.SubTotal - purchaseDiscount;
+                invoice.TotalCOGS = invoice.InvoiceLines.Sum(line => line.PurchaseAcquisitionCost ?? 0m);
+                invoice.GrossProfit = invoice.NetSales - invoice.TotalCOGS;
+                invoice.TotalAmount = invoice.SubTotal - purchaseDiscount + invoice.TotalTax;
+                return;
+            }
+
             // 1) Per-line calculations
             foreach (var line in invoice.InvoiceLines)
             {
                 var factor = line.QuantityPerUnitSnapshot > 0 ? line.QuantityPerUnitSnapshot : 1m;
                 line.QuantityPerUnitSnapshot = factor;
                 line.BaseQuantity = line.Quantity * factor;
-                var grossLineTotal = GetGrossLineTotal(invoice.InvoiceType, line.Quantity, line.UnitPrice);
+                var isPurchaseInvoice = invoice.InvoiceType is InvoiceType.Purchase or InvoiceType.PurchaseReturn;
+                // Purchase invoice totals are based on the purchase cost snapshot.
+                // UnitPrice is the sale-price snapshot and must not be used here.
+                var unitAmount = isPurchaseInvoice ? line.UnitCost : line.UnitPrice;
+                var grossLineTotal = GetGrossLineTotal(invoice.InvoiceType, line.Quantity, unitAmount);
                 line.LineDiscountAmount = Math.Clamp(line.LineDiscountAmount, 0m, grossLineTotal);
                 line.FreeQuantity = Math.Max(0m, line.FreeQuantity);
                 var lineTotal = grossLineTotal - line.LineDiscountAmount;
                 var rate = line.TaxExempt ? 0m : line.TaxRate;
-                var isPurchaseInvoice = invoice.InvoiceType is InvoiceType.Purchase or InvoiceType.PurchaseReturn;
                 // Sales prices are tax-inclusive; purchases depend on the invoice setting.
                 var includesTax = !isPurchaseInvoice || invoice.CostPriceIncludesTax;
                 var divisor = includesTax ? 1m + (rate / 100m) : 1m;
@@ -1125,18 +1145,27 @@ namespace RaccoonWarehouse.Application.Service.Invoices
         public async Task<Result<List<InvoiceReadDto>>> SearchSalesInvoicesAsync(
                     string? invoiceNumber,string? customerName,
                     DateTime? dateFrom,DateTime? dateTo,bool? isSal=null, bool? isPOS = null,
-                          InvoiceStatus? status = null, string? productBarcode = null)
+                          InvoiceStatus? status = null, string? productBarcode = null,
+                          bool loadDetails = true, int? maxResults = null)
         {
             try
             {
 
 
                 var query = _uow.Invoices.GetAllAsQueryable()
-                       .Include(i => i.InvoiceLines)
-                       .Include(i => i.Payments)
-                       .Include(i => i.User)
-                       .Include(i => i.Delegate)
                        .AsNoTracking();
+
+                // Search grids only need invoice headers. Loading all lines and
+                // payments here makes an unfiltered purchase search unnecessarily
+                // expensive; the full invoice is loaded after the user selects a row.
+                if (loadDetails)
+                {
+                    query = query
+                        .Include(i => i.User)
+                        .Include(i => i.Delegate)
+                        .Include(i => i.InvoiceLines)
+                        .Include(i => i.Payments);
+                }
                 if (isSal==true)
                 {
                    
@@ -1199,7 +1228,46 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                     query = query.Where(i => i.CreatedDate <= dateTo.Value);
                 }
 
+                if (maxResults is > 0)
+                {
+                    query = query
+                        .OrderByDescending(i => i.CreatedDate)
+                        .ThenByDescending(i => i.Id)
+                        .Take(maxResults.Value);
+                }
+
+                if (!loadDetails)
+                {
+                     var headers = await query
+                        .Select(i => new InvoiceReadDto
+                        {
+                            Id = i.Id,
+                            InvoiceNumber = i.InvoiceNumber,
+                            FalconInvoiceNumber = i.FalconInvoiceNumber,
+                            InvoiceType = i.InvoiceType,
+                            SupplierId = i.SupplierId,
+                            CustomerId = i.CustomerId,
+                            DelegateId = i.DelegateId,
+                            DelegateName = i.Delegate != null ? i.Delegate.FullName : null,
+                            TotalAmount = i.TotalAmount,
+                            CreatedDate = i.CreatedDate,
+                            UpdatedDate = i.UpdatedDate,
+                            Status = i.Status,
+                            IsPOS = i.IsPOS
+                        })
+                        .ToListAsync();
+
+                    await AttachPartiesAsync(headers);
+                    return Result<List<InvoiceReadDto>>.Ok(headers);
+                }
+
                 var data = await query.ToListAsync();
+                foreach (var invoice in data)
+                {
+                    if (invoice.InvoiceType is InvoiceType.Purchase or InvoiceType.PurchaseReturn)
+                        RecalculateInvoice(invoice);
+                }
+
                 var mapped = _mapper.Map<List<InvoiceReadDto>>(data);
                 await AttachPartiesAsync(mapped);
 
@@ -1781,7 +1849,9 @@ namespace RaccoonWarehouse.Application.Service.Invoices
           bool? isSal,
           bool? isPOS = null,
           InvoiceStatus? status = null,
-          string? productBarcode = null);
+          string? productBarcode = null,
+          bool loadDetails = true,
+          int? maxResults = null);
 
         Task<Result<List<ReturnInvoiceLookupDto>>> SearchReturnInvoiceHeadersAsync(
             DateTime? dateFrom,

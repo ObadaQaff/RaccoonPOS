@@ -593,6 +593,9 @@ namespace RaccoonWarehouse.Data
                 .HasForeignKey(i => i.DelegateId)
                 .OnDelete(DeleteBehavior.NoAction);
 
+            modelBuilder.Entity<Invoice>()
+                .HasIndex(i => new { i.InvoiceType, i.CreatedDate, i.Id });
+
             modelBuilder.Entity<InvoiceLine>().Property(x => x.BonusRatio).HasMaxLength(40);
             modelBuilder.Entity<InvoiceLine>().HasIndex(x => x.SourcePurchaseLineId);
             modelBuilder.Entity<StockLot>().HasIndex(x => x.SourcePurchaseLineId);

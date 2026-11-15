@@ -3843,6 +3843,8 @@ namespace RaccoonWarehouse.Data.Migrations
 
                     b.HasIndex("VoucherId");
 
+                    b.HasIndex("InvoiceType", "CreatedDate", "Id");
+
                     b.ToTable("Invoice");
                 });
 
