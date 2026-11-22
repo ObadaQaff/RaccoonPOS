@@ -9,6 +9,13 @@
 
     <Window.Resources>
 
+        <Style x:Key="ProductNameCellStyle"
+               TargetType="TextBlock"
+               BasedOn="{StaticResource ProductValueTextStyle}">
+            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+            <Setter Property="ToolTip" Value="{Binding Text, RelativeSource={RelativeSource Self}}"/>
+        </Style>
+
         <!-- Primary button (blue) -->
         <Style x:Key="PrimaryButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="#2478D4"/>
@@ -512,8 +519,8 @@
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="المنتج"
                                                 Binding="{Binding ProductName}"
-                                                ElementStyle="{StaticResource ProductValueTextStyle}"
-                                                MinWidth="160" Width="*"/>
+                                                ElementStyle="{StaticResource ProductNameCellStyle}"
+                                                Width="250"/>
 
                             <DataGridTextColumn Header="الوحدة"
                                                 Binding="{Binding UnitName}"
@@ -565,6 +572,11 @@
                                                 Binding="{Binding TaxAmount, StringFormat=0.######, Mode=OneWay}"
                                                 IsReadOnly="True"
                                                 Width="75"/>
+
+                            <DataGridTextColumn Header="الضريبة (%) / Tax (%)"
+                                                Binding="{Binding TaxRate, StringFormat={}{0:0.##}%, Mode=OneWay}"
+                                                IsReadOnly="True"
+                                                Width="85"/>
 
                             <DataGridTextColumn Header="السعر"
                                           Binding="{Binding UnitPrice, StringFormat=0.000, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"

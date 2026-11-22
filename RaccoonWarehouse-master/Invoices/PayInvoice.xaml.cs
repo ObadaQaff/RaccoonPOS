@@ -1047,12 +1047,14 @@ namespace RaccoonWarehouse.Invoices
                             return;
 
                         ProductsGrid.UpdateLayout();
+                        ProductsGrid.CurrentCell = new DataGridCellInfo(targetLine, currentColumn);
                         ProductsGrid.BeginEdit();
+                        ProductsGrid.CurrentCell = new DataGridCellInfo(targetLine, currentColumn);
 
                         var row = ProductsGrid.ItemContainerGenerator.ContainerFromItem(targetLine) as DataGridRow;
                         var cell = row == null
                             ? null
-                            : FindGridCell(row, currentColumn.DisplayIndex);
+                            : FindGridCell(row, currentColumn);
 
                         if (cell == null)
                             return;
@@ -1109,10 +1111,18 @@ namespace RaccoonWarehouse.Invoices
             }
         }
 
-        private static DataGridCell? FindGridCell(DataGridRow row, int displayIndex)
+        private static DataGridCell? FindGridCell(DataGridRow row, DataGridColumn column)
         {
             var presenter = FindVisualChild<DataGridCellsPresenter>(row);
-            return presenter?.ItemContainerGenerator.ContainerFromIndex(displayIndex) as DataGridCell;
+            if (presenter == null)
+                return null;
+
+            var indexedCell = presenter.ItemContainerGenerator.ContainerFromIndex(column.DisplayIndex) as DataGridCell;
+            if (indexedCell?.Column == column)
+                return indexedCell;
+
+            return FindVisualChildren<DataGridCell>(presenter)
+                .FirstOrDefault(cell => cell.Column == column);
         }
 
         private static T? FindVisualParent<T>(DependencyObject? child) where T : DependencyObject
@@ -1144,6 +1154,19 @@ namespace RaccoonWarehouse.Invoices
             }
 
             return null;
+        }
+
+        private static IEnumerable<T> FindVisualChildren<T>(DependencyObject parent) where T : DependencyObject
+        {
+            for (var i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+            {
+                var child = VisualTreeHelper.GetChild(parent, i);
+                if (child is T match)
+                    yield return match;
+
+                foreach (var nestedMatch in FindVisualChildren<T>(child))
+                    yield return nestedMatch;
+            }
         }
 
         private static bool IsCellTypingKey(Key key)
