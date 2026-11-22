@@ -65,7 +65,7 @@ namespace RaccoonWarehouse.Notifications
         {
             var (accent, border) = severity switch
             {
-                NotificationSeverity.Success => ("#145A4A", "#B7D8D1"),
+                NotificationSeverity.Success => ("#5B2BE0", "#B7D8D1"),
                 NotificationSeverity.Warning => ("#C18D00", "#EAD7A6"),
                 NotificationSeverity.Error => ("#B32424", "#E4B1B1"),
                 _ => ("#2F83C5", "#C8D9E8")

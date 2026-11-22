@@ -22,8 +22,8 @@
         <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
 
         <LinearGradientBrush x:Key="HeroBrush" StartPoint="0,0" EndPoint="1,0">
-            <GradientStop Color="#356FA8" Offset="0"/>
-            <GradientStop Color="#0F5B52" Offset="1"/>
+            <GradientStop Color="#2478D4" Offset="0"/>
+            <GradientStop Color="#14A6A6" Offset="1"/>
         </LinearGradientBrush>
 
         <Style x:Key="PrimaryButtonStyle" TargetType="Button">
@@ -68,7 +68,6 @@
         </Style>
 
         <Style x:Key="ReportDataGridStyle" TargetType="DataGrid">
-            <Setter Property="RowHeight" Value="42"/>
             <Setter Property="MinRowHeight" Value="42"/>
             <Setter Property="ColumnHeaderHeight" Value="46"/>
             <Setter Property="GridLinesVisibility" Value="Horizontal"/>
@@ -325,18 +324,19 @@
                         <DataGridTextColumn Header="تكلفة المخزون" Binding="{Binding PurchasePrice}" Width="130"/>
                         <DataGridTextColumn Header="سعر البيع الحالي" Binding="{Binding SalePrice}" Width="130"/>
                         <DataGridTextColumn Header="أقرب انتهاء" Binding="{Binding NearestExpiryDate, StringFormat=yyyy-MM-dd, TargetNullValue=-}" Width="150"/>
-                        <DataGridTemplateColumn Header="Lots / الدفعات" Width="360">
+                        <DataGridTemplateColumn Header="Lots / الدفعات" Width="470">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
-                                    <ScrollViewer MaxHeight="110"
+                                    <ScrollViewer MaxHeight="180"
+                                                  Margin="0,2"
                                                   VerticalScrollBarVisibility="Auto"
                                                   HorizontalScrollBarVisibility="Disabled">
                                         <StackPanel>
-                                            <Grid Margin="0,0,0,2">
+                                            <Grid Margin="0,0,0,4">
                                                 <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="125"/>
-                                                    <ColumnDefinition Width="95"/>
-                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="145"/>
+                                                    <ColumnDefinition Width="110"/>
+                                                    <ColumnDefinition Width="110"/>
                                                 </Grid.ColumnDefinitions>
                                                 <TextBlock Grid.Column="0" Text="Expiry / انتهاء" FontWeight="SemiBold"/>
                                                 <TextBlock Grid.Column="1" Text="Qty / كمية" FontWeight="SemiBold" TextAlignment="Right"/>
@@ -353,9 +353,9 @@
                                                                 CornerRadius="5">
                                                             <Grid>
                                                                 <Grid.ColumnDefinitions>
-                                                                    <ColumnDefinition Width="125"/>
-                                                                    <ColumnDefinition Width="95"/>
-                                                                    <ColumnDefinition Width="*"/>
+                                                                    <ColumnDefinition Width="145"/>
+                                                                    <ColumnDefinition Width="110"/>
+                                                                    <ColumnDefinition Width="110"/>
                                                                 </Grid.ColumnDefinitions>
                                                                 <TextBlock Grid.Column="0"
                                                                            Text="{Binding ExpiryDate, StringFormat=yyyy-MM-dd, TargetNullValue=-}"/>
@@ -396,7 +396,7 @@
                 Background="#E8EEF3"
                 CornerRadius="18"
                 Padding="12">
-            <TextBlock Text="© 2026 Raccoon Warehouse"
+            <TextBlock Text="© 2026 The System"
                        HorizontalAlignment="Center"
                        Foreground="#416784"
                        FontWeight="SemiBold"/>

@@ -6,6 +6,7 @@ using RaccoonWarehouse.Helpers.Localization;
 using RaccoonWarehouse.Helpers;
 using ClosedXML.Excel;
 using Microsoft.Win32;
+using Microsoft.Extensions.DependencyInjection;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
@@ -17,11 +18,12 @@ namespace RaccoonWarehouse.Stocks.Reports
     {
         private readonly IStockReportService _reports;
         private readonly IUserService _users;
+        private readonly IServiceProvider _serviceProvider;
         private bool _isReady;
-        public ExpiringStockReport(IStockReportService reports, IUserService users)
+        public ExpiringStockReport(IStockReportService reports, IUserService users, IServiceProvider serviceProvider)
         {
             
-            InitializeComponent(); _reports = reports; _users = users; SupplierComboBoxSearch.Attach(SupplierComboBox); UiText.ApplyWindow(this); Loaded += LoadedAsync;
+            InitializeComponent(); _reports = reports; _users = users; _serviceProvider = serviceProvider; SupplierComboBoxSearch.Attach(SupplierComboBox); UiText.ApplyWindow(this); Loaded += LoadedAsync;
         }
         private async void LoadedAsync(object sender, RoutedEventArgs e)
         {
@@ -47,6 +49,20 @@ namespace RaccoonWarehouse.Stocks.Reports
             await LoadAsync();
         }
         private async void Refresh_Click(object sender, RoutedEventArgs e) => await LoadAsync();
+        private async void OpenAdjustment_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button { DataContext: ExpiringStockRowDto row })
+                return;
+
+            var window = _serviceProvider.GetRequiredService<RaccoonWarehouse.Stocks.StockAdjustmentWindow>();
+            window.InitialProductId = row.ProductId;
+            window.Owner = this;
+            window.ShowDialog();
+
+            if (window.SavedSuccessfully)
+                await LoadAsync();
+        }
+
         private void ExportExcel_Click(object sender, RoutedEventArgs e)
         {
             var rows = ResultsGrid.Items.OfType<ExpiringStockRowDto>().ToList();

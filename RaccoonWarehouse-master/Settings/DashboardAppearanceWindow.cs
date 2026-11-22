@@ -31,7 +31,7 @@ public sealed class DashboardAppearanceWindow : Window
         panel.Children.Add(new TextBlock { Text = "تخصيص لوحة التحكم / Dashboard Appearance", FontSize = 26, FontWeight = FontWeights.Bold });
         panel.Children.Add(new TextBlock
         {
-            Text = "تخصيص الألوان والعنوان والشعار / Customize colors, title, and logo. Use values such as #FFF or #145A4A.",
+            Text = "تخصيص الألوان والعنوان والشعار / Customize colors, title, and logo. Use values such as #FFF or #5B2BE0.",
             FlowDirection = FlowDirection.LeftToRight,
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 8, 0, 14)
@@ -279,7 +279,7 @@ public sealed class DashboardAppearanceWindow : Window
         {
             "#000000", "#FFFFFF", "#808080", "#C0C0C0", "#800000", "#FF0000", "#800080", "#FF00FF",
             "#008000", "#00FF00", "#808000", "#FFFF00", "#000080", "#0000FF", "#008080", "#00FFFF",
-            "#145A4A", "#0F4A3E", "#134B70", "#2D8DCF", "#F2C46D", "#FF8A65", "#9C27B0", "#607D8B"
+            "#5B2BE0", "#4520B2", "#2478D4", "#2478D4", "#F2C46D", "#FF8A65", "#9C27B0", "#607D8B"
         })
         {
             var swatchColor = (Color)ColorConverter.ConvertFromString(hex)!;

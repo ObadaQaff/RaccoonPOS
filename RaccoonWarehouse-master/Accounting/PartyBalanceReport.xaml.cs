@@ -4,6 +4,7 @@ using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Reports.Accounting.Dtos;
 using RaccoonWarehouse.Domain.Reports.Accounting.Filters;
 using RaccoonWarehouse.Helpers.Localization;
+using RaccoonWarehouse.Helpers.Pdf;
 using RaccoonWarehouse.Navigation;
 using RaccoonWarehouse.Vouchers;
 using System;
@@ -220,20 +221,50 @@ namespace RaccoonWarehouse.Accounting
                     return;
 
                 var isCustomer = _role == UserRole.Customer;
+                var branding = DocumentPrintRuntime.Branding();
+                var reportTitle = _combinedMode
+                    ? UiText.T("أرصدة الحسابات", "Accounts balances")
+                    : isCustomer
+                        ? UiText.T("ذمم العملاء", "Customer balances")
+                        : UiText.T("ذمم الموردين", "Supplier payables");
                 using var workbook = new XLWorkbook();
-                var worksheet = workbook.Worksheets.Add(_combinedMode ? "Party Balances" : isCustomer ? "Customer Balances" : "Supplier Balances");
-                worksheet.Cell(1, 1).Value = _combinedMode ? "Accounts balances" : isCustomer ? "Customer balances" : "Supplier balances";
-                worksheet.Cell(2, 1).Value = "As of date";
-                worksheet.Cell(2, 2).Value = AsOfDatePicker.SelectedDate?.ToString("yyyy-MM-dd") ?? string.Empty;
-                worksheet.Cell(3, 1).Value = "Total outstanding";
-                worksheet.Cell(3, 2).Value = _combinedMode
+                var worksheet = workbook.Worksheets.Add(UiText.IsEnglish ? "Supplier Balances" : "ذمم الموردين");
+                worksheet.RightToLeft = !UiText.IsEnglish;
+
+                var columnCount = _combinedMode ? 7 : 6;
+                worksheet.Range(1, 1, 1, columnCount).Merge();
+                worksheet.Cell(1, 1).Value = reportTitle;
+                worksheet.Cell(2, 1).Value = branding.DisplayName;
+                worksheet.Range(2, 1, 2, columnCount).Merge();
+                worksheet.Cell(3, 1).Value = string.Join(" | ", new[] { branding.Address, branding.Phone }.Where(x => !string.IsNullOrWhiteSpace(x)));
+                worksheet.Range(3, 1, 3, columnCount).Merge();
+                worksheet.Cell(4, 1).Value = string.IsNullOrWhiteSpace(branding.TaxNumber)
+                    ? string.Empty
+                    : UiText.T("الرقم الضريبي: ", "Tax number: ") + branding.TaxNumber;
+                worksheet.Range(4, 1, 4, columnCount).Merge();
+                worksheet.Cell(5, 1).Value = UiText.T("حتى تاريخ", "As of date");
+                worksheet.Cell(5, 2).Value = AsOfDatePicker.SelectedDate?.ToString("yyyy-MM-dd") ?? string.Empty;
+                worksheet.Cell(6, 1).Value = UiText.T("إجمالي المستحق", "Total outstanding");
+                worksheet.Cell(6, 2).Value = _combinedMode
                     ? rows.Where(x => x.Balance != 0m).Sum(x => Math.Abs(x.Balance))
                     : rows.Where(x => x.Role == UserRole.Supplier ? x.Balance > 0m : x.Balance < 0m).Sum(x => x.Role == UserRole.Supplier ? x.Balance : -x.Balance);
+                worksheet.Cell(7, 1).Value = UiText.T("عدد الحسابات", "Account count");
+                worksheet.Cell(7, 2).Value = rows.Count;
 
-                const int headerRow = 5;
+                const int headerRow = 9;
                 var headers = _combinedMode
-                    ? new[] { "Party type", "Name", "Phone", "Total debit", "Total credit", "Outstanding balance", "Last movement" }
-                    : new[] { "Name", "Phone", "Total debit", "Total credit", "Outstanding balance", "Last movement" };
+                    ? new[]
+                    {
+                        UiText.T("نوع الحساب", "Party type"), UiText.T("الاسم", "Name"), UiText.T("الهاتف", "Phone"),
+                        UiText.T("إجمالي المدين", "Total debit"), UiText.T("إجمالي الدائن", "Total credit"),
+                        UiText.T("الرصيد المستحق", "Outstanding balance"), UiText.T("آخر حركة", "Last movement")
+                    }
+                    : new[]
+                    {
+                        UiText.T("الاسم", "Name"), UiText.T("الهاتف", "Phone"), UiText.T("إجمالي المدين", "Total debit"),
+                        UiText.T("إجمالي الدائن", "Total credit"), UiText.T("الرصيد المستحق", "Outstanding balance"),
+                        UiText.T("آخر حركة", "Last movement")
+                    };
                 for (var column = 0; column < headers.Length; column++)
                     worksheet.Cell(headerRow, column + 1).Value = headers[column];
 
@@ -257,11 +288,42 @@ namespace RaccoonWarehouse.Accounting
                 header.Style.Font.Bold = true;
                 header.Style.Fill.BackgroundColor = XLColor.FromHtml("#0F766E");
                 header.Style.Font.FontColor = XLColor.White;
+                header.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                header.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
                 var numericStart = _combinedMode ? 4 : 3;
                 worksheet.Columns(numericStart, numericStart + 2).Style.NumberFormat.Format = "#,##0.00000";
                 worksheet.Column(_combinedMode ? 7 : 6).Style.DateFormat.Format = "yyyy-mm-dd";
+                worksheet.Range(headerRow, 1, headerRow + rows.Count, headers.Length).SetAutoFilter();
                 worksheet.Columns().AdjustToContents();
+                worksheet.Columns().Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
                 worksheet.SheetView.FreezeRows(headerRow);
+                worksheet.PageSetup.PageOrientation = XLPageOrientation.Landscape;
+                worksheet.PageSetup.PaperSize = XLPaperSize.A4Paper;
+                worksheet.PageSetup.FitToPages(1, 0);
+                worksheet.PageSetup.Margins.Left = 0.25;
+                worksheet.PageSetup.Margins.Right = 0.25;
+                worksheet.PageSetup.Margins.Top = 0.5;
+                worksheet.PageSetup.Margins.Bottom = 0.5;
+                worksheet.PageSetup.SetRowsToRepeatAtTop(headerRow, headerRow);
+                worksheet.PageSetup.PrintAreas.Add(worksheet.Range(1, 1, headerRow + rows.Count, headers.Length).RangeAddress.ToString());
+                worksheet.PageSetup.Header.Center.AddText(reportTitle);
+                worksheet.PageSetup.Footer.Center.AddText(branding.Footer ?? string.Empty);
+                if (!string.IsNullOrWhiteSpace(branding.LogoBase64))
+                {
+                    try
+                    {
+                        using var logoStream = new MemoryStream(Convert.FromBase64String(branding.LogoBase64));
+                        worksheet.AddPicture(logoStream).MoveTo(worksheet.Cell(1, 1)).WithSize(90, 45);
+                    }
+                    catch (FormatException)
+                    {
+                        // Ignore an invalid legacy logo and still export the report text.
+                    }
+                }
+                worksheet.Range(1, 1, 1, headers.Length).Style.Font.Bold = true;
+                worksheet.Range(1, 1, 1, headers.Length).Style.Font.FontSize = 16;
+                worksheet.Range(1, 1, 1, headers.Length).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                worksheet.Range(2, 1, 4, headers.Length).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
                 workbook.SaveAs(dialog.FileName);
 
                 MessageBox.Show(

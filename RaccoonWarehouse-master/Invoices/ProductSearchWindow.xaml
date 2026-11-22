@@ -126,6 +126,6 @@
                 </DataGrid.Columns>
             </DataGrid>
         </Border>
-        <TextBlock Grid.Row="2" Text="اكتب اسم الصنف أو الكود، عدّل الخلايا بالأسهم ثم اضغط Enter للإضافة." Foreground="#2D8DCF" FontSize="15" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,10,0,0"/>
+        <TextBlock Grid.Row="2" Text="اكتب اسم الصنف أو الكود، عدّل الخلايا بالأسهم ثم اضغط Enter للإضافة." Foreground="#2478D4" FontSize="15" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,10,0,0"/>
     </Grid>
 </Window>

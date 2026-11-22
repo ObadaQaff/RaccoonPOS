@@ -1,4 +1,4 @@
-﻿<Window x:Class="RaccoonWarehouse.Products.Reports.ProductProfitReport"
+<Window x:Class="RaccoonWarehouse.Products.Reports.ProductProfitReport"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:fa="http://schemas.fontawesome.io/icons/"
@@ -13,7 +13,7 @@
 
         <!-- Primary button -->
         <Style x:Key="PrimaryButtonStyle" TargetType="Button">
-            <Setter Property="Background" Value="#2D8DCF"/>
+            <Setter Property="Background" Value="#2478D4"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="FontWeight" Value="Bold"/>
             <Setter Property="FontSize" Value="16"/>
@@ -39,7 +39,7 @@
                TargetType="Button"
                BasedOn="{StaticResource PrimaryButtonStyle}">
             <Setter Property="Background" Value="#E3EAF0"/>
-            <Setter Property="Foreground" Value="#2D8DCF"/>
+            <Setter Property="Foreground" Value="#2478D4"/>
         </Style>
 
         <!-- Combo -->
@@ -87,7 +87,7 @@
         </Grid.RowDefinitions>
 
         <!-- HEADER -->
-        <Border Background="#2D8DCF" Grid.Row="0" Padding="16">
+        <Border Background="#2478D4" Grid.Row="0" Padding="16">
             <TextBlock Text="تقرير أرباح الأصناف"
                        Foreground="White"
                        FontSize="28"
@@ -272,10 +272,10 @@
 
         <!-- FOOTER -->
         <Border Background="#E3EAF0" Grid.Row="2" Padding="10">
-            <TextBlock Text="© 2025 Raccoon Warehouse"
+            <TextBlock Text="© 2025 The System"
                        VerticalAlignment="Center"
                        HorizontalAlignment="Center"
-                       Foreground="#2D8DCF"
+                       Foreground="#2478D4"
                        FontWeight="SemiBold"
                        FontSize="14"/>
         </Border>

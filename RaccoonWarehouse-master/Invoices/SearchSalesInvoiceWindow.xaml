@@ -34,7 +34,20 @@
                 <StackPanel Grid.Column="2" Margin="6"><TextBlock Text="من تاريخ" Foreground="#31566E" FontWeight="SemiBold" Margin="0,0,0,6"/><TextBox x:Name="DaysBackTxt" Style="{StaticResource SearchInputStyle}" Text="0" Visibility="Collapsed" ToolTip="0 = today, 1 = yesterday, 2 = two days ago"/><DatePicker x:Name="DateFrom" Style="{StaticResource SearchInputStyle}" Visibility="Collapsed"/></StackPanel>
                 <StackPanel Grid.Column="3" Margin="6"><TextBlock Text="إلى تاريخ" Foreground="#31566E" FontWeight="SemiBold" Margin="0,0,0,6"/><DatePicker x:Name="DateTo" Style="{StaticResource SearchInputStyle}" Visibility="Collapsed"/></StackPanel>
                 <StackPanel Grid.Column="4" Margin="6"><TextBlock Text="رمز المادة / Item barcode" Foreground="#31566E" FontWeight="SemiBold" Margin="0,0,0,6"/><TextBox x:Name="ItemBarcodeTxt" Style="{StaticResource SearchInputStyle}" ToolTip="Press F1 to search by product name"/></StackPanel>
-                <StackPanel Grid.Row="1" Grid.ColumnSpan="5" Orientation="Horizontal" HorizontalAlignment="Center" Margin="6,14,6,0"><Button Content="بحث" Style="{StaticResource SearchPrimaryButtonStyle}" Click="SearchBtn_Click"/><TextBlock Text="F1 لاختيار صنف بالاسم" Foreground="#718797" VerticalAlignment="Center" Margin="14,0,0,0"/></StackPanel>
+                <StackPanel Grid.Row="1" Grid.ColumnSpan="5" Orientation="Horizontal" HorizontalAlignment="Center" Margin="6,14,6,0">
+                    <StackPanel x:Name="StatusFilterPanel" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,14,0">
+                        <TextBlock Text="الحالة / Status" Foreground="#31566E" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <ComboBox x:Name="StatusFilterCombo" Width="150" Height="42" Style="{StaticResource SearchInputStyle}" SelectedIndex="0">
+                            <ComboBoxItem Content="الكل / All" Tag=""/>
+                            <ComboBoxItem Content="مسودة / Draft" Tag="Draft"/>
+                            <ComboBoxItem Content="مكتملة / Completed" Tag="Completed"/>
+                            <ComboBoxItem Content="مرحّلة / Posted" Tag="Posted"/>
+                            <ComboBoxItem Content="ملغاة / Cancelled" Tag="Cancelled"/>
+                        </ComboBox>
+                    </StackPanel>
+                    <Button Content="بحث" Style="{StaticResource SearchPrimaryButtonStyle}" Click="SearchBtn_Click"/>
+                    <TextBlock Text="F1 لاختيار صنف بالاسم" Foreground="#718797" VerticalAlignment="Center" Margin="14,0,0,0"/>
+                </StackPanel>
             </Grid>
         </Border>
         <Border Grid.Row="2" Background="White" CornerRadius="12" BorderBrush="#D3E0EA" BorderThickness="1" Padding="10">

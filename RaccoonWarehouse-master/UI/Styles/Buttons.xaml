@@ -52,8 +52,8 @@
         </Setter>
     </Style>
 
-    <Color x:Key="PrimaryButtonColor">#145A4A</Color>
-    <Color x:Key="PrimaryButtonHoverColor">#0F4A3E</Color>
+    <Color x:Key="PrimaryButtonColor">#5B2BE0</Color>
+    <Color x:Key="PrimaryButtonHoverColor">#4520B2</Color>
 
     <SolidColorBrush x:Key="PrimaryButtonBrush"
                      Color="{StaticResource PrimaryButtonColor}" />

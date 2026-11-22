@@ -4,13 +4,16 @@ using RaccoonWarehouse.Domain.Reports.Accounting.Dtos;
 using RaccoonWarehouse.Domain.Reports.Accounting.Filters;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Helpers.Localization;
+using RaccoonWarehouse.Helpers.Pdf;
 using RaccoonWarehouse.Navigation;
 using ClosedXML.Excel;
 using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Globalization;
 using System.Linq;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -238,21 +241,56 @@ namespace RaccoonWarehouse
 
             try
             {
+                var branding = DocumentPrintRuntime.Branding();
                 using var workbook = new XLWorkbook();
-                var sheet = workbook.Worksheets.Add("User Statement");
+                var isSupplier = _statementRole == UserRole.Supplier;
+                var partyLabel = isSupplier
+                    ? UiText.T("المورد", "Supplier")
+                    : _statementRole == UserRole.Customer
+                        ? UiText.T("العميل", "Customer")
+                        : UiText.T("الحساب", "Account");
+                var sheet = workbook.Worksheets.Add(UiText.IsEnglish ? $"{partyLabel} Statement" : $"كشف {partyLabel}");
+                sheet.RightToLeft = !UiText.IsEnglish;
+                const int columnCount = 12;
+                var reportTitle = UiText.IsEnglish ? $"{partyLabel} statement" : $"كشف حساب {partyLabel}";
+                sheet.Range(1, 1, 1, columnCount).Merge();
+                sheet.Cell(1, 1).Value = reportTitle;
+                sheet.Range(2, 1, 2, columnCount).Merge();
+                sheet.Cell(2, 1).Value = branding.DisplayName;
+                sheet.Range(3, 1, 3, columnCount).Merge();
+                sheet.Cell(3, 1).Value = string.Join(" | ", new[] { branding.Address, branding.Phone }.Where(x => !string.IsNullOrWhiteSpace(x)));
+                sheet.Range(4, 1, 4, columnCount).Merge();
+                sheet.Cell(4, 1).Value = string.IsNullOrWhiteSpace(branding.TaxNumber)
+                    ? string.Empty
+                    : UiText.T("الرقم الضريبي: ", "Tax number: ") + branding.TaxNumber;
+                sheet.Cell(5, 1).Value = partyLabel;
+                sheet.Cell(5, 2).Value = UserSummaryText.Text;
+                sheet.Cell(6, 1).Value = UiText.T("من تاريخ", "From date");
+                sheet.Cell(6, 2).Value = FromDatePicker.SelectedDate?.ToString("yyyy-MM-dd") ?? string.Empty;
+                sheet.Cell(6, 3).Value = UiText.T("إلى تاريخ", "To date");
+                sheet.Cell(6, 4).Value = ToDatePicker.SelectedDate?.ToString("yyyy-MM-dd") ?? string.Empty;
+                sheet.Cell(7, 1).Value = UiText.T("الرصيد الختامي", "Closing balance");
+                sheet.Cell(7, 2).Value = decimal.TryParse(ClosingText.Text, NumberStyles.Any, CultureInfo.CurrentCulture, out var closing) ? closing : 0m;
+                sheet.Cell(7, 3).Value = UiText.T("إجمالي المدين", "Total debit");
+                sheet.Cell(7, 4).Value = decimal.TryParse(DebitText.Text, NumberStyles.Any, CultureInfo.CurrentCulture, out var debit) ? debit : 0m;
+                sheet.Cell(7, 5).Value = UiText.T("إجمالي الدائن", "Total credit");
+                sheet.Cell(7, 6).Value = decimal.TryParse(CreditText.Text, NumberStyles.Any, CultureInfo.CurrentCulture, out var credit) ? credit : 0m;
                 var headers = new[]
                 {
-                    "Date", "Entry number", "Description", "Reference", "Reference type",
-                    "Reference ID", "Document amount", "Payment method", "Document type", "Debit", "Credit", "Running balance"
+                    UiText.T("التاريخ", "Date"), UiText.T("رقم القيد", "Entry number"), UiText.T("البيان", "Description"),
+                    UiText.T("المرجع", "Reference"), UiText.T("نوع المرجع", "Reference type"), UiText.T("رقم المرجع", "Reference ID"),
+                    UiText.T("المبلغ", "Document amount"), UiText.T("طريقة الدفع", "Payment method"), UiText.T("نوع المستند", "Document type"),
+                    UiText.T("مدين", "Debit"), UiText.T("دائن", "Credit"), UiText.T("الرصيد الجاري", "Running balance")
                 };
 
+                const int headerRow = 10;
                 for (var i = 0; i < headers.Length; i++)
-                    sheet.Cell(1, i + 1).Value = headers[i];
+                    sheet.Cell(headerRow, i + 1).Value = headers[i];
 
                 for (var rowIndex = 0; rowIndex < rows.Count; rowIndex++)
                 {
                     var row = rows[rowIndex];
-                    var excelRow = rowIndex + 2;
+                    var excelRow = headerRow + rowIndex + 1;
                     sheet.Cell(excelRow, 1).Value = row.EntryDate;
                     sheet.Cell(excelRow, 2).Value = row.EntryNumber;
                     sheet.Cell(excelRow, 3).Value = row.Description;
@@ -267,15 +305,46 @@ namespace RaccoonWarehouse
                     sheet.Cell(excelRow, 12).Value = row.RunningBalance;
                 }
 
-                var usedRange = sheet.Range(1, 1, rows.Count + 1, headers.Length);
+                var usedRange = sheet.Range(headerRow, 1, headerRow + rows.Count, headers.Length);
                 usedRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
                 usedRange.Style.Alignment.WrapText = true;
-                sheet.Row(1).Style.Font.Bold = true;
-                sheet.Row(1).Style.Fill.BackgroundColor = XLColor.LightGray;
+                sheet.Row(headerRow).Style.Font.Bold = true;
+                sheet.Row(headerRow).Style.Fill.BackgroundColor = XLColor.FromHtml("#0F766E");
+                sheet.Row(headerRow).Style.Font.FontColor = XLColor.White;
+                sheet.Row(headerRow).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
                 sheet.Column(1).Style.DateFormat.Format = "yyyy-MM-dd";
                 sheet.Columns(7, 7).Style.NumberFormat.Format = "#,##0.00";
                 sheet.Columns(10, 12).Style.NumberFormat.Format = "#,##0.00";
                 sheet.Columns().AdjustToContents();
+                sheet.Range(headerRow, 1, headerRow + rows.Count, headers.Length).SetAutoFilter();
+                sheet.SheetView.FreezeRows(headerRow);
+                sheet.PageSetup.PageOrientation = XLPageOrientation.Landscape;
+                sheet.PageSetup.PaperSize = XLPaperSize.A4Paper;
+                sheet.PageSetup.FitToPages(1, 0);
+                sheet.PageSetup.Margins.Left = 0.25;
+                sheet.PageSetup.Margins.Right = 0.25;
+                sheet.PageSetup.Margins.Top = 0.5;
+                sheet.PageSetup.Margins.Bottom = 0.5;
+                sheet.PageSetup.SetRowsToRepeatAtTop(headerRow, headerRow);
+                sheet.PageSetup.PrintAreas.Add(sheet.Range(1, 1, headerRow + rows.Count, headers.Length).RangeAddress.ToString());
+                sheet.PageSetup.Header.Center.AddText(reportTitle);
+                sheet.PageSetup.Footer.Center.AddText(branding.Footer ?? string.Empty);
+                sheet.Range(1, 1, 1, headers.Length).Style.Font.Bold = true;
+                sheet.Range(1, 1, 1, headers.Length).Style.Font.FontSize = 16;
+                sheet.Range(1, 1, 1, headers.Length).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                sheet.Range(2, 1, 7, headers.Length).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                if (!string.IsNullOrWhiteSpace(branding.LogoBase64))
+                {
+                    try
+                    {
+                        using var logoStream = new MemoryStream(Convert.FromBase64String(branding.LogoBase64));
+                        sheet.AddPicture(logoStream).MoveTo(sheet.Cell(1, 1)).WithSize(90, 45);
+                    }
+                    catch (FormatException)
+                    {
+                        // Ignore an invalid legacy logo and still export the report text.
+                    }
+                }
                 workbook.SaveAs(dialog.FileName);
 
                 MessageBox.Show(UiText.T("تم تصدير كشف الحساب بنجاح.", "The account statement was exported successfully."));

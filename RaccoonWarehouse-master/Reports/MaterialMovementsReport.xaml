@@ -18,8 +18,8 @@
         <SolidColorBrush x:Key="SoftBrush" Color="#E6EEF5"/>
 
         <LinearGradientBrush x:Key="HeroBrush" StartPoint="0,0" EndPoint="1,0">
-            <GradientStop Color="#356FA8" Offset="0"/>
-            <GradientStop Color="#0F5B52" Offset="1"/>
+            <GradientStop Color="#2478D4" Offset="0"/>
+            <GradientStop Color="#14A6A6" Offset="1"/>
         </LinearGradientBrush>
 
         <Style x:Key="PrimaryButtonStyle" TargetType="Button">
@@ -179,7 +179,7 @@
         </Grid>
 
         <Border Grid.Row="2" Margin="22,0,22,20" Background="#E8EEF3" CornerRadius="18" Padding="12">
-            <TextBlock Text="© 2026 Raccoon Warehouse" HorizontalAlignment="Center" Foreground="#416784" FontWeight="SemiBold"/>
+            <TextBlock Text="© 2026 The System" HorizontalAlignment="Center" Foreground="#416784" FontWeight="SemiBold"/>
         </Border>
     </Grid>
 </Window>

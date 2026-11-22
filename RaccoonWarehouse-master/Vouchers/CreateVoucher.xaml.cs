@@ -910,7 +910,7 @@ namespace RaccoonWarehouse.Vouchers
                 FontSize = 20,
                 FontWeight = FontWeights.Bold
             };
-            header.Inlines.Add("Raccoon Warehouse");
+            header.Inlines.Add("The System");
             doc.Blocks.Add(header);
 
             var subHeader = new Paragraph
@@ -1066,7 +1066,7 @@ namespace RaccoonWarehouse.Vouchers
                 FontSize = 26,
                 FontWeight = FontWeights.Bold
             };
-            header.Inlines.Add("Raccoon Warehouse");
+            header.Inlines.Add("The System");
             doc.Blocks.Add(header);
 
             Paragraph title = new Paragraph
@@ -1215,7 +1215,7 @@ namespace RaccoonWarehouse.Vouchers
                 FontSize = 26,
                 FontWeight = FontWeights.Bold
             };
-            header.Inlines.Add("Raccoon Warehouse");
+            header.Inlines.Add("The System");
             doc.Blocks.Add(header);
 
             Paragraph title = new Paragraph

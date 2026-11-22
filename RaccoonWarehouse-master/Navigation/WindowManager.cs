@@ -60,6 +60,8 @@ namespace RaccoonWarehouse.Navigation
             _windows[typeof(T)] = (window, scope);
 
             window.Show();
+            window.Activate();
+            window.Focus();
         }
         //public static void Show<T>(
         //WindowSizeType size = WindowSizeType.MediumRectangle,

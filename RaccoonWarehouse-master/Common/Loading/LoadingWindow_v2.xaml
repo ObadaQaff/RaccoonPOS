@@ -16,31 +16,26 @@
         <Border Width="351"
                 Padding="24"
                 CornerRadius="26"
+                Background="White"
+                BorderBrush="#DCE6EA"
+                BorderThickness="1"
                 HorizontalAlignment="Left"
                 VerticalAlignment="Center"
                 Effect="{StaticResource DropShadowSoft}" Height="336" Margin="29,0,0,0">
-            <Border.Background>
-                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                    <GradientStop Color="#1D2936" Offset="0"/>
-                    <GradientStop Color="#214756" Offset="0.55"/>
-                    <GradientStop Color="#2E6B63" Offset="1"/>
-                </LinearGradientBrush>
-            </Border.Background>
-
             <Grid>
                 <StackPanel HorizontalAlignment="Center"
                             VerticalAlignment="Center">
                     <Border Width="74"
                             Height="74"
                             CornerRadius="37"
-                            Background="#14FFFFFF"
-                            BorderBrush="#24FFFFFF"
+                            Background="Transparent"
+                            BorderBrush="#DCE6EA"
                             BorderThickness="1"
                             Margin="0,0,0,16">
                         <Grid>
-                            <Image Source="pack://application:,,,/Assets/logo/Logo newfinal.ico"
-                                   Width="40"
-                                   Height="40"
+                            <Image Source="pack://application:,,,/Assets/logo/TheSystemLogo.png"
+                                   Width="58"
+                                   Height="58"
                                    Stretch="Uniform"
                                    HorizontalAlignment="Center"
                                    VerticalAlignment="Center"/>
@@ -50,10 +45,10 @@
                     <Grid Width="60"
                           Height="60"
                           Margin="0,0,0,18">
-                        <Ellipse Stroke="#22FFFFFF"
+                        <Ellipse Stroke="#DCE6EA"
                                  StrokeThickness="5"/>
 
-                        <Ellipse Stroke="#A9E5BB"
+                        <Ellipse Stroke="#5B2BE0"
                                  StrokeThickness="5"
                                  StrokeDashArray="1.2 2.8"
                                  StrokeStartLineCap="Round"
@@ -78,7 +73,7 @@
 
                         <Ellipse Width="36"
                                  Height="36"
-                                 Stroke="#4DD7F1E5"
+                                 Stroke="#4D14C8C4"
                                  StrokeThickness="3"
                                  StrokeDashArray="0.8 3.6"
                                  StrokeStartLineCap="Round"
@@ -104,10 +99,10 @@
                         </Ellipse>
                     </Grid>
 
-                    <TextBlock Text="Raccoon Warehouse"
+                    <TextBlock Text="The System"
                                FontSize="19"
                                FontWeight="Bold"
-                               Foreground="White"
+                               Foreground="{DynamicResource AppTextBrush}"
                                HorizontalAlignment="Center"
                                TextAlignment="Center"
                                Margin="0,0,0,4"/>
@@ -117,7 +112,7 @@
                                Margin="0,8,0,0"
                                FontSize="13"
                                FontWeight="SemiBold"
-                               Foreground="#DDEDEA"
+                               Foreground="{DynamicResource AppMutedTextBrush}"
                                HorizontalAlignment="Center"
                                TextAlignment="Center"
                                TextWrapping="Wrap"
@@ -127,7 +122,7 @@
                                Text="Loading dashboard and actions"
                                Margin="0,4,0,0"
                                FontSize="11"
-                               Foreground="#B9D0CC"
+                               Foreground="#71838C"
                                HorizontalAlignment="Center"
                                TextAlignment="Center"
                                Visibility="Collapsed"/>
@@ -139,15 +134,15 @@
                                  Width="220"
                                  Height="8"
                                  Margin="0,16,0,5"
-                                 Foreground="#A9E5BB"
-                                 Background="#35FFFFFF"
+                                 Foreground="{DynamicResource AppPrimaryBrush}"
+                                 Background="#DCE6EA"
                                  BorderThickness="0"
                                  Visibility="Collapsed"/>
 
                     <TextBlock x:Name="ProgressText"
                                Text="0%"
                                FontSize="11"
-                               Foreground="#DDEDEA"
+                               Foreground="{DynamicResource AppMutedTextBrush}"
                                HorizontalAlignment="Center"
                                TextAlignment="Center"
                                Visibility="Collapsed"/>

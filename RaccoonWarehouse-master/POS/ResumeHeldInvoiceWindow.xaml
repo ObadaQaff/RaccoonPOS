@@ -15,7 +15,7 @@
         </Grid.RowDefinitions>
 
         <!-- HEADER -->
-        <Border Background="#2D8DCF" Grid.Row="0">
+        <Border Background="#2478D4" Grid.Row="0">
             <TextBlock Text="الفواتير المعلقة"
                        Foreground="White"
                        FontSize="28"
@@ -68,7 +68,7 @@
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                 <TextBlock Text="حدد الفاتورة ثم اضغط استئناف"
                            VerticalAlignment="Center"
-                           Foreground="#2D8DCF"
+                           Foreground="#2478D4"
                            FontSize="16"
                            FontWeight="SemiBold"
                            Margin="0,0,20,0"/>

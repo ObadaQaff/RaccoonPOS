@@ -984,7 +984,7 @@ namespace RaccoonWarehouse.Stocks
                 FontSize = 26,
                 FontWeight = FontWeights.Bold
             };
-            header.Inlines.Add("Raccoon Warehouse");
+            header.Inlines.Add("The System");
             doc.Blocks.Add(header);
 
             var title = new Paragraph

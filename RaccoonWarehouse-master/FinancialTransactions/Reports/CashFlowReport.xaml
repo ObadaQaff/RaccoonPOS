@@ -11,7 +11,7 @@
 
     <Window.Resources>
         <Style x:Key="PrimaryButtonStyle" TargetType="Button">
-            <Setter Property="Background" Value="#2D8DCF"/>
+            <Setter Property="Background" Value="#2478D4"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="FontWeight" Value="Bold"/>
             <Setter Property="FontSize" Value="16"/>
@@ -31,7 +31,7 @@
 
         <Style x:Key="SecondaryButtonStyle" TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
             <Setter Property="Background" Value="#E3EAF0"/>
-            <Setter Property="Foreground" Value="#2D8DCF"/>
+            <Setter Property="Foreground" Value="#2478D4"/>
         </Style>
 
         <Style x:Key="ComboStyle" TargetType="ComboBox">
@@ -75,7 +75,7 @@
         </Grid.RowDefinitions>
 
         <!-- HEADER -->
-        <Border Background="#2D8DCF" Grid.Row="0" Padding="10">
+        <Border Background="#2478D4" Grid.Row="0" Padding="10">
             <TextBlock Text="المدفوعات والمقبوضات"
                        Foreground="White"
                        FontSize="24"
@@ -251,9 +251,9 @@
 
         <!-- FOOTER -->
         <Border Background="#E3EAF0" Grid.Row="2" Padding="10">
-            <TextBlock Text="© 2025 Raccoon Warehouse"
+            <TextBlock Text="© 2025 The System"
                        HorizontalAlignment="Center"
-                       Foreground="#2D8DCF"
+                       Foreground="#2478D4"
                        FontWeight="SemiBold"
                        FontSize="14"/>
         </Border>

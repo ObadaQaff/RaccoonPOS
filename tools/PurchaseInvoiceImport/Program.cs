@@ -17,6 +17,7 @@ using RaccoonWarehouse.Domain.InvoiceLines.DTOs;
 using RaccoonWarehouse.Domain.Invoices.DTOs;
 using RaccoonWarehouse.Domain.Products;
 using RaccoonWarehouse.Domain.ProductUnits;
+using RaccoonWarehouse.Domain.StockLots;
 using RaccoonWarehouse.Domain.Users;
 using RaccoonWarehouse.Domain.Warehouses;
 
@@ -39,6 +40,13 @@ if (args.Any(x => string.Equals(x, "--cleanup", StringComparison.OrdinalIgnoreCa
 
 if (!File.Exists(workbookPath))
     throw new FileNotFoundException("Purchase invoice workbook was not found.", workbookPath);
+
+if (args.Any(x => string.Equals(x, "--update-sale-prices", StringComparison.OrdinalIgnoreCase)))
+{
+    var apply = args.Any(x => string.Equals(x, "--apply", StringComparison.OrdinalIgnoreCase));
+    await SalePriceUpdater.RunAsync(workbookPath, apply);
+    return;
+}
 
 if (args.Any(x => string.Equals(x, "--all", StringComparison.OrdinalIgnoreCase)))
 {
@@ -705,6 +713,128 @@ internal static class FullImporter
         return Math.Abs(inferred - rounded) <= 0.02m && rounded >= 1m
             ? rounded
             : Math.Max(1m, Math.Round(inferred, 6, MidpointRounding.AwayFromZero));
+    }
+}
+
+internal static class SalePriceUpdater
+{
+    public static async Task RunAsync(string workbookPath, bool apply)
+    {
+        var rows = CsvReader.Read(workbookPath).ToList();
+        var groups = rows
+            .GroupBy(x => x.InvoiceId, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (groups.Count == 0)
+            throw new InvalidOperationException("The CSV contains no invoices.");
+
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseSqlServer(DatabaseConnectionStringProvider.GetConnectionString())
+            .Options;
+        await using var db = new ApplicationDbContext(options);
+
+        var invoiceIds = groups.Select(x => x.Key).ToList();
+        var invoices = await db.Set<RaccoonWarehouse.Domain.Invoices.Invoice>()
+            .Where(x => x.FalconInvoiceNumber != null && invoiceIds.Contains(x.FalconInvoiceNumber))
+            .Include(x => x.InvoiceLines!)
+            .ToListAsync();
+        var invoiceBySourceId = invoices
+            .Where(x => !string.IsNullOrWhiteSpace(x.FalconInvoiceNumber))
+            .ToDictionary(x => x.FalconInvoiceNumber!, StringComparer.OrdinalIgnoreCase);
+
+        var allLines = invoices
+            .SelectMany(x => x.InvoiceLines ?? Enumerable.Empty<RaccoonWarehouse.Domain.InvoiceLines.InvoiceLine>())
+            .ToList();
+        var lineIds = allLines.Select(x => x.Id).ToList();
+        var lots = lineIds.Count == 0
+            ? new List<StockLot>()
+            : await db.Set<StockLot>()
+                .Where(x => x.SourcePurchaseLineId.HasValue && lineIds.Contains(x.SourcePurchaseLineId.Value))
+                .ToListAsync();
+        var lotsByLineId = lots
+            .Where(x => x.SourcePurchaseLineId.HasValue)
+            .GroupBy(x => x.SourcePurchaseLineId!.Value)
+            .ToDictionary(x => x.Key, x => x.ToList());
+
+        var missingInvoices = new List<string>();
+        var mismatchedLines = new List<string>();
+        var missingLots = new List<string>();
+        var changed = 0;
+        var unchanged = 0;
+        var affectedLots = 0;
+
+        foreach (var group in groups)
+        {
+            if (!invoiceBySourceId.TryGetValue(group.Key, out var invoice))
+            {
+                missingInvoices.Add(group.Key);
+                continue;
+            }
+
+            var sourceRows = group.ToList();
+            var invoiceLines = (invoice.InvoiceLines ?? Enumerable.Empty<RaccoonWarehouse.Domain.InvoiceLines.InvoiceLine>())
+                .OrderBy(x => x.Id)
+                .ToList();
+            if (sourceRows.Count != invoiceLines.Count)
+            {
+                mismatchedLines.Add($"{group.Key} (CSV={sourceRows.Count}, DB={invoiceLines.Count})");
+                continue;
+            }
+
+            for (var index = 0; index < sourceRows.Count; index++)
+            {
+                var row = sourceRows[index];
+                var line = invoiceLines[index];
+                if (!lotsByLineId.TryGetValue(line.Id, out var lineLots) || lineLots.Count == 0)
+                {
+                    missingLots.Add($"{group.Key}/line {line.Id}");
+                    continue;
+                }
+
+                foreach (var lot in lineLots)
+                {
+                    affectedLots++;
+                    if (lot.SalePrice == row.SalePrice)
+                    {
+                        unchanged++;
+                        continue;
+                    }
+
+                    if (apply)
+                        lot.SalePrice = row.SalePrice;
+                    changed++;
+                }
+            }
+        }
+
+        if (apply)
+        {
+            await using var transaction = await db.Database.BeginTransactionAsync();
+            await db.SaveChangesAsync();
+            await transaction.CommitAsync();
+        }
+
+        Console.WriteLine($"SALE PRICE UPDATE {(apply ? "APPLIED" : "DRY RUN")}");
+        Console.WriteLine($"CSV invoices: {groups.Count}; matched invoices: {groups.Count - missingInvoices.Count}; affected lots: {affectedLots}");
+        Console.WriteLine($"Changed lots: {changed}; unchanged lots: {unchanged}; missing lots: {missingLots.Count}");
+        Console.WriteLine($"Missing invoices: {missingInvoices.Count}; line-count mismatches: {mismatchedLines.Count}");
+
+        PrintIssues("Missing invoices", missingInvoices);
+        PrintIssues("Line-count mismatches", mismatchedLines);
+        PrintIssues("Missing stock lots", missingLots);
+
+        if (!apply)
+            Console.WriteLine("No database values were changed. Re-run with --update-sale-prices --apply to commit the reported changes.");
+    }
+
+    private static void PrintIssues(string title, IReadOnlyList<string> issues)
+    {
+        if (issues.Count == 0)
+            return;
+
+        Console.WriteLine($"{title}: showing up to 20 of {issues.Count}");
+        foreach (var issue in issues.Take(20))
+            Console.WriteLine($"  - {issue}");
     }
 }
 

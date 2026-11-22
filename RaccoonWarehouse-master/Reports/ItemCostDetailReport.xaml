@@ -102,7 +102,7 @@
         </Grid>
 
         <Border Grid.Row="2" Margin="20,0,20,20" Background="#E7DCC8" CornerRadius="18" Padding="12">
-            <TextBlock Text="Raccoon Warehouse 2025 ©" HorizontalAlignment="Center" Foreground="#365A7C" FontWeight="SemiBold"/>
+            <TextBlock Text="The System 2025 ©" HorizontalAlignment="Center" Foreground="#365A7C" FontWeight="SemiBold"/>
         </Border>
     </Grid>
 </Window>

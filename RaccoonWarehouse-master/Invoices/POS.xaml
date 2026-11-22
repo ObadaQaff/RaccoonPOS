@@ -330,7 +330,7 @@
             <DockPanel>
                 <!-- Logo / app mark -->
                 <Border DockPanel.Dock="Top" Height="94" Background="#17222E">
-                    <Image Source="pack://application:,,,/Assets/Logo/Logo newfinal.png"
+                    <Image Source="pack://application:,,,/Assets/Logo/TheSystemLogo.png"
                            Width="74"
                            Height="74"
                            Stretch="Uniform"

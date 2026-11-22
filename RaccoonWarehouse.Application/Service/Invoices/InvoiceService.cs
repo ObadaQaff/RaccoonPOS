@@ -129,6 +129,7 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                     // Sales prices are tax-inclusive; purchases depend on the invoice setting.
                     var includesTax = !isPurchaseInvoice || dto.CostPriceIncludesTax;
                     var divisor = includesTax ? 1m + (taxRate / 100m) : 1m;
+                    lineTotal = ApplyPercentageBonusToPurchaseCost(lineTotal, l.Quantity, l.BonusPercentage);
 
                     l.LineSubTotal = l.TaxExempt || divisor <= 0m
                         ? lineTotal
@@ -324,7 +325,9 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 if (existingInvoice == null)
                     return Result<InvoiceWriteDto>.Fail("Invoice not found.");
 
-                if (existingInvoice.InvoiceType == InvoiceType.Purchase &&
+                if (existingInvoice.InvoiceType == InvoiceType.Purchase
+                    && existingInvoice.Status is not InvoiceStatus.Draft
+                    && existingInvoice.Status is not InvoiceStatus.OnHold &&
                     !PurchaseEditOnlyChangesAreAllowed(dto, existingInvoice))
                 {
                     return Result<InvoiceWriteDto>.Fail(
@@ -340,7 +343,9 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                     (!int.TryParse(dto.InvoiceNumber, out var invoiceNumber) || invoiceNumber < 100 || invoiceNumber > 99999))
                     return Result<InvoiceWriteDto>.Fail("Invoice number must contain 3 to 5 digits / رقم الفاتورة يجب أن يتكون من 3 إلى 5 أرقام.");
 
-                if (existingInvoice.InvoiceType == InvoiceType.Purchase)
+                if (existingInvoice.InvoiceType == InvoiceType.Purchase
+                    && existingInvoice.Status is not InvoiceStatus.Draft
+                    && existingInvoice.Status is not InvoiceStatus.OnHold)
                 {
                     var purchaseInvoiceNumberUsed = await invoiceRepo.GetAllAsQueryable()
                         .AnyAsync(invoice => invoice.InvoiceNumber == dto.InvoiceNumber && invoice.Id != dto.Id);
@@ -919,6 +924,7 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 // Sales prices are tax-inclusive; purchases depend on the invoice setting.
                 var includesTax = !isPurchaseInvoice || dto.CostPriceIncludesTax;
                 var divisor = includesTax ? 1m + (taxRate / 100m) : 1m;
+                lineTotal = ApplyPercentageBonusToPurchaseCost(lineTotal, l.Quantity, l.BonusPercentage);
 
                 l.LineSubTotal = l.TaxExempt || divisor <= 0m
                     ? lineTotal
@@ -1004,6 +1010,7 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                 // Sales prices are tax-inclusive; purchases depend on the invoice setting.
                 var includesTax = !isPurchaseInvoice || invoice.CostPriceIncludesTax;
                 var divisor = includesTax ? 1m + (rate / 100m) : 1m;
+                lineTotal = ApplyPercentageBonusToPurchaseCost(lineTotal, line.Quantity, line.BonusPercentage);
                 line.LineSubTotal = line.TaxExempt || divisor <= 0m
                     ? lineTotal
                     : Math.Round(lineTotal / divisor, 3);
@@ -1052,6 +1059,20 @@ namespace RaccoonWarehouse.Application.Service.Invoices
                     ? 0m
                     : Math.Round(taxBeforeInvoiceDiscount * taxableRatio, 3);
             }
+        }
+
+        private static decimal ApplyPercentageBonusToPurchaseCost(
+            decimal lineTotal,
+            decimal quantity,
+            decimal? bonusPercentage)
+        {
+            if (!bonusPercentage.HasValue || quantity <= 0m)
+                return lineTotal;
+
+            return Math.Round(
+                PurchaseBonusPercentage.CalculateEquivalentNetTotal(lineTotal, bonusPercentage.Value),
+                3,
+                MidpointRounding.AwayFromZero);
         }
 
         private static void ApplyPurchaseDiscountAndTax(ICollection<InvoiceLine> lines, decimal? discountAmount, bool costPriceIncludesTax)

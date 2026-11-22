@@ -36,6 +36,16 @@ publish/
 /installer/ROCCOPOS-Setup.sed
 *.log
 
+# Local build, verification, and Codex work folders generated at repository root
+/.build*/
+/build*/
+/_buildverify*/
+/.codex*/
+/_codex*/
+/.stage*-tests*/
+/*.DS_Store
+/installer-refresh-*/
+
 # Local JoFotara credentials; never commit these values.
 
 # Generated local build and verification output

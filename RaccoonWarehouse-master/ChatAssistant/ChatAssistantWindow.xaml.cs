@@ -40,7 +40,7 @@ public partial class ChatAssistantWindow : Window
     private void ApplyTexts()
     {
         var english = ((App)System.Windows.Application.Current).IsEnglish;
-        Title = english ? "ROCCOPOS Assistant" : "مساعد ROCCOPOS";
+        Title = english ? "The System Assistant" : "مساعد The System";
         AssistantTitleTextBlock.Text = Title;
         AssistantDescriptionTextBlock.Text = english ? "Ask about documented workflows and features." : "اسأل عن الإجراءات والميزات الموثقة.";
         ClearButton.Content = english ? "Clear" : "مسح";

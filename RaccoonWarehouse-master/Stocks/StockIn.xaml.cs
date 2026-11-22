@@ -1048,7 +1048,7 @@ namespace RaccoonWarehouse.Stocks
                 FontSize = 26,
                 FontWeight = FontWeights.Bold
             };
-            header.Inlines.Add("Raccoon Warehouse");
+            header.Inlines.Add("The System");
             doc.Blocks.Add(header);
 
             var title = new Paragraph
@@ -1383,7 +1383,9 @@ namespace RaccoonWarehouse.Stocks
                     UnitName = item.ProductUnit?.Unit?.Name,
                     Quantity = item.Quantity,
                     PurchasePrice = item.PurchasePrice,
-                    SalePrice = item.SalePrice,
+                    SalePrice = item.SalePrice > 0m
+                        ? item.SalePrice
+                        : item.ProductUnit?.SalePrice ?? 0m,
                     ExpiryDate = item.ExpiryDate,
                     CreatedDate = item.CreatedDate,
                     UpdatedDate = item.UpdatedDate

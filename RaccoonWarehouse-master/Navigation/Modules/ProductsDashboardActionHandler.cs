@@ -2,6 +2,7 @@ using RaccoonWarehouse.Products;
 using RaccoonWarehouse.Products.Reports;
 using RaccoonWarehouse.Reports;
 using RaccoonWarehouse.Navigation;
+using RaccoonWarehouse.Stocks;
 using RaccoonWarehouse.Stocks.Reports;
 
 namespace RaccoonWarehouse.Navigation.Modules
@@ -49,7 +50,7 @@ namespace RaccoonWarehouse.Navigation.Modules
                     context.OpenReportWindow(() => WindowManager.Show<InactiveProductsReport>(WindowSizeType.LargeRectangle));
                     break;
                 case "Stocks.BalancesReport":
-                    context.OpenReportWindow(() => WindowManager.Show<StockBalancesReport>(WindowSizeType.LargeRectangle));
+                    context.OpenReportWindow(() => WindowManager.Show<CurrentStock>(WindowSizeType.LargeRectangle));
                     break;
                 case "Stocks.StockMovementsReport":
                     context.OpenReportWindow(() => WindowManager.Show<StockMovementsReport>(WindowSizeType.LargeRectangle));

@@ -6,12 +6,12 @@
         Background="#F2F6FA" FlowDirection="RightToLeft">
     <Window.Resources>
         <Style x:Key="PrimaryButtonStyle" TargetType="Button">
-            <Setter Property="Background" Value="#2D8DCF"/><Setter Property="Foreground" Value="White"/>
+            <Setter Property="Background" Value="#2478D4"/><Setter Property="Foreground" Value="White"/>
             <Setter Property="FontWeight" Value="Bold"/><Setter Property="FontSize" Value="15"/>
             <Setter Property="Padding" Value="16,8"/><Setter Property="BorderThickness" Value="0"/>
         </Style>
         <Style x:Key="SecondaryButtonStyle" TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
-            <Setter Property="Background" Value="#E3EAF0"/><Setter Property="Foreground" Value="#2D8DCF"/>
+            <Setter Property="Background" Value="#E3EAF0"/><Setter Property="Foreground" Value="#2478D4"/>
         </Style>
         <Style x:Key="ReportGridStyle" TargetType="DataGrid">
             <Setter Property="RowHeight" Value="38"/><Setter Property="ColumnHeaderHeight" Value="44"/>
@@ -23,7 +23,7 @@
     </Window.Resources>
     <Grid Margin="18">
         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-        <Border Grid.Row="0" Background="#2D8DCF" CornerRadius="12" Padding="14" Margin="0,0,0,12">
+        <Border Grid.Row="0" Background="#2478D4" CornerRadius="12" Padding="14" Margin="0,0,0,12">
             <TextBlock x:Name="TitleText" Text="Invoice Payment Methods" Foreground="White" FontSize="25" FontWeight="Bold" HorizontalAlignment="Center"/>
         </Border>
         <Border Grid.Row="1" Background="White" BorderBrush="#D0D7DD" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,0,0,12">
@@ -74,6 +74,6 @@
                 </DataGrid.Columns>
             </DataGrid>
         </Border>
-        <Border Grid.Row="4" Background="#E8EEF3" CornerRadius="12" Padding="10" Margin="0,12,0,0"><TextBlock Text="© 2026 Raccoon Warehouse" HorizontalAlignment="Center" Foreground="#416784"/></Border>
+        <Border Grid.Row="4" Background="#E8EEF3" CornerRadius="12" Padding="10" Margin="0,12,0,0"><TextBlock Text="© 2026 The System" HorizontalAlignment="Center" Foreground="#416784"/></Border>
     </Grid>
 </Window>

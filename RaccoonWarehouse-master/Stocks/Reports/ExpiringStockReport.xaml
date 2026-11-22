@@ -4,7 +4,7 @@
         Title="Expiry and Near-Expiry Stock" Height="750" Width="1250" WindowStartupLocation="CenterScreen" WindowState="Maximized" FlowDirection="RightToLeft" Background="#EEF3F7">
     <Grid Margin="20">
         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-        <Border Background="#0F5B52" CornerRadius="18" Padding="18" Margin="0,0,0,14">
+        <Border Background="#14A6A6" CornerRadius="18" Padding="18" Margin="0,0,0,14">
             <DockPanel>
                 <StackPanel DockPanel.Dock="Right"><TextBlock Text="Expiring and Near-Expiry Stock" Foreground="White" FontSize="28" FontWeight="Bold"/><TextBlock Text="Review batches before expiry and prioritize FEFO dispatch." Foreground="#D3E6F3" FontSize="14"/></StackPanel>
                 <TextBlock x:Name="TotalCostText" DockPanel.Dock="Left" Text="0.000" Foreground="White" FontSize="24" FontWeight="Bold" VerticalAlignment="Center"/>
@@ -25,6 +25,16 @@
             <DataGrid Grid.Row="1" x:Name="ResultsGrid" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" Background="White">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Barcode" Binding="{Binding ITEMCODE}" Width="140"/><DataGridTextColumn Header="Product" Binding="{Binding ProductName}" Width="280"/><DataGridTextColumn Header="Supplier" Binding="{Binding SupplierName}" Width="220"/><DataGridTextColumn Header="Unit" Binding="{Binding UnitName}" Width="120"/><DataGridTextColumn Header="Remaining quantity" Binding="{Binding RemainingQuantity, StringFormat=N3}" Width="150"/><DataGridTextColumn Header="Purchase cost" Binding="{Binding PurchasePrice, StringFormat=N3}" Width="140"/><DataGridTextColumn Header="Total cost" Binding="{Binding TotalCost, StringFormat=N3}" Width="140"/><DataGridTextColumn Header="Expiry" Binding="{Binding ExpiryDate, StringFormat=yyyy-MM-dd}" Width="140"/><DataGridTextColumn Header="Days remaining" Binding="{Binding DaysRemaining}" Width="140"/>
+                    <DataGridTemplateColumn Header="Open / فتح" Width="180">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Button Content="فتح تسوية المخزون / Open adjustment"
+                                        Style="{StaticResource SecondaryButtonStyle}"
+                                        Padding="8,4"
+                                        Click="OpenAdjustment_Click"/>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
                 </DataGrid.Columns>
             </DataGrid>
         </Grid>

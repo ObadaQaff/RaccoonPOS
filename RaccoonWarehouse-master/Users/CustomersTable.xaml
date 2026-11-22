@@ -178,7 +178,7 @@
                         BorderThickness="1">
                     <StackPanel>
                         <TextBlock Text="إجمالي العملاء" Foreground="#67727D" FontSize="12"/>
-                        <TextBlock x:Name="TotalCustomersCardText" FontSize="26" FontWeight="Bold" Foreground="#2D8DCF"/>
+                        <TextBlock x:Name="TotalCustomersCardText" FontSize="26" FontWeight="Bold" Foreground="#2478D4"/>
                     </StackPanel>
                 </Border>
                 <Border Background="White"
@@ -210,7 +210,7 @@
                         BorderThickness="1">
                     <StackPanel>
                         <TextBlock Text="رصيد دائن" Foreground="#67727D" FontSize="12"/>
-                        <TextBlock x:Name="CreditCustomersCardText" FontSize="26" FontWeight="Bold" Foreground="#2D8DCF"/>
+                        <TextBlock x:Name="CreditCustomersCardText" FontSize="26" FontWeight="Bold" Foreground="#2478D4"/>
                     </StackPanel>
                 </Border>
             </UniformGrid>

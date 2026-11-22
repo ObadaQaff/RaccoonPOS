@@ -70,10 +70,10 @@
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                 <Button x:Name="DetailsButton" Content="View details / التفاصيل"
                         Style="{DynamicResource AppSecondaryButtonStyle}" Click="DetailsButton_Click"
-                        Padding="18,9" Margin="0,0,8,0" />
+                        Padding="18,9" Margin="0,0,8,0" IsEnabled="False" />
                 <Button x:Name="AdjustmentButton" Content="Open adjustment / تعديل المخزون"
                         Style="{DynamicResource AppHeroButtonStyle}" Click="AdjustmentButton_Click"
-                        Padding="18,9"/>
+                        Padding="18,9" IsEnabled="False"/>
             </StackPanel>
         </DockPanel>
     </Grid>

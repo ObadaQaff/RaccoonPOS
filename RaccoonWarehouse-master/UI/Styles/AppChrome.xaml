@@ -7,32 +7,32 @@
     <SolidColorBrush x:Key="AppBorderBrush" Color="#D7E0E7"/>
     <SolidColorBrush x:Key="AppMutedTextBrush" Color="#61717D"/>
     <SolidColorBrush x:Key="AppTextBrush" Color="#203442"/>
-    <SolidColorBrush x:Key="AppPrimaryBrush" Color="#145A4A"/>
-    <SolidColorBrush x:Key="AppPrimaryDarkBrush" Color="#0F4A3E"/>
-    <SolidColorBrush x:Key="AppBlueBrush" Color="#134B70"/>
-    <SolidColorBrush x:Key="AppBlueDarkBrush" Color="#103E5B"/>
-    <SolidColorBrush x:Key="AppAccentBrush" Color="#F2C46D"/>
-    <SolidColorBrush x:Key="AppSidebarBrush" Color="#22343C"/>
-    <SolidColorBrush x:Key="AppSidebarHoverBrush" Color="#2E4954"/>
-    <SolidColorBrush x:Key="AppSidebarPressedBrush" Color="#596F7A"/>
+    <SolidColorBrush x:Key="AppPrimaryBrush" Color="#5B2BE0"/>
+    <SolidColorBrush x:Key="AppPrimaryDarkBrush" Color="#4520B2"/>
+    <SolidColorBrush x:Key="AppBlueBrush" Color="#2478D4"/>
+    <SolidColorBrush x:Key="AppBlueDarkBrush" Color="#1859A1"/>
+    <SolidColorBrush x:Key="AppAccentBrush" Color="#14C8C4"/>
+    <SolidColorBrush x:Key="AppSidebarBrush" Color="#211B4B"/>
+    <SolidColorBrush x:Key="AppSidebarHoverBrush" Color="#30266D"/>
+    <SolidColorBrush x:Key="AppSidebarPressedBrush" Color="#4938A0"/>
     <SolidColorBrush x:Key="AppSidebarTextBrush" Color="#F7FAFB"/>
 
     <LinearGradientBrush x:Key="AppGreenHeroBrush" StartPoint="0,0" EndPoint="1,1">
-        <GradientStop Color="#0F4A3E" Offset="0"/>
-        <GradientStop Color="#145A4A" Offset="0.55"/>
-        <GradientStop Color="#20806B" Offset="1"/>
+        <GradientStop Color="#26184F" Offset="0"/>
+        <GradientStop Color="#5B2BE0" Offset="0.55"/>
+        <GradientStop Color="#14A6A6" Offset="1"/>
     </LinearGradientBrush>
 
     <LinearGradientBrush x:Key="AppBlueHeroBrush" StartPoint="0,0" EndPoint="1,1">
-        <GradientStop Color="#103E5B" Offset="0"/>
-        <GradientStop Color="#134B70" Offset="0.55"/>
-        <GradientStop Color="#1E658C" Offset="1"/>
+        <GradientStop Color="#123D70" Offset="0"/>
+        <GradientStop Color="#2478D4" Offset="0.55"/>
+        <GradientStop Color="#14C8C4" Offset="1"/>
     </LinearGradientBrush>
 
     <LinearGradientBrush x:Key="AppDashboardHeroBrush" StartPoint="0,0" EndPoint="1,1">
-        <GradientStop Color="#1B2E36" Offset="0"/>
-        <GradientStop Color="#145A4A" Offset="0.58"/>
-        <GradientStop Color="#134B70" Offset="1"/>
+        <GradientStop Color="#1D1740" Offset="0"/>
+        <GradientStop Color="#39268A" Offset="0.58"/>
+        <GradientStop Color="#127C9A" Offset="1"/>
     </LinearGradientBrush>
 
     <Style x:Key="AppHeroButtonStyle" TargetType="Button">

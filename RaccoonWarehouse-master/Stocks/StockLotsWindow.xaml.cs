@@ -133,9 +133,9 @@ public partial class StockLotsWindow : Window
         if (LotsGrid.SelectedItem is not StockBatchLookupDto lot)
             return;
 
-        WindowManager.Show<StockAdjustmentWindow>(WindowSizeType.LargeRectangle, window =>
+        WindowManager.ShowDialog<StockAdjustmentWindow>(WindowSizeType.LargeRectangle, window =>
         {
-            window.InitialProductId = lot.ProductId;
+            window.SetInitialProduct(lot.ProductId);
         });
     }
 

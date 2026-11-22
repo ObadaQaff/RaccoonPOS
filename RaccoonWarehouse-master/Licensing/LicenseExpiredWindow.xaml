@@ -45,12 +45,12 @@
                     <TextBlock x:Name="ContactLabelText"
                                Text="للتفعيل تواصل معنا عبر الهاتف أو واتساب"
                                FontSize="14"
-                               Foreground="#356FA8"
+                               Foreground="#2478D4"
                                TextAlignment="Center"/>
                     <TextBlock Text="0782495807"
                                FontSize="27"
                                FontWeight="Bold"
-                               Foreground="#0F5B52"
+                               Foreground="#14A6A6"
                                TextAlignment="Center"
                                Margin="0,8,0,0"/>
                 </StackPanel>

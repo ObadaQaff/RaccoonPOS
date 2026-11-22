@@ -1,4 +1,4 @@
-﻿<Window x:Class="RaccoonWarehouse.Reports.InactiveItemsReport"
+<Window x:Class="RaccoonWarehouse.Reports.InactiveItemsReport"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:fa="http://schemas.fontawesome.io/icons/"
@@ -133,7 +133,7 @@
 
         <!-- FOOTER -->
         <Border Background="#FFF0CE" Grid.Row="2">
-            <TextBlock Text="© 2025 Raccoon Warehouse"
+            <TextBlock Text="© 2025 The System"
                        VerticalAlignment="Center"
                        HorizontalAlignment="Center"
                        Foreground="#3396D3"

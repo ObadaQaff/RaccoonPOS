@@ -663,7 +663,7 @@ namespace RaccoonWarehouse
                 "Products.ItemCostDetails" => "item-cost-detail",
                 "Products.ProfitReport" => "product-profit",
                 "Products.InactiveReport" => "inactive-products",
-                "Stocks.BalancesReport" => "stock-balances",
+                "Stocks.BalancesReport" => "current-stock",
                 "Stocks.StockMovementsReport" => "stock-movements",
                 "Stocks.StockBalanceByDateReport" => "stock-balance-by-date",
                 "Stocks.InventoryMovementSummary" => "inventory-movement-summary",

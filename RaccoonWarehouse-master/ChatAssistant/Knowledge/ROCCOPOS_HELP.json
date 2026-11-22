@@ -349,10 +349,10 @@
   {
     "id": "settings.chat-assistant",
     "keywords": ["chatbot settings", "gemini api key", "assistant model", "test connection", "إعدادات المساعد", "مفتاح جيميني", "اختبار الاتصال"],
-    "titleEn": "Configure the ROCCOPOS assistant",
-    "titleAr": "إعداد مساعد ROCCOPOS",
-    "stepsEn": ["From the main sidebar, open ROCCOPOS Assistant.", "Select Settings in the assistant window.", "Enter the Gemini API key and select a supported Gemini model.", "Test the connection, then save the settings."],
-    "stepsAr": ["من القائمة الجانبية الرئيسية افتح مساعد ROCCOPOS.", "اختر الإعدادات من نافذة المساعد.", "أدخل مفتاح Gemini API واختر نموذج Gemini مدعوماً.", "اختبر الاتصال ثم احفظ الإعدادات."]
+    "titleEn": "Configure The System Assistant",
+    "titleAr": "إعداد مساعد The System",
+    "stepsEn": ["From the main sidebar, open The System Assistant.", "Select Settings in the assistant window.", "Enter the Gemini API key and select a supported Gemini model.", "Test the connection, then save the settings."],
+    "stepsAr": ["من القائمة الجانبية الرئيسية افتح مساعد The System.", "اختر الإعدادات من نافذة المساعد.", "أدخل مفتاح Gemini API واختر نموذج Gemini مدعوماً.", "اختبر الاتصال ثم احفظ الإعدادات."]
   },
   {
     "id": "accounting.accounts", "keywords": ["chart of accounts", "account tree", "add account", "دليل الحسابات", "شجرة الحسابات", "إضافة حساب"],

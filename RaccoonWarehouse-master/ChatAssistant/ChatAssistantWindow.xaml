@@ -1,7 +1,7 @@
 <Window x:Class="RaccoonWarehouse.ChatAssistant.ChatAssistantWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="ROCCOPOS Assistant" Width="600" Height="650" MinWidth="460" MinHeight="500"
+        Title="The System Assistant" Width="600" Height="650" MinWidth="460" MinHeight="500"
         Background="{StaticResource AppPageBackgroundBrush}" WindowStartupLocation="CenterOwner">
     <Grid Margin="18">
         <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>

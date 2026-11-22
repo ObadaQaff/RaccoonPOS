@@ -4,6 +4,7 @@ using RaccoonWarehouse.Application.Service.Stocks;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Domain.Invoices.DTOs;
+using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Products.DTOs;
 using RaccoonWarehouse.Domain.Users.DTOs;
 using RaccoonWarehouse.Helpers.Localization;
@@ -41,6 +42,12 @@ namespace RaccoonWarehouse.Invoices
 
             InitializeComponent();
             UiText.ApplyWindow(this);
+            ResultsGrid.Columns.Add(new DataGridTextColumn
+            {
+                Header = UiText.T("الحالة / Status", "Status"),
+                Binding = new System.Windows.Data.Binding(nameof(InvoiceReadDto.Status)),
+                Width = new DataGridLength(1, DataGridLengthUnitType.Star)
+            });
             _invoiceService = invoiceService;
             _productService = productService;
             _stockService = stockService;
@@ -64,6 +71,7 @@ namespace RaccoonWarehouse.Invoices
             PartyFilterLabel.Text = _isSal == false
                 ? UiText.T("اسم المورد", "Supplier name")
                 : UiText.T("اسم الزبون", "Customer name");
+            StatusFilterPanel.Visibility = _isSal == false ? Visibility.Visible : Visibility.Collapsed;
         }
         private void CustomerTxt_Loaded(object sender, RoutedEventArgs e)
         {
@@ -232,6 +240,7 @@ namespace RaccoonWarehouse.Invoices
                 toDate,
                 _isSal,
                 _isPOS,
+                status: GetSelectedStatus(),
                 productBarcode: ItemBarcodeTxt.Text?.Trim(),
                 loadDetails: false,
                 maxResults: 200
@@ -244,6 +253,16 @@ namespace RaccoonWarehouse.Invoices
             }
             else
                 MessageBox.Show(result.Message ?? UiText.T("تعذر تحميل نتائج البحث.", "Failed to load search results."), UiText.T("خطأ", "Error"));
+        }
+
+        private InvoiceStatus? GetSelectedStatus()
+        {
+            if (_isSal != false || StatusFilterCombo.SelectedItem is not ComboBoxItem item)
+                return null;
+
+            return Enum.TryParse<InvoiceStatus>(item.Tag?.ToString(), out var status)
+                ? status
+                : null;
         }
 
         private async void SearchSalesInvoiceWindow_PreviewKeyDown(object sender, KeyEventArgs e)

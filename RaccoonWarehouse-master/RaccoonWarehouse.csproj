@@ -8,7 +8,7 @@
     <UseWPF>true</UseWPF>
     <PlatformTarget>x64</PlatformTarget>
 	  <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
-	  <ApplicationIcon>Logo newfinal.ico</ApplicationIcon>
+	  <ApplicationIcon>Assets\logo\TheSystemLogo.ico</ApplicationIcon>
 
   </PropertyGroup>
 
@@ -16,6 +16,8 @@
     <None Remove="Assets\Fonts\ARIAL.TTF" />
     <None Remove="Assets\logo.jpg" />
     <None Remove="Assets\logo\Logo newfinal.png" />
+	  <None Remove="Assets\logo\TheSystemLogo.png" />
+	  <None Remove="Assets\logo\TheSystemLogo.ico" />
   </ItemGroup>
 
   <ItemGroup>
@@ -40,6 +42,12 @@
     <Resource Include="Assets\logo\Logo newfinal.ico">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </Resource>
+	  <Resource Include="Assets\logo\TheSystemLogo.png">
+	    <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+	  </Resource>
+	  <Resource Include="Assets\logo\TheSystemLogo.ico">
+	    <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+	  </Resource>
     <Content Include="Logo newfinal.ico" />
   </ItemGroup>
 

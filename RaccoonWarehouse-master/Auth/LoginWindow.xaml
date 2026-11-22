@@ -13,12 +13,15 @@
     <Grid>
         <Border
             x:Name="Card"
-            Background="#263238"
+            Background="White"
+            BorderBrush="#DCE6EA"
+            BorderThickness="1"
             CornerRadius="24"
             Padding="32"
             Width="360"
             HorizontalAlignment="Center"
             VerticalAlignment="Center"
+            Effect="{StaticResource DropShadowSoft}"
             RenderTransformOrigin="0.5,0.5">
 
             <Border.RenderTransform>
@@ -26,26 +29,26 @@
             </Border.RenderTransform>
 
             <StackPanel>
-                <Image Source="pack://application:,,,/Assets/Logo/Logo newfinal.png"
-                       Width="72"
-                       Height="60"
+                <Image Source="pack://application:,,,/Assets/Logo/TheSystemLogo.png"
+                       Width="104"
+                       Height="86"
                        HorizontalAlignment="Center"
                        Margin="0,0,0,14"/>
 
-                <TextBlock Text="Raccoon Warehouse"
+                <TextBlock Text="The System"
                            FontSize="22"
                            FontWeight="Bold"
-                           Foreground="White"
+                           Foreground="{DynamicResource AppTextBrush}"
                            HorizontalAlignment="Center"/>
 
                 <TextBlock Text="Secure cashier login"
                            FontSize="13"
-                           Foreground="#B0BEC5"
+                           Foreground="{DynamicResource AppMutedTextBrush}"
                            Margin="0,6,0,8"
                            HorizontalAlignment="Center"/>
 
                 <TextBlock x:Name="UserNameHint"
-                           Foreground="#A5D6A7"
+                           Foreground="{DynamicResource AppPrimaryBrush}"
                            FontSize="18"
                            FontWeight="Bold"
                            TextAlignment="Center"
@@ -54,40 +57,43 @@
                            Visibility="Collapsed"/>
 
                 <TextBlock Text="Username"
-                           Foreground="#CFD8DC"
+                           Foreground="{DynamicResource AppTextBrush}"
                            FontSize="12"/>
 
                 <TextBox x:Name="UsernameTextBox"
                          Height="40"
                          FontSize="14"
-                         Background="#37474F"
-                         Foreground="White"
-                         BorderThickness="0"
+                         Background="#F4F8F9"
+                         Foreground="{DynamicResource AppTextBrush}"
+                         BorderBrush="#D5E1E5"
+                         BorderThickness="1"
                          Padding="12"
                          Margin="0,6,0,16"
                          FocusManager.FocusedElement="{Binding RelativeSource={RelativeSource Self}}"
                          KeyDown="EnterToLogin"/>
 
                 <TextBlock Text="Password"
-                           Foreground="#CFD8DC"
+                           Foreground="{DynamicResource AppTextBrush}"
                            FontSize="12"/>
 
                 <Grid Margin="0,6,0,22">
                     <PasswordBox x:Name="PasswordBox"
                                  Height="40"
                                  FontSize="14"
-                                 Background="#37474F"
-                                 Foreground="White"
-                                 BorderThickness="0"
+                                 Background="#F4F8F9"
+                                 Foreground="{DynamicResource AppTextBrush}"
+                                 BorderBrush="#D5E1E5"
+                                 BorderThickness="1"
                                  Padding="12"
                                  KeyDown="EnterToLogin"/>
 
                     <TextBox x:Name="PasswordTextBox"
                              Height="40"
                              FontSize="14"
-                             Background="#37474F"
-                             Foreground="White"
-                             BorderThickness="0"
+                             Background="#F4F8F9"
+                             Foreground="{DynamicResource AppTextBrush}"
+                             BorderBrush="#D5E1E5"
+                             BorderThickness="1"
                              Padding="12"
                              Visibility="Collapsed"
                              KeyDown="EnterToLogin"/>
@@ -97,14 +103,14 @@
                             Height="32"
                             Background="Transparent"
                             BorderThickness="0"
-                            Foreground="#B0BEC5"
+                            Foreground="{DynamicResource AppMutedTextBrush}"
                             HorizontalAlignment="Right"
                             VerticalAlignment="Center"
                             Click="TogglePassword"/>
                 </Grid>
 
                 <TextBlock x:Name="ErrorText"
-                   Foreground="#EF9A9A"
+                   Foreground="#C62828"
                    FontSize="12"
                    Margin="0,0,0,12"
                    TextAlignment="Center"
@@ -115,7 +121,7 @@
                         Height="44"
                         FontSize="15"
                         FontWeight="Bold"
-                        Background="#00C853"
+                        Background="#5B2BE0"
                         Foreground="White"
                         BorderThickness="0"
                         Cursor="Hand"
@@ -131,6 +137,8 @@
                                      IsIndeterminate="True"
                                      Height="4"
                                      VerticalAlignment="Bottom"
+                                     Foreground="#A7F3F0"
+                                     Background="#FFFFFF55"
                                      Visibility="Collapsed"/>
                     </Grid>
 
@@ -140,6 +148,17 @@
                                     CornerRadius="12">
                                 <ContentPresenter/>
                             </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Background" Value="#6D3DF2"/>
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter Property="Background" Value="#4520B2"/>
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter Property="Background" Value="#B9B0D8"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
                         </ControlTemplate>
                     </Button.Template>
                 </Button>
@@ -147,8 +166,8 @@
                 <Button Height="40"
                         Margin="0,12,0,0"
                         FontSize="14"
-                        Background="#455A64"
-                        Foreground="White"
+                        Background="#EAF0FA"
+                        Foreground="#23405A"
                         BorderThickness="0"
                         Cursor="Hand"
                         Click="Exit_Click">
@@ -159,6 +178,14 @@
                                 <ContentPresenter HorizontalAlignment="Center"
                                                   VerticalAlignment="Center"/>
                             </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Background" Value="#D9E5F7"/>
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter Property="Background" Value="#C9D9EE"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
                         </ControlTemplate>
                     </Button.Template>
                     <TextBlock Text="Exit"/>

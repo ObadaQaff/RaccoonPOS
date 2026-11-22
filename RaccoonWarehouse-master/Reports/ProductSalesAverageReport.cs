@@ -87,7 +87,7 @@ public sealed class ProductSalesAverageReport : Window
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         Content = root;
-        var header = new Border { Background = Brush("#2D8DCF") };
+        var header = new Border { Background = Brush("#2478D4") };
         header.Child = new TextBlock
         {
             Text = Title, FontSize = 24, FontWeight = FontWeights.Bold, Foreground = Brushes.White,
@@ -325,7 +325,7 @@ public sealed class ProductSalesAverageReport : Window
             <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
               <Style x:Key="ReportPrimaryButton" TargetType="Button">
-                <Setter Property="Background" Value="#2D8DCF"/>
+                <Setter Property="Background" Value="#2478D4"/>
                 <Setter Property="Foreground" Value="White"/>
                 <Setter Property="FontWeight" Value="Bold"/>
                 <Setter Property="FontSize" Value="16"/>
@@ -350,7 +350,7 @@ public sealed class ProductSalesAverageReport : Window
               </Style>
               <Style x:Key="ReportSecondaryButton" TargetType="Button" BasedOn="{StaticResource ReportPrimaryButton}">
                 <Setter Property="Background" Value="#E3EAF0"/>
-                <Setter Property="Foreground" Value="#2D8DCF"/>
+                <Setter Property="Foreground" Value="#2478D4"/>
               </Style>
               <Style x:Key="ReportInput" TargetType="TextBox">
                 <Setter Property="Height" Value="38"/>

@@ -78,6 +78,7 @@ namespace RaccoonWarehouse.Invoices
         private readonly System.Threading.SemaphoreSlim _productSelectionSemaphore = new(1, 1);
         private readonly System.Threading.SemaphoreSlim _productLoadSemaphore = new(1, 1);
         private int? _currentInvoiceId = null;   // لتحديث الفاتورة بعد الحفظ الأول
+        private InvoiceStatus? _currentInvoiceStatus;
         private bool _originalCostPriceIncludesTax;
         private bool _lastCostPriceIncludesTax;
         private readonly IUOW _purchaseUow;
@@ -848,7 +849,7 @@ namespace RaccoonWarehouse.Invoices
         }        // ===================== ADD PRODUCT LINE =====================
         private void AddProduct_Click(object sender, RoutedEventArgs e)
         {
-            if (_currentInvoiceId.HasValue)
+            if (IsFinalizedExistingPurchaseInvoice)
                 return;
 
             if (ProductBox.SelectedItem is not ProductReadDto product)
@@ -908,7 +909,7 @@ namespace RaccoonWarehouse.Invoices
 
         private void ProductsGrid_CellEditEnding(object sender, DataGridCellEditEndingEventArgs e)
         {
-            if (_currentInvoiceId.HasValue)
+            if (IsFinalizedExistingPurchaseInvoice)
                 return;
 
             if (e.EditAction != DataGridEditAction.Commit || e.Row.Item is not InvoiceLineWriteDto line)
@@ -1008,7 +1009,7 @@ namespace RaccoonWarehouse.Invoices
 
         private void ProductsGrid_PreviewKeyDown(object sender, KeyEventArgs e)
         {
-            if (_currentInvoiceId.HasValue)
+            if (IsFinalizedExistingPurchaseInvoice)
                 return;
 
             if (e.Key == Key.Enter
@@ -1157,7 +1158,7 @@ namespace RaccoonWarehouse.Invoices
 
         private void ApplyBonusPercentage_Click(object sender, RoutedEventArgs e)
         {
-            if (_currentInvoiceId.HasValue)
+            if (IsFinalizedExistingPurchaseInvoice)
                 return;
 
             if (sender is not Button { DataContext: InvoiceLineWriteDto line }) return;
@@ -1189,7 +1190,7 @@ namespace RaccoonWarehouse.Invoices
 
         private void ApplyBonusPercentage(InvoiceLineWriteDto line, string? input = null, bool showMessage = true)
         {
-            if (_currentInvoiceId.HasValue)
+            if (IsFinalizedExistingPurchaseInvoice)
                 return;
 
             // The bonus editor is hosted in the cell template, so the row model
@@ -1213,7 +1214,7 @@ namespace RaccoonWarehouse.Invoices
 
         private void ApplyBonus_Click(object sender, RoutedEventArgs e)
         {
-            if (_currentInvoiceId.HasValue)
+            if (IsFinalizedExistingPurchaseInvoice)
                 return;
 
             if (sender is not Button { DataContext: InvoiceLineWriteDto line }) return;
@@ -1230,7 +1231,7 @@ namespace RaccoonWarehouse.Invoices
 
         private void DeleteProduct_Click(object sender, RoutedEventArgs e)
         {
-            if (_currentInvoiceId.HasValue)
+            if (IsFinalizedExistingPurchaseInvoice)
                 return;
 
             if (sender is Button btn && btn.DataContext is InvoiceLineWriteDto line)
@@ -1647,6 +1648,16 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
         }*/
         private async void SaveReceiptBtn_Click(object sender, RoutedEventArgs e)
         {
+            await SavePurchaseInvoiceAsync(postInvoice: false);
+        }
+
+        private async void PostReceiptBtn_Click(object sender, RoutedEventArgs e)
+        {
+            await SavePurchaseInvoiceAsync(postInvoice: true);
+        }
+
+        private async Task SavePurchaseInvoiceAsync(bool postInvoice)
+        {
             if (_isSavingPurchase) return;
             _isSavingPurchase = true;
             var savedBeforeAttempt = _currentInvoiceId;
@@ -1763,7 +1774,7 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
                     FalconInvoiceNumber = FalconInvoiceNumberTextBox.Text.Trim(),
                     SupplierId = supplier?.Id,
                     InvoiceType = InvoiceType.Purchase, // مهم
-                    Status = InvoiceStatus.Completed,
+                    Status = postInvoice ? InvoiceStatus.Posted : InvoiceStatus.Draft,
                     PaymentType = selectedPaymentType,
                     Checks = selectedPaymentType == PaymentType.Check ? _currentChecks : null,
                     TotalAmount = totalAmount,
@@ -1796,6 +1807,8 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
                     _currentInvoiceId = result.Data.Id;
                     savedInvoiceId = result.Data.Id;
 
+                    if (postInvoice)
+                    {
                     var movementResult = await _stockService.PostMovementsAsync(
                         BuildInvoiceStockMovements(
                             InvoiceLines,
@@ -1840,6 +1853,7 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
                             return;
                         }
                     }
+                    }
 
 
                 }
@@ -1859,8 +1873,54 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
                     // Supplier/date-only edits do not change stock or payment data.
                     // Keep the legacy reversal/repost block reachable only for a
                     // future create-path reuse; this branch is always an update.
-                    if (!isUpdate)
+                    if (postInvoice)
                     {
+                    // Drafts have not affected stock or cash yet, so posting applies
+                    // the current invoice once without reversing anything.
+                    var movementResult = await _stockService.PostMovementsAsync(
+                        BuildInvoiceStockMovements(
+                            InvoiceLines,
+                            TransactionType.Purchase,
+                            savedInvoiceId,
+                            session.CashierId,
+                            session.Id,
+                            $"Purchase invoice #{invoiceDto.InvoiceNumber}",
+                            1m,
+                            CostPriceIncludesTax));
+                    if (!movementResult.Success)
+                    {
+                        HideLoadingIfShown();
+                        MessageBox.Show(movementResult.Message ?? "فشل تحديث حركة المخزون.", "خطأ");
+                        return;
+                    }
+
+                    if (selectedPaymentType != PaymentType.Credit)
+                    {
+                        var postDto = new FinancialPostDto
+                        {
+                            Direction = TransactionDirection.Out,
+                            Method = MapPaymentMethod(selectedPaymentType),
+                            Amount = totalAmount,
+                            TransactionDate = DateTime.Now,
+                            SourceType = FinancialSourceType.PurchaseInvoice,
+                            SourceId = savedInvoiceId,
+                            CashierSessionId = session.Id,
+                            CashierId = session.CashierId,
+                            Notes = $"Purchase Invoice #{invoiceDto.InvoiceNumber}"
+                        };
+
+                        var postResult = await _financialService.PostAsync(postDto);
+                        if (!postResult.Success)
+                        {
+                            HideLoadingIfShown();
+                            MessageBox.Show(postResult.Message ?? "تم ترحيل الفاتورة لكن فشل تسجيل الحركة المالية.", "تحذير");
+                            return;
+                        }
+                    }
+
+                    }
+
+                    /*
                     // Validate original allocated lots before any reversal; stock service also enforces exact source quantities.
                     // 0) Void old financial transactions
                     var voidResult = await _financialService.VoidBySourceAsync(
@@ -1956,6 +2016,7 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
                         }
                     }
                     }
+                    */
 
                 }
 
@@ -1982,8 +2043,20 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
                 await purchaseTransaction.CommitAsync();
                 committed = true;
                 HideLoadingIfShown();
-                MessageBox.Show(UiText.T("تم حفظ فاتورة المشتريات بنجاح.", "Purchase invoice saved successfully."), UiText.T("تنبيه", "Notice"));
-                NewInvoiceBtn_Click(this, new RoutedEventArgs());
+                _currentInvoiceStatus = postInvoice
+                    ? InvoiceStatus.Posted
+                    : (isUpdate ? _currentInvoiceStatus ?? InvoiceStatus.Completed : InvoiceStatus.Draft);
+                ApplyPurchaseEditRestrictions();
+                PostReceiptBtn.Visibility = _currentInvoiceStatus == InvoiceStatus.Draft
+                    ? Visibility.Visible
+                    : Visibility.Collapsed;
+                MessageBox.Show(
+                    postInvoice
+                        ? UiText.T("تم ترحيل فاتورة المشتريات بنجاح.", "Purchase invoice posted successfully.")
+                        : _currentInvoiceStatus == InvoiceStatus.Draft
+                            ? UiText.T("تم حفظ فاتورة المشتريات كمسودة.", "Purchase invoice saved as draft.")
+                            : UiText.T("تم تحديث بيانات رأس الفاتورة بنجاح.", "Invoice header updated successfully."),
+                    UiText.T("تنبيه", "Notice"));
             }
             catch (Exception ex)
             {
@@ -2263,6 +2336,7 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
             if (invoice == null) return;
 
             _currentInvoiceId = invoice.Id;
+            _currentInvoiceStatus = invoice.Status ?? InvoiceStatus.Completed;
             _originalCostPriceIncludesTax = invoice.CostPriceIncludesTax;
             _lastCostPriceIncludesTax = invoice.CostPriceIncludesTax;
 
@@ -2300,8 +2374,9 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
                     UnitCost = line.UnitCost,
                     SalePrice = lotSalePrices != null
                         && lotSalePrices.TryGetValue(line.Id, out var lotSalePrice)
-                        ? lotSalePrice
-                        : GetProductUnitSalePrice(line.ProductId, line.ProductUnitId),
+                        && lotSalePrice > 0m
+                            ? lotSalePrice
+                            : GetProductUnitSalePrice(line.ProductId, line.ProductUnitId),
                     LineDiscountAmount = line.LineDiscountAmount,
                     FreeQuantity = line.BonusPercentage.HasValue ? 0m : line.FreeQuantity,
                     BonusRatio = line.BonusRatio,
@@ -2327,25 +2402,32 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
         private void ApplyPurchaseEditRestrictions()
         {
             var isEditingExistingInvoice = _currentInvoiceId.HasValue;
+            var isDraft = isEditingExistingInvoice && _currentInvoiceStatus == InvoiceStatus.Draft;
+            var restrictFinalizedInvoice = isEditingExistingInvoice && !isDraft;
 
-            // Existing purchase invoices allow only invoice number, supplier, and document-date changes.
+            // Drafts are fully editable. Completed/posted invoices allow only header edits.
             InvoiceNumberTextBox.IsReadOnly = false;
-            FalconInvoiceNumberTextBox.IsReadOnly = isEditingExistingInvoice;
+            FalconInvoiceNumberTextBox.IsReadOnly = restrictFinalizedInvoice;
             SupplierComboBox.IsEnabled = true;
             InvoiceDatePicker.IsEnabled = true;
             AddSupplierButton.IsEnabled = true;
 
-            PaymentMethodComboBox.IsEnabled = !isEditingExistingInvoice;
-            DiscountTextBox.IsReadOnly = isEditingExistingInvoice;
-            CostPriceIncludesTaxCheckBox.IsEnabled = !isEditingExistingInvoice;
-            SearchProductButton.IsEnabled = !isEditingExistingInvoice;
-            ProductsGrid.IsReadOnly = isEditingExistingInvoice;
-            ChecksBtn.IsEnabled = !isEditingExistingInvoice;
+            PaymentMethodComboBox.IsEnabled = !restrictFinalizedInvoice;
+            DiscountTextBox.IsReadOnly = restrictFinalizedInvoice;
+            CostPriceIncludesTaxCheckBox.IsEnabled = !restrictFinalizedInvoice;
+            SearchProductButton.IsEnabled = !restrictFinalizedInvoice;
+            ProductsGrid.IsReadOnly = restrictFinalizedInvoice;
+            ChecksBtn.IsEnabled = !restrictFinalizedInvoice;
+            PostReceiptBtn.Visibility = isDraft ? Visibility.Visible : Visibility.Collapsed;
         }
+
+        private bool IsFinalizedExistingPurchaseInvoice =>
+            _currentInvoiceId.HasValue && _currentInvoiceStatus != InvoiceStatus.Draft;
 
         private void NewInvoiceBtn_Click(object sender, RoutedEventArgs e)
         {
             _currentInvoiceId = null;
+            _currentInvoiceStatus = null;
             _originalLines.Clear();
             _originalCostPriceIncludesTax = true;
             _lastCostPriceIncludesTax = true;
@@ -2413,7 +2495,7 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
 
         private async void SearchProductBtn_Click(object sender, RoutedEventArgs e)
         {
-            if (_currentInvoiceId.HasValue)
+            if (IsFinalizedExistingPurchaseInvoice)
                 return;
 
             try

@@ -13,7 +13,7 @@
 
         <!-- Primary button -->
         <Style x:Key="PrimaryButtonStyle" TargetType="Button">
-            <Setter Property="Background" Value="#2D8DCF"/>
+            <Setter Property="Background" Value="#2478D4"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="FontWeight" Value="Bold"/>
             <Setter Property="FontSize" Value="16"/>
@@ -36,7 +36,7 @@
         <!-- Secondary button -->
         <Style x:Key="SecondaryButtonStyle" TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
             <Setter Property="Background" Value="#E3EAF0"/>
-            <Setter Property="Foreground" Value="#2D8DCF"/>
+            <Setter Property="Foreground" Value="#2478D4"/>
         </Style>
 
         <!-- Modern input -->
@@ -86,7 +86,7 @@
         </Grid.RowDefinitions>
 
         <!-- HEADER -->
-        <Border Background="#2D8DCF" Grid.Row="0">
+        <Border Background="#2478D4" Grid.Row="0">
             <TextBlock x:Name="ReportHeaderText" Text="تقرير المبيعات"
                        Foreground="White"
                        FontSize="24"
@@ -399,10 +399,10 @@
 
         <!-- FOOTER -->
         <Border Background="#E3EAF0" Grid.Row="2">
-            <TextBlock Text="© 2025 Raccoon Warehouse"
+            <TextBlock Text="© 2025 The System"
                        VerticalAlignment="Center"
                        HorizontalAlignment="Center"
-                       Foreground="#2D8DCF"
+                       Foreground="#2478D4"
                        FontWeight="SemiBold"
                        FontSize="14"/>
         </Border>

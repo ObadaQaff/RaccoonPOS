@@ -17,7 +17,7 @@
 
         <!-- Primary button (blue) -->
         <Style x:Key="PrimaryButtonStyle" TargetType="Button">
-            <Setter Property="Background" Value="#2D8DCF"/>
+            <Setter Property="Background" Value="#2478D4"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="FontWeight" Value="Bold"/>
             <Setter Property="FontSize" Value="17"/>
@@ -50,7 +50,7 @@
         <Style x:Key="SecondaryButtonStyle" TargetType="Button"
         BasedOn="{StaticResource PrimaryButtonStyle}">
             <Setter Property="Background" Value="#E3EAF0"/>
-            <Setter Property="Foreground" Value="#2D8DCF"/>
+            <Setter Property="Foreground" Value="#2478D4"/>
         </Style>
 
         <!-- TextBox modern style -->
@@ -75,7 +75,7 @@
             </Setter>
             <Style.Triggers>
                 <Trigger Property="IsFocused" Value="True">
-                    <Setter Property="BorderBrush" Value="#2D8DCF"/>
+                    <Setter Property="BorderBrush" Value="#2478D4"/>
                     <Setter Property="Effect">
                         <Setter.Value>
                             <DropShadowEffect BlurRadius="6" Color="#A8D2FF" ShadowDepth="0"/>
@@ -164,10 +164,10 @@
 
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Border" Property="BorderBrush" Value="#2D8DCF"/>
+                                <Setter TargetName="Border" Property="BorderBrush" Value="#2478D4"/>
                             </Trigger>
                             <Trigger Property="IsFocused" Value="True">
-                                <Setter TargetName="Border" Property="BorderBrush" Value="#2D8DCF"/>
+                                <Setter TargetName="Border" Property="BorderBrush" Value="#2478D4"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter TargetName="Border" Property="Opacity" Value="0.5"/>
@@ -656,7 +656,7 @@
 
         <!-- FOOTER -->
         <Border Background="#E8F0F7" Grid.Row="2">
-            <TextBlock Text="© 2025 Raccoon Warehouse"
+            <TextBlock Text="© 2025 The System"
                        VerticalAlignment="Center"
                        HorizontalAlignment="Center"
                        Foreground="#3396D3"

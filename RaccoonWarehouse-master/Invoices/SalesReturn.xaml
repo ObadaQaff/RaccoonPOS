@@ -145,7 +145,7 @@
 
         <!-- FOOTER -->
         <Border Background="#FFF0CE" Grid.Row="2">
-            <TextBlock Text="© 2025 Raccoon Warehouse"
+            <TextBlock Text="© 2025 The System"
                        VerticalAlignment="Center"
                        HorizontalAlignment="Center"
                        Foreground="#3396D3"

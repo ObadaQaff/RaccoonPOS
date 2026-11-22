@@ -12,29 +12,32 @@
 
     <Grid>
         <!-- Card -->
-        <Border Background="#263238"
+            <Border Background="White"
+                BorderBrush="#DCE6EA"
+                BorderThickness="1"
                 CornerRadius="20"
                 Padding="28"
                 Width="360"
+                Effect="{StaticResource DropShadowSoft}"
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center">
 
             <StackPanel HorizontalAlignment="Center"
-                        VerticalAlignment="Center" Height="186" Width="213">
+                        VerticalAlignment="Center">
 
                 <!-- 🦝 LOGO -->
-                <Image Source="pack://application:,,,/Assets/Logo/Logo newfinal.png"
-                       Width="60"
-                       Height="50"
-                       Margin="0,0,0,0"
+                <Image Source="pack://application:,,,/Assets/Logo/TheSystemLogo.png"
+                       Width="88"
+                       Height="72"
+                       Margin="0,0,0,4"
                        />
 
                 <!-- APP NAME -->
-                <TextBlock Text="Raccoon Warehouse"
+                <TextBlock Text="The System"
                    FontSize="22"
                    FontWeight="SemiBold"
                    FontFamily="Segoe UI Variable"
-                   Foreground="White"
+                   Foreground="{DynamicResource AppTextBrush}"
                    Margin="0,6,0,18"
                    HorizontalAlignment="Center"/>
 
@@ -42,10 +45,10 @@
                 <Grid Width="48"
                       Height="48"
                       Margin="0,0,0,14">
-                    <Ellipse Stroke="#455A64"
+                    <Ellipse Stroke="#DCE6EA"
                              StrokeThickness="4"/>
 
-                    <Ellipse Stroke="#FFFFFF"
+                    <Ellipse Stroke="#5B2BE0"
                              StrokeThickness="4"
                              StrokeDashArray="2 6"
                              StrokeStartLineCap="Round"
@@ -76,7 +79,7 @@
                    FontSize="14"
                    FontWeight="Medium"
                    FontFamily="Segoe UI Variable"
-                   Foreground="#CFD8DC"
+                   Foreground="{DynamicResource AppMutedTextBrush}"
                    HorizontalAlignment="Center"/>
             </StackPanel>
         </Border>

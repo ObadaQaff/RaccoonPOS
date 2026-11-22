@@ -71,6 +71,18 @@ namespace RaccoonWarehouse.Stocks
         public int? InitialProductId { get; set; }
         public bool SavedSuccessfully { get; private set; }
 
+        public void SetInitialProduct(int productId)
+        {
+            InitialProductId = productId;
+
+            if (!_initialDataLoaded)
+                return;
+
+            var product = _loadedProducts.FirstOrDefault(x => x.Id == productId);
+            if (product != null)
+                ProductComboBox.SelectedItem = product;
+        }
+
         private async void StockAdjustmentWindow_Loaded(object sender, RoutedEventArgs e)
         {
             _initialLoadTask ??= LoadDataAsync();
@@ -80,6 +92,8 @@ namespace RaccoonWarehouse.Stocks
         private async Task LoadDataAsync()
         {
             _loadingService.Show();
+            try
+            {
 
             ProductComboBox.ItemsSource = _loadedProducts;
             AdjustmentTypeComboBox.ItemsSource = Enum.GetValues(typeof(StockAdjustmentType))
@@ -105,7 +119,15 @@ namespace RaccoonWarehouse.Stocks
                     ProductComboBox.SelectedItem = initialProduct;
             }
             _initialDataLoaded = true;
-            _loadingService.Hide();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message, UiText.T("خطأ", "Error"), MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                _loadingService.Hide();
+            }
         }
 
         private async void ProductComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -453,13 +475,16 @@ namespace RaccoonWarehouse.Stocks
 
         private async Task LoadNextProductPageAsync(int? expectedSearchVersion = null, bool showLoading = false)
         {
-            if (_isLoadingProducts || !_hasMoreProductPages)
+            if (!_hasMoreProductPages)
                 return;
 
             await _productLoadLock.WaitAsync();
             try
             {
-                if (_isLoadingProducts || !_hasMoreProductPages)
+                // A newer TextChanged event may have queued while the previous
+                // query was still running. Once the lock is available, allow
+                // that latest search to load instead of dropping it.
+                if (!_hasMoreProductPages)
                     return;
 
                 if (expectedSearchVersion.HasValue && expectedSearchVersion.Value != _productSearchVersion)
@@ -488,7 +513,11 @@ namespace RaccoonWarehouse.Stocks
                         pageNumber: currentPage,
                         pageSize: ProductPageSize,
                         filter: filter,
-                        orderBy: q => q.OrderBy(p => p.Name),
+                        orderBy: q => string.IsNullOrWhiteSpace(searchText)
+                            ? q.OrderBy(p => p.Name)
+                            : q.OrderByDescending(p => p.Name == searchText)
+                                .ThenByDescending(p => p.Name != null && p.Name.StartsWith(searchText))
+                                .ThenBy(p => p.Name),
                         includes: new Expression<Func<Product, object>>[]
                         {
                             p => p.ProductUnits,

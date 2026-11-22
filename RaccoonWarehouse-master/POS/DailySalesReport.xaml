@@ -25,7 +25,7 @@
             <TextBlock Text="لوحة الكاشيرات"
                        FontSize="18"
                        FontWeight="Bold"
-                       Foreground="#2D8DCF"
+                       Foreground="#2478D4"
                        HorizontalAlignment="Center"/>
             <TextBlock Text="اختر الكاشير والوردية لعرض كل الحركات والتفاصيل المرتبطة بهما."
                        FontSize="11"
@@ -159,7 +159,7 @@
             <Border Background="White" CornerRadius="8" Padding="8" Margin="0,0,6,0" BorderBrush="#D0D7DD" BorderThickness="1">
                 <StackPanel>
                     <TextBlock Text="إجمالي المستندات" Foreground="#67727D" FontSize="12"/>
-                    <TextBlock Text="{Binding TotalDocuments}" FontSize="19" FontWeight="Bold" Foreground="#2D8DCF"/>
+                    <TextBlock Text="{Binding TotalDocuments}" FontSize="19" FontWeight="Bold" Foreground="#2478D4"/>
                 </StackPanel>
             </Border>
             <Border Background="White" CornerRadius="8" Padding="8" Margin="0,0,6,0" BorderBrush="#D0D7DD" BorderThickness="1">
@@ -177,7 +177,7 @@
             <Border Background="White" CornerRadius="8" Padding="8" BorderBrush="#D0D7DD" BorderThickness="1">
                 <StackPanel>
                     <TextBlock Text="الصافي" Foreground="#67727D" FontSize="12"/>
-                    <TextBlock Text="{Binding NetMovement, StringFormat={}{0:N2}}" FontSize="19" FontWeight="Bold" Foreground="#2D8DCF"/>
+                    <TextBlock Text="{Binding NetMovement, StringFormat={}{0:N2}}" FontSize="19" FontWeight="Bold" Foreground="#2478D4"/>
                 </StackPanel>
             </Border>
             <Border Background="#FFF8E8" CornerRadius="8" Padding="8" BorderBrush="#D0D7DD" BorderThickness="1">
@@ -193,22 +193,22 @@
                 <StackPanel><TextBlock Text="Cash / نقدي" Foreground="#67727D" FontSize="11"/><TextBlock x:Name="CashTotalTextBlock" Text="0.00" FontSize="16" FontWeight="Bold" Foreground="#27AE60"/></StackPanel>
             </Border>
             <Border Background="White" CornerRadius="8" Padding="8" Margin="0,0,6,0" BorderBrush="#D0D7DD" BorderThickness="1">
-                <StackPanel><TextBlock Text="Visa / Visa" Foreground="#67727D" FontSize="11"/><TextBlock x:Name="VisaTotalTextBlock" Text="0.00" FontSize="16" FontWeight="Bold" Foreground="#2D8DCF"/></StackPanel>
+                <StackPanel><TextBlock Text="Visa / Visa" Foreground="#67727D" FontSize="11"/><TextBlock x:Name="VisaTotalTextBlock" Text="0.00" FontSize="16" FontWeight="Bold" Foreground="#2478D4"/></StackPanel>
             </Border>
             <Border Background="White" CornerRadius="8" Padding="8" Margin="0,0,6,0" BorderBrush="#D0D7DD" BorderThickness="1">
                 <StackPanel><TextBlock Text="Credit / آجل" Foreground="#67727D" FontSize="11"/><TextBlock x:Name="CreditTotalTextBlock" Text="0.00" FontSize="16" FontWeight="Bold" Foreground="#C93F4D"/></StackPanel>
             </Border>
             <Border Background="White" CornerRadius="8" Padding="8" Margin="0,0,6,0" BorderBrush="#D0D7DD" BorderThickness="1">
-                <StackPanel><TextBlock Text="Master / ماستر" Foreground="#67727D" FontSize="11"/><TextBlock x:Name="MasterTotalTextBlock" Text="0.00" FontSize="16" FontWeight="Bold" Foreground="#2D8DCF"/></StackPanel>
+                <StackPanel><TextBlock Text="Master / ماستر" Foreground="#67727D" FontSize="11"/><TextBlock x:Name="MasterTotalTextBlock" Text="0.00" FontSize="16" FontWeight="Bold" Foreground="#2478D4"/></StackPanel>
             </Border>
             <Border Background="White" CornerRadius="8" Padding="8" Margin="0,0,6,0" BorderBrush="#D0D7DD" BorderThickness="1">
-                <StackPanel><TextBlock Text="Debit / مدين" Foreground="#67727D" FontSize="11"/><TextBlock x:Name="DebitTotalTextBlock" Text="0.00" FontSize="16" FontWeight="Bold" Foreground="#2D8DCF"/></StackPanel>
+                <StackPanel><TextBlock Text="Debit / مدين" Foreground="#67727D" FontSize="11"/><TextBlock x:Name="DebitTotalTextBlock" Text="0.00" FontSize="16" FontWeight="Bold" Foreground="#2478D4"/></StackPanel>
             </Border>
             <Border Background="White" CornerRadius="8" Padding="8" Margin="0,0,6,0" BorderBrush="#D0D7DD" BorderThickness="1">
-                <StackPanel><TextBlock Text="Check / شيك" Foreground="#67727D" FontSize="11"/><TextBlock x:Name="CheckTotalTextBlock" Text="0.00" FontSize="16" FontWeight="Bold" Foreground="#2D8DCF"/></StackPanel>
+                <StackPanel><TextBlock Text="Check / شيك" Foreground="#67727D" FontSize="11"/><TextBlock x:Name="CheckTotalTextBlock" Text="0.00" FontSize="16" FontWeight="Bold" Foreground="#2478D4"/></StackPanel>
             </Border>
             <Border Background="White" CornerRadius="8" Padding="8" BorderBrush="#D0D7DD" BorderThickness="1">
-                <StackPanel><TextBlock Text="Mobile / موبايل" Foreground="#67727D" FontSize="11"/><TextBlock x:Name="MobileTotalTextBlock" Text="0.00" FontSize="16" FontWeight="Bold" Foreground="#2D8DCF"/></StackPanel>
+                <StackPanel><TextBlock Text="Mobile / موبايل" Foreground="#67727D" FontSize="11"/><TextBlock x:Name="MobileTotalTextBlock" Text="0.00" FontSize="16" FontWeight="Bold" Foreground="#2478D4"/></StackPanel>
             </Border>
 
             <Border Background="#EEF7EF" CornerRadius="8" Padding="8" Margin="0,0,6,0" BorderBrush="#D0D7DD" BorderThickness="1">
@@ -218,7 +218,7 @@
                 <StackPanel><TextBlock Text="Payments / سندات الدفع" Foreground="#67727D" FontSize="11"/><TextBlock x:Name="VoucherPaymentsTextBlock" Text="0.00" FontSize="16" FontWeight="Bold" Foreground="#C93F4D"/></StackPanel>
             </Border>
             <Border Background="White" CornerRadius="8" Padding="8" BorderBrush="#D0D7DD" BorderThickness="1">
-                <StackPanel><TextBlock Text="Voucher Net / صافي السندات" Foreground="#67727D" FontSize="11"/><TextBlock x:Name="VoucherNetTextBlock" Text="0.00" FontSize="16" FontWeight="Bold" Foreground="#2D8DCF"/></StackPanel>
+                <StackPanel><TextBlock Text="Voucher Net / صافي السندات" Foreground="#67727D" FontSize="11"/><TextBlock x:Name="VoucherNetTextBlock" Text="0.00" FontSize="16" FontWeight="Bold" Foreground="#2478D4"/></StackPanel>
             </Border>
         </UniformGrid>
 
