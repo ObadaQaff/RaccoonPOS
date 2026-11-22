@@ -778,14 +778,14 @@ namespace RaccoonWarehouse.Invoices
 
                 UnitBox.ItemsSource = unitsResult.Data;
 
-                // 🔷 Auto-select default purchase unit if exists
                 var defaultUnit = ProductUnitSelector.GetDefaultPurchaseUnit(unitsResult.Data);
                 if (defaultUnit != null)
                 {
                     UnitBox.SelectedValue = defaultUnit.Id;
-                    PurchaseBox.Text = defaultUnit.PurchasePrice.ToString();
-                    SaleBox.Text = defaultUnit.SalePrice.ToString();
+                    PurchaseBox.Text = defaultUnit.PurchasePrice.ToString("0.000");
+                    SaleBox.Text = defaultUnit.SalePrice.ToString("0.000");
                 }
+
             }
             catch (Exception ex)
             {
@@ -864,7 +864,8 @@ namespace RaccoonWarehouse.Invoices
                 return;
             }
 
-            if (!TryParseDecimalInput(QtyBox.Text, out decimal qty) || qty <= 0)
+            var qty = TryParseDecimalInput(QtyBox.Text, out var enteredQuantity) ? enteredQuantity : 0m;
+            if (qty <= 0)
             {
                 MessageBox.Show(UiText.T("الكمية غير صحيحة.", "The quantity is invalid."), UiText.T("تنبيه", "Notice"));
                 return;
@@ -2550,8 +2551,7 @@ CreatedDate = InvoiceDatePicker.SelectedDate.Value,
                 WindowManager.ShowDialog<CreateProduct>(WindowSizeType.LargeRectangle, window =>
                 {
                     createWindow = window;
-                    if (long.TryParse(searchText, out var barcode))
-                        window.InitialItemCode = barcode.ToString();
+                    window.ConfigureForPurchaseQuickCreate(searchText);
                 });
             }
 

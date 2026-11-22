@@ -8,19 +8,19 @@
         WindowState="Maximized"
         Background="{StaticResource AppPageBackgroundBrush}"
         FlowDirection="{DynamicResource CurrentFlowDirection}">
-    <Grid Background="{StaticResource AppPageBackgroundBrush}">
+    <Grid x:Name="ProductPageRoot" Background="{StaticResource AppPageBackgroundBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="220"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
-        <Border Grid.Row="0" CornerRadius="0,0,34,34" Background="{StaticResource AppDashboardHeroBrush}">
+        <Border x:Name="FullProductPageHero" Grid.Row="0" CornerRadius="0,0,34,34" Background="{StaticResource AppDashboardHeroBrush}">
             <Grid Margin="34,24,34,34">
                 <StackPanel VerticalAlignment="Center">
                     <TextBlock Text="بطاقة إدخال صنف" FontSize="34" FontWeight="Bold" Foreground="White"/>
                 </StackPanel>
             </Grid>
         </Border>
-        <Grid Grid.Row="1" Margin="24,-52,24,24">
+        <Grid x:Name="FullProductPageContent" Grid.Row="1" Margin="24,-52,24,24">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="2.6*"/>
                 <ColumnDefinition Width="1*"/>
@@ -169,5 +169,69 @@
                 </StackPanel>
             </Border>
         </Grid>
+
+        <Border x:Name="QuickProductEntryPanel"
+                Grid.RowSpan="2"
+                Visibility="Collapsed"
+                Width="560"
+                Padding="34"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Style="{StaticResource AppCardBorderStyle}">
+            <StackPanel>
+                <TextBlock Text="Quick Product Creation / إضافة منتج سريع"
+                           FontSize="26"
+                           FontWeight="Bold"
+                           Foreground="{StaticResource AppPrimaryBrush}"
+                           HorizontalAlignment="Center"
+                           Margin="0,0,0,24"/>
+                <TextBlock Text="Product name / اسم الصنف" Style="{StaticResource AppFieldLabelStyle}"/>
+                <TextBox x:Name="QuickProductNameTextBox"
+                         Style="{StaticResource AppTextInputStyle}"
+                         KeyDown="QuickProductField_KeyDown"
+                         Margin="0,4,0,14"/>
+                <TextBlock Text="Barcode / الباركود" Style="{StaticResource AppFieldLabelStyle}"/>
+                <TextBox x:Name="QuickProductBarcodeTextBox"
+                         Style="{StaticResource AppTextInputStyle}"
+                         FlowDirection="LeftToRight"
+                         KeyDown="QuickProductField_KeyDown"
+                         Margin="0,4,0,14"/>
+                <TextBlock Text="Tax (%) / الضريبة (%)" Style="{StaticResource AppFieldLabelStyle}"/>
+                <TextBox x:Name="QuickProductTaxTextBox"
+                         Style="{StaticResource AppTextInputStyle}"
+                         FlowDirection="LeftToRight"
+                         KeyDown="QuickProductField_KeyDown"
+                         Margin="0,4,0,14"/>
+                <TextBlock Text="Purchase cost / تكلفة الشراء" Style="{StaticResource AppFieldLabelStyle}"/>
+                <TextBox x:Name="QuickProductCostTextBox"
+                         Style="{StaticResource AppTextInputStyle}"
+                         FlowDirection="LeftToRight"
+                         KeyDown="QuickProductField_KeyDown"
+                         Margin="0,4,0,14"/>
+                <TextBlock Text="Sale price / سعر البيع" Style="{StaticResource AppFieldLabelStyle}"/>
+                <TextBox x:Name="QuickProductSaleTextBox"
+                         Style="{StaticResource AppTextInputStyle}"
+                         FlowDirection="LeftToRight"
+                         KeyDown="QuickProductField_KeyDown"
+                         Margin="0,4,0,22"/>
+                <TextBlock x:Name="QuickProductUnitText"
+                           Text="Unit: Piece / الوحدة: قطعة"
+                           Foreground="{StaticResource AppMutedTextBrush}"
+                           HorizontalAlignment="Center"
+                           Margin="0,0,0,18"/>
+                <Button x:Name="QuickProductSaveButton"
+                        Content="Save / حفظ"
+                        Width="190"
+                        HorizontalAlignment="Center"
+                        Style="{StaticResource AppFormButtonStyle}"
+                        Click="QuickProductSaveButton_Click"/>
+                <Button Content="Back / عودة"
+                        Width="190"
+                        HorizontalAlignment="Center"
+                        Margin="0,12,0,0"
+                        Style="{StaticResource AppSecondaryButtonStyle}"
+                        Click="Button_Click_2"/>
+            </StackPanel>
+        </Border>
     </Grid>
 </Window>

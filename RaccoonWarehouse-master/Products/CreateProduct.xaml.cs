@@ -17,6 +17,7 @@ using RaccoonWarehouse.Domain.Products.DTOs;
 using RaccoonWarehouse.Domain.ProductUnits.DTOs;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -51,6 +52,8 @@ namespace RaccoonWarehouse.Products
         private decimal? _lastSuggestedFractionalSalePrice;
         private decimal? _lastSuggestedFractionalSaleCost;
         private bool _isUpdatingFractionalSuggestions;
+        private bool _isQuickPurchaseCreate;
+        private string? _quickInitialSearch;
         private const string DefaultCategoryName = "مواد الصيدلية";
         private const string DefaultSubCategoryName = "مواد عامة";
         private const decimal DefaultNameSimilarityThreshold = 0.80m;
@@ -91,9 +94,58 @@ namespace RaccoonWarehouse.Products
 
                 _isLoaded = true;
                 await LoadDataAsync();
-                if (!string.IsNullOrWhiteSpace(InitialItemCode))
+                if (_isQuickPurchaseCreate)
+                {
+                    ConfigureQuickProductView();
+                }
+                else if (!string.IsNullOrWhiteSpace(InitialItemCode))
                     ITEMCODE.Text = InitialItemCode;
             };
+        }
+
+        public void ConfigureForPurchaseQuickCreate(string? initialSearch = null)
+        {
+            _isQuickPurchaseCreate = true;
+            _quickInitialSearch = initialSearch?.Trim();
+            Title = UiText.T("إضافة منتج سريع", "Quick Product Creation");
+            WindowState = WindowState.Normal;
+            Width = 620;
+            Height = 760;
+            FullProductPageHero.Visibility = Visibility.Collapsed;
+            FullProductPageContent.Visibility = Visibility.Collapsed;
+            QuickProductEntryPanel.Visibility = Visibility.Visible;
+        }
+
+        private void ConfigureQuickProductView()
+        {
+            var pieceUnit = _unitLookupItems.FirstOrDefault(unit =>
+                string.Equals(unit.Name?.Trim(), "Piece", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(unit.Name?.Trim(), "Pcs", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(unit.Name?.Trim(), "قطعة", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(unit.DisplayName?.Trim(), "Piece", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(unit.DisplayName?.Trim(), "قطعة", StringComparison.OrdinalIgnoreCase));
+
+            if (pieceUnit != null)
+            {
+                UnitComboBox.SelectedValue = pieceUnit.Id;
+                QuickProductUnitText.Text = UiText.T("الوحدة: قطعة", "Unit: Piece");
+            }
+            else
+            {
+                QuickProductUnitText.Text = UiText.T("لم يتم العثور على وحدة القطعة", "Piece unit was not found");
+            }
+
+            if (!string.IsNullOrWhiteSpace(_quickInitialSearch))
+            {
+                if (long.TryParse(_quickInitialSearch, out _))
+                    QuickProductBarcodeTextBox.Text = _quickInitialSearch;
+                else
+                    QuickProductNameTextBox.Text = _quickInitialSearch;
+            }
+
+            QuickProductTaxTextBox.Text = "0";
+            QuickProductNameTextBox.Focus();
+            QuickProductNameTextBox.SelectAll();
         }
 
         public void InitializeForSubCategory(int subCategoryId, string? subCategoryName = null)
@@ -722,6 +774,105 @@ namespace RaccoonWarehouse.Products
             IsBaseUnitCheckBox.IsChecked = false;
             IsDefaultSaleUnitCheckBox.IsChecked = false;
             IsDefaultPurchaseUnitCheckBox.IsChecked = false;
+        }
+
+        private void QuickProductField_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (!_isQuickPurchaseCreate || e.Key != Key.Enter)
+                return;
+
+            e.Handled = true;
+            if (ReferenceEquals(sender, QuickProductNameTextBox))
+            {
+                QuickProductBarcodeTextBox.Focus();
+                QuickProductBarcodeTextBox.SelectAll();
+            }
+            else if (ReferenceEquals(sender, QuickProductBarcodeTextBox))
+            {
+                QuickProductTaxTextBox.Focus();
+                QuickProductTaxTextBox.SelectAll();
+            }
+            else if (ReferenceEquals(sender, QuickProductTaxTextBox))
+            {
+                QuickProductCostTextBox.Focus();
+                QuickProductCostTextBox.SelectAll();
+            }
+            else if (ReferenceEquals(sender, QuickProductCostTextBox))
+            {
+                QuickProductSaleTextBox.Focus();
+                QuickProductSaleTextBox.SelectAll();
+            }
+            else if (ReferenceEquals(sender, QuickProductSaleTextBox))
+            {
+                QuickProductSaveButton.Focus();
+            }
+        }
+
+        private void QuickProductSaveButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isQuickPurchaseCreate)
+                return;
+
+            var name = QuickProductNameTextBox.Text.Trim();
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                MessageBox.Show(UiText.T("اسم المنتج مطلوب.", "Product name is required."), UiText.T("تنبيه", "Notice"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                QuickProductNameTextBox.Focus();
+                return;
+            }
+
+            if (!long.TryParse(QuickProductBarcodeTextBox.Text.Trim(), out var itemCode) || itemCode <= 0)
+            {
+                MessageBox.Show(UiText.T("الباركود يجب أن يكون رقماً صحيحاً.", "Barcode must be a valid positive number."), UiText.T("تنبيه", "Notice"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                QuickProductBarcodeTextBox.Focus();
+                return;
+            }
+
+            if (!decimal.TryParse(QuickProductTaxTextBox.Text.Trim(), out var taxRate) || taxRate < 0m || taxRate > 100m)
+            {
+                MessageBox.Show(UiText.T("نسبة الضريبة غير صحيحة.", "Tax percentage is invalid."), UiText.T("تنبيه", "Notice"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                QuickProductTaxTextBox.Focus();
+                return;
+            }
+
+            if (!decimal.TryParse(QuickProductCostTextBox.Text.Trim(), out var purchasePrice) || purchasePrice < 0m)
+            {
+                MessageBox.Show(UiText.T("تكلفة الشراء غير صحيحة.", "Purchase cost is invalid."), UiText.T("تنبيه", "Notice"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                QuickProductCostTextBox.Focus();
+                return;
+            }
+
+            if (!decimal.TryParse(QuickProductSaleTextBox.Text.Trim(), out var salePrice) || salePrice <= 0m)
+            {
+                MessageBox.Show(UiText.T("سعر البيع يجب أن يكون أكبر من صفر.", "Sale price must be greater than zero."), UiText.T("تنبيه", "Notice"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                QuickProductSaleTextBox.Focus();
+                return;
+            }
+
+            if (UnitComboBox.SelectedValue is not int pieceUnitId || pieceUnitId <= 0)
+            {
+                MessageBox.Show(UiText.T("لم يتم العثور على وحدة القطعة.", "The Piece unit could not be found."), UiText.T("تنبيه", "Notice"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            NameTextBox.Text = name;
+            ITEMCODE.Text = itemCode.ToString();
+            TaxExemptCheckBox.IsChecked = false;
+            TaxRate.Text = taxRate.ToString(CultureInfo.InvariantCulture);
+            StatusComboBox.SelectedItem = ProductStatus.InStock;
+            QuantityPerUnitTextBox.Text = "1";
+            PurchasePriceTextBox.Text = purchasePrice.ToString(CultureInfo.InvariantCulture);
+            SalePriceTextBox.Text = salePrice.ToString(CultureInfo.InvariantCulture);
+            UnitComboBox.SelectedValue = pieceUnitId;
+            AllowFractionalSaleCheckBox.IsChecked = false;
+            IsBaseUnitCheckBox.IsChecked = true;
+            IsDefaultSaleUnitCheckBox.IsChecked = true;
+            IsDefaultPurchaseUnitCheckBox.IsChecked = true;
+
+            _productUnits.Clear();
+            AddUnit_Click(this, new RoutedEventArgs());
+            if (_productUnits.Count == 1)
+                Button_Click_1(sender, e);
         }
 
         private async void Button_Click_1(object sender, RoutedEventArgs e)

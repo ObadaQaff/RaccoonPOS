@@ -113,11 +113,11 @@ public partial class POS
             ShowPartialSaleCatalogNotReady();
             return new(false, input);
         }
-        if (!source.AllowFractionalSale || ProductUnitService.IsTapeUnitName(source.Unit?.Name))
+        if (ProductUnitService.IsTapeUnitName(source.Unit?.Name))
         {
             MessageBox.Show(this,
                 UiText.T("البيع الجزئي غير مسموح لهذه الوحدة. فعّل خيار بيع جزئي من بطاقة الصنف.",
-                    "Partial sale is not allowed for this unit. Enable Fractional sale in the product editor."),
+                    "Partial sale is not available for the Tape unit."),
                 UiText.T("تنبيه", "Notice"), MessageBoxButton.OK, MessageBoxImage.Warning);
             return new(false, input);
         }
@@ -140,7 +140,7 @@ public partial class POS
             ?? (hasValidParts ? Math.Round(source.SalePrice / source.FractionalPartsPerUnit, 3, MidpointRounding.AwayFromZero) : legacyTape?.SalePrice);
         var fractionalSaleCost = source.FractionalSaleCost
             ?? (hasValidParts ? Math.Round(source.PurchasePrice / source.FractionalPartsPerUnit, 3, MidpointRounding.AwayFromZero) : legacyTape?.PurchasePrice);
-        if (fractionalSalePrice == null || fractionalSaleCost == null)
+        if (!source.AllowFractionalSale || fractionalSalePrice == null || fractionalSaleCost == null)
         {
             var invoiceBeforeSetup = _currentInvoice;
             var resetVersionBeforeSetup = _posResetVersion;

@@ -13,7 +13,7 @@
             <TextBlock Text="سعر الشريط" Foreground="#173E63"/>
             <TextBox x:Name="PartialSalePriceTextBox" Margin="0,6,0,14" Height="38" FontSize="18" Padding="8"
                      FlowDirection="LeftToRight"/>
-            <TextBlock Text="ÙƒÙ„ÙØ© Ø§Ù„Ø¬Ø²Ø¡" Foreground="#173E63"/>
+            <TextBlock Text="تكلفة الجزء / Partial Sale Cost" Foreground="#173E63"/>
             <TextBox x:Name="PartialSaleCostTextBox" Margin="0,6,0,8" Height="38" FontSize="18" Padding="8"
                      FlowDirection="LeftToRight"/>
             <TextBlock Text="يُحسب سعر الشريط تلقائياً، ويمكنك تعديله قبل الحفظ."

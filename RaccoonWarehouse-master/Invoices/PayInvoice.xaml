@@ -353,7 +353,7 @@
                 </Grid>
 
                 <!-- منطقة إدخال المنتج (نفس المبيعات) -->
-                <StackPanel Margin="10" Orientation="Vertical" Background="#E8F0F7" Visibility="Collapsed">
+                <StackPanel x:Name="ProductEntryPanel" Margin="10" Orientation="Vertical" Background="#E8F0F7" Visibility="Collapsed">
                     <DockPanel>
                         <Button Content="إضافة صنف"
                                 DockPanel.Dock="Left"
@@ -365,7 +365,7 @@
                         <TextBlock Text="إضافة منتج" Style="{StaticResource HeaderText}"/>
                     </DockPanel>
 
-                    <Grid Margin="0,10,0,0" Visibility="Collapsed">
+                    <Grid x:Name="ProductEntryGrid" Margin="0,10,0,0" Visibility="Collapsed">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="250"/>
                             <ColumnDefinition Width="120"/>
@@ -454,7 +454,8 @@
                             <TextBlock Text="سعر الشراء"/>
                             <TextBox x:Name="PurchaseBox"
                                      Style="{StaticResource InputBoxStyle}"
-                                     HorizontalContentAlignment="Center"/>
+                                     HorizontalContentAlignment="Center"
+                                     />
                         </StackPanel>
 
                         <!-- سعر البيع -->
@@ -462,7 +463,8 @@
                             <TextBlock Text="سعر البيع"/>
                             <TextBox x:Name="SaleBox"
                                      Style="{StaticResource InputBoxStyle}"
-                                     HorizontalContentAlignment="Center"/>
+                                     HorizontalContentAlignment="Center"
+                                     />
                         </StackPanel>
 
                         <!-- تاريخ الانتهاء -->

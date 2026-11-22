@@ -138,13 +138,16 @@ namespace RaccoonWarehouse.Application.Service.ProductUnits
                 if (source == null || source.Product == null || source.Product.IsDeleted)
                     return Result<List<ProductUnitReadDto>>.Fail("الوحدة غير موجودة. / Product unit not found.");
                 await _partialSaleContext.Entry(source).ReloadAsync();
-                if (!source.AllowFractionalSale || IsTapeUnitName(source.Unit?.Name))
+                if (IsTapeUnitName(source.Unit?.Name))
                     return Result<List<ProductUnitReadDto>>.Fail(
-                        "البيع الجزئي غير مسموح لهذه الوحدة. / Partial sale is not allowed for this unit.");
+                        "Partial sale cannot be configured for the Tape unit.");
                 if (source.QuantityPerUnit <= 0m)
                     return Result<List<ProductUnitReadDto>>.Fail(
                         "وحدة المنتج لا تحتوي على كمية صحيحة. / The product unit has no valid quantity.");
 
+                // POS may configure partial sale the first time it is needed.
+                // Persist the catalog permission together with its pricing data.
+                source.AllowFractionalSale = true;
                 source.FractionalPartsPerUnit = partsPerPackage;
                 source.FractionalPartName = string.IsNullOrWhiteSpace(source.FractionalPartName)
                     ? "Piece"
