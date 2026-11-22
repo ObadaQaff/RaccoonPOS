@@ -27,19 +27,11 @@
 
                 <!-- 🦝 LOGO -->
                 <Image Source="pack://application:,,,/Assets/Logo/TheSystemLogo.png"
-                       Width="88"
-                       Height="72"
-                       Margin="0,0,0,4"
-                       />
-
-                <!-- APP NAME -->
-                <TextBlock Text="The System"
-                   FontSize="22"
-                   FontWeight="SemiBold"
-                   FontFamily="Segoe UI Variable"
-                   Foreground="{DynamicResource AppTextBrush}"
-                   Margin="0,6,0,18"
-                   HorizontalAlignment="Center"/>
+                       Width="250"
+                       Height="75"
+                       Stretch="Uniform"
+                       Margin="0,0,0,18"
+                       HorizontalAlignment="Center"/>
 
                 <!-- 🔄 SPINNER -->
                 <Grid Width="48"
@@ -48,7 +40,7 @@
                     <Ellipse Stroke="#DCE6EA"
                              StrokeThickness="4"/>
 
-                    <Ellipse Stroke="#5B2BE0"
+                    <Ellipse Stroke="{DynamicResource AppPrimaryBrush}"
                              StrokeThickness="4"
                              StrokeDashArray="2 6"
                              StrokeStartLineCap="Round"

@@ -21,31 +21,32 @@
                   BlurRadius="20"
                   ShadowDepth="0"
                   Opacity="0.2"/>
-            <SolidColorBrush x:Key="PageBackgroundBrush" Color="#EEF3F7"/>
+            <SolidColorBrush x:Key="PageBackgroundBrush" Color="#F1F8FA"/>
             <LinearGradientBrush x:Key="HeroBrush" StartPoint="0,0" EndPoint="1,0">
-                <GradientStop Color="#2478D4" Offset="0"/>
-                <GradientStop Color="#14A6A6" Offset="1"/>
+                <GradientStop Color="#0B2D45" Offset="0"/>
+                <GradientStop Color="#16B5E8" Offset="0.55"/>
+                <GradientStop Color="#18C9B3" Offset="1"/>
             </LinearGradientBrush>
-            <SolidColorBrush x:Key="PrimaryTextBrush" Color="#1F3345"/>
-            <SolidColorBrush x:Key="MutedTextBrush" Color="#64758D"/>
+            <SolidColorBrush x:Key="PrimaryTextBrush" Color="#0B2D45"/>
+            <SolidColorBrush x:Key="MutedTextBrush" Color="#5B7480"/>
             <SolidColorBrush x:Key="HeroOverlayBrush" Color="#1FFFFFFF"/>
             <Style x:Key="ReportCardBorderStyle" TargetType="Border">
                 <Setter Property="Background" Value="White"/>
                 <Setter Property="CornerRadius" Value="20"/>
-                <Setter Property="BorderBrush" Value="#D9E3EA"/>
+                <Setter Property="BorderBrush" Value="#D4E5E8"/>
                 <Setter Property="BorderThickness" Value="1"/>
                 <Setter Property="Padding" Value="18"/>
                 <Setter Property="Margin" Value="0,0,0,12"/>
             </Style>
             <Style x:Key="ReportSecondaryButtonStyle" TargetType="Button">
-                <Setter Property="Background" Value="#F1F6FA"/>
+                <Setter Property="Background" Value="#EAF7F8"/>
                 <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}"/>
                 <Setter Property="FontWeight" Value="SemiBold"/>
                 <Setter Property="Padding" Value="14,8"/>
                 <Setter Property="BorderThickness" Value="0"/>
             </Style>
             <Style x:Key="ReportPrimaryButtonStyle" TargetType="Button">
-                <Setter Property="Background" Value="#2F83C5"/>
+                <Setter Property="Background" Value="#16B5E8"/>
                 <Setter Property="Foreground" Value="White"/>
                 <Setter Property="FontWeight" Value="Bold"/>
                 <Setter Property="Padding" Value="16,10"/>
@@ -56,7 +57,7 @@
                 <Setter Property="FontSize" Value="14"/>
                 <Setter Property="Padding" Value="10,6"/>
                 <Setter Property="Background" Value="White"/>
-                <Setter Property="BorderBrush" Value="#D2DEE7"/>
+                <Setter Property="BorderBrush" Value="#C9DFE4"/>
                 <Setter Property="BorderThickness" Value="1"/>
             </Style>
         </ResourceDictionary>

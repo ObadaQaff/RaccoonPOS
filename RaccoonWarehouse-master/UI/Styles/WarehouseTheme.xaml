@@ -4,7 +4,7 @@
 
     <!-- Primary button -->
     <Style x:Key="PrimaryButtonStyle" TargetType="Button">
-        <Setter Property="Background" Value="#2478D4"/>
+        <Setter Property="Background" Value="#16B5E8"/>
         <Setter Property="Foreground" Value="White"/>
         <Setter Property="FontWeight" Value="Bold"/>
         <Setter Property="FontSize" Value="18"/>
@@ -30,8 +30,8 @@
     <Style x:Key="SecondaryButtonStyle"
        TargetType="Button"
        BasedOn="{StaticResource PrimaryButtonStyle}">
-        <Setter Property="Background" Value="#E3EAF0"/>
-        <Setter Property="Foreground" Value="#2478D4"/>
+        <Setter Property="Background" Value="#EAF7F8"/>
+        <Setter Property="Foreground" Value="#0B6C91"/>
     </Style>
 
     <!-- Modern DataGrid -->
@@ -40,7 +40,7 @@
         <Setter Property="ColumnHeaderHeight" Value="44"/>
         <Setter Property="GridLinesVisibility" Value="None"/>
         <Setter Property="HeadersVisibility" Value="Column"/>
-        <Setter Property="BorderBrush" Value="#D0D7DD"/>
+        <Setter Property="BorderBrush" Value="#D4E5E8"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="Background" Value="White"/>
         <Setter Property="FontSize" Value="17"/>
@@ -127,10 +127,10 @@
 
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Border" Property="BorderBrush" Value="#2478D4"/>
+                        <Setter TargetName="Border" Property="BorderBrush" Value="#16B5E8"/>
                         </Trigger>
                         <Trigger Property="IsFocused" Value="True">
-                            <Setter TargetName="Border" Property="BorderBrush" Value="#2478D4"/>
+                        <Setter TargetName="Border" Property="BorderBrush" Value="#16B5E8"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter TargetName="Border" Property="Opacity" Value="0.5"/>

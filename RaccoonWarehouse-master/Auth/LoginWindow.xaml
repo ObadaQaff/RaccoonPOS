@@ -30,16 +30,11 @@
 
             <StackPanel>
                 <Image Source="pack://application:,,,/Assets/Logo/TheSystemLogo.png"
-                       Width="104"
-                       Height="86"
+                       Width="250"
+                       Height="75"
+                       Stretch="Uniform"
                        HorizontalAlignment="Center"
-                       Margin="0,0,0,14"/>
-
-                <TextBlock Text="The System"
-                           FontSize="22"
-                           FontWeight="Bold"
-                           Foreground="{DynamicResource AppTextBrush}"
-                           HorizontalAlignment="Center"/>
+                       Margin="0,0,0,18"/>
 
                 <TextBlock Text="Secure cashier login"
                            FontSize="13"
@@ -121,7 +116,7 @@
                         Height="44"
                         FontSize="15"
                         FontWeight="Bold"
-                        Background="#5B2BE0"
+                        Background="{DynamicResource AppPrimaryBrush}"
                         Foreground="White"
                         BorderThickness="0"
                         Cursor="Hand"
@@ -150,13 +145,13 @@
                             </Border>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter Property="Background" Value="#6D3DF2"/>
+                                    <Setter Property="Background" Value="{DynamicResource AppAccentBrush}"/>
                                 </Trigger>
                                 <Trigger Property="IsPressed" Value="True">
-                                    <Setter Property="Background" Value="#4520B2"/>
+                                    <Setter Property="Background" Value="{DynamicResource AppPrimaryDarkBrush}"/>
                                 </Trigger>
                                 <Trigger Property="IsEnabled" Value="False">
-                                    <Setter Property="Background" Value="#B9B0D8"/>
+                                    <Setter Property="Background" Value="#A9DCE3"/>
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
