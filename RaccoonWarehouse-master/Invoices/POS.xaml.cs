@@ -2730,7 +2730,13 @@ namespace RaccoonWarehouse.Invoices
             var insertIndex = _invoiceLines.IndexOf(matchingLines.First());
             var totalQuantity = matchingLines.Sum(l => l.Quantity);
 
-            var selectedLots = await SelectLotsForQuantityAsync(sourceLine.ProductId, sourceLine.ProductUnitId, totalQuantity);
+            // Preserve lot choices already made for this invoice line. A
+            // quantity edit should resize the existing allocation rather than
+            // reopening the lot picker every time.
+            var selectedLots = await GetPreviouslySelectedLotsAsync(
+                sourceLine.ProductId, sourceLine.ProductUnitId, matchingLines);
+            selectedLots ??= await SelectLotsForQuantityAsync(
+                sourceLine.ProductId, sourceLine.ProductUnitId, totalQuantity);
             var allocationResult = await AllocateInvoiceLinesAsync(sourceLine.ProductId, sourceLine.ProductUnitId, totalQuantity, selectedLots);
 
             if (!allocationResult.Success || allocationResult.Data == null || allocationResult.Data.Count == 0)
@@ -2869,6 +2875,34 @@ namespace RaccoonWarehouse.Invoices
             }
 
             return selectedLots;
+        }
+
+        private async Task<IReadOnlyList<PosStockLotOptionDto>?> GetPreviouslySelectedLotsAsync(
+            int productId,
+            int productUnitId,
+            IReadOnlyList<InvoiceLineWriteDto> matchingLines)
+        {
+            var selectedLotIds = matchingLines
+                .Select(line => line.PreferredStockLotId)
+                .Where(id => id.HasValue && id.Value > 0)
+                .Select(id => id!.Value)
+                .Distinct()
+                .ToHashSet();
+
+            if (selectedLotIds.Count == 0)
+                return null;
+
+            var optionsResult = await _stockService.GetPosStockLotOptionsAsync(productId, productUnitId);
+            if (!optionsResult.Success || optionsResult.Data == null)
+                return null;
+
+            var selectedLots = optionsResult.Data
+                .Where(option => selectedLotIds.Contains(option.StockLotId))
+                .ToList();
+
+            // If a previously selected lot disappeared, reopen the picker so
+            // the cashier can choose a valid replacement.
+            return selectedLots.Count == selectedLotIds.Count ? selectedLots : null;
         }
 
         private void RemoveUnavailableBarcodeLine(InvoiceLineWriteDto line)
@@ -5318,8 +5352,51 @@ namespace RaccoonWarehouse.Invoices
             DiscountTextBox.SelectAll();
         }
 
+        private void InvoiceDiscount_GotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+        {
+            if (sender is TextBox textBox)
+                textBox.SelectAll();
+        }
+
+        private void RefocusInvoiceDiscountInput()
+        {
+            if (_invoiceDiscountRefocusPending)
+                return;
+
+            _invoiceDiscountRefocusPending = true;
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                _invoiceDiscountRefocusPending = false;
+                if (!IsLoaded)
+                    return;
+
+                DiscountTextBox.Focus();
+                DiscountTextBox.SelectAll();
+            }), DispatcherPriority.Input);
+        }
+
+        private void InvoiceDiscount_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is not TextBox textBox)
+                return;
+
+            if (!textBox.IsKeyboardFocusWithin)
+            {
+                e.Handled = true;
+                textBox.Focus();
+            }
+
+            Dispatcher.BeginInvoke(new Action(textBox.SelectAll), DispatcherPriority.Input);
+        }
+
         private void InvoiceDiscount_LostFocus(object sender, RoutedEventArgs e)
         {
+            if (_invoiceDiscountInputResetPending)
+            {
+                _invoiceDiscountInputResetPending = false;
+                return;
+            }
+
             ApplyInvoiceDiscountInput();
             RecalculateTotals();
         }

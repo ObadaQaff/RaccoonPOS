@@ -1181,6 +1181,8 @@
                                  Margin="0,0,0,4"
                                  HorizontalContentAlignment="Center"
                                  Tag="Discount"
+                                 GotKeyboardFocus="InvoiceDiscount_GotKeyboardFocus"
+                                 PreviewMouseLeftButtonDown="InvoiceDiscount_PreviewMouseLeftButtonDown"
                                  PreviewKeyDown="NumericEditor_PreviewKeyDown"
                                  PreviewTextInput="NumericEditor_PreviewTextInput"
                                  LostFocus="InvoiceDiscount_LostFocus"/>

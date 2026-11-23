@@ -23,6 +23,8 @@ public partial class POS
     private bool _hasDistributedInvoiceDiscount;
     private bool _isApplyingInvoiceDiscount;
     private bool _invoiceDiscountReviewRequired;
+    private bool _invoiceDiscountInputResetPending;
+    private bool _invoiceDiscountRefocusPending;
     private decimal _invoiceDiscountInputValue;
 
     private void ResetDistributedInvoiceDiscount()
@@ -31,6 +33,7 @@ public partial class POS
         _invoiceDiscountBases.Clear();
         _hasDistributedInvoiceDiscount = false;
         _invoiceDiscountReviewRequired = false;
+        _invoiceDiscountInputResetPending = false;
         _invoiceDiscountInputValue = 0m;
         _invoiceDiscountIsPercentage = false;
         _invoiceDiscountPercent = 0m;
@@ -143,6 +146,22 @@ public partial class POS
         }
     }
 
+    private void ResetInvoiceDiscountInputForNextEntry()
+    {
+        _invoiceDiscountInputResetPending = true;
+        _isUpdatingInvoiceDiscountText = true;
+        try
+        {
+            DiscountTextBox.Text = "0";
+        }
+        finally
+        {
+            _isUpdatingInvoiceDiscountText = false;
+        }
+
+        RefocusInvoiceDiscountInput();
+    }
+
     private void ShowInvoiceDiscountMaximum(decimal maximum)
     {
         MessageBox.Show(this,
@@ -170,13 +189,13 @@ public partial class POS
                     UiText.T("أدخل الخصم كقيمة مثل 0.200 أو كنسبة مثل 1%.",
                         "Enter a discount amount such as 0.200 or a percentage such as 1%."),
                     UiText.T("تنبيه", "Notice"), MessageBoxButton.OK, MessageBoxImage.Warning);
-                RestoreInvoiceDiscountInput();
+                ResetInvoiceDiscountInputForNextEntry();
                 return false;
             }
 
             if (_currentInvoice.InvoiceType is InvoiceType.Return or InvoiceType.PurchaseReturn)
             {
-                RestoreInvoiceDiscountInput();
+                ResetInvoiceDiscountInputForNextEntry();
                 return value == 0m;
             }
 
@@ -187,7 +206,7 @@ public partial class POS
                     UiText.T("لا توجد أصناف مؤهلة للخصم. الأصناف التي عليها خصم مسبقاً مستثناة.",
                         "No items are eligible for this discount. Items already discounted are excluded."),
                     UiText.T("تنبيه", "Notice"), MessageBoxButton.OK, MessageBoxImage.Warning);
-                RestoreInvoiceDiscountInput();
+                ResetInvoiceDiscountInputForNextEntry();
                 return false;
             }
 
@@ -200,13 +219,15 @@ public partial class POS
             if (!plan.Success)
             {
                 ShowInvoiceDiscountMaximum(plan.MaximumPercentage);
-                RestoreInvoiceDiscountInput();
+                ResetInvoiceDiscountInputForNextEntry();
                 return false;
             }
 
             WriteDistributedInvoiceDiscount(rows, plan, value, isPercentage);
             _invoiceDiscountReviewRequired = false;
+            _invoiceDiscountInputResetPending = false;
             RestoreInvoiceDiscountInput();
+            RefocusInvoiceDiscountInput();
             return true;
         }
         finally
@@ -318,6 +339,12 @@ public partial class POS
 
     private bool ValidateDistributedInvoiceDiscount()
     {
+        if (_invoiceDiscountInputResetPending)
+        {
+            _invoiceDiscountInputResetPending = false;
+            return true;
+        }
+
         if (_invoiceDiscountReviewRequired)
         {
             MessageBox.Show(this,
