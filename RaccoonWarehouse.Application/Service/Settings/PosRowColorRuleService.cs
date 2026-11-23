@@ -139,6 +139,7 @@ public sealed class PosRowColorRuleService : IPosRowColorRuleService
             .Where(rule => rule.IsActive
                 && string.Equals(rule.ConditionType, "DefaultDiscount", StringComparison.OrdinalIgnoreCase)
                 && AppliesToScope(rule, scope)
+                && HasExplicitTarget(rule)
                 && MatchesOptionalTarget(rule, categoryId, categoryName, productId)
                 && rule.NumericValue.HasValue
                 && rule.NumericValue.Value >= 0m
@@ -155,23 +156,34 @@ public sealed class PosRowColorRuleService : IPosRowColorRuleService
         var daysToExpiry = expiryDate.HasValue ? (expiryDate.Value.Date - today).Days : (int?)null;
         var rules = Volatile.Read(ref _cachedRules) ?? DefaultRules();
         foreach (var rule in rules
-            .Where(x => x.IsActive && AppliesToScope(x, scope))
+            .Where(x => x.IsActive
+                && AppliesToScope(x, scope)
+                // Discount limits are valid only when targeted to a product
+                // or category. Ignore legacy/global limits defensively even
+                // if an old cached or persisted configuration still has one.
+                && (!string.Equals(x.ConditionType, "DiscountMaximum", StringComparison.OrdinalIgnoreCase)
+                    || HasExplicitTarget(x)))
             .OrderByDescending(x => x.Priority)
             .ThenByDescending(x => GetTargetSpecificity(x, categoryId, categoryName, productId)))
         {
             var isDiscountLimitRule = string.Equals(rule.ConditionType, "DiscountMaximum", StringComparison.OrdinalIgnoreCase)
                 && string.Equals(rule.SaleAction, PosRowColorActions.BlockDiscount, StringComparison.OrdinalIgnoreCase)
                 && rule.NumericValue.HasValue;
+            var requiresExplicitDiscountTarget =
+                string.Equals(rule.ConditionType, "DiscountMaximum", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(rule.ConditionType, "DefaultDiscount", StringComparison.OrdinalIgnoreCase);
             var matches = rule.ConditionType switch
             {
                 "Expired" => daysToExpiry <= 0,
                 "ExpiryWithinDays" => daysToExpiry.HasValue && daysToExpiry > 0 && daysToExpiry <= rule.NumericValue,
-                "DiscountMaximum" => MatchesOptionalTarget(rule, categoryId, categoryName, productId)
+                "DiscountMaximum" => (!requiresExplicitDiscountTarget || HasExplicitTarget(rule))
+                    && MatchesOptionalTarget(rule, categoryId, categoryName, productId)
                     && (string.Equals(scope, "ProductSearch", StringComparison.OrdinalIgnoreCase)
                         || (!discountBlocked
                             && rule.NumericValue.HasValue
                             && discountPercent > rule.NumericValue.Value)),
-                "DefaultDiscount" => MatchesOptionalTarget(rule, categoryId, categoryName, productId),
+                "DefaultDiscount" => (!requiresExplicitDiscountTarget || HasExplicitTarget(rule))
+                    && MatchesOptionalTarget(rule, categoryId, categoryName, productId),
                 "DiscountBlocked" => discountBlocked,
                 "LowStock" => stockQuantity <= rule.NumericValue,
                 "Category" => (rule.CategoryId.HasValue && categoryId == rule.CategoryId) ||
@@ -203,6 +215,11 @@ public sealed class PosRowColorRuleService : IPosRowColorRuleService
         return true;
     }
 
+    private static bool HasExplicitTarget(PosRowColorRule rule)
+        => rule.ProductIds?.Count > 0 ||
+           rule.CategoryId.HasValue ||
+           !string.IsNullOrWhiteSpace(rule.CategoryName);
+
     private static int GetTargetSpecificity(PosRowColorRule rule, int? categoryId, string? categoryName, int? productId)
     {
         if (rule.ProductIds?.Count > 0 && productId.HasValue && rule.ProductIds.Contains(productId.Value))
@@ -218,7 +235,14 @@ public sealed class PosRowColorRuleService : IPosRowColorRuleService
 
     private static List<PosRowColorRule> NormalizeRules(IEnumerable<PosRowColorRule> rules)
     {
-        var normalized = rules.Where(x => !string.IsNullOrWhiteSpace(x.Name)).ToList();
+        var normalized = rules
+            .Where(x => !string.IsNullOrWhiteSpace(x.Name))
+            // Discount limits must be attached to a product or category.
+            // Global maximum-discount rules override the product-specific
+            // policy and are intentionally not supported.
+            .Where(x => !string.Equals(x.ConditionType, "DiscountMaximum", StringComparison.OrdinalIgnoreCase)
+                || HasExplicitTarget(x))
+            .ToList();
         foreach (var rule in normalized)
         {
             if (string.IsNullOrWhiteSpace(rule.Id))
@@ -245,8 +269,6 @@ public sealed class PosRowColorRuleService : IPosRowColorRuleService
         Rule("Expired", 100, "Expired", null, "#FDE2E2", "#9B1C1C", "#DC2626", "Expired"),
         Rule("Expiry within 30 days", 90, "ExpiryWithinDays", 30, "#FCE7F3", "#9D174D", "#DB2777", "Near expiry"),
         Rule("Expiry within 90 days", 80, "ExpiryWithinDays", 90, "#FFF1D6", "#92400E", "#F59E0B", "Expiry warning"),
-        Rule("Maximum discount 10%", 70, "DiscountMaximum", 10, "#E2F7E9", "#166534", "#16A34A", "Maximum 10%"),
-        Rule("Maximum discount 5%", 60, "DiscountMaximum", 5, "#F0FDF4", "#166534", "#65A30D", "Maximum 5%"),
         Rule("Default discount 10%", 30, "DefaultDiscount", 10, "#E7EEF5", "#1F4568", "#7B9AB4", "Default 10%"),
         Rule("Low stock", 40, "LowStock", 10, "#FEF3C7", "#92400E", "#D97706", "Low stock")
     };

@@ -3346,13 +3346,14 @@ namespace RaccoonWarehouse.Invoices
                 ? _invoiceDiscountRows.Keys.Where(saleLines.Contains).ToList()
                 : saleLines;
 
-            foreach (var line in rowsToValidate)
+            if (!_hasDistributedInvoiceDiscount)
             {
-                var lineDiscountPercent = _invoiceDiscountRows.ContainsKey(line)
-                    ? _invoiceDiscountPercent
-                    : line.LineDiscountPercent;
-                if (lineDiscountPercent > 0m && IsLineDiscountBlocked(line, lineDiscountPercent))
-                    return false;
+                foreach (var line in rowsToValidate)
+                {
+                    if (line.LineDiscountPercent > 0m &&
+                        IsLineDiscountBlocked(line, line.LineDiscountPercent))
+                        return false;
+                }
             }
 
             var grossSales = CalculateGrossSalesBeforeInvoiceDiscount();
@@ -3363,12 +3364,6 @@ namespace RaccoonWarehouse.Invoices
 
             if (invoiceDiscountPercent <= 0m)
                 return true;
-
-            foreach (var line in saleLines)
-            {
-                if (IsLineDiscountBlocked(line, invoiceDiscountPercent))
-                    return false;
-            }
 
             return true;
         }
@@ -6462,6 +6457,23 @@ namespace RaccoonWarehouse.Invoices
                 : Math.Round(discountValue, 3, MidpointRounding.AwayFromZero);
             if ((isPercentage && discountValue > 100m) || (!isPercentage && discountAmount > grossLineTotal))
             {
+                textBox.Text = line.LineDiscountInput;
+                return;
+            }
+
+            // Product-line discounts may not reduce the selling price below
+            // the recorded unit cost. This rule applies only to the line
+            // editor; invoice-level discounts are handled independently.
+            var maximumDiscountAmount = Math.Max(0m,
+                grossLineTotal - Math.Max(0m, line.Quantity * line.UnitCost));
+            if (discountAmount > maximumDiscountAmount)
+            {
+                MessageBox.Show(
+                    UiText.T("لا يمكن أن يتجاوز خصم الصنف هامش الربح المتاح.",
+                        "The product discount cannot exceed the available profit margin."),
+                    UiText.T("الخصم يتجاوز التكلفة", "Discount exceeds cost"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
                 textBox.Text = line.LineDiscountInput;
                 return;
             }

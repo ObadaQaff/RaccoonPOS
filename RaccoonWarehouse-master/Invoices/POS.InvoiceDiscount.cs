@@ -10,9 +10,16 @@ namespace RaccoonWarehouse.Invoices;
 
 public partial class POS
 {
+    private sealed record InvoiceDiscountBase(
+        decimal Amount,
+        string Input,
+        bool IsPercentage,
+        decimal Percent);
+
     // References identify rows discounted by this field, as opposed to existing
     // manual/default discounts. Persisted discounts continue to live on the rows.
     private readonly Dictionary<InvoiceLineWriteDto, decimal> _invoiceDiscountRows = new();
+    private readonly Dictionary<InvoiceLineWriteDto, InvoiceDiscountBase> _invoiceDiscountBases = new();
     private bool _hasDistributedInvoiceDiscount;
     private bool _isApplyingInvoiceDiscount;
     private bool _invoiceDiscountReviewRequired;
@@ -21,6 +28,7 @@ public partial class POS
     private void ResetDistributedInvoiceDiscount()
     {
         _invoiceDiscountRows.Clear();
+        _invoiceDiscountBases.Clear();
         _hasDistributedInvoiceDiscount = false;
         _invoiceDiscountReviewRequired = false;
         _invoiceDiscountInputValue = 0m;
@@ -29,7 +37,10 @@ public partial class POS
     }
 
     private void DetachDistributedInvoiceDiscount(InvoiceLineWriteDto row)
-        => _invoiceDiscountRows.Remove(row);
+    {
+        _invoiceDiscountRows.Remove(row);
+        _invoiceDiscountBases.Remove(row);
+    }
 
     private List<InvoiceLineWriteDto> GetEligibleInvoiceDiscountRows()
     {
@@ -37,9 +48,29 @@ public partial class POS
             _invoiceDiscountRows.Remove(row);
 
         return _invoiceLines.Where(row => row.ProductId > 0 && row.Quantity > 0m && row.UnitPrice > 0m &&
-            (row.LineDiscountAmount == 0m || _invoiceDiscountRows.ContainsKey(row)) &&
-            !IsExcludedFromInvoiceDiscount(row)).ToList();
+            (_invoiceDiscountRows.ContainsKey(row) || row.LineDiscountAmount <= 0m)).ToList();
     }
+
+    private Dictionary<InvoiceLineWriteDto, decimal> CaptureInvoiceDiscountBases(
+        IReadOnlyList<InvoiceLineWriteDto> rows)
+    {
+        foreach (var row in rows)
+        {
+            if (_invoiceDiscountBases.ContainsKey(row))
+                continue;
+
+            _invoiceDiscountBases[row] = new(
+                row.LineDiscountAmount,
+                row.LineDiscountInput,
+                row.LineDiscountIsPercentage,
+                row.LineDiscountPercent);
+        }
+
+        return rows.ToDictionary(row => row, row => _invoiceDiscountBases[row].Amount);
+    }
+
+    private decimal GetInvoiceDiscountBaseAmount(InvoiceLineWriteDto row)
+        => _invoiceDiscountBases.TryGetValue(row, out var value) ? value.Amount : 0m;
 
     private bool IsExcludedFromInvoiceDiscount(InvoiceLineWriteDto row)
     {
@@ -48,30 +79,48 @@ public partial class POS
             (!decision.DiscountLimitPercent.HasValue || decision.DiscountLimitPercent.Value <= 0m);
     }
 
-    private decimal GetInvoiceDiscountPolicyMaximum(IReadOnlyList<InvoiceLineWriteDto> rows)
+    private decimal GetInvoiceDiscountPolicyMaximum(
+        IReadOnlyList<InvoiceLineWriteDto> rows,
+        IReadOnlyDictionary<InvoiceLineWriteDto, decimal>? existingDiscounts = null)
     {
-        var maximum = 100m;
-        foreach (var row in rows)
-        {
-            var rowMaximum = 100m;
-            // A lower-priority maximum rule may become effective after the first
-            // maximum rule no longer matches. Follow that chain before applying.
-            while (rowMaximum > 0m)
-            {
-                var decision = GetLineSaleDecision(row, rowMaximum);
-                if (!decision.BlocksDiscount)
-                    break;
-                var nextMaximum = Math.Clamp(decision.DiscountLimitPercent ?? 0m, 0m, 100m);
-                if (nextMaximum >= rowMaximum)
-                {
-                    rowMaximum = 0m;
-                    break;
-                }
-                rowMaximum = nextMaximum;
-            }
-            maximum = Math.Min(maximum, rowMaximum);
-        }
-        return Math.Floor(maximum * 1_000m) / 1_000m;
+        var gross = rows.Sum(row => Math.Max(0m, row.Quantity * row.UnitPrice));
+        if (gross <= 0m)
+            return 0m;
+
+        var allowedAmount = GetInvoiceDiscountPolicyMaximumAmounts(rows, existingDiscounts).Sum();
+        return Math.Min(100m, Math.Floor(allowedAmount / gross * 100_000m) / 1_000m);
+    }
+
+    private IReadOnlyList<decimal> GetInvoiceDiscountPolicyMaximumAmounts(
+        IReadOnlyList<InvoiceLineWriteDto> rows,
+        IReadOnlyDictionary<InvoiceLineWriteDto, decimal>? existingDiscounts = null)
+    {
+        return rows.Select(row => GetInvoiceDiscountRowMaximumAmount(row,
+                existingDiscounts?.GetValueOrDefault(row) ?? GetInvoiceDiscountBaseAmount(row)))
+            .ToArray();
+    }
+
+    private decimal GetInvoiceDiscountRowMaximumAmount(InvoiceLineWriteDto row, decimal existingDiscountAmount)
+    {
+        var gross = Math.Max(0m, row.Quantity * row.UnitPrice);
+        if (gross <= 0m)
+            return 0m;
+
+        var existing = Math.Max(0m, existingDiscountAmount);
+        var remainingGross = Math.Max(0m, gross - existing);
+        var remainingProfit = Math.Max(0m,
+            gross - Math.Max(0m, row.Quantity * row.UnitCost) - existing);
+        var maximum = Math.Min(remainingGross, remainingProfit);
+        var decision = GetLineSaleDecision(row, 100m);
+
+        if (!decision.BlocksDiscount)
+            return maximum;
+
+        if (!decision.DiscountLimitPercent.HasValue)
+            return 0m;
+
+        var ruleMaximum = gross * Math.Clamp(decision.DiscountLimitPercent.Value, 0m, 100m) / 100m;
+        return Math.Max(0m, Math.Min(maximum, ruleMaximum - existing));
     }
 
     private string GetInvoiceDiscountInputText(decimal legacyAmount = 0m)
@@ -142,18 +191,15 @@ public partial class POS
                 return false;
             }
 
+            var existingDiscounts = value > 0m || _hasDistributedInvoiceDiscount
+                ? CaptureInvoiceDiscountBases(rows)
+                : new Dictionary<InvoiceLineWriteDto, decimal>();
             var plan = PosInvoiceDiscountCalculator.Calculate(rows, value, isPercentage,
-                GetInvoiceDiscountPolicyMaximum(rows));
+                GetInvoiceDiscountPolicyMaximum(rows, existingDiscounts), existingDiscounts,
+                GetInvoiceDiscountPolicyMaximumAmounts(rows, existingDiscounts), allowPartial: true);
             if (!plan.Success)
             {
                 ShowInvoiceDiscountMaximum(plan.MaximumPercentage);
-                RestoreInvoiceDiscountInput();
-                return false;
-            }
-
-            // Check every policy before changing a row, so rejection is atomic.
-            if (value > 0m && rows.Any(row => IsLineDiscountBlocked(row, plan.Percentage)))
-            {
                 RestoreInvoiceDiscountInput();
                 return false;
             }
@@ -172,23 +218,42 @@ public partial class POS
     private void WriteDistributedInvoiceDiscount(
         IReadOnlyList<InvoiceLineWriteDto> rows, PosInvoiceDiscountPlan plan, decimal input, bool isPercentage)
     {
+        if (input == 0m)
+        {
+            foreach (var row in _invoiceDiscountBases.Keys.ToList())
+            {
+                RestoreInvoiceDiscountBase(row);
+                RecalculateLineFromCurrentValues(row);
+            }
+
+            ResetDistributedInvoiceDiscount();
+            _currentInvoice.DiscountAmount = 0m;
+            return;
+        }
+
         foreach (var oldRow in _invoiceDiscountRows.Keys.Where(row => !rows.Contains(row)).ToList())
         {
-            oldRow.LineDiscountAmount = 0m;
-            oldRow.LineDiscountInput = "0.000";
+            RestoreInvoiceDiscountBase(oldRow);
             RecalculateLineFromCurrentValues(oldRow);
+            _invoiceDiscountRows.Remove(oldRow);
+            _invoiceDiscountBases.Remove(oldRow);
         }
         _invoiceDiscountRows.Clear();
 
         for (var index = 0; index < rows.Count; index++)
         {
             var row = rows[index];
+            var baseAmount = GetInvoiceDiscountBaseAmount(row);
+            var combinedAmount = baseAmount + plan.Amounts[index];
+            var gross = row.Quantity * row.UnitPrice;
             row.LineDiscountIsPercentage = true;
-            row.LineDiscountAmount = plan.Amounts[index];
-            row.LineDiscountInput = $"{plan.Percentage:0.######}%";
+            row.LineDiscountAmount = combinedAmount;
+            row.LineDiscountInput = gross > 0m
+                ? $"{combinedAmount / gross * 100m:0.######}%"
+                : "0.000";
             RecalculateLineFromCurrentValues(row);
-            if (input > 0m)
-                _invoiceDiscountRows[row] = row.LineDiscountAmount;
+            if (plan.Amounts[index] > 0m)
+                _invoiceDiscountRows[row] = plan.Amounts[index];
         }
 
         _hasDistributedInvoiceDiscount = input > 0m;
@@ -198,6 +263,17 @@ public partial class POS
         // All new discounts are stored in LineDiscountAmount. A second invoice
         // deduction would subtract the same money again in InvoiceService.
         _currentInvoice.DiscountAmount = 0m;
+    }
+
+    private void RestoreInvoiceDiscountBase(InvoiceLineWriteDto row)
+    {
+        if (!_invoiceDiscountBases.TryGetValue(row, out var baseValue))
+            return;
+
+        row.LineDiscountAmount = baseValue.Amount;
+        row.LineDiscountInput = baseValue.Input;
+        row.LineDiscountIsPercentage = baseValue.IsPercentage;
+        row.LineDiscountPercent = baseValue.Percent;
     }
 
     private void RefreshDistributedInvoiceDiscount()
@@ -210,8 +286,11 @@ public partial class POS
         try
         {
             var rows = GetEligibleInvoiceDiscountRows();
+            var existingDiscounts = CaptureInvoiceDiscountBases(rows);
             var plan = PosInvoiceDiscountCalculator.Calculate(rows, _invoiceDiscountInputValue,
-                _invoiceDiscountIsPercentage, GetInvoiceDiscountPolicyMaximum(rows));
+                _invoiceDiscountIsPercentage,
+                GetInvoiceDiscountPolicyMaximum(rows, existingDiscounts), existingDiscounts,
+                GetInvoiceDiscountPolicyMaximumAmounts(rows, existingDiscounts), allowPartial: true);
             if (plan.Success)
             {
                 WriteDistributedInvoiceDiscount(rows, plan, _invoiceDiscountInputValue, _invoiceDiscountIsPercentage);
@@ -222,8 +301,7 @@ public partial class POS
             // discounts; pre-existing/manual row discounts remain untouched.
             foreach (var row in _invoiceDiscountRows.Keys.ToList())
             {
-                row.LineDiscountAmount = 0m;
-                row.LineDiscountInput = "0.000";
+                RestoreInvoiceDiscountBase(row);
                 RecalculateLineFromCurrentValues(row);
             }
             ResetDistributedInvoiceDiscount();
@@ -280,21 +358,14 @@ public partial class POS
         if (allRows.Count == 0)
             return true;
 
-        var maximum = Math.Min(PosInvoiceDiscountCalculator.GetMaximumPercentage(allRows),
-            GetInvoiceDiscountPolicyMaximum(GetEligibleInvoiceDiscountRows()));
-        if (_invoiceDiscountPercent > maximum)
-        {
-            ShowInvoiceDiscountMaximum(maximum);
-            return false;
-        }
-
         foreach (var (index, rows) in allocatedRows)
         {
+            var maximum = rows.Sum(row => PosInvoiceDiscountCalculator.GetMaximumDiscountAmount(row));
+            var target = Math.Min(_invoiceDiscountRows[sourceRows[index]], maximum);
             var amounts = PosInvoiceDiscountCalculator.AllocateAmounts(rows,
-                _invoiceDiscountPercent, sourceRows[index].LineDiscountAmount);
+                _invoiceDiscountPercent, target);
             if (amounts == null)
             {
-                ShowInvoiceDiscountMaximum(maximum);
                 return false;
             }
             discounts[index] = amounts;

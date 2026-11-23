@@ -1265,6 +1265,7 @@ private void ClearBtn_Click(object sender, RoutedEventArgs e)
 
             foreach (var rule in _loadedColorRules
                 .Where(rule => rule.IsActive &&
+                    IsVisibleProductSearchColorRule(rule) &&
                     (string.IsNullOrWhiteSpace(rule.Scope) ||
                      string.Equals(rule.Scope, "Both", StringComparison.OrdinalIgnoreCase) ||
                      string.Equals(rule.Scope, _ruleScope, StringComparison.OrdinalIgnoreCase)))
@@ -1279,6 +1280,17 @@ private void ClearBtn_Click(object sender, RoutedEventArgs e)
                     AccentColor = rule.AccentColor
                 });
             }
+        }
+
+        private static bool IsVisibleProductSearchColorRule(PosRowColorRule rule)
+        {
+            if (!string.Equals(rule.ConditionType, "DiscountMaximum", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(rule.ConditionType, "DefaultDiscount", StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            return rule.ProductIds?.Count > 0 ||
+                   rule.CategoryId.HasValue ||
+                   !string.IsNullOrWhiteSpace(rule.CategoryName);
         }
 
         private bool MatchesSelectedColorRule(IEnumerable<PosProductSearchResultDto> productRows)

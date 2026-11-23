@@ -19,16 +19,23 @@
 
         <converters:AbsoluteQuantityConverter x:Key="AbsoluteQuantityConverter"/>
 
+        <Style x:Key="ProductNameCellStyle"
+               TargetType="TextBlock"
+               BasedOn="{StaticResource ProductValueTextStyle}">
+            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+            <Setter Property="ToolTip" Value="{Binding Text, RelativeSource={RelativeSource Self}}"/>
+        </Style>
+
         <!-- ═══════════════════════════════════════════════
              SIDEBAR ACTION BUTTON  (icon + label)
         ═══════════════════════════════════════════════ -->
         <Style x:Key="SidebarActionBtn" TargetType="Button" BasedOn="{StaticResource AppFormButtonStyle}">
-            <Setter Property="MinHeight" Value="56"/>
-            <Setter Property="Padding" Value="8,6"/>
-            <Setter Property="Margin" Value="0,3"/>
+            <Setter Property="MinHeight" Value="44"/>
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="Margin" Value="0,2"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Background" Value="#2C3E50"/>
-            <Setter Property="Foreground" Value="#BDC8D4"/>
+            <Setter Property="Background" Value="#EAF5F7"/>
+            <Setter Property="Foreground" Value="{StaticResource AppTextBrush}"/>
             <Setter Property="HorizontalAlignment" Value="Stretch"/>
             <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
@@ -37,18 +44,18 @@
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="Bd"
                                 Background="{TemplateBinding Background}"
-                                CornerRadius="14"
+                                CornerRadius="10"
                                 Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                                               VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#3D5166"/>
-                                <Setter Property="Foreground" Value="White"/>
+                                <Setter TargetName="Bd" Property="Background" Value="#D7EEF2"/>
+                                <Setter Property="Foreground" Value="{StaticResource AppTextBrush}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource AppPrimaryBrush}"/>
+                                <Setter TargetName="Bd" Property="Background" Value="#B7DDE5"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -57,18 +64,18 @@
         </Style>
 
         <Style x:Key="SidebarDangerBtn" TargetType="Button" BasedOn="{StaticResource SidebarActionBtn}">
-            <Setter Property="Background" Value="#5C2430"/>
-            <Setter Property="Foreground" Value="#E8A0A8"/>
+            <Setter Property="Background" Value="#FBEAEC"/>
+            <Setter Property="Foreground" Value="#A33A4A"/>
         </Style>
 
         <Style x:Key="SidebarWarningBtn" TargetType="Button" BasedOn="{StaticResource SidebarActionBtn}">
-            <Setter Property="Background" Value="#4A3820"/>
-            <Setter Property="Foreground" Value="#D4A855"/>
+            <Setter Property="Background" Value="#FFF3DC"/>
+            <Setter Property="Foreground" Value="#8A651A"/>
         </Style>
 
         <Style x:Key="SidebarSuccessBtn" TargetType="Button" BasedOn="{StaticResource SidebarActionBtn}">
-            <Setter Property="Background" Value="{StaticResource AppPrimaryBrush}"/>
-            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Background" Value="#DDF3F3"/>
+            <Setter Property="Foreground" Value="#0C6B7A"/>
         </Style>
 
         <Style x:Key="SidebarButtonText" TargetType="TextBlock">
@@ -174,6 +181,7 @@
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding" Value="10,0"/>
+            <Setter Property="Foreground" Value="{StaticResource AppTextBrush}"/>
         </Style>
 
         <!-- ═══════════════════════════════════════════════
@@ -325,14 +333,14 @@
              COL 0 – VERTICAL SIDEBAR
         ══════════════════════════════════════════════ -->
         <Border Grid.Column="0" Grid.RowSpan="2"
-                Background="#1E2D3D"
+                Background="{StaticResource AppPageBackgroundBrush}"
                 CornerRadius="0,0,0,0">
             <DockPanel>
                 <!-- Logo / app mark -->
-                <Border DockPanel.Dock="Top" Height="94" Background="#17222E">
+                <Border DockPanel.Dock="Top" Height="136" Background="White" Padding="4">
                     <Image Source="pack://application:,,,/Assets/Logo/TheSystemLogo.png"
-                           Width="74"
-                           Height="74"
+                           Width="138"
+                           Height="104"
                            Stretch="Uniform"
                            HorizontalAlignment="Center"
                            VerticalAlignment="Center"/>
@@ -369,7 +377,7 @@
                 </StackPanel>
 
                 <!-- Separator -->
-                <Border DockPanel.Dock="Top" Height="1" Background="#2C3E50" Margin="8,4"/>
+                <Border DockPanel.Dock="Top" Height="1" Background="#D2E1E7" Margin="8,4"/>
 
                 <!-- Main actions (scrollable) -->
                 <ScrollViewer DockPanel.Dock="Top" VerticalScrollBarVisibility="Hidden"
@@ -580,9 +588,9 @@
                 </ScrollViewer>
 
                 <!-- Footer -->
-                <Border DockPanel.Dock="Bottom" Height="48" Background="#17222E">
+                <Border DockPanel.Dock="Bottom" Height="48" Background="White">
                     <TextBlock Text="RW" FontSize="13" FontWeight="Bold"
-                               Foreground="#445A68"
+                               Foreground="{StaticResource AppMutedTextBrush}"
                                HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 </Border>
             </DockPanel>
@@ -1016,12 +1024,14 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellEditingTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTemplateColumn Header="الصنف" Width="4*" IsReadOnly="True">
+                            <DataGridTemplateColumn Header="الصنف" Width="250" IsReadOnly="True">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <TextBlock Text="{Binding ProductName, TargetNullValue='---'}"
                                                    FlowDirection="LeftToRight"
-                                                   VerticalAlignment="Center" Padding="6,0"/>
+                                                   VerticalAlignment="Center"
+                                                   Padding="6,0"
+                                                   Style="{StaticResource ProductNameCellStyle}"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                                 <DataGridTemplateColumn.CellEditingTemplate>
@@ -1197,7 +1207,7 @@
             <!-- ── Payment methods ── -->
             <Border Grid.Row="2" Margin="0,8,0,0" Padding="14,12"
                     CornerRadius="18"
-                    Background="#F7FAFE"
+                    Background="#F1F8FA"
                     BorderBrush="{StaticResource AppBorderBrush}"
                     BorderThickness="1">
                 <StackPanel>
@@ -1207,6 +1217,7 @@
                     <UniformGrid Columns="4" Rows="2">
                         <Button Style="{StaticResource PaymentBtn}"
                                 Background="{StaticResource AppPrimaryBrush}"
+                                Foreground="White"
                                 Click="CashPaymentBtn_Click"
                                 ToolTip="Ctrl+1">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
@@ -1215,7 +1226,7 @@
                             </StackPanel>
                         </Button>
                         <Button Style="{StaticResource PaymentBtn}"
-                                Background="#445A68"
+                                Background="#DCECEF"
                                 Click="VisaPaymentBtn_Click"
                                 ToolTip="Ctrl+2">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
@@ -1224,7 +1235,7 @@
                             </StackPanel>
                         </Button>
                         <Button Style="{StaticResource PaymentBtn}"
-                                Background="#445A68"
+                                Background="#DCECEF"
                                 Click="DebitPaymentBtn_Click"
                                 ToolTip="Ctrl+4">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
@@ -1233,7 +1244,7 @@
                             </StackPanel>
                         </Button>
                         <Button Style="{StaticResource PaymentBtn}"
-                                Background="#445A68"
+                                Background="#DCECEF"
                                 Click="CheckPaymentBtn_Click"
                                 ToolTip="Ctrl+5">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
@@ -1242,7 +1253,7 @@
                             </StackPanel>
                         </Button>
                         <Button Style="{StaticResource PaymentBtn}"
-                                Background="#445A68"
+                                Background="#DCECEF"
                                 Click="MobilePaymentBtn_Click"
                                 ToolTip="Ctrl+6">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
@@ -1251,7 +1262,8 @@
                             </StackPanel>
                         </Button>
                         <Button Style="{StaticResource PaymentBtn}"
-                                Background="#D98A1F"
+                                Background="#FFF2D9"
+                                Foreground="#8A651A"
                                 Click="CreditPaymentBtn_Click"
                                 ToolTip="Ctrl+7 / F12">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
@@ -1260,7 +1272,8 @@
                             </StackPanel>
                         </Button>
                         <Button Style="{StaticResource PaymentBtn}"
-                                Background="#7A5AA6"
+                                Background="#DDF3F3"
+                                Foreground="#0C6B7A"
                                 Click="SplitPaymentBtn_Click"
                                 ToolTip="Split payment">
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">

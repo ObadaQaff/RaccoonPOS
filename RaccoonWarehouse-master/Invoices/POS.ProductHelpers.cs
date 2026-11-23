@@ -21,6 +21,13 @@ public partial class POS
         var grossLineTotal = line.Quantity * line.UnitPrice;
         var lineDiscount = Math.Clamp(line.LineDiscountAmount, 0m, Math.Abs(grossLineTotal));
         line.LineDiscountAmount = Math.Round(lineDiscount, 3, MidpointRounding.AwayFromZero);
+        if (line.LineDiscountIsPercentage && grossLineTotal > 0m)
+        {
+            line.LineDiscountPercent = Math.Round(
+                line.LineDiscountAmount / grossLineTotal * 100m,
+                3, MidpointRounding.AwayFromZero);
+            line.LineDiscountInput = $"{line.LineDiscountPercent:0.######}%";
+        }
         var lineTotal = grossLineTotal - line.LineDiscountAmount;
         var costTotal = line.Quantity * line.UnitCost;
         var product = FindProductForLine(line);
