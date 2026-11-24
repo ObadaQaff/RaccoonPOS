@@ -255,7 +255,7 @@ public sealed class AccountingOperationService : IAccountingOperationService
 
     public async Task<bool> DeleteFailedAsync(int operationId)
     {
-        var repository = _uow.GetRepository<AccountingOperation>();
+        var repository = _uow.GetRepository<AccountingOperation>();     
         var operation = await repository.GetAllAsQueryable()
             .FirstOrDefaultAsync(item => item.Id == operationId);
 

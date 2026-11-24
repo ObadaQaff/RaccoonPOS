@@ -91,6 +91,15 @@
             </Style.Triggers>
         </Style>
 
+        <Style x:Key="ShortcutChip" TargetType="Border">
+            <Setter Property="Background" Value="#EEF7F8"/>
+            <Setter Property="BorderBrush" Value="{StaticResource AppBorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="9"/>
+            <Setter Property="Padding" Value="7,4"/>
+            <Setter Property="Margin" Value="0,0,6,4"/>
+        </Style>
+
         <!-- ═══════════════════════════════════════════════
              CATEGORY TAB BUTTON
         ═══════════════════════════════════════════════ -->
@@ -499,7 +508,7 @@
                             </Grid>
                         </Button>
                         <Button Style="{StaticResource SidebarDangerBtn}"
-                                Click="ReturnItemBtn_Click" ToolTip="مرتجع">
+                                Click="ReturnItemBtn_Click" ToolTip="مرتجع (F10)">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
@@ -547,7 +556,7 @@
                             </Grid>
                         </Button>
                         <Button Style="{StaticResource SidebarActionBtn}"
-                                Click="DailyReportBtn_Click" ToolTip="ملخص الشفت (F10)">
+                                Click="DailyReportBtn_Click" ToolTip="ملخص الشفت (Ctrl+F10)">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
@@ -615,6 +624,10 @@
             <Border Grid.Row="0" Padding="14,10" Margin="0,0,0,10"
                     Style="{StaticResource AppCardBorderStyle}">
                 <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
@@ -738,6 +751,35 @@
                                        Foreground="{StaticResource AppPrimaryDarkBrush}"
                                        HorizontalAlignment="Center"/>
                         </StackPanel>
+                    </Border>
+
+                    <!-- Compact keyboard shortcut guide -->
+                    <Border Grid.Row="1" Grid.ColumnSpan="6" Margin="0,10,0,0"
+                            Padding="8,7" Background="#F7FBFC"
+                            BorderBrush="{StaticResource AppBorderBrush}" BorderThickness="1"
+                            CornerRadius="12">
+                        <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                                      VerticalScrollBarVisibility="Disabled">
+                            <WrapPanel>
+                                <Border Style="{StaticResource ShortcutChip}"><StackPanel Orientation="Horizontal"><TextBlock Text="F1" FontWeight="Bold" Foreground="{StaticResource AppPrimaryDarkBrush}"/><TextBlock Text="  Search" Margin="5,0,0,0" Foreground="{StaticResource AppTextBrush}"/></StackPanel></Border>
+                                <Border Style="{StaticResource ShortcutChip}"><StackPanel Orientation="Horizontal"><TextBlock Text="F2" FontWeight="Bold" Foreground="{StaticResource AppPrimaryDarkBrush}"/><TextBlock Text="  Cash sale" Margin="5,0,0,0" Foreground="{StaticResource AppTextBrush}"/></StackPanel></Border>
+                                <Border Style="{StaticResource ShortcutChip}"><StackPanel Orientation="Horizontal"><TextBlock Text="F3 / Del" FontWeight="Bold" Foreground="#A33A4A"/><TextBlock Text="  Delete" Margin="5,0,0,0" Foreground="{StaticResource AppTextBrush}"/></StackPanel></Border>
+                                <Border Style="{StaticResource ShortcutChip}"><StackPanel Orientation="Horizontal"><TextBlock Text="F4" FontWeight="Bold" Foreground="{StaticResource AppPrimaryDarkBrush}"/><TextBlock Text="  New invoice" Margin="5,0,0,0" Foreground="{StaticResource AppTextBrush}"/></StackPanel></Border>
+                                <Border Style="{StaticResource ShortcutChip}"><StackPanel Orientation="Horizontal"><TextBlock Text="F5" FontWeight="Bold" Foreground="#8A651A"/><TextBlock Text="  Hold" Margin="5,0,0,0" Foreground="{StaticResource AppTextBrush}"/></StackPanel></Border>
+                                <Border Style="{StaticResource ShortcutChip}"><StackPanel Orientation="Horizontal"><TextBlock Text="F6" FontWeight="Bold" Foreground="{StaticResource AppPrimaryDarkBrush}"/><TextBlock Text="  Resume" Margin="5,0,0,0" Foreground="{StaticResource AppTextBrush}"/></StackPanel></Border>
+                                <Border Style="{StaticResource ShortcutChip}"><StackPanel Orientation="Horizontal"><TextBlock Text="F7" FontWeight="Bold" Foreground="{StaticResource AppPrimaryDarkBrush}"/><TextBlock Text="  Receipts" Margin="5,0,0,0" Foreground="{StaticResource AppTextBrush}"/></StackPanel></Border>
+                                <Border Style="{StaticResource ShortcutChip}"><StackPanel Orientation="Horizontal"><TextBlock Text="Ctrl+F7" FontWeight="Bold" Foreground="{StaticResource AppPrimaryDarkBrush}"/><TextBlock Text="  Payments" Margin="5,0,0,0" Foreground="{StaticResource AppTextBrush}"/></StackPanel></Border>
+                                <Border Style="{StaticResource ShortcutChip}"><StackPanel Orientation="Horizontal"><TextBlock Text="F8" FontWeight="Bold" Foreground="{StaticResource AppPrimaryDarkBrush}"/><TextBlock Text="  Product card" Margin="5,0,0,0" Foreground="{StaticResource AppTextBrush}"/></StackPanel></Border>
+                                <Border Style="{StaticResource ShortcutChip}"><StackPanel Orientation="Horizontal"><TextBlock Text="F9" FontWeight="Bold" Foreground="{StaticResource AppPrimaryDarkBrush}"/><TextBlock Text="  Print" Margin="5,0,0,0" Foreground="{StaticResource AppTextBrush}"/></StackPanel></Border>
+                                <Border Style="{StaticResource ShortcutChip}"><StackPanel Orientation="Horizontal"><TextBlock Text="F10" FontWeight="Bold" Foreground="#A33A4A"/><TextBlock Text="  Return" Margin="5,0,0,0" Foreground="{StaticResource AppTextBrush}"/></StackPanel></Border>
+                                <Border Style="{StaticResource ShortcutChip}"><StackPanel Orientation="Horizontal"><TextBlock Text="Ctrl+F10" FontWeight="Bold" Foreground="{StaticResource AppPrimaryDarkBrush}"/><TextBlock Text="  Shift report" Margin="5,0,0,0" Foreground="{StaticResource AppTextBrush}"/></StackPanel></Border>
+                                <Border Style="{StaticResource ShortcutChip}"><StackPanel Orientation="Horizontal"><TextBlock Text="F11 / Ctrl+D" FontWeight="Bold" Foreground="#8A651A"/><TextBlock Text="  Discount" Margin="5,0,0,0" Foreground="{StaticResource AppTextBrush}"/></StackPanel></Border>
+                                <Border Style="{StaticResource ShortcutChip}"><StackPanel Orientation="Horizontal"><TextBlock Text="F12" FontWeight="Bold" Foreground="{StaticResource AppPrimaryDarkBrush}"/><TextBlock Text="  Credit" Margin="5,0,0,0" Foreground="{StaticResource AppTextBrush}"/></StackPanel></Border>
+                                <Border Style="{StaticResource ShortcutChip}"><StackPanel Orientation="Horizontal"><TextBlock Text="Esc" FontWeight="Bold" Foreground="#A33A4A"/><TextBlock Text="  Cancel" Margin="5,0,0,0" Foreground="{StaticResource AppTextBrush}"/></StackPanel></Border>
+                                <Border Style="{StaticResource ShortcutChip}"><StackPanel Orientation="Horizontal"><TextBlock Text="Ctrl+1..7" FontWeight="Bold" Foreground="{StaticResource AppPrimaryDarkBrush}"/><TextBlock Text="  Payment" Margin="5,0,0,0" Foreground="{StaticResource AppTextBrush}"/></StackPanel></Border>
+                                <Border Style="{StaticResource ShortcutChip}"><StackPanel Orientation="Horizontal"><TextBlock Text="Ctrl+R" FontWeight="Bold" Foreground="{StaticResource AppPrimaryDarkBrush}"/><TextBlock Text="  Refresh" Margin="5,0,0,0" Foreground="{StaticResource AppTextBrush}"/></StackPanel></Border>
+                            </WrapPanel>
+                        </ScrollViewer>
                     </Border>
                 </Grid>
             </Border>

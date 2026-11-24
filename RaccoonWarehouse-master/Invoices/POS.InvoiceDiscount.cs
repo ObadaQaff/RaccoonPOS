@@ -227,7 +227,6 @@ public partial class POS
             _invoiceDiscountReviewRequired = false;
             _invoiceDiscountInputResetPending = false;
             RestoreInvoiceDiscountInput();
-            RefocusInvoiceDiscountInput();
             return true;
         }
         finally

@@ -356,7 +356,6 @@ namespace RaccoonWarehouse.POS
         protected override void OnClosed(EventArgs e)
         {
             _productSuggestionTimer.Stop();
-            _serviceCallLock.Dispose();
             base.OnClosed(e);
         }
 

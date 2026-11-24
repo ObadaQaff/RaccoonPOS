@@ -811,11 +811,13 @@ namespace RaccoonWarehouse.Application.Service.Accounting
             if (transaction.Direction == TransactionDirection.In)
             {
                 AddDebit(lines, cashAccountId, transaction.Amount, description);
-                AddCredit(lines, counterpartAccountId, transaction.Amount, description);
+                AddCredit(lines, counterpartAccountId, transaction.Amount, description,
+                    customerId: transaction.CustomerId, supplierId: transaction.SupplierId);
             }
             else
             {
-                AddDebit(lines, counterpartAccountId, transaction.Amount, description);
+                AddDebit(lines, counterpartAccountId, transaction.Amount, description,
+                    customerId: transaction.CustomerId, supplierId: transaction.SupplierId);
                 AddCredit(lines, cashAccountId, transaction.Amount, description);
             }
 

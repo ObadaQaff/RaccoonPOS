@@ -234,6 +234,15 @@ namespace RaccoonWarehouse.Invoices
             Dispatcher.BeginInvoke(new Action(FocusBarcodeInput), System.Windows.Threading.DispatcherPriority.Input);
         }
 
+        private void ClearInvoiceDiscountSelection()
+        {
+            if (DiscountTextBox == null)
+                return;
+
+            DiscountTextBox.SelectionLength = 0;
+            DiscountTextBox.CaretIndex = DiscountTextBox.Text?.Length ?? 0;
+        }
+
         private DataGridColumn? GetBarcodeColumn(DataGrid grid)
         {
             return grid.Columns.FirstOrDefault(column =>
@@ -263,8 +272,10 @@ namespace RaccoonWarehouse.Invoices
 
         private void FocusBarcodeGridCellDeferred()
         {
+            ClearInvoiceDiscountSelection();
             Dispatcher.BeginInvoke(() =>
             {
+                ClearInvoiceDiscountSelection();
                 if (_currentInvoice.InvoiceType is InvoiceType.Return or InvoiceType.PurchaseReturn)
                 {
                     FocusFirstReturnQuantityCell();
@@ -851,6 +862,18 @@ namespace RaccoonWarehouse.Invoices
                 return;
             }
 
+            var pressedKey = e.Key == Key.System ? e.SystemKey : e.Key;
+            if (pressedKey == Key.F10)
+            {
+                if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+                    DailyReportBtn_Click(this, new RoutedEventArgs());
+                else
+                    ReturnItemBtn_Click(this, new RoutedEventArgs());
+
+                e.Handled = true;
+                return;
+            }
+
             if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
             {
                 switch (e.Key)
@@ -890,8 +913,20 @@ namespace RaccoonWarehouse.Invoices
                         CreditPaymentBtn_Click(this, new RoutedEventArgs());
                         e.Handled = true;
                         return;
+                    case Key.D:
+                        DiscountBtn_Click(this, new RoutedEventArgs());
+                        e.Handled = true;
+                        return;
+                    case Key.H:
+                        HoldSaleBtn_Click(this, new RoutedEventArgs());
+                        e.Handled = true;
+                        return;
                     case Key.R:
                         _ = RefreshPosDataAsync();
+                        e.Handled = true;
+                        return;
+                    case Key.F7:
+                        OpenPayment_Click(this, new RoutedEventArgs());
                         e.Handled = true;
                         return;
                 }
@@ -915,7 +950,7 @@ namespace RaccoonWarehouse.Invoices
                     break;
 
                 case Key.F4:
-                    FinishSaleBtn_Click(this, null);
+                    NewInvoiceBtn_Click(this, null);
                     e.Handled = true;
                     break;
 
@@ -934,13 +969,13 @@ namespace RaccoonWarehouse.Invoices
                     e.Handled = true;
                     break;
 
-                case Key.F9:
-                    PrintBtn_Click(this, null);
+                case Key.F8:
+                    _ = OpenSelectedProductCardAsync();
                     e.Handled = true;
                     break;
 
-                case Key.F10:
-                    DailyReportBtn_Click(this, null);
+                case Key.F9:
+                    PrintBtn_Click(this, null);
                     e.Handled = true;
                     break;
 
@@ -1310,6 +1345,7 @@ namespace RaccoonWarehouse.Invoices
         {
             grid.Dispatcher.BeginInvoke(() =>
             {
+                ClearInvoiceDiscountSelection();
                 var targetCell = new DataGridCellInfo(item, column);
                 grid.SelectedCells.Clear();
                 grid.SelectedCells.Add(targetCell);
@@ -1318,6 +1354,7 @@ namespace RaccoonWarehouse.Invoices
                 grid.ScrollIntoView(item, column);
                 grid.UpdateLayout();
                 grid.Focus();
+                Keyboard.Focus(grid);
 
                 // Read-only columns (expiry, available quantity, tax, total) must
                 // never enter edit mode; otherwise WPF attempts a TwoWay binding
@@ -1333,12 +1370,17 @@ namespace RaccoonWarehouse.Invoices
                 if (textBox != null)
                 {
                     textBox.Focus();
+                    Keyboard.Focus(textBox);
                     textBox.SelectAll();
                     return;
                 }
 
                 var comboBox = cell == null ? null : FindVisualChild<ComboBox>(cell);
-                comboBox?.Focus();
+                if (comboBox != null)
+                {
+                    comboBox.Focus();
+                    Keyboard.Focus(comboBox);
+                }
             }, DispatcherPriority.Background);
         }
 
@@ -5220,7 +5262,7 @@ namespace RaccoonWarehouse.Invoices
             }
 
             ResetPOS();
-            FocusBarcodeInputDeferred();
+            FocusBarcodeGridCellDeferred();
         }
 
         //Cancel Invoice
@@ -5265,6 +5307,7 @@ namespace RaccoonWarehouse.Invoices
                 }
 
                 ResetPOS();
+                FocusBarcodeGridCellDeferred();
             }
             catch (Exception ex)
             {
@@ -5273,7 +5316,7 @@ namespace RaccoonWarehouse.Invoices
             finally
             {
                 _loading.Hide();
-                FocusBarcodeInput();
+                FocusBarcodeGridCellDeferred();
             }
         }
 
@@ -5350,6 +5393,20 @@ namespace RaccoonWarehouse.Invoices
         {
             DiscountTextBox.Focus();
             DiscountTextBox.SelectAll();
+        }
+
+        private async Task OpenSelectedProductCardAsync()
+        {
+            var line = GetSelectedInvoiceLine();
+            if (line?.ProductId > 0)
+            {
+                await WindowManager.ShowDialogAsync<UpdateProduct>(
+                    WindowSizeType.MediumRectangle,
+                    window => window.Initialize(line.ProductId));
+                return;
+            }
+
+            SearchProductBtn_Click(this, new RoutedEventArgs());
         }
 
         private void InvoiceDiscount_GotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
@@ -5461,7 +5518,7 @@ namespace RaccoonWarehouse.Invoices
                 _loading.Show();
                 loadingShown = true;
 
-                var win = new ReceiptWindow(_financialService, sessionId, cashierId)
+                var win = new ReceiptWindow(_financialService, _userService, sessionId, cashierId)
                 {
                     Owner = this
                 };
@@ -5504,7 +5561,7 @@ namespace RaccoonWarehouse.Invoices
                 _loading.Show();
                 loadingShown = true;
 
-                var win = new PaymentWindow(_financialService, sessionId, cashierId)
+                var win = new PaymentWindow(_financialService, _userService, sessionId, cashierId)
                 {
                     Owner = this
                 };
@@ -6458,8 +6515,10 @@ namespace RaccoonWarehouse.Invoices
 
             if (ReferenceEquals(textBox, DiscountTextBox) && e.Key == Key.Enter)
             {
-                ApplyInvoiceDiscountInput();
+                var applied = ApplyInvoiceDiscountInput();
                 RecalculateTotals();
+                if (applied)
+                    FocusBarcodeGridCellDeferred();
                 e.Handled = true;
                 return;
             }
@@ -7103,13 +7162,15 @@ namespace RaccoonWarehouse.Invoices
                     UiText.T("هل تريد طباعة الفاتورة الصغيرة؟", "Do you want to print the small invoice?"),
                     UiText.T("طباعة الفاتورة", "Print invoice"),
                     MessageBoxButton.YesNo,
-                    MessageBoxImage.Question);
+                    MessageBoxImage.Question,
+                    MessageBoxResult.No);
 
                 if (printChoice == MessageBoxResult.Yes)
                     await PrintSavedSmallInvoiceAsync(checkoutResult.Data.SavedInvoice.Id);
 
                 ProductSearchWindow.InvalidateCatalogCache();
                 ResetPOS();
+                FocusBarcodeGridCellDeferred();
             }
             catch (Exception ex)
             {

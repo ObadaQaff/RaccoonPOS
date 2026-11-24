@@ -727,14 +727,15 @@ namespace RaccoonWarehouse.Invoices
 
             if (e.Key == Key.O && Keyboard.Modifiers == ModifierKeys.Control)
             {
-                if (row.Product != null)
-                {
-                    await WindowManager.ShowDialogAsync<UpdateProduct>(
-                        WindowSizeType.MediumRectangle,
-                        window => window.Initialize(row.Product.Id));
+                await OpenSelectedProductCardAsync(row);
 
-                    await RunSearchSafelyAsync();
-                }
+                e.Handled = true;
+                return;
+            }
+
+            if (e.Key == Key.F8)
+            {
+                await OpenSelectedProductCardAsync(row);
 
                 e.Handled = true;
                 return;
@@ -769,6 +770,18 @@ namespace RaccoonWarehouse.Invoices
                 SearchTextBox.SelectAll();
                 e.Handled = true;
             }
+        }
+
+        private async Task OpenSelectedProductCardAsync(ProductSearchRow row)
+        {
+            if (row.Product == null)
+                return;
+
+            await WindowManager.ShowDialogAsync<UpdateProduct>(
+                WindowSizeType.MediumRectangle,
+                window => window.Initialize(row.Product.Id));
+
+            await RunSearchSafelyAsync();
         }
         private async Task AddProductAsync(ProductSearchRow row)
         {

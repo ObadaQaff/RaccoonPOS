@@ -7,8 +7,10 @@ using RaccoonWarehouse.Application.Service.SubCategories;
 using RaccoonWarehouse.Application.Service.Units;
 using RaccoonWarehouse.Application.Service.Users;
 using RaccoonWarehouse.Common;
+using RaccoonWarehouse.Common.Loading;
 using RaccoonWarehouse.Helpers.Localization;
 using RaccoonWarehouse.Navigation;
+using RaccoonWarehouse.Units;
 using RaccoonWarehouse.Domain.Enums;
 using RaccoonWarehouse.Domain.Products.DTOs;
 using RaccoonWarehouse.Domain.ProductUnits.DTOs;
@@ -38,9 +40,11 @@ namespace RaccoonWarehouse.Products
         private readonly IStockTransactionService _stockTransactionService;
         private readonly SourceDocumentNavigationService _sourceDocumentNavigationService;
         private readonly IStockService _stockService;
+        private readonly ILoadingService _loadingService;
 
         private int _productId;
         private bool _isInitializing;
+        private bool _isLoadingDetails;
         private bool _isSaving;
         private bool _closeWhenIdle;
         private List<ProductUnitWriteDto> _productUnits = new();
@@ -70,7 +74,8 @@ namespace RaccoonWarehouse.Products
             IStockTransactionService stockTransactionService,
             SourceDocumentNavigationService sourceDocumentNavigationService,
             IStockService stockService,
-            IUserService userService)
+            IUserService userService,
+            ILoadingService loadingService)
         {
 
             InitializeComponent();
@@ -84,13 +89,14 @@ namespace RaccoonWarehouse.Products
             _sourceDocumentNavigationService = sourceDocumentNavigationService;
             _stockService = stockService;
             _userService = userService;
+            _loadingService = loadingService;
             DataContext = this;
             Closing += UpdateProduct_Closing;
         }
 
         private void UpdateProduct_Closing(object? sender, CancelEventArgs e)
         {
-            if (!_isInitializing && !_isSaving)
+            if (!_isInitializing && !_isSaving && !_isLoadingDetails)
                 return;
 
             // WindowManager owns this window's DI scope and disposes it when
@@ -102,7 +108,7 @@ namespace RaccoonWarehouse.Products
 
         private void CloseWhenIdleIfRequested()
         {
-            if (!_closeWhenIdle || _isInitializing || _isSaving || !IsLoaded)
+            if (!_closeWhenIdle || _isInitializing || _isSaving || _isLoadingDetails || !IsLoaded)
                 return;
 
             _closeWhenIdle = false;
@@ -116,6 +122,7 @@ namespace RaccoonWarehouse.Products
             _productId = id;
             _isInitializing = true;
             SetEditorEnabled(false);
+            _loadingService.Show();
             try
             {
                 await LoadDataAsync();
@@ -124,6 +131,32 @@ namespace RaccoonWarehouse.Products
             {
                 _isInitializing = false;
                 SetEditorEnabled(true);
+                _loadingService.Hide();
+                Dispatcher.BeginInvoke(
+                    new Action(() => _ = LoadDeferredDetailsAsync()),
+                    System.Windows.Threading.DispatcherPriority.Background);
+                CloseWhenIdleIfRequested();
+            }
+        }
+
+        private async Task LoadDeferredDetailsAsync()
+        {
+            if (_isLoadingDetails || _productId <= 0)
+                return;
+
+            _isLoadingDetails = true;
+            try
+            {
+                await LoadCurrentStockSummaryAsync();
+                await LoadProductMovementsAsync();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"{UiText.T("تعذر تحميل تفاصيل المخزون والحركة", "Could not load stock and movement details")}: {ex.Message}");
+            }
+            finally
+            {
+                _isLoadingDetails = false;
                 CloseWhenIdleIfRequested();
             }
         }
@@ -191,8 +224,6 @@ namespace RaccoonWarehouse.Products
                 NormalizeUnitFlags(_productUnits);
                 await LoadUnitCostDisplaysAsync(product.Data.TaxExempt, product.Data.TaxRate);
                 RebuildUnitsPanel();
-                await LoadCurrentStockSummaryAsync();
-                await LoadProductMovementsAsync();
                 UiText.ApplyWindow(this);
             }
             catch (Exception ex)
@@ -736,6 +767,23 @@ namespace RaccoonWarehouse.Products
                 Margin = new Thickness(0, 6, 0, 0)
             });
             return panel;
+        }
+
+        private void CreateUnitBtn_Click(object sender, RoutedEventArgs e)
+        {
+            WindowManager.ShowDialog<CreateUnit>(WindowSizeType.SmallSquare, window =>
+            {
+                window.Closed += async (_, _) =>
+                {
+                    var units = await _unitService.GetAllAsync();
+                    _unitLookupItems = units.Data?
+                        .Select(unit => new UnitLookupItem(unit.Id, unit.Name, UiText.Translate(unit.Name)))
+                        .ToList() ?? new List<UnitLookupItem>();
+                    UnitComboBox.ItemsSource = _unitLookupItems;
+                    if (window.CreatedUnitId.HasValue)
+                        UnitComboBox.SelectedValue = window.CreatedUnitId.Value;
+                };
+            });
         }
 
         private async void AddUnit_Click(object sender, RoutedEventArgs e)

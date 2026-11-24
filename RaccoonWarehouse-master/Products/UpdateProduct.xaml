@@ -101,7 +101,19 @@
                         <WrapPanel Margin="0,0,0,10" ItemWidth="150" ItemHeight="95">
                             <StackPanel Margin="6,0,14,10">
                                 <TextBlock Text="الوحدة" Style="{StaticResource AppFieldLabelStyle}"/>
-                                <ComboBox x:Name="UnitComboBox" Style="{StaticResource AppComboBoxStyle}" />
+                                <StackPanel Orientation="Horizontal">
+                                    <ComboBox x:Name="UnitComboBox" Width="112" Style="{StaticResource AppComboBoxStyle}" />
+                                    <Button Content="+"
+                                            Width="32"
+                                            Height="32"
+                                            Margin="4,0,0,0"
+                                            VerticalAlignment="Center"
+                                            FontSize="18"
+                                            FontWeight="Bold"
+                                            ToolTip="إضافة وحدة جديدة / Create a new unit"
+                                            Style="{StaticResource AppSecondaryButtonStyle}"
+                                            Click="CreateUnitBtn_Click"/>
+                                </StackPanel>
                             </StackPanel>
                             <StackPanel Margin="6,0,14,10">
                                 <TextBlock Text="سعر البيع" Style="{StaticResource AppFieldLabelStyle}"/>
