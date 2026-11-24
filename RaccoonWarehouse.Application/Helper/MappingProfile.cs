@@ -84,9 +84,17 @@ namespace RaccoonWarehouse.Application.Helper
             CreateMap<ProductWriteDto, Product>().ReverseMap();
             CreateMap<Product, ProductReadDto>().ReverseMap();
 
-            CreateMap<ProductUnitWriteDto, ProductUnit>().ReverseMap();
-            CreateMap<ProductUnit, ProductUnitReadDto>().ReverseMap();
-            CreateMap<ProductUnit, ProductUnitWriteDto>().ReverseMap();
+            CreateMap<ProductUnitWriteDto, ProductUnit>()
+                .ForMember(destination => destination.Barcodes, options => options.Ignore())
+                .ReverseMap();
+            CreateMap<ProductUnit, ProductUnitReadDto>()
+                .ForMember(destination => destination.AlternateBarcodes,
+                    options => options.MapFrom(source => source.Barcodes.Select(barcode => barcode.Barcode).ToList()))
+                .ReverseMap();
+            CreateMap<ProductUnit, ProductUnitWriteDto>()
+                .ForMember(destination => destination.AlternateBarcodes,
+                    options => options.MapFrom(source => source.Barcodes.Select(barcode => barcode.Barcode).ToList()))
+                .ReverseMap();
 
             CreateMap<UnitWriteDto, Unit>().ReverseMap();
             CreateMap<Unit, UnitReadDto>().ReverseMap();

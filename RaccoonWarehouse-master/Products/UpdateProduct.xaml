@@ -133,7 +133,7 @@
                               </StackPanel>
                             <StackPanel Margin="6,0,14,10">
                                 <TextBlock Text="الرمز المماثل / Alternate barcode" Style="{StaticResource AppFieldLabelStyle}"/>
-                                <TextBox x:Name="AlternateBarcodeTextBox" Style="{StaticResource AppTextInputStyle}" />
+                                <TextBox x:Name="AlternateBarcodeTextBox" Height="64" AcceptsReturn="True" TextWrapping="Wrap" ToolTip="أدخل حتى 10 رموز، كل رمز في سطر / Enter up to 10 barcodes, one per line" Style="{StaticResource AppTextInputStyle}" />
                             </StackPanel>
                             <StackPanel Margin="6,0,14,10">
                                 <TextBlock Text="أساسية" Style="{StaticResource AppFieldLabelStyle}"/>

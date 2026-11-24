@@ -411,7 +411,8 @@ namespace RaccoonWarehouse.Products
             var unitDto = new ProductUnitWriteDto
             {
                 UnitId = selectedUnitId,
-                AlternateBarcode = string.IsNullOrWhiteSpace(AlternateBarcodeTextBox.Text) ? null : AlternateBarcodeTextBox.Text.Trim(),
+                 AlternateBarcodes = ParseAlternateBarcodes(AlternateBarcodeTextBox.Text),
+                 AlternateBarcode = ParseAlternateBarcodes(AlternateBarcodeTextBox.Text).FirstOrDefault(),
                 SalePrice = salePrice,
                 PurchasePrice = purchasePrice,
                 QuantityPerUnit = qty,
@@ -469,6 +470,9 @@ namespace RaccoonWarehouse.Products
             row.Children.Add(CreateUnitInfoBlock(UiText.T("أساسية", "Primary"), unit.IsBaseUnit ? UiText.T("نعم", "Yes") : UiText.T("لا", "No")));
             row.Children.Add(CreateUnitInfoBlock(UiText.T("بيع", "Sale"), unit.IsDefaultSaleUnit ? UiText.T("افتراضي", "Default") : "-"));
             row.Children.Add(CreateUnitInfoBlock(UiText.T("شراء", "Purchase"), unit.IsDefaultPurchaseUnit ? UiText.T("افتراضي", "Default") : "-"));
+
+            if (row.Children.Count > 7 && row.Children[7] is StackPanel alternateBarcodePanel && alternateBarcodePanel.Children[1] is TextBlock alternateBarcodeText)
+                alternateBarcodeText.Text = string.Join(Environment.NewLine, unit.AlternateBarcodes.Count > 0 ? unit.AlternateBarcodes : new[] { unit.AlternateBarcode }.Where(value => !string.IsNullOrWhiteSpace(value)));
 
             var removeButton = new Button
             {
@@ -627,6 +631,14 @@ namespace RaccoonWarehouse.Products
                 _isUpdatingFractionalSuggestions = false;
             }
         }
+
+        private static List<string> ParseAlternateBarcodes(string? text)
+            => (text ?? string.Empty)
+                .Split(new[] { '\r', '\n', ',', ';' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(10)
+                .ToList();
 
         private static decimal? ParseOptionalFractionalValue(string text, string fieldName, bool greaterThanZero)
         {

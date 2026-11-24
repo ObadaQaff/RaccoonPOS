@@ -47,6 +47,7 @@ namespace RaccoonWarehouse.Application.Service.ProductUnits
             var result = await base.CreateAsync(dto);
             if (result.Success)
             {
+                await SyncBarcodesAsync(dto, result.Data?.Id ?? dto.Id);
                 if (_partialSaleCatalogRefreshQueue != null)
                     _partialSaleCatalogRefreshQueue.Enqueue(new[] { dto.ProductId });
                 else if (_partialSaleCatalog != null)
@@ -69,6 +70,7 @@ namespace RaccoonWarehouse.Application.Service.ProductUnits
             var result = await base.UpdateAsync(dto);
             if (result.Success)
             {
+                await SyncBarcodesAsync(dto, dto.Id);
                 if (_partialSaleCatalogRefreshQueue != null)
                     _partialSaleCatalogRefreshQueue.Enqueue(new[] { dto.ProductId });
                 else if (_partialSaleCatalog != null)
@@ -157,7 +159,9 @@ namespace RaccoonWarehouse.Application.Service.ProductUnits
                 source.UpdatedDate = DateTime.Now;
                 await _partialSaleContext.SaveChangesAsync();
                 var savedUnits = await _partialSaleContext.Set<ProductUnit>().AsNoTracking()
-                    .Include(unit => unit.Unit).Where(unit => unit.ProductId == source.ProductId).ToListAsync();
+                    .Include(unit => unit.Unit)
+                    .Include(unit => unit.Barcodes)
+                    .Where(unit => unit.ProductId == source.ProductId).ToListAsync();
                 var result = _mapper.Map<List<ProductUnitReadDto>>(savedUnits);
                 await transaction.CommitAsync();
                 if (_partialSaleCatalogRefreshQueue != null)
@@ -177,22 +181,65 @@ namespace RaccoonWarehouse.Application.Service.ProductUnits
 
         private async Task<string?> ValidateAlternateBarcodeAsync(ProductUnitWriteDto dto)
         {
-            var barcode = NormalizeAlternateBarcode(dto.AlternateBarcode);
-            if (barcode == null)
+            var barcodes = NormalizeAlternateBarcodes(dto);
+            if (barcodes.Count == 0)
                 return null;
 
-            var duplicateUnit = await _uow.GetRepository<ProductUnit>().GetAllAsQueryable()
-                .Where(unit => unit.Id != dto.Id && unit.AlternateBarcode != null)
-                .AnyAsync(unit => unit.AlternateBarcode == barcode);
+            if (barcodes.Count > 10)
+                return "يمكن إضافة 10 رموز مماثلة كحد أقصى لكل وحدة / A maximum of 10 alternate barcodes is allowed per unit.";
+
+            if (barcodes.Count != barcodes.Distinct(StringComparer.OrdinalIgnoreCase).Count())
+                return "لا يمكن تكرار الرموز المماثلة / Alternate barcodes must be unique.";
+
+            var duplicateUnit = await _uow.GetRepository<ProductUnitBarcode>().GetAllAsQueryable()
+                .Where(barcode => barcode.ProductUnitId != dto.Id)
+                .AnyAsync(barcode => barcodes.Contains(barcode.NormalizedBarcode));
             if (duplicateUnit)
                 return "الرمز المماثل مستخدم بالفعل / An alternate barcode is already in use.";
 
             var productBarcode = await _uow.GetRepository<Product>()
                 .GetAllAsQueryable()
-                .AnyAsync(product => product.ITEMCODE.HasValue && product.ITEMCODE.Value.ToString() == barcode);
+                .AnyAsync(product => product.ITEMCODE.HasValue && barcodes.Contains(product.ITEMCODE.Value.ToString()));
             return productBarcode
                 ? "الرمز المماثل مستخدم كرمز رئيسي / An alternate barcode is already used as a primary barcode."
                 : null;
+        }
+
+        private async Task SyncBarcodesAsync(ProductUnitWriteDto dto, int productUnitId)
+        {
+            if (productUnitId <= 0)
+                return;
+
+            var repository = _uow.GetRepository<ProductUnitBarcode>();
+            var existing = await repository.GetAllAsQueryable()
+                .Where(barcode => barcode.ProductUnitId == productUnitId)
+                .ToListAsync();
+            foreach (var barcode in existing)
+                await repository.DeleteAsync(barcode.Id);
+
+            foreach (var barcode in NormalizeAlternateBarcodes(dto))
+                await repository.AddAsync(new ProductUnitBarcode
+                {
+                    ProductUnitId = productUnitId,
+                    Barcode = barcode,
+                    NormalizedBarcode = barcode
+                });
+
+            await _uow.CommitAsync();
+        }
+
+        private static List<string> NormalizeAlternateBarcodes(ProductUnitWriteDto dto)
+        {
+            var values = dto.AlternateBarcodes ?? new List<string>();
+            if (values.Count == 0 && !string.IsNullOrWhiteSpace(dto.AlternateBarcode))
+                values.Add(dto.AlternateBarcode);
+            return values
+                .Select(NormalizeAlternateBarcode)
+                .Where(value => value != null)
+                .Select(value => value!)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(10)
+                .ToList();
         }
 
         private static string? NormalizeAlternateBarcode(string? barcode)

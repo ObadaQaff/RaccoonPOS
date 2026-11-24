@@ -31,6 +31,7 @@ namespace RaccoonWarehouse.Domain.ProductUnits
         public int ProductId { get; set; }
         public Unit? Unit { get; set; }
         public int UnitId { get; set; }
+        public ICollection<ProductUnitBarcode> Barcodes { get; set; } = new List<ProductUnitBarcode>();
        // public bool IsMain { get; set; }=false;
 
     }

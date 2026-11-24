@@ -135,7 +135,9 @@ namespace RaccoonWarehouse.Application.Service.Products
                 .Where(product => !product.IsDeleted &&
                     ((product.Name != null && product.Name.Contains(text)) ||
                      (hasNumericBarcode && product.ITEMCODE == barcode) ||
-                     product.ProductUnits!.Any(unit => unit.AlternateBarcode != null && unit.AlternateBarcode.Contains(text))))
+                     product.ProductUnits!.Any(unit =>
+                         (unit.AlternateBarcode != null && unit.AlternateBarcode.Contains(text)) ||
+                         unit.Barcodes.Any(barcodeEntry => barcodeEntry.NormalizedBarcode.Contains(text)))))
                 .OrderBy(product => product.Name)
                 .Take(Math.Clamp(maxResults, 1, 100))
                 .Select(product => new ProductColorSelectorItem
@@ -261,6 +263,7 @@ namespace RaccoonWarehouse.Application.Service.Products
 
             var productRepo = _uow.GetRepository<Product>();
             var unitRepo = _uow.GetRepository<ProductUnit>();
+            var barcodeRepo = _uow.GetRepository<ProductUnitBarcode>();
 
             var product = await productRepo
                 .GetAllAsQueryable()
@@ -297,6 +300,10 @@ namespace RaccoonWarehouse.Application.Service.Products
             // =========================
 
             var existingUnits = product.ProductUnits.ToList();
+            var existingUnitIdsForBarcodes = existingUnits.Select(unit => unit.Id).ToList();
+            var existingBarcodes = await barcodeRepo.GetAllAsQueryable()
+                .Where(barcode => existingUnitIdsForBarcodes.Contains(barcode.ProductUnitId))
+                .ToListAsync();
 
             var incomingIds = unitsDto
                 .Where(u => u.Id > 0)
@@ -326,7 +333,8 @@ namespace RaccoonWarehouse.Application.Service.Products
                     var unit = existingUnits.First(u => u.Id == unitDto.Id);
 
                     unit.UnitId = unitDto.UnitId;
-                    unit.AlternateBarcode = NormalizeAlternateBarcode(unitDto.AlternateBarcode);
+                    var unitBarcodes = NormalizeAlternateBarcodes(unitDto);
+                    unit.AlternateBarcode = unitBarcodes.FirstOrDefault();
                     unit.SalePrice = unitDto.SalePrice;
                     unit.PurchasePrice = unitDto.PurchasePrice;
                     unit.QuantityPerUnit = unitDto.QuantityPerUnit;
@@ -342,6 +350,10 @@ namespace RaccoonWarehouse.Application.Service.Products
                     unit.UpdatedDate = DateTime.Now;
 
                     await unitRepo.UpdateAsync(unit);
+                    foreach (var barcode in existingBarcodes.Where(barcode => barcode.ProductUnitId == unit.Id).ToList())
+                        await barcodeRepo.DeleteAsync(barcode.Id);
+                    foreach (var barcode in BuildBarcodeEntities(unit, unitBarcodes))
+                        await barcodeRepo.AddAsync(barcode);
                 }
                 else
                 {
@@ -350,7 +362,7 @@ namespace RaccoonWarehouse.Application.Service.Products
                     {
                         ProductId = product.Id,
                         UnitId = unitDto.UnitId,
-                        AlternateBarcode = NormalizeAlternateBarcode(unitDto.AlternateBarcode),
+                        AlternateBarcode = NormalizeAlternateBarcodes(unitDto).FirstOrDefault(),
                         SalePrice = unitDto.SalePrice,
                         PurchasePrice = unitDto.PurchasePrice,
                         QuantityPerUnit = unitDto.QuantityPerUnit,
@@ -366,6 +378,9 @@ namespace RaccoonWarehouse.Application.Service.Products
                         CreatedDate = DateTime.Now,
                         UpdatedDate = DateTime.Now
                     };
+
+                    foreach (var barcode in BuildBarcodeEntities(newUnit, NormalizeAlternateBarcodes(unitDto)))
+                        newUnit.Barcodes.Add(barcode);
 
                     await unitRepo.AddAsync(newUnit);
                 }
@@ -420,10 +435,11 @@ namespace RaccoonWarehouse.Application.Service.Products
         private async Task<string?> ValidateAlternateBarcodesAsync(ProductWriteDto productDto, List<ProductUnitWriteDto> unitsDto)
         {
             var alternateBarcodes = unitsDto
-                .Select(unit => NormalizeAlternateBarcode(unit.AlternateBarcode))
-                .Where(barcode => barcode != null)
-                .Select(barcode => barcode!)
+                .SelectMany(NormalizeAlternateBarcodes)
                 .ToList();
+
+            if (alternateBarcodes.Count > unitsDto.Count * 10)
+                return "يمكن إضافة 10 رموز مماثلة كحد أقصى لكل وحدة / A maximum of 10 alternate barcodes is allowed per unit.";
 
             if (alternateBarcodes.Count != alternateBarcodes.Distinct(StringComparer.OrdinalIgnoreCase).Count())
                 return "لا يمكن تكرار الرمز المماثل / Alternate barcodes must be unique.";
@@ -443,6 +459,13 @@ namespace RaccoonWarehouse.Application.Service.Products
                 .Select(unit => unit.AlternateBarcode!)
                 .ToListAsync();
 
+            var barcodeRepo = _uow.GetRepository<ProductUnitBarcode>();
+            var existingIndexedAlternate = await barcodeRepo.GetAllAsQueryable()
+                .Where(barcode => !existingUnitIds.Contains(barcode.ProductUnitId))
+                .Select(barcode => barcode.NormalizedBarcode)
+                .ToListAsync();
+            existingAlternate.AddRange(existingIndexedAlternate);
+
             if (alternateBarcodes.Any(barcode => existingAlternate.Any(existing =>
                     string.Equals(existing, barcode, StringComparison.OrdinalIgnoreCase))))
                 return "الرمز المماثل مستخدم بالفعل / An alternate barcode is already in use.";
@@ -460,6 +483,30 @@ namespace RaccoonWarehouse.Application.Service.Products
 
         private static string? NormalizeAlternateBarcode(string? barcode)
             => string.IsNullOrWhiteSpace(barcode) ? null : barcode.Trim();
+
+        private static List<string> NormalizeAlternateBarcodes(ProductUnitWriteDto unit)
+        {
+            var values = unit.AlternateBarcodes ?? new List<string>();
+            if (values.Count == 0 && !string.IsNullOrWhiteSpace(unit.AlternateBarcode))
+                values.Add(unit.AlternateBarcode);
+
+            return values
+                .Select(NormalizeAlternateBarcode)
+                .Where(value => value != null)
+                .Select(value => value!)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(10)
+                .ToList();
+        }
+
+        private static IEnumerable<ProductUnitBarcode> BuildBarcodeEntities(ProductUnit unit, IEnumerable<string> barcodes)
+            => barcodes.Select(barcode => new ProductUnitBarcode
+            {
+                ProductUnit = unit,
+                ProductUnitId = unit.Id,
+                Barcode = barcode,
+                NormalizedBarcode = barcode.Trim()
+            });
 
         private static void NormalizeUnitFlags(List<ProductUnitWriteDto> unitsDto)
         {

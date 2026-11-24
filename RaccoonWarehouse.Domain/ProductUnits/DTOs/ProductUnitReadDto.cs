@@ -15,6 +15,7 @@ namespace RaccoonWarehouse.Domain.ProductUnits.DTOs
     {
         public int Id { get; set; }
         public string? AlternateBarcode { get; set; }
+        public List<string> AlternateBarcodes { get; set; } = new();
         public decimal SalePrice { get; set; }
         public decimal UnTaxedPrice { get; set; }
         public decimal PurchasePrice { get; set; }

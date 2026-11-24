@@ -916,8 +916,13 @@ namespace RaccoonWarehouse.Invoices
                 }
                 else
                 {
-                    var matchedCatalogRows = catalog
-                        .Where(row => MatchesCatalogFilter(row, text, barcode, _selectedSupplierId));
+                    // Alternate barcodes are stored in ProductUnitBarcode and
+                    // are intentionally not duplicated into every catalog row.
+                    // Use the indexed service for barcode searches; retain the
+                    // in-memory catalog path for normal name browsing.
+                    var matchedCatalogRows = !string.IsNullOrWhiteSpace(barcode)
+                        ? await SearchCatalogDirectlyAsync(text, barcode, _selectedSupplierId, cancellationToken)
+                        : catalog.Where(row => MatchesCatalogFilter(row, text, barcode, _selectedSupplierId));
                     var candidates = matchedCatalogRows
                         .GroupBy(row => row.ProductId)
                         .Where(group => string.IsNullOrWhiteSpace(_selectedColorRuleId) || MatchesSelectedColorRule(group))

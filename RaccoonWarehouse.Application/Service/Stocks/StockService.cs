@@ -1169,12 +1169,16 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                 {
                     productQuery = productQuery.Where(product =>
                         product.ITEMCODE == numericBarcode ||
-                        product.ProductUnits!.Any(unit => unit.AlternateBarcode == normalizedBarcode));
+                        product.ProductUnits!.Any(unit =>
+                            unit.AlternateBarcode == normalizedBarcode ||
+                            unit.Barcodes.Any(barcode => barcode.NormalizedBarcode == normalizedBarcode)));
                 }
                 else
                 {
                     productQuery = productQuery.Where(product =>
-                        product.ProductUnits!.Any(unit => unit.AlternateBarcode == normalizedBarcode));
+                        product.ProductUnits!.Any(unit =>
+                            unit.AlternateBarcode == normalizedBarcode ||
+                            unit.Barcodes.Any(barcode => barcode.NormalizedBarcode == normalizedBarcode)));
                 }
             }
             else

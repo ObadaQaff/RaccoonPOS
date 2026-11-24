@@ -286,12 +286,16 @@ namespace RaccoonWarehouse.Products
                             .Include(product => product.Brand)
                             .Include(product => product.Supplier)
                             .Include(product => product.ProductUnits!)
-                            .ThenInclude(productUnit => productUnit.Unit),
+                            .ThenInclude(productUnit => productUnit.Unit)
+                            .Include(product => product.ProductUnits!)
+                            .ThenInclude(productUnit => productUnit.Barcodes),
                         product => (!_currentSupplierId.HasValue || product.SupplierId == _currentSupplierId.Value) &&
                                    ((product.Name ?? string.Empty).Contains(databaseSearchTerm) ||
                                    (databaseSearchTermIsNumeric && product.ITEMCODE == databaseNumericBarcode) ||
                                    product.ITEMCODE.ToString().Contains(databaseSearchTerm) ||
-                                   product.ProductUnits!.Any(unit => unit.AlternateBarcode == databaseSearchTerm)));
+                                   product.ProductUnits!.Any(unit =>
+                                       unit.AlternateBarcode == databaseSearchTerm ||
+                                       unit.Barcodes.Any(barcodeEntry => barcodeEntry.NormalizedBarcode == databaseSearchTerm))));
 
                     if (loadVersion != _searchVersion)
                         return;
@@ -409,6 +413,8 @@ namespace RaccoonWarehouse.Products
             var alternateBarcodes = product.ProductUnits?
                 .Where(unit => !string.IsNullOrWhiteSpace(unit.AlternateBarcode))
                 .Select(unit => unit.AlternateBarcode!)
+                .Concat(product.ProductUnits?
+                    .SelectMany(unit => unit.AlternateBarcodes ?? new List<string>()) ?? Array.Empty<string>())
                 .ToArray() ?? Array.Empty<string>();
 
             return searchTerms.All(term =>

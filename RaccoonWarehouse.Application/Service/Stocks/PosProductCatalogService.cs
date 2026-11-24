@@ -312,15 +312,22 @@ namespace RaccoonWarehouse.Application.Service.Stocks
                     .AsNoTracking()
                     .Where(entry => entry.IsActive);
 
+                var barcodeUnitIds = await _context.Set<RaccoonWarehouse.Domain.ProductUnits.ProductUnitBarcode>()
+                    .AsNoTracking()
+                    .Where(barcodeEntry => barcodeEntry.NormalizedBarcode == normalizedBarcode)
+                    .Select(barcodeEntry => barcodeEntry.ProductUnitId)
+                    .ToListAsync(cancellationToken);
+
                 if (long.TryParse(normalizedBarcode, out var numericBarcode))
                 {
                     query = query.Where(entry =>
                         entry.ItemCode == numericBarcode ||
-                        entry.AlternateBarcode == normalizedBarcode);
+                        entry.AlternateBarcode == normalizedBarcode ||
+                        barcodeUnitIds.Contains(entry.ProductUnitId));
                 }
                 else
                 {
-                    query = query.Where(entry => entry.AlternateBarcode == normalizedBarcode);
+                    query = query.Where(entry => entry.AlternateBarcode == normalizedBarcode || barcodeUnitIds.Contains(entry.ProductUnitId));
                 }
 
                 return await query

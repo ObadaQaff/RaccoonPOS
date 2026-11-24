@@ -2251,6 +2251,12 @@ namespace RaccoonWarehouse.Invoices
                 (!string.IsNullOrWhiteSpace(row.AlternateBarcode) &&
                  string.Equals(row.AlternateBarcode.Trim(), lookupBarcode, StringComparison.OrdinalIgnoreCase))));
 
+            // SearchPosProductsAsync performs an exact indexed lookup for
+            // alternate barcodes. Catalog rows expose only the legacy primary
+            // barcode, so one returned product group is also an exact match.
+            if (exactGroup == null && productGroups.Count == 1)
+                exactGroup = productGroups[0];
+
             // Barcode input must never fall back to the first broad search result.
             // A scanner may send a prefix/control character or an unknown code; in
             // either case, selecting another product would be unsafe.

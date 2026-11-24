@@ -669,6 +669,14 @@ namespace RaccoonWarehouse.Data
                 .HasForeignKey(pu => pu.ProductId)
                 .OnDelete(DeleteBehavior.NoAction);
 
+            modelBuilder.Entity<ProductUnitBarcode>()
+                .HasOne(barcode => barcode.ProductUnit)
+                .WithMany(unit => unit.Barcodes)
+                .HasForeignKey(barcode => barcode.ProductUnitId)
+                .OnDelete(DeleteBehavior.Cascade);
+            modelBuilder.Entity<ProductUnitBarcode>().Property(barcode => barcode.Barcode).HasMaxLength(100).IsRequired();
+            modelBuilder.Entity<ProductUnitBarcode>().Property(barcode => barcode.NormalizedBarcode).HasMaxLength(100).IsRequired();
+
             // POS search indexes: keep name/supplier/barcode lookups and stock
             // summary aggregation efficient for large product catalogs.
             modelBuilder.Entity<Product>().HasIndex(product => product.ITEMCODE);
@@ -676,6 +684,8 @@ namespace RaccoonWarehouse.Data
             modelBuilder.Entity<Product>().HasIndex(product => product.SupplierId);
             modelBuilder.Entity<ProductUnit>().HasIndex(productUnit => productUnit.AlternateBarcode);
             modelBuilder.Entity<ProductUnit>().HasIndex(productUnit => new { productUnit.ProductId, productUnit.AlternateBarcode });
+            modelBuilder.Entity<ProductUnitBarcode>().HasIndex(barcode => barcode.NormalizedBarcode).IsUnique();
+            modelBuilder.Entity<ProductUnitBarcode>().HasIndex(barcode => new { barcode.ProductUnitId, barcode.NormalizedBarcode }).IsUnique();
             modelBuilder.Entity<StockLot>().HasIndex(stockLot => new
             {
                 stockLot.ProductId,

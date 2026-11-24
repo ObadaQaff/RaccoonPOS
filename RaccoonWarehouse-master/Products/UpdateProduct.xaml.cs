@@ -219,7 +219,7 @@ namespace RaccoonWarehouse.Products
                 SubCategoryComboBox.SelectedValue = product.Data.SubCategoryId;
                 TaxRate.Text = product.Data.TaxRate.ToString();
 
-                var units = await _productUnitService.GetAllWriteDtoWithFilteringAndIncludeAsync(pu => pu.ProductId == _productId, pu => pu.Unit);
+                var units = await _productUnitService.GetAllWriteDtoWithFilteringAndIncludeAsync(pu => pu.ProductId == _productId, pu => pu.Unit, pu => pu.Barcodes);
                 _productUnits = units.Data?.ToList() ?? new List<ProductUnitWriteDto>();
                 NormalizeUnitFlags(_productUnits);
                 await LoadUnitCostDisplaysAsync(product.Data.TaxExempt, product.Data.TaxRate);
@@ -576,7 +576,15 @@ namespace RaccoonWarehouse.Products
             row.Children.Add(CreateCheckPanel(UiText.T("بيع", "Sale"), unit.IsDefaultSaleUnit));
             row.Children.Add(CreateCheckPanel(UiText.T("شراء", "Purchase"), unit.IsDefaultPurchaseUnit));
 
-            AttachFractionalSuggestionEvents(unit, salePanel, purchasePanel, fractionalCheckPanel, partsPanel, fractionalPricePanel, fractionalCostPanel);
+             if (row.Children[9] is StackPanel alternateBarcodePanel && alternateBarcodePanel.Children[1] is TextBox alternateBarcodeBox)
+             {
+                 alternateBarcodeBox.Text = string.Join(Environment.NewLine, unit.AlternateBarcodes.Count > 0 ? unit.AlternateBarcodes : new[] { unit.AlternateBarcode }.Where(value => !string.IsNullOrWhiteSpace(value)));
+                 alternateBarcodeBox.Height = 64;
+                 alternateBarcodeBox.AcceptsReturn = true;
+                 alternateBarcodeBox.TextWrapping = TextWrapping.Wrap;
+             }
+
+             AttachFractionalSuggestionEvents(unit, salePanel, purchasePanel, fractionalCheckPanel, partsPanel, fractionalPricePanel, fractionalCostPanel);
 
             var deleteBtn = new Button
             {
@@ -811,7 +819,8 @@ namespace RaccoonWarehouse.Products
             {
                 ProductId = _productId,
                 UnitId = selectedUnitId,
-                AlternateBarcode = string.IsNullOrWhiteSpace(AlternateBarcodeTextBox.Text) ? null : AlternateBarcodeTextBox.Text.Trim(),
+                 AlternateBarcodes = ParseAlternateBarcodes(AlternateBarcodeTextBox.Text),
+                 AlternateBarcode = ParseAlternateBarcodes(AlternateBarcodeTextBox.Text).FirstOrDefault(),
                 SalePrice = salePrice,
                 PurchasePrice = purchasePrice,
                 QuantityPerUnit = qty,
@@ -982,7 +991,8 @@ namespace RaccoonWarehouse.Products
                 unit.FractionalPartName = unit.AllowFractionalSale && !string.IsNullOrWhiteSpace(fractionalNameBox.Text)
                     ? fractionalNameBox.Text.Trim()
                     : null;
-                unit.AlternateBarcode = string.IsNullOrWhiteSpace(alternateBarcodeBox.Text) ? null : alternateBarcodeBox.Text.Trim();
+                 unit.AlternateBarcodes = ParseAlternateBarcodes(alternateBarcodeBox.Text);
+                 unit.AlternateBarcode = unit.AlternateBarcodes.FirstOrDefault();
                 unit.IsBaseUnit = baseCheck.IsChecked == true;
                 unit.IsDefaultSaleUnit = saleCheck.IsChecked == true;
                 unit.IsDefaultPurchaseUnit = purchaseCheck.IsChecked == true;
@@ -994,6 +1004,14 @@ namespace RaccoonWarehouse.Products
 
             return list;
         }
+
+        private static List<string> ParseAlternateBarcodes(string? text)
+            => (text ?? string.Empty)
+                .Split(new[] { '\r', '\n', ',', ';' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(10)
+                .ToList();
 
         private static decimal? ParseOptionalFractionalValue(string text, string fieldName, bool greaterThanZero)
         {

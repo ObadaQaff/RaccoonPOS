@@ -380,14 +380,21 @@ namespace RaccoonWarehouse.Invoices
                         query => query.Include(p => p.ProductUnits!).ThenInclude(productUnit => productUnit.Unit),
                         p => ((p.Name ?? string.Empty).Contains(databaseSearchTerm) ||
                               p.ITEMCODE.ToString().Contains(databaseSearchTerm) ||
-                              p.ProductUnits!.Any(unit => unit.AlternateBarcode == databaseSearchTerm)) &&
+                              p.ProductUnits!.Any(unit => unit.AlternateBarcode == databaseSearchTerm ||
+                                  unit.Barcodes.Any(barcodeEntry => barcodeEntry.NormalizedBarcode == databaseSearchTerm))) &&
                              (!_supplierId.HasValue || p.SupplierId == _supplierId.Value));
                     products = result?.Data ?? new List<ProductReadDto>();
                 }
                 else
                 {
-                    var catalogProducts = BuildProducts(_catalogRows
-                        .Where(row => MatchesCatalogFilter(row, searchTerms, barcode, _selectedSupplierId)));
+                    var catalogProductRows = !string.IsNullOrWhiteSpace(barcode)
+                        ? (await _stockService.SearchPosProductsAsync(
+                            null,
+                            barcode,
+                            100,
+                            _selectedSupplierId)).Data ?? new List<PosProductSearchResultDto>()
+                        : _catalogRows.Where(row => MatchesCatalogFilter(row, searchTerms, barcode, _selectedSupplierId));
+                    var catalogProducts = BuildProducts(catalogProductRows);
 
                     // The shared catalog is optimized for active POS rows. A
                     // purchase product can exist in the products table without
@@ -407,7 +414,8 @@ namespace RaccoonWarehouse.Invoices
                             p => (string.IsNullOrWhiteSpace(databaseSearchTerm) ||
                                   (p.Name ?? string.Empty).Contains(databaseSearchTerm) ||
                                   p.ITEMCODE.ToString().Contains(databaseSearchTerm) ||
-                                  p.ProductUnits!.Any(unit => unit.AlternateBarcode == databaseSearchTerm)) &&
+                                  p.ProductUnits!.Any(unit => unit.AlternateBarcode == databaseSearchTerm ||
+                                      unit.Barcodes.Any(barcodeEntry => barcodeEntry.NormalizedBarcode == databaseSearchTerm))) &&
                                  (!_selectedSupplierId.HasValue || p.SupplierId == _selectedSupplierId.Value));
                         products = result?.Data ?? new List<ProductReadDto>();
                     }
