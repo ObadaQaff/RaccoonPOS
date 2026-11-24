@@ -1218,6 +1218,7 @@ namespace RaccoonWarehouse.Invoices
                         _quantityEditsProcessedByEnter.Add(quantityLine);
                         if (!quantityProcessed)
                         {
+                            RecalculateTotals();
                             e.Handled = true;
                             return;
                         }
@@ -1231,10 +1232,9 @@ namespace RaccoonWarehouse.Invoices
                 }
                 catch { }
 
-                RecalculateTotals();
-
                 if (isPriceColumn)
                 {
+                    RecalculateTotals();
                     FocusBarcodeInputDeferred();
                     e.Handled = true;
                     return;
@@ -1253,6 +1253,7 @@ namespace RaccoonWarehouse.Invoices
                 }
                 else
                 {
+                    RecalculateTotals();
                     MoveGridFocusAfterEnter(grid, currentItem, rowIndex, currentColumn);
                 }
 
@@ -1759,8 +1760,14 @@ namespace RaccoonWarehouse.Invoices
             StockReadDto? stock = null;
             if (!knownUnitPurchasePrice.HasValue)
             {
-                var stocks = await GetAvailableStocksForProductAsync(product.Id);
-                stock = stocks.FirstOrDefault(item => item.ProductUnitId == selectedUnit.Id);
+                // Reuse the POS stock snapshot when the product was loaded by
+                // the browse/search flow. FEFO allocation remains authoritative
+                // for the final cost and availability.
+                if (!_stockLookup.TryGetValue((product.Id, selectedUnit.Id), out stock))
+                {
+                    var stocks = await GetAvailableStocksForProductAsync(product.Id);
+                    stock = stocks.FirstOrDefault(item => item.ProductUnitId == selectedUnit.Id);
+                }
             }
 
             var quantityPerUnit = selectedUnit.QuantityPerUnit > 0 ? selectedUnit.QuantityPerUnit : 1m;
@@ -1849,7 +1856,6 @@ namespace RaccoonWarehouse.Invoices
                 line.Quantity = -quantity;
                 line.BaseQuantity = -quantity * (line.QuantityPerUnitSnapshot > 0 ? line.QuantityPerUnitSnapshot : 1m);
                 RecalculateLineFromCurrentValues(line);
-                RecalculateTotals();
                 return true;
             }
 
@@ -1864,7 +1870,6 @@ namespace RaccoonWarehouse.Invoices
                         $"The item {line.ProductName} is currently unavailable in stock and was removed from the invoice."),
                     UiText.T("ØªÙ†Ø¨ÙŠÙ‡", "Notice"));
                 _invoiceLines.Remove(line);
-                RecalculateTotals();
                 return false;
             }
 
@@ -1880,7 +1885,6 @@ namespace RaccoonWarehouse.Invoices
             }
 
             RecalculateLineFromCurrentValues(line);
-            RecalculateTotals();
             return true;
         }
 
@@ -1894,6 +1898,12 @@ namespace RaccoonWarehouse.Invoices
 
             var header = e.Column.Header?.ToString();
             if (string.IsNullOrWhiteSpace(header))
+                return;
+
+            // Line discounts are committed by the editor's LostFocus handler.
+            // The textbox uses an explicit binding, so relying on the grid
+            // commit event alone can leave the edited value unapplied.
+            if (header.Contains("Discount", StringComparison.OrdinalIgnoreCase))
                 return;
 
             if (header.Contains("Discount", StringComparison.OrdinalIgnoreCase))
@@ -2639,8 +2649,11 @@ namespace RaccoonWarehouse.Invoices
             var targetUnitId = selectedUnit.Id;
             var availableAfterAllocation = await SplitDraftLinesByFefoAsync(product.Id, targetUnitId);
             LogPosTiming("add item FEFO allocation", timing, stepTiming);
-            var refreshedAvailableQuantity = availableAfterAllocation
-                ?? await GetAvailableQuantityForProductUnitAsync(product.Id, targetUnitId);
+            // SplitDraftLinesByFefoAsync already performs the authoritative
+            // allocation check. If no split is needed (for example, a manually
+            // discounted existing line), retain the initial availability value
+            // instead of issuing another database lookup.
+            var refreshedAvailableQuantity = availableAfterAllocation ?? availableBeforeInsert;
             LogPosTiming("add item available quantity", timing, stepTiming);
             foreach (var invoiceLine in _invoiceLines.Where(l => l.ProductId == product.Id && l.ProductUnitId == targetUnitId))
             {
@@ -2653,8 +2666,6 @@ namespace RaccoonWarehouse.Invoices
 
             // 4. Recalculate totals and restore the cashier's expected focus.
             RecalculateTotals();
-            // Refresh after Product Search/FEFO changes the invoice collection.
-            RefreshInvoiceGridAfterEdit();
             LogPosTiming("add item UI refresh and totals", timing, stepTiming);
             PosPerformanceLogger.Write("add item total", timing.ElapsedMilliseconds, timing.ElapsedMilliseconds);
 
@@ -4776,7 +4787,6 @@ namespace RaccoonWarehouse.Invoices
             _invoiceLines.Remove(selectedRow);
 
             RecalculateTotals();
-            InvoiceGrid.Items.Refresh();
 
             FocusBarcodeInput();
         }
@@ -5454,6 +5464,12 @@ namespace RaccoonWarehouse.Invoices
 
         private void InvoiceDiscount_LostFocus(object sender, RoutedEventArgs e)
         {
+            if (_skipNextInvoiceDiscountLostFocus)
+            {
+                _skipNextInvoiceDiscountLostFocus = false;
+                return;
+            }
+
             if (_invoiceDiscountInputResetPending)
             {
                 _invoiceDiscountInputResetPending = false;
@@ -6524,7 +6540,10 @@ namespace RaccoonWarehouse.Invoices
                 var applied = ApplyInvoiceDiscountInput();
                 RecalculateTotals();
                 if (applied)
+                {
+                    _skipNextInvoiceDiscountLostFocus = true;
                     FocusBarcodeGridCellDeferred();
+                }
                 e.Handled = true;
                 return;
             }
@@ -6566,16 +6585,6 @@ namespace RaccoonWarehouse.Invoices
                 InsertDecimalSeparator(textBox);
                 e.Handled = true;
             }
-        }
-
-        private void DiscountEditor_LostFocus(object sender, RoutedEventArgs e)
-        {
-            if (sender is not TextBox textBox || textBox.DataContext is not InvoiceLineWriteDto line)
-                return;
-
-            ApplyDiscountEditorValue(textBox, line);
-            RecalculateLineFromCurrentValues(line);
-            RecalculateTotals();
         }
 
         private void ApplyDiscountEditorValue(TextBox textBox, InvoiceLineWriteDto line)
@@ -6636,6 +6645,16 @@ namespace RaccoonWarehouse.Invoices
                 ? $"{discountValue:0.000}%"
                 : $"{discountAmount:0.000}";
             textBox.Text = line.LineDiscountInput;
+        }
+
+        private void DiscountEditor_LostFocus(object sender, RoutedEventArgs e)
+        {
+            if (sender is not TextBox textBox || textBox.DataContext is not InvoiceLineWriteDto line)
+                return;
+
+            ApplyDiscountEditorValue(textBox, line);
+            RecalculateLineFromCurrentValues(line);
+            RecalculateTotals();
         }
 
         private static void InsertDecimalSeparator(TextBox textBox)

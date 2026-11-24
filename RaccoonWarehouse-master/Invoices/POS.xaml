@@ -1154,8 +1154,8 @@
                                 <DataGridTemplateColumn.CellEditingTemplate>
                                     <DataTemplate>
                                         <TextBox Text="{Binding LineDiscountInput, Mode=TwoWay, UpdateSourceTrigger=Explicit}"
-                                                 Tag="Discount"
-                                                 LostFocus="DiscountEditor_LostFocus"
+                                                  Tag="Discount"
+                                                  LostFocus="DiscountEditor_LostFocus"
                                                  Padding="4,2" BorderThickness="0" Background="Transparent"
                                                  VerticalContentAlignment="Center" FlowDirection="LeftToRight"
                                                  Language="en-US"

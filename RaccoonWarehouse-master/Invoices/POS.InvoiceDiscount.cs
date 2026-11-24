@@ -25,6 +25,7 @@ public partial class POS
     private bool _invoiceDiscountReviewRequired;
     private bool _invoiceDiscountInputResetPending;
     private bool _invoiceDiscountRefocusPending;
+    private bool _skipNextInvoiceDiscountLostFocus;
     private decimal _invoiceDiscountInputValue;
 
     private void ResetDistributedInvoiceDiscount()
