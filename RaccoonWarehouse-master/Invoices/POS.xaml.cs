@@ -1071,7 +1071,7 @@ namespace RaccoonWarehouse.Invoices
                     MoveGridFocusToNextEditableCell(grid, currentLine, colIndex, isRtl);
                 }
 
-                if (isQuantityColumn && currentLine != null)
+                if (isQuantityColumn && currentLine != null && !currentLine.PartialSaleResolved)
                 {
                     _pendingFefoEditedLine = currentLine;
                     _hasPendingFefoSplit = true;
@@ -1241,7 +1241,8 @@ namespace RaccoonWarehouse.Invoices
                 }
 
                 if (currentItem is InvoiceLineWriteDto currentLine &&
-                    HeaderMatches(currentColumn, "الكمية"))
+                    HeaderMatches(currentColumn, "الكمية") &&
+                    !currentLine.PartialSaleResolved)
                 {
                     _pendingFefoEditedLine = currentLine;
                     _hasPendingFefoSplit = true;
@@ -2099,7 +2100,7 @@ namespace RaccoonWarehouse.Invoices
                 return;
             }
 
-            if (HeaderMatches(e.Column, "الكمية"))
+            if (HeaderMatches(e.Column, "الكمية") && !line.PartialSaleResolved)
             {
                 _pendingFefoEditedLine = line;
                 _hasPendingFefoSplit = true;
