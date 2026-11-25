@@ -9,7 +9,7 @@ namespace RaccoonWarehouse.Helpers.Converters
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
             if (value is decimal quantity)
-                return Math.Abs(quantity).ToString("0.00000", CultureInfo.InvariantCulture);
+                return Math.Abs(quantity).ToString("0.000", CultureInfo.InvariantCulture);
 
             return value?.ToString() ?? string.Empty;
         }

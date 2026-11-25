@@ -1832,10 +1832,11 @@ namespace RaccoonWarehouse.Invoices
         private async Task<bool> ProcessQuantityEditAsync(InvoiceLineWriteDto line, TextBox textBox)
         {
             line.PartialSaleResolved = false;
-            if (!TryParseDecimalInput(textBox.Text, out var quantity) || quantity <= 0m)
+            if (!TryParseDecimalInput(textBox.Text, out var quantity) ||
+                quantity <= 0m || HasMoreThanThreeDecimalPlaces(quantity))
             {
                 MessageBox.Show(
-                    UiText.T("ÙŠØ±Ø¬Ù‰ Ø¥Ø¯Ø®Ø§Ù„ ÙƒÙ…ÙŠØ© ØµØ­ÙŠØ­Ø© Ø£ÙƒØ¨Ø± Ù…Ù† ØµÙØ±.", "Please enter a valid quantity greater than zero."),
+                    UiText.T("يرجى إدخال كمية صحيحة أكبر من صفر وبحد أقصى ثلاث منازل عشرية.", "Please enter a valid quantity greater than zero with at most three decimal places."),
                     UiText.T("ØªÙ†Ø¨ÙŠÙ‡", "Notice"));
                 return false;
             }
@@ -1867,9 +1868,9 @@ namespace RaccoonWarehouse.Invoices
             {
                 MessageBox.Show(
                     UiText.T(
-                        $"Ø§Ù„ØµÙ†Ù {line.ProductName} ØºÙŠØ± Ù…ØªÙˆÙØ± Ø­Ø§Ù„ÙŠØ§Ù‹ ÙÙŠ Ø§Ù„Ù…Ø®Ø²Ù†ØŒ ÙˆØªÙ…Øª Ø¥Ø²Ø§Ù„ØªÙ‡ Ù…Ù† Ø§Ù„ÙÙØ§ØªÙˆØ±Ø©.",
+                        $"الصنف {line.ProductName} غير متوفر حالياً في المخزون، وتمت إزالته من الفاتورة.",
                         $"The item {line.ProductName} is currently unavailable in stock and was removed from the invoice."),
-                    UiText.T("ØªÙ†Ø¨ÙŠÙ‡", "Notice"));
+                    UiText.T("تنبيه", "Notice"));
                 _invoiceLines.Remove(line);
                 return false;
             }
@@ -1878,9 +1879,9 @@ namespace RaccoonWarehouse.Invoices
             {
                 MessageBox.Show(
                     UiText.T(
-                        $"Ø§Ù„ÙƒÙ…ÙŠØ© Ø§Ù„Ù…Ø·Ù„ÙˆØ¨Ø© Ù„Ù„ØµÙ†Ù {line.ProductName} Ø£ÙƒØ¨Ø± Ù…Ù† Ø§Ù„ÙƒÙ…ÙŠØ© Ø§Ù„Ù…ØªÙˆÙØ±Ø©. Ø³ÙŠØªÙ… ØªØ¹Ø¯ÙŠÙ„ Ø§Ù„ÙƒÙ…ÙŠØ© Ø¥Ù„Ù‰ Ø§Ù„ÙƒÙ…ÙŠØ© Ø§Ù„Ù…ØªÙˆÙØ±Ø©.",
+                        $"الكمية المطلوبة للصنف {line.ProductName} أكبر من الكمية المتوفرة. سيتم تعديل الكمية إلى الكمية المتوفرة.",
                         $"The requested quantity for {line.ProductName} is greater than available stock. The quantity will be adjusted to the available quantity."),
-                    UiText.T("ØªÙ†Ø¨ÙŠÙ‡", "Notice"));
+                    UiText.T("تنبيه", "Notice"));
                 line.Quantity = availableQuantity;
                 textBox.Text = availableQuantity.ToString("0.000", CultureInfo.InvariantCulture);
             }
@@ -2024,9 +2025,10 @@ namespace RaccoonWarehouse.Invoices
 
                 // A new edit must pass through partial-sale validation again.
                 line.PartialSaleResolved = false;
-                if (!TryParseDecimalInput(textBox.Text, out var quantity) || quantity <= 0)
+                if (!TryParseDecimalInput(textBox.Text, out var quantity) ||
+                    quantity <= 0 || HasMoreThanThreeDecimalPlaces(quantity))
                 {
-                    MessageBox.Show(UiText.T("يرجى إدخال كمية صحيحة أكبر من صفر.", "Please enter a valid quantity greater than zero."), UiText.T("تنبيه", "Notice"));
+                    MessageBox.Show(UiText.T("يرجى إدخال كمية صحيحة أكبر من صفر وبحد أقصى ثلاث منازل عشرية.", "Please enter a valid quantity greater than zero with at most three decimal places."), UiText.T("تنبيه", "Notice"));
                     line.Quantity = _currentInvoice.InvoiceType is InvoiceType.Return or InvoiceType.Exchange
                         ? -Math.Max(Math.Abs(line.Quantity), 1m)
                         : 1m;
@@ -2500,9 +2502,7 @@ namespace RaccoonWarehouse.Invoices
             if (fractionalPrice is null or <= 0m || fractionalCost is null or < 0m)
                 return false;
 
-            var digit = (line.Quantity - decimal.Truncate(line.Quantity)) * 10m;
-            if (digit <= 0m || digit != decimal.Truncate(digit) ||
-                !ProductUnitService.TryConvertPartialQuantity(line.Quantity, source.FractionalPartsPerUnit, out _))
+            if (!ProductUnitService.TryConvertPartialQuantity(line.Quantity, source.FractionalPartsPerUnit, out _))
                 return false;
 
             var resolution = await ResolvePartialSaleAsync(line, line.Quantity);
@@ -3098,16 +3098,16 @@ namespace RaccoonWarehouse.Invoices
                     if (allowsFractionalSale &&
                         fractionalPartsPerUnit >= 2m &&
                         fractionalPartsPerUnit == decimal.Truncate(fractionalPartsPerUnit) &&
-                        line.Quantity != decimal.Truncate(line.Quantity))
+                        line.Quantity != decimal.Truncate(line.Quantity) &&
+                        ProductUnitService.TryConvertPartialQuantityToBaseQuantity(
+                            Math.Abs(line.Quantity),
+                            fractionalPartsPerUnit,
+                            quantityPerUnit,
+                            out var convertedBaseQuantity))
                     {
-                        var sign = line.Quantity < 0m ? -1m : 1m;
-                        var absoluteQuantity = Math.Abs(line.Quantity);
-                        var wholeUnits = decimal.Truncate(absoluteQuantity);
-                        var partsSold = wholeUnits * fractionalPartsPerUnit +
-                                        (absoluteQuantity - wholeUnits) * 10m;
-                        baseQuantity = sign * Math.Round(
-                            partsSold / fractionalPartsPerUnit * quantityPerUnit,
-                            6, MidpointRounding.AwayFromZero);
+                        baseQuantity = line.Quantity < 0m
+                            ? -convertedBaseQuantity
+                            : convertedBaseQuantity;
                     }
 
                     return new StockMovementPostDto
@@ -7450,6 +7450,9 @@ namespace RaccoonWarehouse.Invoices
             return decimal.TryParse(text, NumberStyles.Number, CultureInfo.CurrentCulture, out value)
                 || decimal.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out value);
         }
+
+        private static bool HasMoreThanThreeDecimalPlaces(decimal value)
+            => value != Math.Round(value, 3, MidpointRounding.AwayFromZero);
         #endregion
 
 

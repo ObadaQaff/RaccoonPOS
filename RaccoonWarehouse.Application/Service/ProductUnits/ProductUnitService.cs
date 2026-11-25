@@ -108,13 +108,33 @@ namespace RaccoonWarehouse.Application.Service.ProductUnits
             try
             {
                 var packages = decimal.Truncate(input);
-                var partCount = (input - packages) * 10m;
+                // Partial quantities use three decimal places as the piece
+                // count: 0.001 = 1 piece, 0.010 = 10 pieces.
+                var partCount = (input - packages) * 1000m;
                 if (partCount == 0m || partCount != decimal.Truncate(partCount))
                     return false;
                 tapes = checked(packages * partsPerPackage + partCount);
                 return tapes > 0m;
             }
             catch (OverflowException) { return false; }
+        }
+
+        public static bool TryConvertPartialQuantityToBaseQuantity(
+            decimal input,
+            decimal partsPerPackage,
+            decimal quantityPerUnit,
+            out decimal baseQuantity)
+        {
+            baseQuantity = 0m;
+            if (quantityPerUnit <= 0m ||
+                !TryConvertPartialQuantity(input, partsPerPackage, out var pieces))
+                return false;
+
+            baseQuantity = Math.Round(
+                pieces / partsPerPackage * quantityPerUnit,
+                6,
+                MidpointRounding.AwayFromZero);
+            return baseQuantity > 0m;
         }
 
         public async Task<Result<List<ProductUnitReadDto>>> ConfigureFractionalSaleAsync(

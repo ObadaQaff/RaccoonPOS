@@ -126,13 +126,6 @@ public partial class POS
             ShowPartialSaleCatalogNotReady();
             return new(false, input);
         }
-        var digit = (input - decimal.Truncate(input)) * 10m;
-        if (digit != decimal.Truncate(digit))
-        {
-            ShowInvalidPartialSaleQuantity();
-            return new(false, input);
-        }
-
         var legacyTape = units.FirstOrDefault(unit => ProductUnitService.IsTapeUnitName(unit.Unit?.Name));
         var hasValidParts = source.FractionalPartsPerUnit >= 2m &&
                             source.FractionalPartsPerUnit == decimal.Truncate(source.FractionalPartsPerUnit);
@@ -217,7 +210,7 @@ public partial class POS
         // Keep the main unit on the invoice row. The decimal input is a shortcut
         // for a partial quantity, while the conversion metadata is used to
         // calculate base quantity, price, and cost. This keeps the POS editor
-        // showing 0.1 / 0.2 instead of changing the row to Tape quantity 1 / 2.
+        // showing 0.001 / 0.010 instead of changing the row to Tape quantity 1 / 10.
         var oldPercentage = line.LineDiscountIsPercentage ? line.LineDiscountPercent : 0m;
         var product = line.SelectedProduct ?? new ProductReadDto { Id = line.ProductId, Name = line.ProductName };
         product.ProductUnits = units.ToList();
@@ -227,7 +220,16 @@ public partial class POS
         line.UnitNameSnapshot = source.Unit?.Name ?? line.UnitNameSnapshot;
         line.QuantityPerUnitSnapshot = source.QuantityPerUnit;
         line.Quantity = input;
-        line.BaseQuantity = input * source.QuantityPerUnit;
+        if (!ProductUnitService.TryConvertPartialQuantityToBaseQuantity(
+                input,
+                source.FractionalPartsPerUnit,
+                source.QuantityPerUnit,
+                out var baseQuantity))
+        {
+            ShowInvalidPartialSaleQuantity();
+            return new(false, input);
+        }
+        line.BaseQuantity = baseQuantity;
         // Tape.SalePrice and Tape.PurchasePrice are the saved prices for one
         // tape. Keep the row quantity in the main-unit decimal shortcut, but
         // derive the equivalent row price from the actual converted tape
@@ -248,7 +250,7 @@ public partial class POS
 
     private void ShowInvalidPartialSaleQuantity()
         => MessageBox.Show(this,
-            UiText.T("أدخل 0.1 لشريط واحد أو 0.2 لشريطين. للكميات الأكبر اختر وحدة الشريط وأدخل عدداً صحيحاً.",
-                "Enter 0.1 for one tape or 0.2 for two tapes. For larger quantities, select Tape and enter a whole number."),
+            UiText.T("أدخل 0.001 لشريط واحد أو 0.010 لعشرة أشرطة. استخدم ثلاثة منازل عشرية للكمية الجزئية.",
+                "Enter 0.001 for one piece or 0.010 for ten pieces. Use three decimal places for partial quantities."),
             UiText.T("كمية غير صالحة", "Invalid quantity"), MessageBoxButton.OK, MessageBoxImage.Warning);
 }
